@@ -198,15 +198,17 @@ namespace Wonderland_Private_Server {
 
             DebugSystem.Write("Testing Connection to UserDatabase");
             try {
-                if (cGlobal.gUserDataBase.TestConnection())
+                if (cGlobal.gUserDataBase.TestConnection()) {
                     DebugSystem.Write("Connection Successful");
-                else
+                    DebugSystem.Write("Verifying User DataBase Tables");
+                    cGlobal.gUserDataBase.VerifySetup();
+                } else
                     DebugSystem.Write("Connection not successful\r\n unable to authenticate users connecting to server");
 
                 DebugSystem.Write("Testing Connection to Character Database");
                 if (cGlobal.gCharacterDataBase.TestConnection()) {
                     DebugSystem.Write("Connection Successful");
-                    DebugSystem.Write("Verifying DataBase Tables");
+                    DebugSystem.Write("Verifying Character DataBase Tables");
                     cGlobal.gCharacterDataBase.VerifySetup();
                 } else
                     DebugSystem.Write("Connection not successful\r\n unable to create neccesary tables for the server");
