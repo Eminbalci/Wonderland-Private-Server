@@ -19,7 +19,7 @@
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
-          "net45"
+          "net462"
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
@@ -27,8 +27,8 @@
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
-          "net45": {
-            "targetAlias": "net45",
+          "net462": {
+            "targetAlias": "net462",
             "projectReferences": {}
           }
         },
@@ -44,8 +44,8 @@
         }
       },
       "frameworks": {
-        "net45": {
-          "targetAlias": "net45",
+        "net462": {
+          "targetAlias": "net462",
           "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.403\\RuntimeIdentifierGraph.json"
         }
       }

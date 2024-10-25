@@ -2,7 +2,7 @@
   <PropertyGroup>
     <AssemblyName>PhoenixData</AssemblyName>
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
-    <TargetFramework>net45</TargetFramework>
+    <TargetFramework>net462</TargetFramework>
   </PropertyGroup>
   <PropertyGroup>
     <LangVersion>11.0</LangVersion>
