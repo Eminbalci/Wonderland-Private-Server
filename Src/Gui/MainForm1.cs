@@ -201,7 +201,7 @@ namespace Wonderland_Private_Server {
                 if (cGlobal.gUserDataBase.TestConnection())
                     DebugSystem.Write("Connection Successful");
                 else
-                    DebugSystem.Write("Connection not successful\r\n unable to authencate  users connecting to server");
+                    DebugSystem.Write("Connection not successful\r\n unable to authenticate users connecting to server");
 
                 DebugSystem.Write("Testing Connection to Character Database");
                 if (cGlobal.gCharacterDataBase.TestConnection()) {

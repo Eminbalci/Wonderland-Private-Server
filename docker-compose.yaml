@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:9.1 # You can specify the MySQL version here
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password  # Replace with a strong password
+      MYSQL_DATABASE: wlo  # Initial database name
+      MYSQL_USER: wlodbadmin  # New user with access to the database
+      MYSQL_PASSWORD: 0penf1r3  # Password for the new user
+    ports:
+      - "3306:3306"  # Exposes MySQL on port 3306
+    volumes:
+      - mysql_data:/var/lib/mysql  # Persists MySQL data
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    environment:
+      PMA_HOST: mysql  # Hostname of the MySQL service
+      PMA_PORT: 3306
+      PMA_USER: root  # User to connect to MySQL
+      PMA_PASSWORD: root_password  # Password to connect to MySQL
+    ports:
+      - "8080:80"  # Exposes phpMyAdmin on port 8080
+
+volumes:
+  mysql_data:
+    driver: local
