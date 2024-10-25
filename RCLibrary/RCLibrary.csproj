@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
     <AssemblyName>RCLibrary</AssemblyName>
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
@@ -11,9 +11,9 @@
   </PropertyGroup>
   <PropertyGroup />
   <ItemGroup>
-    <Reference Include="MySql.Data">
-      <HintPath>..\bin\Debug\MySql.Data.dll</HintPath>
-    </Reference>
+    <PackageReference Include="MySql.Data" Version="9.1.0" />
+  </ItemGroup>
+  <ItemGroup>
     <Reference Include="System.Data.SQLite">
       <HintPath>..\DLLS\System.Data.SQLite.dll</HintPath>
     </Reference>
