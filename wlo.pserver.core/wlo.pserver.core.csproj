@@ -38,14 +38,6 @@
     <Reference Include="MySql.Data">
       <HintPath>..\bin\Debug\MySql.Data.dll</HintPath>
     </Reference>
-    <Reference Include="PhoenixData, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\DLLS\PhoenixData.dll</HintPath>
-    </Reference>
-    <Reference Include="RCLibrary, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\DLLS\RCLibrary.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -128,6 +120,16 @@
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PhoenixData\PhoenixData.csproj">
+      <Project>{cd79fa9b-6eb6-417c-8543-cdad25ccb1de}</Project>
+      <Name>PhoenixData</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\RCLibrary\RCLibrary.csproj">
+      <Project>{e1719ce7-edb8-49a4-b641-14bae5cef007}</Project>
+      <Name>RCLibrary</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />

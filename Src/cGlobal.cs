@@ -1,23 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using GupdtSrv;
-using DataFiles;
-using System.Reflection;
-using Wonderland_Private_Server.Config;
-using System.Collections.Concurrent;
-using Server;
+﻿using Server;
 using Server.System;
 using System.Diagnostics;
+using System.Reflection;
 
-namespace System
-{
-    static class cGlobal
-    {
+namespace System {
+    static class cGlobal {
 
-        
+
         public static bool Run;
 
         public static string SrvVersion { get { return new Version(FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location).FileVersion).ToString(); } }
@@ -48,6 +37,6 @@ namespace System
         #endregion
 
 
-        
+
     }
 }

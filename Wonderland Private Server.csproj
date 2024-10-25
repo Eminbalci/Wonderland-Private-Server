@@ -67,14 +67,6 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>packages\Octokit.0.4.1\lib\net45\Octokit.dll</HintPath>
     </Reference>
-    <Reference Include="PhoenixData, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>DLLS\PhoenixData.dll</HintPath>
-    </Reference>
-    <Reference Include="RCLibrary, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>DLLS\RCLibrary.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.Core" />
@@ -243,6 +235,14 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="PhoenixData\PhoenixData.csproj">
+      <Project>{cd79fa9b-6eb6-417c-8543-cdad25ccb1de}</Project>
+      <Name>PhoenixData</Name>
+    </ProjectReference>
+    <ProjectReference Include="RCLibrary\RCLibrary.csproj">
+      <Project>{e1719ce7-edb8-49a4-b641-14bae5cef007}</Project>
+      <Name>RCLibrary</Name>
+    </ProjectReference>
     <ProjectReference Include="wlo.pserver.core\wlo.pserver.core.csproj">
       <Project>{d549af04-f847-4474-819f-64bb1c09d90d}</Project>
       <Name>wlo.pserver.core</Name>
@@ -251,7 +251,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties BuildVersion_UpdateFileVersion="True" BuildVersion_UpdateAssemblyVersion="True" BuildVersion_BuildVersioningStyle="None.None.None.Increment" />
+      <UserProperties BuildVersion_BuildVersioningStyle="None.None.None.Increment" BuildVersion_UpdateAssemblyVersion="True" BuildVersion_UpdateFileVersion="True" />
     </VisualStudio>
   </ProjectExtensions>
   <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
