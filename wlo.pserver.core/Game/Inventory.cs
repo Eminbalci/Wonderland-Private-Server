@@ -323,7 +323,7 @@ namespace Game.Code
                     break;
                 #endregion
                 #region destroy an item
-                case 124:
+                case 3:// drop item to floor 124:
                     {
                         byte pos = p.Unpack8();
                         byte qnt = p.Unpack8();
@@ -332,7 +332,7 @@ namespace Game.Code
                         if (this[pos].ItemID > 0)
                         {
                             // test confirm destroy item
-                            owner.Send( Tools.FromFormat("bbwb", 23, 26, this[pos].ItemID, qnt));
+                            owner.Send( Tools.FromFormat("bbWb", 23, 26, this[pos].ItemID, qnt));
                             RemoveItem(pos, qnt);
                         }
                     } break;

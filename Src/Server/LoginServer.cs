@@ -27,6 +27,7 @@ namespace Server
 
 
         List<LoginClient> ClientList;
+        public Player privatePlayer;
 
         public LoginServer()
         {
@@ -74,7 +75,10 @@ namespace Server
                             LoginClient tmp = new LoginClient();
                             Player p;
                             if ((p = tmp.AddSock(client)) != null)
+                            {
                                 ClientList.Add(tmp);
+                                privatePlayer = p;DebugSystem.Write("Attached new private player");
+                            }
                             else
                             {
                                 client.Disconnect();

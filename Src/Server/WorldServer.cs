@@ -531,16 +531,17 @@ namespace Server
             //---------Warp Info---------------------------------------------------
             // //put me in my maps list
             
-            GameMap target = null;
+            GameMap target = new GameMap();
+            target.MapID = src.LoginMap;
 
-            if((target = GetMap(src.LoginMap)) == null)
+            /*if((target = GetMap(src.LoginMap)) == null)
             {
                 var ex = new Exception("Map " + src.LoginMap + " not found for player");
                 DebugSystem.Write(new ExceptionData(ex));
                 src.Disconnect();
                 throw ex;
                 
-            }
+            }*/
 
             target.Teleport(TeleportType.Login,src,0,new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
            

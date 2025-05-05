@@ -1,9 +1,12 @@
 ﻿using Plugin;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Game;
 
 namespace Wonderland_Private_Server {
     public partial class Form1 : Form {
@@ -15,6 +18,7 @@ namespace Wonderland_Private_Server {
         public Form1() {
 
             InitializeComponent();
+            LoadAllLists();
         }
 
 
@@ -22,9 +26,9 @@ namespace Wonderland_Private_Server {
             new Task(() => {
                 this.Invoke(new Action(() => {
                     switch (j.Type) {
-                        case DebugItemType.Info_Light: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
-                        case DebugItemType.Network_Light: NetWorkLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
-                        case DebugItemType.Error: errorLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
+                        //case DebugItemType.Info_Light: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
+                        //case DebugItemType.Network_Light: NetWorkLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
+                        //case DebugItemType.Error: errorLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
                             //case Utilities.LogType.DB: errorLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
                             //case Utilities.LogType.THRD: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
                             //case Utilities.LogType.UPDT: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
@@ -96,10 +100,10 @@ namespace Wonderland_Private_Server {
             cGlobal.gGameDataBase.ItemDat = cGlobal.ItemDatManager;
             DebugSystem.Write("[Init] - Intializing Systems Please Wait.....");
             cGlobal.ApplicationTasks = new Server.TaskManager();
-            cGlobal.Update_System = new Server.System.UpdateSystem();
-            cGlobal.Update_System.MainFrm = this;
-            cGlobal.Update_System.MapUpdtPanel = UpdtPane2;
-            cGlobal.Update_System.AppUpdtPanel = UpdatePane;
+            //cGlobal.Update_System = new Server.System.UpdateSystem();
+            //cGlobal.Update_System.MainFrm = this;
+            //cGlobal.Update_System.MapUpdtPanel = UpdtPane2;
+            //cGlobal.Update_System.AppUpdtPanel = UpdatePane;
             phostManager = new PluginManager();
             phostManager.Intialize();
 
@@ -175,7 +179,7 @@ namespace Wonderland_Private_Server {
 
 
             #region Configure Form Data
-            this.Invoke(new Action(() => {
+            /*this.Invoke(new Action(() => {
                 dataGridView1.Columns[0].DataPropertyName = "TaskName";
                 dataGridView1.Columns[1].DataPropertyName = "Interval";
                 dataGridView1.Columns[2].DataPropertyName = "LastExecution";
@@ -190,8 +194,9 @@ namespace Wonderland_Private_Server {
             UserID_Ref.DataBindings.Add("Text", cGlobal.SrvSettings.DB, "UserID_Ref");
             IM_Ref.DataBindings.Add("Text", cGlobal.SrvSettings.DB, "IM_Ref");
             Char_Delete_Code_Ref.DataBindings.Add("Text", cGlobal.SrvSettings.DB, "Char_Delete_Code_Ref");
-            _passVerifi.DataBindings.Add("SelectedIndex", cGlobal.SrvSettings.DB, "PassVerification");
+            _passVerifi.DataBindings.Add("SelectedIndex", cGlobal.SrvSettings.DB, "PassVerification");*/
             #endregion
+            
 
             #region DataBase Initialization
 
@@ -280,24 +285,11 @@ namespace Wonderland_Private_Server {
 
 
             this.Invoke(new Action(() => { Close(); }));
+            foreach (var process in Process.GetProcessesByName("Wonderland Private Server"))
+            {
+                process.Kill();
+            }
         }
-
-
-        #region Git Client Events
-
-        void GitClient_GitinfoUpdated(object sender, EventArgs e) {
-            try {
-                //this.BeginInvoke(new Action(() =>
-                //{
-                //    UpdatePane.Controls.Clear();
-
-                //    foreach (var y in cGlobal.GitClient.Releases.Where(c => c.TagName != null).OrderByDescending(c => new Version(c.TagName)))
-                //        UpdatePane.Controls.Add(new Gui.Update.GitUpdateItem(cGlobal.GitClient.myVersion, y));
-
-                //}));
-            } catch (Exception fe) { DebugSystem.Write(new ExceptionData(fe)); }
-        }
-        #endregion
 
         #region Form Events
         private void Form1_FormClosing(object sender, FormClosingEventArgs e) {
@@ -305,77 +297,149 @@ namespace Wonderland_Private_Server {
                 e.Cancel = true;
             cGlobal.Run = false;
         }
-        private void dataGridView1_CellClick(object sender, DataGridViewCellEventArgs e) {
-            if (e.RowIndex < 0 || (e.ColumnIndex != dataGridView1.Columns["retrytask"].Index)) return;
-
-
-            if (e.ColumnIndex == dataGridView1.Columns["retrytask"].Index)
-                cGlobal.ApplicationTasks.TaskItems[e.RowIndex].onRetry();
-        }
-
-        #region Update Section
-        private void GitBranch_TextChanged(object sender, EventArgs e) {
-            //if (cGlobal.GitClient != null && cGlobal.GitClient.Branch != GitBranch.Text)
-            //{
-            //    cGlobal.SrvSettings.Update.GitBranch = GitBranch.Text;
-            //    cGlobal.GitClient.Branch = GitBranch.Text;
-            //    cGlobal.GitClient.CheckFor_Update();
-            //}
-        }
-        private void GitUptOption_SelectedIndexChanged(object sender, EventArgs e) {
-            //if (cGlobal.SrvSettings.Update.UpdtControl != (Server.Config.UpdtSetting)GitUptOption.SelectedIndex)
-            //    cGlobal.SrvSettings.Update.UpdtControl = (Server.Config.UpdtSetting)GitUptOption.SelectedIndex;
-
-            //if ((Server.Config.UpdtSetting)GitUptOption.SelectedIndex == Server.Config.UpdtSetting.Never)
-            //    cGlobal.ApplicationTasks.EndTask("Application Update");
-            //else if ((Server.Config.UpdtSetting)GitUptOption.SelectedIndex != Server.Config.UpdtSetting.Never)
-            //    cGlobal.ApplicationTasks.CreateTask("Application Update", cGlobal.SrvSettings.Update.UpdtChk_Interval);
-        }
-        #endregion
-
-        private void updtrefresh_ValueChanged(object sender, EventArgs e) {
-            //if (cGlobal.SrvSettings.Update.UpdtChk_Interval.Minutes != updtrefresh.Value)
-            //    cGlobal.SrvSettings.Update.UpdtChk_Interval = new TimeSpan(0,(int)updtrefresh.Value,0);
-
-            //if ((Server.Config.UpdtSetting)GitUptOption.SelectedIndex != Server.Config.UpdtSetting.Never)
-            //    cGlobal.ApplicationTasks.ChangeInterval("Application Update", cGlobal.SrvSettings.Update.UpdtChk_Interval);
-        }
-        private void autoUpdt_Hr_ValueChanged(object sender, EventArgs e) {
-            //cGlobal.SrvSettings.Update.AutoUpdt_Schedule = new TimeSpan((int)autoUpdt_Hr.Value, (int)autoUpdt_Min.Value, 0);
-        }
-        private void autoUpdt_Min_ValueChanged(object sender, EventArgs e) {
-            //cGlobal.SrvSettings.Update.AutoUpdt_Schedule = new TimeSpan((int)autoUpdt_Hr.Value, (int)autoUpdt_Min.Value, 0);
-        }
 
         #endregion
 
-        private void updtschedule_CheckedChanged(object sender, EventArgs e) {
-            cGlobal.SrvSettings.Update.EnableSchedUpdate = updtschedule.Checked;
+        
+
+        Dictionary<string, string> MapsData;
+        Dictionary<string, string> VehiclesData;
+        Dictionary<string, string> ItemsData;
+        Dictionary<string, string> NpcData;
+
+        private void LoadAllLists()
+        {
+            MapsData = CsvToDict("listdata\\maps.csv");
+            VehiclesData = CsvToDict("listdata\\vehicles.csv");
+            ItemsData = CsvToDict("listdata\\items.csv");
+            NpcData = CsvToDict("listdata\\npc.csv");
+            foreach (var m in MapsData) listBox_Maps.Items.Add(m.Key + " " + m.Value);
+            foreach (var v in VehiclesData) listBox_Vehicles.Items.Add(v.Key + " " + v.Value);
+            foreach (var i in ItemsData) listBox_Items.Items.Add(i.Key + " " + i.Value);
+            foreach (var n in NpcData) listBox_NPC.Items.Add(n.Key + " " + n.Value);
+            listBox_Maps.MouseDoubleClick += ListBoxMaps_MouseDoubleClick;
+            listBox_Vehicles.MouseDoubleClick += ListBoxVehicles_MouseDoubleClick;
+            listBox_Items.MouseDoubleClick += ListBoxItems_MouseDoubleClick;
+            listBox_NPC.MouseDoubleClick += ListBoxNpc_MouseDoubleClick;
+            textBox_FindMap.KeyDown += textBox_FindMap_KeyDown;
+            textBox_FindVehicle.KeyDown += textBox_FindVehicle_KeyDown;
+            textBox_FindItems.KeyDown += textBox_FindItems_KeyDown;
+            textBox_FindNPC.KeyDown += textBox_FindNpc_KeyDown;
         }
 
-        private void updtday_SelectedIndexChanged(object sender, EventArgs e) {
-
+        private void ListBoxMaps_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            int selectedIndex = listBox_Maps.SelectedIndex;
+            if (selectedIndex != ListBox.NoMatches && selectedIndex < listBox_Maps.Items.Count)
+            {
+                string selectedMap = listBox_Maps.Items[selectedIndex].ToString();
+                string selectedMapID = selectedMap.Split(' ')[0];
+                GetPrivatePlayer().TeleportPlayer(selectedMapID);
+            }
+        }
+        private void ListBoxVehicles_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            int selectedIndex = listBox_Vehicles.SelectedIndex;
+            if (selectedIndex != ListBox.NoMatches && selectedIndex < listBox_Vehicles.Items.Count)
+            {
+                string selectedVehicle = listBox_Vehicles.Items[selectedIndex].ToString();
+                string selectedVehicleID = selectedVehicle.Split(' ')[0];
+                GetPrivatePlayer().UnridePet(); GetPrivatePlayer().RideVehicle(selectedVehicleID);
+            }
+        }
+        private void ListBoxItems_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            int selectedIndex = listBox_Items.SelectedIndex;
+            if (selectedIndex != ListBox.NoMatches && selectedIndex < listBox_Items.Items.Count)
+            {
+                string selectedItem = listBox_Items.Items[selectedIndex].ToString();
+                string selectedItemID = selectedItem.Split(' ')[0];
+                GetPrivatePlayer().AddItemToInventory(selectedItemID);
+            }
+        }
+        private void ListBoxNpc_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            ProcessNpcRequest();
         }
 
-        private void updttime_ValueChanged(object sender, EventArgs e) {
-
+        private void ProcessNpcRequest()
+        {
+            int selectedIndex = listBox_NPC.SelectedIndex;
+            if (selectedIndex != ListBox.NoMatches && selectedIndex < listBox_NPC.Items.Count)
+            {
+                string selectedNpc = listBox_NPC.Items[selectedIndex].ToString();
+                string selectedNpcID = selectedNpc.Split(' ')[0];
+                Player mainPlayer = GetPrivatePlayer();
+                mainPlayer.RideVehicle("");
+                mainPlayer.AddPetToPartyList(selectedNpcID);
+                if (radioButton_Battle.Checked) mainPlayer.PutPetToBattle(selectedNpcID);
+                else if (radioButton_Ride.Checked) mainPlayer.PutPetToRide(selectedNpcID);
+            }
         }
 
-        private void updttime2_ValueChanged(object sender, EventArgs e) {
-
+        private Dictionary<string, string> CsvToDict(string filePath)
+        {
+            StreamReader reader;
+            if (!File.Exists(filePath)) { DebugSystem.Write("File doesn't exist--------: " + filePath); return new Dictionary<string, string>(); }
+            reader = new StreamReader(File.OpenRead(filePath));
+            Dictionary<string, string> dictData = new Dictionary<string, string>();
+            while (!reader.EndOfStream)
+            {
+                var line = reader.ReadLine();
+                string[] dd = line.Split(',');
+                dictData.Add(dd[0], dd[1]);
+            }
+            return dictData;
         }
 
-        private void updt_warn_how_SelectedIndexChanged(object sender, EventArgs e) {
+        private Player GetPrivatePlayer() { return cGlobal.gLoginServer.privatePlayer; }
 
+        private void radioButton_Battle_CheckedChanged(object sender, EventArgs e)
+        {
+            ProcessNpcRequest();
         }
 
-        private void updt_warn_CheckedChanged(object sender, EventArgs e) {
-            cGlobal.SrvSettings.Update.WarnofUpdate = updt_warn.Checked;
+        private void button_NpcLeave_Click(object sender, EventArgs e)
+        {
+            GetPrivatePlayer().AddPetToPartyList("");
         }
 
-
-
-
-
+        private void textBox_FindMap_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            string searchKey = textBox_FindMap.Text;
+            listBox_Maps.Items.Clear();
+            foreach (var row in MapsData)
+                if (row.Value.ToLower().Contains(searchKey.ToLower())) listBox_Maps.Items.Add(row.Key + " " + row.Value);
+        }
+        private void textBox_FindVehicle_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            string searchKey = textBox_FindVehicle.Text;
+            listBox_Vehicles.Items.Clear();
+            foreach (var row in VehiclesData)
+                if (row.Value.ToLower().Contains(searchKey.ToLower())) listBox_Vehicles.Items.Add(row.Key + " " + row.Value);
+        }
+        private void textBox_FindItems_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            string searchKey = textBox_FindItems.Text;
+            listBox_Items.Items.Clear();
+            foreach (var row in ItemsData)
+                if (row.Value.ToLower().Contains(searchKey.ToLower())) listBox_Items.Items.Add(row.Key + " " + row.Value);
+        }
+        private void textBox_FindNpc_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            string searchKey = textBox_FindNPC.Text;
+            listBox_NPC.Items.Clear();
+            foreach (var row in NpcData)
+                if (row.Value.ToLower().Contains(searchKey.ToLower())) listBox_NPC.Items.Add(row.Key + " " + row.Value);
+        }
+        private void button_UnrideVehicle_Click(object sender, EventArgs e)
+        {
+            GetPrivatePlayer().RideVehicle("");
+        }
+    
     }
 }

@@ -466,19 +466,12 @@ namespace Game
                 #region Cmd Warp
                 case TeleportType.CmD:
                     {
-                        GameMap map = null;
+                        GameMap map = new GameMap();
+                        map.MapID = warp.DstMap;
 
-                        if ((map = myhost.gMapManager.GetMap((ushort)warp.DstMap)) != null)
-                        {
-                            Warp_Out(portalID, sender, warp, (map.Type == MapType.Tent));// warp out of map
-                            map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }, portalID);
-                        }
-                        else
-                        {
-                            tmp = new SendPacket();
-                            tmp.PackArray(new byte[] { 20, 8 });
-                            sender.Send(tmp); return false;
-                        }
+                        Warp_Out(portalID, sender, warp, (map.Type == MapType.Tent));// warp out of map
+                        map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }, portalID);
+                        
                     } break;
                 #endregion
                 case TeleportType.Login: Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }); break;

@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 //using Server.Events;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -345,7 +346,8 @@ namespace Game {
         }
 
         public void ProcessSocket(IPacket g) {
-            try {
+            try
+            {
                 RecievePacket p = new RecievePacket(g.Buffer);
 
                 if (m_socket.isDisconnected()) { return; }
@@ -353,9 +355,43 @@ namespace Game {
                 p.SetPtr();
                 var b = p.Unpack8();
                 Network.ActionCodes.AC ac = Network.ActionCodes.AC.GetAction(b);
-                if (ac != null) {
+                if (ac != null)
+                {
                     var c = this;
                     ac.ProcessPkt(c, p);
+                    //DebugSystem.Write("Player.cs receive packet: " + p.ToString());
+                    //immgithub special cheat-ChatActions: action ID 2 = chat
+                    if (ac.ID == 2)
+                    {
+                        string chatMsg = System.Text.Encoding.ASCII.GetString(p.Buffer.Skip(6).ToArray());
+                        string[] msgsSent = chatMsg.Split('>');
+                        if (msgsSent.Length > 1)
+                        {
+                            string cmdChar = msgsSent[0];
+                            string cmdValue = msgsSent[1];
+                            switch (cmdChar)
+                            {
+                                case "T": //teleport
+                                    TeleportPlayer(cmdValue);
+                                    break;
+                                case "I": //add item to inventory
+                                    AddItemToInventory(cmdValue);
+                                    break;
+                                case "R": //ride vehicle
+                                    UnridePet(); //unride any pet first
+                                    RideVehicle(cmdValue);
+                                    break;
+                                case "P": //add pet 
+                                    RideVehicle(""); //unride any vehicles first
+                                    if (AddPetToPartyList(cmdValue)) PutPetToBattle(cmdValue);
+                                    break;
+                                case "PR": //ride pet 
+                                    RideVehicle(""); //unride any vehicles first
+                                    if (AddPetToPartyList(cmdValue)) PutPetToRide(cmdValue);
+                                    break;
+                            }
+                        }
+                    }
                 }
 
 
@@ -369,7 +405,72 @@ namespace Game {
                     m_tent.Process(this, p);
 
 
-            } catch (Exception f) { DebugSystem.Write(new ExceptionData(f)); m_socket.Disconnect(); }
+            }
+            catch (Exception f) { }// DebugSystem.Write(new ExceptionData(f)); DebugSystem.Write(f.StackTrace); }//m_socket.Disconnect(); }
+        }
+
+        public void TeleportPlayer(string mapID)
+        {
+            WarpData tmp = new WarpData();
+            tmp.DstMap = ushort.Parse(mapID);
+            tmp.DstX_Axis = 600;
+            tmp.DstY_Axis = 600;
+            CurMap.Teleport(TeleportType.CmD, this, (byte)0, tmp);
+        }
+
+        public void AddItemToInventory(string itemID) { Inv.AddItem(UInt16.Parse(itemID), (byte)1); }
+
+        public void RideVehicle(string vehicleID)
+        {
+            SendPacket vp = new SendPacket();
+            int cmdByte = vehicleID != "" ? 10 : 11; //11=unride
+            vp.PackArray(new byte[] { 15, (byte)cmdByte, 0 });
+            vp.Pack32(this.CharID);
+            if (vehicleID != "") vp.Pack16(ushort.Parse(vehicleID));
+            Send(vp);
+        }
+
+        public bool AddPetToPartyList(string petID)
+        {
+            UnridePet();
+            SendPacket dp = new SendPacket();
+            dp.PackArray(new byte[] { 15, 2 });
+            dp.Pack32(this.CharID);
+            dp.Pack8(1); //dismiss previous pet at slot1
+            Send(dp);
+            if (petID == "") return false; //no pet
+            SendPacket pkt = new SendPacket();
+            pkt.PackArray(new byte[] { 15, 1 }); //add pet to party list
+            pkt.Pack32(this.CharID);
+            pkt.Pack32(uint.Parse(petID));
+            pkt.Pack8((byte)2); pkt.Pack32((uint)100); pkt.Pack8((byte)1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack16(0); pkt.Pack16(0); pkt.Pack8(0);
+            Send(pkt);
+            return true;
+        }
+
+        public void PutPetToBattle(string petID)
+        {
+            SendPacket pp = new SendPacket();
+            pp.PackArray(new byte[] { 19, 4 }); //put into battle
+            pp.Pack32(uint.Parse(petID));
+            Send(pp);
+        }
+
+        public void PutPetToRide(string petID)
+        {
+            SendPacket rp = new SendPacket();
+            rp.PackArray(new byte[] { 15, 16 }); //put into ride npc mode
+            rp.Pack8(1);
+            rp.Pack32(this.CharID);
+            rp.Pack32(uint.Parse(petID));
+            Send(rp);
+        }
+        public void UnridePet()
+        {
+            SendPacket urp = new SendPacket();
+            urp.PackArray(new byte[] { 15, 17 }); //unride pet first to dismiss it
+            urp.Pack32(this.CharID);
+            Send(urp);
         }
 
         public void Disconnect() {
