@@ -1,10 +1,15 @@
-Wonderland-Private-Server
+WLO Private Server CheatEngine
 =========================
 
-Developting Tools
+Developing Tools: Visual Studio 2022
+Database: sqlite bypass
 
-Visual Studio 2012 and higher
-.Net Framework 4.5 (possibly 4.6 later on)
+Private Server + CheatEngine for Wonderland Online
 
-
-Private Server for Wonderland Online
+Running steps:
+1. Download & Install WLO Client (IGG version): https://wonderland-online.en.softonic.com/
+2. Edit IP address of your desired server in SERVER.INI to 127.0.0.1
+3. Run [Wonderland Private Server.exe] found in cheatengine branch repository folder bin/Debug & wait until the log shows "Listening for port.."
+3. Run aLogin.exe, select your server from step 2 then login with:
+Username: gmone
+password: gmone
