@@ -96,7 +96,7 @@ namespace Network.ActionCodes
                 name = name.ToLower();
 
                 string[] userdata = null;//data of user
-
+                /*
                 UInt16 version = r.Unpack16();
                 byte lcLen = r.Unpack8();
                 byte key = r.Unpack8();
@@ -152,7 +152,7 @@ namespace Network.ActionCodes
                     else
                         loginState = 1;
                     #endregion
-                }
+                }*/
                 //if (userdata != null)
                 //    if (userdata.Length != 6)
                 //loginState = 1;
