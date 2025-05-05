@@ -7,7 +7,6 @@
 /.gitignore.BASE.99844.gitignore
 /.gitignore.LOCAL.99844.gitignore
 /.gitignore.REMOTE.99844.gitignore
-[Dd]ebug*/
 /bin/Debug/EntityFramework.SqlServer.xml
 /bin/Debug/EntityFramework.xml
 /bin/Debug/Log/mylogfile.txt
