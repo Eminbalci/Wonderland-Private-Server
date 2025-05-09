@@ -37,4 +37,30 @@
 /Wonderland Private Server150802.vspx
 /Wonderland-Online-Private-Server
 .vs/
-**/obj
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+**/obj/**/*.nuget.dgspec.json
+**/obj/**/*.nuget.g.props
+**/obj/**/*.nuget.g.targets
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+
