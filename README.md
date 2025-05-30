@@ -8,7 +8,7 @@ Database: sqlite bypass
 Private Server + CheatEngine for Wonderland Online
 
 Running steps:
-1. Download & Install WLO Client (IGG version): https://wonderland-online.en.softonic.com/
+1. Download & Install WLO Client (IGG version): https://en.ds-servers.com/files/gf/733188
 2. Edit IP address of your desired server in SERVER.INI to 127.0.0.1
 3. Run [Wonderland Private Server.exe] found in cheatengine branch repository folder bin/Debug & wait until the log shows "Now listening for clients..."
 4. Run aLogin.exe, select your server from step 2 then login with:
