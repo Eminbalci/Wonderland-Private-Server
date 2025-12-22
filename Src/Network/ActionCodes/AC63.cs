@@ -9,11 +9,11 @@ using Game;
 
 namespace Network.ActionCodes
 {
-    public class AC63:AC
+    public class AC63 : AC
     {
         public override int ID { get { return 63; } }
 
-        public override void ProcessPkt(Player p,  RecievePacket r)
+        public override void ProcessPkt(Player p, RecievePacket r)
         {
             switch (r.Unpack8())
             {
@@ -44,13 +44,13 @@ namespace Network.ActionCodes
 
                 if ((charNum < 1) || (charNum > 2))//by userid
                 {
-                    p.Send( Tools.FromFormat("bb", 0, 32));
+                    p.Send(Tools.FromFormat("bb", 0, 32));
                     return;
                 }
 
                 p.Slot = charNum;
 
-                if (!cGlobal.gCharacterDataBase.GetCharacterData( (p.Slot == 1)?p.UserAcc.Character1ID:p.UserAcc.Character2ID,ref p)) // char is not created
+                if (!cGlobal.gCharacterDataBase.GetCharacterData((p.Slot == 1) ? p.UserAcc.Character1ID : p.UserAcc.Character2ID, ref p)) // char is not created
                 {
                     #region Create Character
                     //cGlobal.gUserDataBase.Update_Player_ID(p.UserAcc.DataBaseID, p.CharID, charNum);
@@ -174,54 +174,74 @@ namespace Network.ActionCodes
                             tmp = new SendPacket();
                             tmp.Pack8(63);
                             tmp.Pack8(1);
-                            tmp.PackArray(cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character1ID).ToArray());
-                            tmp.PackArray(cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character2ID).ToArray());
+                            DebugSystem.Write("[AC63] Encrypting Character List Packet");
+
+                            var char1 = cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character1ID);
+                            if (char1 != null)
+                                tmp.PackArray(char1.ToArray());
+                            else
+                                DebugSystem.Write("[AC63] Character 1 not found (Valid for new accounts)");
+
+                            var char2 = cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character2ID);
+                            if (char2 != null)
+                                tmp.PackArray(char2.ToArray());
+                            else
+                                DebugSystem.Write("[AC63] Character 2 not found (Valid for new accounts)");
+
                             p.Send(tmp);
+                            DebugSystem.Write("[AC63] Character List Sent");
 
                             //p.State = PlayerState.Connected_CharacterSelection;
-                            p.Send( Tools.FromFormat("bb", 35, 11));
+                            p.Send(Tools.FromFormat("bb", 35, 11));
 
-                        } break;
+                        }
+                        break;
                     case 1:
                         {
-                            p.Send( Tools.FromFormat("bb", 63, 2));
-                            p.Send( Tools.FromFormat("bb", 1, 6));
-                        } break;
+                            p.Send(Tools.FromFormat("bb", 63, 2));
+                            p.Send(Tools.FromFormat("bb", 1, 6));
+                        }
+                        break;
                     case 2:
                         {
                             //if (status != null) status("Server", "Already logged in. ( " + p.UserName + " )");
-                            p.Send( Tools.FromFormat("bb", 63, 2));
-                            p.Send( Tools.FromFormat("bb", 0, 19));
+                            p.Send(Tools.FromFormat("bb", 63, 2));
+                            p.Send(Tools.FromFormat("bb", 0, 19));
                             cGlobal.gLoginServer.Disconnect(p.UserAcc.UserID);
-                        } break;
+                        }
+                        break;
                     case 3:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 0, 17));
+                            p.Send(Tools.FromFormat("bb", 0, 17));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                     case 4:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 0, 65));
+                            p.Send(Tools.FromFormat("bb", 0, 65));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                     case 5:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 1, 7));
+                            p.Send(Tools.FromFormat("bb", 1, 7));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                     case 6:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 0, 79));
+                            p.Send(Tools.FromFormat("bb", 0, 79));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                 }
                 #endregion
             }
@@ -357,7 +377,7 @@ namespace Network.ActionCodes
         //        p = new SendPacket(true);
         //        p.Pack(new byte[] { 0, 7 });
         //        c.Send(p);
-                
+
         //        return;
         //    }
 

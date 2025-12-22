@@ -50,10 +50,38 @@
             this.textBox_FindMap = new System.Windows.Forms.TextBox();
             this.listBox_Maps = new System.Windows.Forms.ListBox();
             this.tabControl1 = new System.Windows.Forms.TabControl();
+            this.tabPageUsers = new System.Windows.Forms.TabPage();
+            this.dataGridViewUsers = new System.Windows.Forms.DataGridView();
+            this.btnRefreshUsers = new System.Windows.Forms.Button();
+            this.btnDeleteUser = new System.Windows.Forms.Button();
+            this.btnChangePassword = new System.Windows.Forms.Button();
+            this.tabPagePortals = new System.Windows.Forms.TabPage();
+            this.dgvPortals = new System.Windows.Forms.DataGridView();
+            this.dgvDestinations = new System.Windows.Forms.DataGridView();
+            this.btnRefreshPortals = new System.Windows.Forms.Button();
+            this.btnAddPortal = new System.Windows.Forms.Button();
+            this.btnDeletePortal = new System.Windows.Forms.Button();
+            this.btnAddDestination = new System.Windows.Forms.Button();
+            this.btnDeleteDestination = new System.Windows.Forms.Button();
+            this.btnEditPortal = new System.Windows.Forms.Button();
+            this.btnEditDestination = new System.Windows.Forms.Button();
+            this.lblPortals = new System.Windows.Forms.Label();
+            this.lblDestinations = new System.Windows.Forms.Label();
+            this.tabPageCharacters = new System.Windows.Forms.TabPage();
+            this.dgvCharacters = new System.Windows.Forms.DataGridView();
+            this.btnRefreshCharacters = new System.Windows.Forms.Button();
+            this.btnDeleteCharacter = new System.Windows.Forms.Button();
             this.tabPage6.SuspendLayout();
             this.tabControl3.SuspendLayout();
             this.tabPage7.SuspendLayout();
             this.tabPage1.SuspendLayout();
+            this.tabPageUsers.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridViewUsers)).BeginInit();
+            this.tabPagePortals.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvPortals)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvDestinations)).BeginInit();
+            this.tabPageCharacters.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvCharacters)).BeginInit();
             this.groupBox_Npc.SuspendLayout();
             this.groupBox_Items.SuspendLayout();
             this.groupBox_Vehicles.SuspendLayout();
@@ -76,6 +104,9 @@
             // 
             this.tabControl3.Controls.Add(this.tabPage7);
             this.tabControl3.Controls.Add(this.tabPage1);
+            this.tabControl3.Controls.Add(this.tabPageUsers);
+            this.tabControl3.Controls.Add(this.tabPagePortals);
+            this.tabControl3.Controls.Add(this.tabPageCharacters);
             this.tabControl3.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl3.Location = new System.Drawing.Point(3, 3);
             this.tabControl3.Name = "tabControl3";
@@ -118,6 +149,239 @@
             this.tabPage1.Text = "Cheat";
             this.tabPage1.UseVisualStyleBackColor = true;
             // 
+            // tabPageUsers
+            // 
+            this.tabPageUsers.Controls.Add(this.dataGridViewUsers);
+            this.tabPageUsers.Controls.Add(this.btnRefreshUsers);
+            this.tabPageUsers.Controls.Add(this.btnDeleteUser);
+            this.tabPageUsers.Controls.Add(this.btnChangePassword);
+            this.tabPageUsers.Location = new System.Drawing.Point(4, 22);
+            this.tabPageUsers.Name = "tabPageUsers";
+            this.tabPageUsers.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageUsers.Size = new System.Drawing.Size(774, 455);
+            this.tabPageUsers.TabIndex = 2;
+            this.tabPageUsers.Text = "Users";
+            this.tabPageUsers.UseVisualStyleBackColor = true;
+            // 
+            // dataGridViewUsers
+            // 
+            this.dataGridViewUsers.AllowUserToAddRows = false;
+            this.dataGridViewUsers.AllowUserToDeleteRows = false;
+            this.dataGridViewUsers.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dataGridViewUsers.Location = new System.Drawing.Point(6, 6);
+            this.dataGridViewUsers.Name = "dataGridViewUsers";
+            this.dataGridViewUsers.ReadOnly = true;
+            this.dataGridViewUsers.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dataGridViewUsers.Size = new System.Drawing.Size(650, 400);
+            this.dataGridViewUsers.TabIndex = 0;
+            // 
+            // btnRefreshUsers
+            // 
+            this.btnRefreshUsers.Location = new System.Drawing.Point(662, 6);
+            this.btnRefreshUsers.Name = "btnRefreshUsers";
+            this.btnRefreshUsers.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshUsers.TabIndex = 1;
+            this.btnRefreshUsers.Text = "Refresh";
+            this.btnRefreshUsers.UseVisualStyleBackColor = true;
+            this.btnRefreshUsers.Click += new System.EventHandler(this.btnRefreshUsers_Click);
+            // 
+            // btnDeleteUser
+            // 
+            this.btnDeleteUser.Location = new System.Drawing.Point(662, 42);
+            this.btnDeleteUser.Name = "btnDeleteUser";
+            this.btnDeleteUser.Size = new System.Drawing.Size(100, 30);
+            this.btnDeleteUser.TabIndex = 2;
+            this.btnDeleteUser.Text = "Delete User";
+            this.btnDeleteUser.UseVisualStyleBackColor = true;
+            this.btnDeleteUser.Click += new System.EventHandler(this.btnDeleteUser_Click);
+            // 
+            // btnChangePassword
+            // 
+            this.btnChangePassword.Location = new System.Drawing.Point(662, 78);
+            this.btnChangePassword.Name = "btnChangePassword";
+            this.btnChangePassword.Size = new System.Drawing.Size(100, 30);
+            this.btnChangePassword.TabIndex = 3;
+            this.btnChangePassword.Text = "Change Pass";
+            this.btnChangePassword.UseVisualStyleBackColor = true;
+            this.btnChangePassword.Click += new System.EventHandler(this.btnChangePassword_Click);
+            // 
+            // tabPagePortals
+            // 
+            this.tabPagePortals.Controls.Add(this.lblPortals);
+            this.tabPagePortals.Controls.Add(this.lblDestinations);
+            this.tabPagePortals.Controls.Add(this.dgvPortals);
+            this.tabPagePortals.Controls.Add(this.dgvDestinations);
+            this.tabPagePortals.Controls.Add(this.btnRefreshPortals);
+            this.tabPagePortals.Controls.Add(this.btnAddPortal);
+            this.tabPagePortals.Controls.Add(this.btnDeletePortal);
+            this.tabPagePortals.Controls.Add(this.btnAddDestination);
+            this.tabPagePortals.Controls.Add(this.btnDeleteDestination);
+            this.tabPagePortals.Controls.Add(this.btnEditPortal);
+            this.tabPagePortals.Controls.Add(this.btnEditDestination);
+            this.tabPagePortals.Location = new System.Drawing.Point(4, 22);
+            this.tabPagePortals.Name = "tabPagePortals";
+            this.tabPagePortals.Size = new System.Drawing.Size(774, 455);
+            this.tabPagePortals.TabIndex = 3;
+            this.tabPagePortals.Text = "Portals";
+            this.tabPagePortals.UseVisualStyleBackColor = true;
+            // 
+            // lblPortals
+            // 
+            this.lblPortals.AutoSize = true;
+            this.lblPortals.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Bold);
+            this.lblPortals.Location = new System.Drawing.Point(6, 8);
+            this.lblPortals.Name = "lblPortals";
+            this.lblPortals.Size = new System.Drawing.Size(52, 15);
+            this.lblPortals.Text = "Portals";
+            // 
+            // lblDestinations
+            // 
+            this.lblDestinations.AutoSize = true;
+            this.lblDestinations.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Bold);
+            this.lblDestinations.Location = new System.Drawing.Point(6, 230);
+            this.lblDestinations.Name = "lblDestinations";
+            this.lblDestinations.Size = new System.Drawing.Size(85, 15);
+            this.lblDestinations.Text = "Destinations";
+            // 
+            // dgvPortals
+            // 
+            this.dgvPortals.AllowUserToAddRows = false;
+            this.dgvPortals.AllowUserToDeleteRows = false;
+            this.dgvPortals.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvPortals.Location = new System.Drawing.Point(6, 26);
+            this.dgvPortals.Name = "dgvPortals";
+            this.dgvPortals.ReadOnly = true;
+            this.dgvPortals.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvPortals.Size = new System.Drawing.Size(650, 195);
+            this.dgvPortals.TabIndex = 0;
+            // 
+            // dgvDestinations
+            // 
+            this.dgvDestinations.AllowUserToAddRows = false;
+            this.dgvDestinations.AllowUserToDeleteRows = false;
+            this.dgvDestinations.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvDestinations.Location = new System.Drawing.Point(6, 248);
+            this.dgvDestinations.Name = "dgvDestinations";
+            this.dgvDestinations.ReadOnly = true;
+            this.dgvDestinations.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvDestinations.Size = new System.Drawing.Size(650, 195);
+            this.dgvDestinations.TabIndex = 1;
+            // 
+            // btnRefreshPortals
+            // 
+            this.btnRefreshPortals.Location = new System.Drawing.Point(662, 26);
+            this.btnRefreshPortals.Name = "btnRefreshPortals";
+            this.btnRefreshPortals.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshPortals.TabIndex = 2;
+            this.btnRefreshPortals.Text = "Refresh All";
+            this.btnRefreshPortals.UseVisualStyleBackColor = true;
+            this.btnRefreshPortals.Click += new System.EventHandler(this.btnRefreshPortals_Click);
+            // 
+            // btnAddPortal
+            // 
+            this.btnAddPortal.Location = new System.Drawing.Point(662, 62);
+            this.btnAddPortal.Name = "btnAddPortal";
+            this.btnAddPortal.Size = new System.Drawing.Size(100, 30);
+            this.btnAddPortal.TabIndex = 3;
+            this.btnAddPortal.Text = "Add Portal";
+            this.btnAddPortal.UseVisualStyleBackColor = true;
+            this.btnAddPortal.Click += new System.EventHandler(this.btnAddPortal_Click);
+            // 
+            // btnDeletePortal
+            // 
+            this.btnDeletePortal.Location = new System.Drawing.Point(662, 98);
+            this.btnDeletePortal.Name = "btnDeletePortal";
+            this.btnDeletePortal.Size = new System.Drawing.Size(100, 30);
+            this.btnDeletePortal.TabIndex = 4;
+            this.btnDeletePortal.Text = "Delete Portal";
+            this.btnDeletePortal.UseVisualStyleBackColor = true;
+            this.btnDeletePortal.Click += new System.EventHandler(this.btnDeletePortal_Click);
+            // 
+            // btnAddDestination
+            // 
+            this.btnAddDestination.Location = new System.Drawing.Point(662, 248);
+            this.btnAddDestination.Name = "btnAddDestination";
+            this.btnAddDestination.Size = new System.Drawing.Size(100, 30);
+            this.btnAddDestination.TabIndex = 5;
+            this.btnAddDestination.Text = "Add Dest";
+            this.btnAddDestination.UseVisualStyleBackColor = true;
+            this.btnAddDestination.Click += new System.EventHandler(this.btnAddDestination_Click);
+            // 
+            // btnDeleteDestination
+            // 
+            this.btnDeleteDestination.Location = new System.Drawing.Point(662, 284);
+            this.btnDeleteDestination.Name = "btnDeleteDestination";
+            this.btnDeleteDestination.Size = new System.Drawing.Size(100, 30);
+            this.btnDeleteDestination.TabIndex = 6;
+            this.btnDeleteDestination.Text = "Delete Dest";
+            this.btnDeleteDestination.UseVisualStyleBackColor = true;
+            this.btnDeleteDestination.Click += new System.EventHandler(this.btnDeleteDestination_Click);
+            // 
+            // btnEditPortal
+            // 
+            this.btnEditPortal.Location = new System.Drawing.Point(662, 134);
+            this.btnEditPortal.Name = "btnEditPortal";
+            this.btnEditPortal.Size = new System.Drawing.Size(100, 30);
+            this.btnEditPortal.TabIndex = 7;
+            this.btnEditPortal.Text = "Edit Portal";
+            this.btnEditPortal.UseVisualStyleBackColor = true;
+            this.btnEditPortal.Click += new System.EventHandler(this.btnEditPortal_Click);
+            // 
+            // btnEditDestination
+            // 
+            this.btnEditDestination.Location = new System.Drawing.Point(662, 320);
+            this.btnEditDestination.Name = "btnEditDestination";
+            this.btnEditDestination.Size = new System.Drawing.Size(100, 30);
+            this.btnEditDestination.TabIndex = 8;
+            this.btnEditDestination.Text = "Edit Dest";
+            this.btnEditDestination.UseVisualStyleBackColor = true;
+            this.btnEditDestination.Click += new System.EventHandler(this.btnEditDestination_Click);
+            // 
+            // tabPageCharacters
+            // 
+            this.tabPageCharacters.Controls.Add(this.btnDeleteCharacter);
+            this.tabPageCharacters.Controls.Add(this.btnRefreshCharacters);
+            this.tabPageCharacters.Controls.Add(this.dgvCharacters);
+            this.tabPageCharacters.Location = new System.Drawing.Point(4, 22);
+            this.tabPageCharacters.Name = "tabPageCharacters";
+            this.tabPageCharacters.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageCharacters.Size = new System.Drawing.Size(774, 455);
+            this.tabPageCharacters.TabIndex = 4;
+            this.tabPageCharacters.Text = "Characters";
+            this.tabPageCharacters.UseVisualStyleBackColor = true;
+            // 
+            // dgvCharacters
+            // 
+            this.dgvCharacters.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvCharacters.Location = new System.Drawing.Point(6, 6);
+            this.dgvCharacters.Name = "dgvCharacters";
+            this.dgvCharacters.Size = new System.Drawing.Size(650, 443);
+            this.dgvCharacters.TabIndex = 0;
+            // 
+            // btnRefreshCharacters
+            // 
+            this.btnRefreshCharacters.Location = new System.Drawing.Point(662, 6);
+            this.btnRefreshCharacters.Name = "btnRefreshCharacters";
+            this.btnRefreshCharacters.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshCharacters.TabIndex = 1;
+            this.btnRefreshCharacters.Text = "Refresh";
+            this.btnRefreshCharacters.UseVisualStyleBackColor = true;
+            this.btnRefreshCharacters.Click += new System.EventHandler(this.btnRefreshCharacters_Click);
+            // 
+            // btnDeleteCharacter
+            // 
+            this.btnDeleteCharacter.Location = new System.Drawing.Point(662, 42);
+            this.btnDeleteCharacter.Name = "btnDeleteCharacter";
+            this.btnDeleteCharacter.Size = new System.Drawing.Size(100, 30);
+            this.btnDeleteCharacter.TabIndex = 2;
+            this.btnDeleteCharacter.Text = "Delete Char";
+            this.btnDeleteCharacter.UseVisualStyleBackColor = true;
+            this.btnDeleteCharacter.Click += new System.EventHandler(this.btnDeleteCharacter_Click);
+            this.btnDeleteDestination.TabIndex = 6;
+            this.btnDeleteDestination.Text = "Delete Dest";
+            this.btnDeleteDestination.UseVisualStyleBackColor = true;
+            this.btnDeleteDestination.Click += new System.EventHandler(this.btnDeleteDestination_Click);
+            //
             // groupBox_Npc
             // 
             this.groupBox_Npc.Controls.Add(this.button_NpcLeave);
@@ -294,6 +558,14 @@
             this.tabControl3.ResumeLayout(false);
             this.tabPage7.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
+            this.tabPageUsers.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridViewUsers)).EndInit();
+            this.tabPagePortals.ResumeLayout(false);
+            this.tabPagePortals.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvPortals)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvDestinations)).EndInit();
+            this.tabPageCharacters.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.dgvCharacters)).EndInit();
             this.groupBox_Npc.ResumeLayout(false);
             this.groupBox_Npc.PerformLayout();
             this.groupBox_Items.ResumeLayout(false);
@@ -330,6 +602,27 @@
         private System.Windows.Forms.RadioButton radioButton_Battle;
         private System.Windows.Forms.Button button_NpcLeave;
         private System.Windows.Forms.Button button_UnrideVehicle;
+        private System.Windows.Forms.TabPage tabPageUsers;
+        private System.Windows.Forms.DataGridView dataGridViewUsers;
+        private System.Windows.Forms.Button btnRefreshUsers;
+        private System.Windows.Forms.Button btnDeleteUser;
+        private System.Windows.Forms.Button btnChangePassword;
+        private System.Windows.Forms.TabPage tabPagePortals;
+        private System.Windows.Forms.DataGridView dgvPortals;
+        private System.Windows.Forms.DataGridView dgvDestinations;
+        private System.Windows.Forms.Button btnRefreshPortals;
+        private System.Windows.Forms.Button btnAddPortal;
+        private System.Windows.Forms.Button btnDeletePortal;
+        private System.Windows.Forms.Button btnAddDestination;
+        private System.Windows.Forms.Button btnDeleteDestination;
+        private System.Windows.Forms.Label lblPortals;
+        private System.Windows.Forms.Label lblDestinations;
+        private System.Windows.Forms.TabPage tabPageCharacters;
+        private System.Windows.Forms.DataGridView dgvCharacters;
+        private System.Windows.Forms.Button btnRefreshCharacters;
+        private System.Windows.Forms.Button btnDeleteCharacter;
+        private System.Windows.Forms.Button btnEditPortal;
+        private System.Windows.Forms.Button btnEditDestination;
     }
 }
 

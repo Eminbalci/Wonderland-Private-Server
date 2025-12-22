@@ -10,11 +10,11 @@ using Game.Code;
 
 namespace Network.ActionCodes
 {
-    public class AC09:AC
+    public class AC09 : AC
     {
-         public override int ID { get { return 09; } }
+        public override int ID { get { return 09; } }
 
-         public override void ProcessPkt(Player r, RecievePacket p)
+        public override void ProcessPkt(Player r, RecievePacket p)
         {
             switch (p.Unpack8())
             {
@@ -23,7 +23,7 @@ namespace Network.ActionCodes
             }
         }
 
-         void Recv1(ref Player tp, RecievePacket e)
+        void Recv1(ref Player tp, RecievePacket e)
         {
             try
             {
@@ -48,7 +48,7 @@ namespace Network.ActionCodes
                     {
                         //make sure no save of data by setting values to 0
                         tp.Clear();
-                        tp.Send( Tools.FromFormat("bb", 0, 30));
+                        tp.Send(Tools.FromFormat("bb", 0, 30));
                         return;
                     }
                 }
@@ -87,23 +87,23 @@ namespace Network.ActionCodes
             catch (Exception t)
             {
                 DebugSystem.Write(new ExceptionData(t));
-                tp.Send( Tools.FromFormat("bb", 0, 30));
+                tp.Send(Tools.FromFormat("bb", 0, 30));
             }
 
 
         }
 
-        void Recv2( Player tp, Packet e)
+        void Recv2(Player tp, Packet e)
         {
             int nameLen = e.Count - 2;
             string name = e.UnpackStringN();
             if ((nameLen < 4) || (nameLen > 14) || !cGlobal.gCharacterDataBase.LockName(tp.UserAcc.DataBaseID, name))
             {
-                tp.Send( Tools.FromFormat("bbb", 9, 3, 1));
+                tp.Send(Tools.FromFormat("bbb", 9, 3, 1));
                 return;
             }
             tp.CharName = name;
-            tp.Send( Tools.FromFormat("bbb", 9, 3, 0));
+            tp.Send(Tools.FromFormat("bbb", 9, 3, 0));
         }
 
 

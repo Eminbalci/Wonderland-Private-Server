@@ -1,25 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {}
+    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {
+    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+        "projectUniqueName": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
         "projectName": "Wlo.Core",
-        "projectPath": "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
-        "packagesPath": "C:\\Users\\Irene\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
+        "projectPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+        "packagesPath": "C:\\Users\\Muhammet\\.nuget\\packages\\",
+        "outputPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\.nuget\\NuGet.Config",
-          "C:\\Users\\Irene\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Users\\Muhammet\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -45,12 +40,12 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.200"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net462": {
           "targetAlias": "net462",
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308\\RuntimeIdentifierGraph.json"
         }
       }
     }

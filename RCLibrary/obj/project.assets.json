@@ -755,25 +755,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Irene\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "C:\\Users\\Muhammet\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+      "projectUniqueName": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
       "projectName": "RCLibrary",
-      "projectPath": "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
-      "packagesPath": "C:\\Users\\Irene\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\RCLibrary\\obj\\",
+      "projectPath": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+      "packagesPath": "C:\\Users\\Muhammet\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\Irene\\Desktop\\gitAvivbarel\\Wonderland-Private-Server\\.nuget\\NuGet.Config",
-        "C:\\Users\\Irene\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Users\\Muhammet\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
@@ -799,7 +793,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.200"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net462": {
@@ -810,7 +804,7 @@
             "version": "[9.1.0, )"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308\\RuntimeIdentifierGraph.json"
       }
     }
   }

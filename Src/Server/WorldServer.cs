@@ -1,12 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
 using System.Net.Sockets;
-using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Game;
 using Game.Code;
 using Game.Maps;
@@ -19,9 +19,9 @@ namespace Server
     /// <summary>
     /// Handles the Recv and SendPacket Proccesing of all clients
     /// </summary>
-    public class WorldServer:MapSystem,WorldServerHost,MapHost
+    public class WorldServer : MapSystem, WorldServerHost, MapHost
     {
-        Thread Mainthrd,Eventthrd;
+        Thread Mainthrd, Eventthrd;
         bool killFlag;
         readonly ManualResetEvent mylock;
         //readonly Semaphore ProcessLock,SendLock;
@@ -38,8 +38,8 @@ namespace Server
         /// <summary>
         /// Maps loaded into the world
         /// </summary>
-        ConcurrentDictionary<ushort, GameMap> MapList;
-               
+        new ConcurrentDictionary<ushort, GameMap> MapList;
+
         // System.Diagnostics.Stopwatch exptimer = new System.Diagnostics.Stopwatch();
         /// <summary>
         /// Clients that are in the Process of Logging into the Server
@@ -50,13 +50,14 @@ namespace Server
         ///// </summary>
         //public int Clients_inGame { get { int a = 0; ConnectedPlayers.Values.ToList().ForEach(c => a += c.Values.Count(n => n.inGame)); return a; } }
 
-        public WorldServer(PluginManager src):base(src)
+        public WorldServer(PluginManager src) : base(src)
         {
             mylock = new ManualResetEvent(false);
             QueuedPlayerLogin = new Queue<Player>();
             MapList = new ConcurrentDictionary<ushort, GameMap>();
+            new MapManager(); // Initialize Singleton
         }
-        
+
         public void OnLogin(Player client)
         {
             QueuedPlayerLogin.Enqueue(client);
@@ -79,7 +80,7 @@ namespace Server
             //    ConnectedPlayers.TryAdd(p.ClientIP, tmp);     
             //    mylock.Set();          
             //}
-            
+
         }
 
         public void Initialize()
@@ -114,10 +115,25 @@ namespace Server
 
                 if (QueuedPlayerLogin.Count > 0)
                 {
-                    Player src;
+                    Player src = QueuedPlayerLogin.Dequeue();
+                    DebugSystem.Write($"[WorldServer] Dequeued player: {src.UserAcc?.UserName ?? "Unknown"}. Disconnected? {src.isDisconnected()}");
 
-                    if (!(src = QueuedPlayerLogin.Dequeue()).isDisconnected())
-                        CommenceLogin(src);
+                    if (!src.isDisconnected())
+                    {
+                        try
+                        {
+                            DebugSystem.Write($"[WorldServer] Processing login queue for client...");
+                            CommenceLogin(src);
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write($"[WorldServer] Critical Error in CommenceLogin: {ex.Message}\n{ex.StackTrace}");
+                        }
+                    }
+                    else
+                    {
+                        DebugSystem.Write($"[WorldServer] Player dropped because isDisconnected() is TRUE.");
+                    }
                 }
                 #endregion
                 Thread.Sleep(2);
@@ -202,7 +218,7 @@ namespace Server
         void Mapwrk()// processes tick
         {
             do
-            {               
+            {
 
                 //foreach (var map in MapList.Values.ToList())
                 //    map.UpdateMap();
@@ -315,7 +331,7 @@ namespace Server
         //    }
         //}
 
-        public GameMap GetMap(ushort ID)
+        public new GameMap GetMap(ushort ID)
         {
             GameMap tmp = null;
 
@@ -334,10 +350,10 @@ namespace Server
             else
                 return MapList.Values.Single(c => c.MapID == ID);
         }
-        
+
         //public bool onTelePort(TeleportType teletype, byte portalID, WarpData map, Player target)
         //{
-             
+
         //    if (MapList.Values.Count(c => c.MapID == map.DstMap) == 0)
         //    {
         //        //Create Map
@@ -355,7 +371,7 @@ namespace Server
         //    MapList.Values.Single(c => c.MapID == map.DstMap).Teleport(teletype, target, portalID, map);
         //    return true;
         //}
-       
+
         /// <summary>
         /// Broadcasts a packet to all
         /// </summary>
@@ -473,6 +489,7 @@ namespace Server
 
         public void CommenceLogin(Player src)
         {
+            DebugSystem.Write("[WorldServer] CommenceLogin started.");
 
             src.Flags.Add(PlayerFlag.Logging_into_Map);
 
@@ -495,8 +512,11 @@ namespace Server
             src.Send(d);
 
             //------Player Base Info------------------
+            //------Player Base Info------------------
+            DebugSystem.Write("[WorldServer] Loading Final Data...");
             cGlobal.gGameDataBase.LoadFinalData(src);
             src.SendCharacterData();
+            DebugSystem.Write("[WorldServer] Sending Online Characters...");
             cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
             cGlobal.gCharacterDataBase.OnCharacterJoin(src);
             src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
@@ -530,7 +550,7 @@ namespace Server
             // //-----------------------------------   
             //---------Warp Info---------------------------------------------------
             // //put me in my maps list
-            
+
             GameMap target = new GameMap();
             target.MapID = src.LoginMap;
 
@@ -543,8 +563,8 @@ namespace Server
                 
             }*/
 
-            target.Teleport(TeleportType.Login,src,0,new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
-           
+            target.Teleport(TeleportType.Login, src, 0, new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
+
             src.Send(Tools.FromFormat("bbb", 5, 15, 0));
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.Send(Tools.FromFormat("bbb", 5, 21, src.Slot));
@@ -563,7 +583,7 @@ namespace Server
             src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Welcome to the  WLO 4 EVER Community Server :! Enjoy !!"));
             src.Send(Tools.FromFormat("bbb", 69, 1, 71));
             src.Send(Tools.FromFormat("bbb", 20, 60, 1));
-            src.Send(new SendPacket(new byte[] { 244,68,13,0,66, 1, 001, 012, 043, 000, 000, 000, 000, 000, 000, 000, 000 }));
+            src.Send(new SendPacket(new byte[] { 244, 68, 13, 0, 66, 1, 001, 012, 043, 000, 000, 000, 000, 000, 000, 000, 000 }));
 
             for (byte a = 1; a < 11; a++)
                 src.Send(Tools.FromFormat("bbbw", 5, 13, a, 0));
@@ -577,7 +597,7 @@ namespace Server
             src.Send(Tools.FromFormat("bbbbd", 23, 208, 2, 4, 0));
             src.Send(Tools.FromFormat("bb", 1, 11));
             src.Send(Tools.FromFormat("bbbbbb", 15, 19, 4, 6, 9, 94));
-            src.Send(new SendPacket(new byte[] { 244,68,19,0,54, 89, 2, 2, 90, 2, 1, 91, 2, 1, 189, 2, 2, 190, 2, 1, 191, 2, 1 }));
+            src.Send(new SendPacket(new byte[] { 244, 68, 19, 0, 54, 89, 2, 2, 90, 2, 1, 91, 2, 1, 189, 2, 2, 190, 2, 1, 191, 2, 1 }));
             src.Send(Tools.FromFormat("bbdddd", 35, 4, 0, 0, 0, 0));//first 0 is im
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
             src.Send(Tools.FromFormat("bb", 5, 4));

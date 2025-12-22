@@ -77,14 +77,26 @@ namespace Server
                             if ((p = tmp.AddSock(client)) != null)
                             {
                                 ClientList.Add(tmp);
-                                privatePlayer = p;DebugSystem.Write("Attached new private player");
+                                privatePlayer = p; DebugSystem.Write("Attached new private player");
                             }
                             else
                             {
                                 client.Disconnect();
                                 continue;
                             }
-                            if (OnNewPlayer != null) OnNewPlayer(this, p);
+                            if (OnNewPlayer != null)
+                            {
+                                try
+                                {
+                                    DebugSystem.Write("Triggering OnNewPlayer event...");
+                                    OnNewPlayer(this, p);
+                                    DebugSystem.Write("OnNewPlayer event returned successfully.");
+                                }
+                                catch (Exception ex)
+                                {
+                                    DebugSystem.Write($"ERROR inside OnNewPlayer event: {ex.Message}\n{ex.StackTrace}");
+                                }
+                            }
                         }
                     }
                     catch (SocketException ex)

@@ -1,5 +1,4 @@
-﻿using Plugin;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,45 +6,56 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Game;
+using Plugin;
 
-namespace Wonderland_Private_Server {
-    public partial class Form1 : Form {
+namespace Wonderland_Private_Server
+{
+    public partial class Form1 : Form
+    {
         bool blockclose = true;
 
         PluginManager phostManager;
 
 
-        public Form1() {
+        public Form1()
+        {
 
             InitializeComponent();
             LoadAllLists();
         }
 
 
-        void DebugSystem_onNewLog(object sender, DebugItem j) {
-            new Task(() => {
-                this.Invoke(new Action(() => {
-                    switch (j.Type) {
+        void DebugSystem_onNewLog(object sender, DebugItem j)
+        {
+            new Task(() =>
+            {
+                this.Invoke(new Action(() =>
+                {
+                    switch (j.Type)
+                    {
                         //case DebugItemType.Info_Light: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
                         //case DebugItemType.Network_Light: NetWorkLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
                         //case DebugItemType.Error: errorLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
-                            //case Utilities.LogType.DB: errorLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
-                            //case Utilities.LogType.THRD: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
-                            //case Utilities.LogType.UPDT: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
+                        //case Utilities.LogType.DB: errorLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
+                        //case Utilities.LogType.THRD: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
+                        //case Utilities.LogType.UPDT: SystemLog.AppendText(j.Msg + "\r\n=============================\r\n"); break;
                     }
                 }));
             }
             ).Start();
         }
 
-        private void Form1_Load(object sender, EventArgs e) {
+        private void Form1_Load(object sender, EventArgs e)
+        {
             Thread MainThread = new Thread(new ThreadStart(MainThreadWork));
             MainThread.IsBackground = true;
             MainThread.Init();
         }
 
-        void GuiThread() {
-            do {
+        void GuiThread()
+        {
+            do
+            {
                 #region LogGUI
                 string s = null;
                 //if (!string.IsNullOrEmpty((s = DebugSystem.PullLogItem())))
@@ -58,11 +68,14 @@ namespace Wonderland_Private_Server {
 
                 #endregion
                 #region Form.System.Status gui
-                try {
-                    this.BeginInvoke(new Action(() => {
+                try
+                {
+                    this.BeginInvoke(new Action(() =>
+                    {
                         //thrd_label.Text = string.Format("Thread Cnt - {0}", ThreadManager.Count);
                     }));
-                } catch { }
+                }
+                catch { }
                 #endregion
                 #region Form.Update
                 //try
@@ -82,7 +95,8 @@ namespace Wonderland_Private_Server {
         }
 
 
-        void MainThreadWork() {
+        void MainThreadWork()
+        {
 
             cGlobal.Run = true;
             DebugSystem.Initialize(ref MainOutput, true);
@@ -98,6 +112,8 @@ namespace Wonderland_Private_Server {
             cGlobal.gCharacterDataBase.ItemDat = cGlobal.ItemDatManager;
             cGlobal.gGameDataBase = new DataBase.GameDataBase();
             cGlobal.gGameDataBase.ItemDat = cGlobal.ItemDatManager;
+            cGlobal.gPortalDataBase = new DataBase.PortalDataBase();
+            cGlobal.gPortalDataBase.VerifySetup();
             DebugSystem.Write("[Init] - Intializing Systems Please Wait.....");
             cGlobal.ApplicationTasks = new Server.TaskManager();
             //cGlobal.Update_System = new Server.System.UpdateSystem();
@@ -109,6 +125,7 @@ namespace Wonderland_Private_Server {
 
             cGlobal.gLoginServer = new Server.LoginServer();
             cGlobal.gWorld = new Server.WorldServer(phostManager);
+            //cGlobal.gLoginServer.OnNewPlayer += (s, e) => cGlobal.gWorld.OnLogin(e);
 
             //cGlobal.WLO_World = new Server.WloWorldNode();
             //cGlobal.gCharacterDataBase = new DataManagement.DataBase.CharacterDataBase();
@@ -125,20 +142,24 @@ namespace Wonderland_Private_Server {
             #region load settings file
 
             DebugSystem.Write("Loading Settings File");
-            if (System.IO.File.Exists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo")) {
+            if (System.IO.File.Exists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo"))
+            {
                 System.Xml.Serialization.XmlSerializer diskio = new System.Xml.Serialization.XmlSerializer(typeof(Server.Config.Settings));
 
-                try {
+                try
+                {
                     using (StreamReader file = new StreamReader(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo"))
                         cGlobal.SrvSettings = (Server.Config.Settings)diskio.Deserialize(file);
                     DebugSystem.Write("Settings File loaded successfully");
-                } catch { DebugSystem.Write("Settings File failed to load"); }
-            } else
+                }
+                catch { DebugSystem.Write("Settings File failed to load"); }
+            }
+            else
                 DebugSystem.Write("Settings File not found");
 
 
 
-            cGlobal.gUserDataBase.TableName = cGlobal.SrvSettings.DB.TableName_Ref;
+            //cGlobal.gUserDataBase.TableName = cGlobal.SrvSettings.DB.TableName_Ref;
             cGlobal.gUserDataBase.Username_Ref = cGlobal.SrvSettings.DB.Username_Ref;
             cGlobal.gUserDataBase.Password_Ref = cGlobal.SrvSettings.DB.Password_Ref;
             cGlobal.gUserDataBase.DataBaseID_Ref = cGlobal.SrvSettings.DB.UserID_Ref;
@@ -196,28 +217,34 @@ namespace Wonderland_Private_Server {
             Char_Delete_Code_Ref.DataBindings.Add("Text", cGlobal.SrvSettings.DB, "Char_Delete_Code_Ref");
             _passVerifi.DataBindings.Add("SelectedIndex", cGlobal.SrvSettings.DB, "PassVerification");*/
             #endregion
-            
+
 
             #region DataBase Initialization
 
 
             DebugSystem.Write("Testing Connection to UserDatabase");
-            try {
-                if (cGlobal.gUserDataBase.TestConnection()) {
+            try
+            {
+                if (cGlobal.gUserDataBase.TestConnection())
+                {
                     DebugSystem.Write("Connection Successful");
                     DebugSystem.Write("Verifying User DataBase Tables");
                     cGlobal.gUserDataBase.VerifySetup();
-                } else
+                }
+                else
                     DebugSystem.Write("Connection not successful\r\n unable to authenticate users connecting to server");
 
                 DebugSystem.Write("Testing Connection to Character Database");
-                if (cGlobal.gCharacterDataBase.TestConnection()) {
+                if (cGlobal.gCharacterDataBase.TestConnection())
+                {
                     DebugSystem.Write("Connection Successful");
                     DebugSystem.Write("Verifying Character DataBase Tables");
                     cGlobal.gCharacterDataBase.VerifySetup();
-                } else
+                }
+                else
                     DebugSystem.Write("Connection not successful\r\n unable to create neccesary tables for the server");
-            } catch (Exception e) { DebugSystem.Write(new ExceptionData(e)); }
+            }
+            catch (Exception e) { DebugSystem.Write(new ExceptionData(e)); }
 
 
             #endregion
@@ -237,13 +264,19 @@ namespace Wonderland_Private_Server {
             cGlobal.gWorld.Initialize();
             cGlobal.gLoginServer.Initialize();
 
+            // Start Registration Web Server
+            var registrationServer = new Server.API.RegistrationServer(8080, cGlobal.gUserDataBase);
+            registrationServer.Start();
+            DebugSystem.Write("[Init] - Registration page available at: http://localhost:8080/");
+
             //cGlobal.WLO_World.Initialize();
             Thread.Sleep(2);
             //cGlobal.TcpListener.Initialize();
             #endregion
 
 
-            do {
+            do
+            {
                 #region Thread Management
                 //try
                 //{
@@ -269,7 +302,8 @@ namespace Wonderland_Private_Server {
         }
 
 
-        public void ShutDown() {
+        public void ShutDown()
+        {
             this.Invoke(new Action(() => { this.Enabled = false; }));
 
             UI.ShutDown_Dialog tmp = new UI.ShutDown_Dialog();
@@ -292,7 +326,8 @@ namespace Wonderland_Private_Server {
         }
 
         #region Form Events
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e) {
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
             if (cGlobal.Run || blockclose)
                 e.Cancel = true;
             cGlobal.Run = false;
@@ -300,7 +335,7 @@ namespace Wonderland_Private_Server {
 
         #endregion
 
-        
+
 
         Dictionary<string, string> MapsData;
         Dictionary<string, string> VehiclesData;
@@ -440,6 +475,270 @@ namespace Wonderland_Private_Server {
         {
             GetPrivatePlayer().RideVehicle("");
         }
-    
+
+        #region User Management
+        private void btnRefreshUsers_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var users = cGlobal.gUserDataBase.GetAllUsers();
+                if (users != null)
+                {
+                    dataGridViewUsers.DataSource = users;
+                    dataGridViewUsers.Columns["userID"].HeaderText = "ID";
+                    dataGridViewUsers.Columns["username"].HeaderText = "Username";
+                    dataGridViewUsers.Columns["password"].HeaderText = "Password";
+                    dataGridViewUsers.Columns["email"].HeaderText = "Email";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading users: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnDeleteUser_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUsers.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Please select a user to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var row = dataGridViewUsers.SelectedRows[0];
+            int userId = Convert.ToInt32(row.Cells["userID"].Value);
+            string username = row.Cells["username"].Value?.ToString() ?? "";
+
+            var result = MessageBox.Show($"Are you sure you want to delete user '{username}'?",
+                "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                if (cGlobal.gUserDataBase.DeleteUser(userId))
+                {
+                    MessageBox.Show("User deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    btnRefreshUsers_Click(sender, e);
+                }
+                else
+                {
+                    MessageBox.Show("Failed to delete user.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void btnChangePassword_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewUsers.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Please select a user to change password.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var row = dataGridViewUsers.SelectedRows[0];
+            int userId = Convert.ToInt32(row.Cells["userID"].Value);
+            string username = row.Cells["username"].Value?.ToString() ?? "";
+
+            string newPassword = ShowInputDialog($"Enter new password for '{username}':", "Change Password");
+
+            if (!string.IsNullOrWhiteSpace(newPassword))
+            {
+                if (cGlobal.gUserDataBase.UpdatePassword(userId, newPassword))
+                {
+                    MessageBox.Show("Password changed successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    btnRefreshUsers_Click(sender, e);
+                }
+                else
+                {
+                    MessageBox.Show("Failed to change password.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private string ShowInputDialog(string text, string caption, string defaultValue = "")
+        {
+            Form prompt = new Form() { Width = 300, Height = 150, FormBorderStyle = FormBorderStyle.FixedDialog, Text = caption, StartPosition = FormStartPosition.CenterParent };
+            Label textLabel = new Label() { Left = 20, Top = 20, Width = 250, Text = text };
+            TextBox inputBox = new TextBox() { Left = 20, Top = 50, Width = 240, Text = defaultValue };
+            Button confirmation = new Button() { Text = "OK", Left = 170, Width = 90, Top = 80, DialogResult = DialogResult.OK };
+            prompt.Controls.Add(textLabel);
+            prompt.Controls.Add(inputBox);
+            prompt.Controls.Add(confirmation);
+            prompt.AcceptButton = confirmation;
+            return prompt.ShowDialog() == DialogResult.OK ? inputBox.Text : "";
+        }
+        #endregion
+
+        #region Portal Management
+        private void btnRefreshPortals_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                dgvPortals.DataSource = cGlobal.gPortalDataBase.GetAllPortals();
+                dgvDestinations.DataSource = cGlobal.gPortalDataBase.GetAllDestinations();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading portal data: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnAddPortal_Click(object sender, EventArgs e)
+        {
+            string mapID = ShowInputDialog("Map ID:", "Add Portal");
+            if (string.IsNullOrWhiteSpace(mapID)) return;
+            string portalID = ShowInputDialog("Portal ID:", "Add Portal");
+            if (string.IsNullOrWhiteSpace(portalID)) return;
+            string destID = ShowInputDialog("Destination ID:", "Add Portal");
+            if (string.IsNullOrWhiteSpace(destID)) return;
+
+            if (cGlobal.gPortalDataBase.AddPortal(uint.Parse(mapID), byte.Parse(portalID), byte.Parse(destID)))
+            {
+                MessageBox.Show("Portal added!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                btnRefreshPortals_Click(sender, e);
+            }
+            else
+            {
+                MessageBox.Show("Failed to add portal.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnDeletePortal_Click(object sender, EventArgs e)
+        {
+            if (dgvPortals.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Select a portal to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            int id = Convert.ToInt32(dgvPortals.SelectedRows[0].Cells["id"].Value);
+            if (cGlobal.gPortalDataBase.DeletePortal(id))
+            {
+                MessageBox.Show("Portal deleted!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                btnRefreshPortals_Click(sender, e);
+            }
+        }
+
+        private void btnAddDestination_Click(object sender, EventArgs e)
+        {
+            string srcMapID = ShowInputDialog("Source Map ID:", "Add Destination");
+            if (string.IsNullOrWhiteSpace(srcMapID)) return;
+            string destID = ShowInputDialog("Destination ID:", "Add Destination");
+            if (string.IsNullOrWhiteSpace(destID)) return;
+            string dstMap = ShowInputDialog("Target Map ID:", "Add Destination");
+            if (string.IsNullOrWhiteSpace(dstMap)) return;
+            string dstX = ShowInputDialog("Target X:", "Add Destination");
+            if (string.IsNullOrWhiteSpace(dstX)) return;
+            string dstY = ShowInputDialog("Target Y:", "Add Destination");
+            if (string.IsNullOrWhiteSpace(dstY)) return;
+
+            if (cGlobal.gPortalDataBase.AddDestination(uint.Parse(srcMapID), byte.Parse(destID), ushort.Parse(dstMap), ushort.Parse(dstX), ushort.Parse(dstY)))
+            {
+                MessageBox.Show("Destination added!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                btnRefreshPortals_Click(sender, e);
+            }
+            else
+            {
+                MessageBox.Show("Failed to add destination.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnDeleteDestination_Click(object sender, EventArgs e)
+        {
+            if (dgvDestinations.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Select a destination to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            int id = Convert.ToInt32(dgvDestinations.SelectedRows[0].Cells["id"].Value);
+            if (cGlobal.gPortalDataBase.DeleteDestination(id))
+            {
+                MessageBox.Show("Destination deleted!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                btnRefreshPortals_Click(sender, e);
+            }
+        }
+
+        private void btnEditPortal_Click(object sender, EventArgs e)
+        {
+            if (dgvPortals.SelectedRows.Count == 0) return;
+            var row = dgvPortals.SelectedRows[0];
+            int id = Convert.ToInt32(row.Cells["id"].Value);
+
+            string mapID = ShowInputDialog("Map ID:", "Edit Portal", row.Cells["mapID"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(mapID)) return;
+            string portalID = ShowInputDialog("Portal ID:", "Edit Portal", row.Cells["portalID"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(portalID)) return;
+            string destID = ShowInputDialog("Destination ID:", "Edit Portal", row.Cells["destID"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(destID)) return;
+
+            if (cGlobal.gPortalDataBase.UpdatePortal(id, uint.Parse(mapID), byte.Parse(portalID), byte.Parse(destID)))
+            {
+                MessageBox.Show("Portal updated!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                btnRefreshPortals_Click(sender, e);
+            }
+            else
+            {
+                MessageBox.Show("Failed to update portal.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnEditDestination_Click(object sender, EventArgs e)
+        {
+            if (dgvDestinations.SelectedRows.Count == 0) return;
+            var row = dgvDestinations.SelectedRows[0];
+            int id = Convert.ToInt32(row.Cells["id"].Value);
+
+            string mapID = ShowInputDialog("Map ID:", "Edit Destination", row.Cells["mapID"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(mapID)) return;
+            string destID = ShowInputDialog("Destination ID:", "Edit Destination", row.Cells["destID"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(destID)) return;
+            string dstMap = ShowInputDialog("Target Map ID:", "Edit Destination", row.Cells["dstMap"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(dstMap)) return;
+            string dstX = ShowInputDialog("Target X:", "Edit Destination", row.Cells["dstX"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(dstX)) return;
+            string dstY = ShowInputDialog("Target Y:", "Edit Destination", row.Cells["dstY"].Value.ToString());
+            if (string.IsNullOrWhiteSpace(dstY)) return;
+
+            if (cGlobal.gPortalDataBase.UpdateDestination(id, uint.Parse(mapID), byte.Parse(destID), ushort.Parse(dstMap), ushort.Parse(dstX), ushort.Parse(dstY)))
+            {
+                MessageBox.Show("Destination updated!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                btnRefreshPortals_Click(sender, e);
+            }
+            else
+            {
+                MessageBox.Show("Failed to update destination.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        #endregion
+
+        private void btnRefreshCharacters_Click(object sender, EventArgs e)
+        {
+            if (cGlobal.gCharacterDataBase != null)
+            {
+                dgvCharacters.DataSource = cGlobal.gCharacterDataBase.GetAllCharacters();
+            }
+        }
+
+        private void btnDeleteCharacter_Click(object sender, EventArgs e)
+        {
+            if (dgvCharacters.SelectedRows.Count > 0)
+            {
+                try
+                {
+                    uint id = Convert.ToUInt32(dgvCharacters.SelectedRows[0].Cells["charID"].Value);
+                    if (MessageBox.Show($"Are you sure you want to delete character ID: {id}?", "Confirm Delete", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    {
+                        cGlobal.gCharacterDataBase.DeleteCharacter(id);
+                        btnRefreshCharacters_Click(sender, e);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error deleting character: " + ex.Message);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Please select a character/row to delete.");
+            }
+        }
     }
 }

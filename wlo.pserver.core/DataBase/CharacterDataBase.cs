@@ -1,17 +1,17 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
-using MySql.Data.MySqlClient;
-using System.Data;
 using Game;
 using Game.Bots;
+using MySql.Data.MySqlClient;
+using Network;
 using RCLibrary.Core;
 using RCLibrary.Core.Networking;
-using System.Reflection;
-using Network;
 
 
 namespace DataBase
@@ -21,14 +21,14 @@ namespace DataBase
     {
         public uint ID;
         public DateTime RequestedAt;
-        public bool isOld { get { return ((DateTime.Now - RequestedAt) > new TimeSpan(0, 0, 30)); } } 
+        public bool isOld { get { return ((DateTime.Now - RequestedAt) > new TimeSpan(0, 0, 30)); } }
         public Character Data;
     }
 
 
-    public sealed class CharacterDataBase :RCLibrary.Core.DataBase
+    public sealed class CharacterDataBase : RCLibrary.Core.DataBase
     {
-        ConcurrentDictionary<int,Character> Characters_Online;
+        ConcurrentDictionary<int, Character> Characters_Online;
         List<CharacterDataRequest> CacheCharacters;
 
         const string DBServer = "CharacterDataBase";
@@ -37,13 +37,13 @@ namespace DataBase
         public DataFiles.PhxItemDat ItemDat { private get; set; }
 
         List<string> client_requested_names = new List<string>();
-          
-       
+
+
         /// <summary>
         /// saves a cache of a character
         /// </summary>
-        ConcurrentDictionary<int, Character> Cache = new ConcurrentDictionary<int,Character>();
-        
+        ConcurrentDictionary<int, Character> Cache = new ConcurrentDictionary<int, Character>();
+
         Dictionary<string, uint> CharNames = new Dictionary<string, uint>();
 
         public CharacterDataBase()
@@ -190,7 +190,8 @@ namespace DataBase
                                     case "AI": str += "AUTO_INCREMENT "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -205,8 +206,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -227,7 +229,7 @@ namespace DataBase
 
         exist:
             DebugSystem.Write("Found characters table");
-        DebugSystem.Write("Verifying characters columns");
+            DebugSystem.Write("Verifying characters columns");
             //table exists verify columns  
             //table exists verify columns  
             foreach (string h in col.Keys)
@@ -243,7 +245,7 @@ namespace DataBase
             #endregion
 
             #region charactersextdata Verification
-        DebugSystem.Write("Checking for charactersextdata table");
+            DebugSystem.Write("Checking for charactersextdata table");
 
         retry2:
 
@@ -259,7 +261,7 @@ namespace DataBase
                 var str = "";
                 var att = t.Value.Split('/');
 
-                switch ( ServType)
+                switch (ServType)
                 {
                     #region Mysql
                     case RCLibrary.Core.DataBaseTypes.MySQl:
@@ -272,7 +274,8 @@ namespace DataBase
                                     case "NN": str += "NOT NULL "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -287,8 +290,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -309,7 +313,7 @@ namespace DataBase
 
         exist2:
             DebugSystem.Write("Found charactersextdata table");
-        DebugSystem.Write("Verifying charactersextdata columns");
+            DebugSystem.Write("Verifying charactersextdata columns");
             //table exists verify columns  
             //table exists verify columns  
             foreach (string h in extdtcol.Keys)
@@ -325,7 +329,7 @@ namespace DataBase
             #endregion
 
             #region chartent Verification
-        DebugSystem.Write("Checking for chartent table");
+            DebugSystem.Write("Checking for chartent table");
         retry3:
 
             if (GetDataTable("SELECT * FROM " + "chartent") != null) goto exist3;
@@ -353,7 +357,8 @@ namespace DataBase
                                     case "NN": str += "NOT NULL "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -368,8 +373,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -404,7 +410,7 @@ namespace DataBase
             #endregion
 
             #region charquest Verification
-        DebugSystem.Write("Checking for charquest table");
+            DebugSystem.Write("Checking for charquest table");
         retry4:
 
             if (GetDataTable("SELECT * FROM " + "charquest") != null) goto exist4;
@@ -419,7 +425,7 @@ namespace DataBase
                 var str = "";
                 var att = t.Value.Split('/');
 
-                switch ( ServType)
+                switch (ServType)
                 {
                     #region Mysql
                     case RCLibrary.Core.DataBaseTypes.MySQl:
@@ -432,7 +438,8 @@ namespace DataBase
                                     case "NN": str += "NOT NULL "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -447,8 +454,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -465,7 +473,7 @@ namespace DataBase
                 cmstr += ");";
 
 
-           ExecuteNonQuery(cmstr);
+            ExecuteNonQuery(cmstr);
 
         exist4:
             //table exists verify columns  
@@ -483,7 +491,7 @@ namespace DataBase
             #endregion
 
             #region charunlocks Verification
-        DebugSystem.Write("Checking for charunlocks table");
+            DebugSystem.Write("Checking for charunlocks table");
         retry5:
 
             if (GetDataTable("SELECT * FROM " + "charunlocks") != null) goto exist5;
@@ -511,7 +519,8 @@ namespace DataBase
                                     case "NN": str += "NOT NULL "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -526,8 +535,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -562,7 +572,7 @@ namespace DataBase
             #endregion
 
             #region inv Verification
-        DebugSystem.Write("Checking for inventory table");
+            DebugSystem.Write("Checking for inventory table");
         retry6:
 
             if (GetDataTable("SELECT * FROM " + "inventory") != null) goto exist6;
@@ -590,7 +600,8 @@ namespace DataBase
                                     case "NN": str += "NOT NULL "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -605,8 +616,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -641,7 +653,7 @@ namespace DataBase
             #endregion
 
             #region stats Verification
-        DebugSystem.Write("Checking for stats table");
+            DebugSystem.Write("Checking for stats table");
         retry7:
 
             if (GetDataTable("SELECT * FROM " + "stats") != null) goto exist7;
@@ -669,7 +681,8 @@ namespace DataBase
                                     case "NN": str += "NOT NULL "; break;
                                     case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
                                 }
-                        } break;
+                        }
+                        break;
                     #endregion
                     #region Sqlite
                     case RCLibrary.Core.DataBaseTypes.Sqlite:
@@ -684,8 +697,9 @@ namespace DataBase
                                     case "int": str += "INTEGER "; break;
                                     case "PK": str += "PRIMARY KEY "; break;
                                 }
-                        } break;
-                    #endregion
+                        }
+                        break;
+                        #endregion
                 }
 
                 cmstr += string.Format("{0} {1},", t.Key, str);
@@ -706,7 +720,7 @@ namespace DataBase
 
         exist7:
             DebugSystem.Write("Found stats table");
-        DebugSystem.Write("Verifying stats columns");
+            DebugSystem.Write("Verifying stats columns");
             //table exists verify columns  
             //table exists verify columns  
             foreach (string h in stats.Keys)
@@ -832,6 +846,19 @@ namespace DataBase
             {
                 Character t;
                 Cache.TryRemove((int)ID, out t);
+            }
+        }
+
+        public DataTable GetAllCharacters()
+        {
+            try
+            {
+                return GetDataTable("SELECT charID, slot, name, nickname, location_map, location_x, location_y, gold, element, job FROM characters ORDER BY charID");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+                return null;
             }
         }
 
@@ -1323,7 +1350,7 @@ namespace DataBase
 
         public void OnCharacterJoin(Player src)
         {
-            Characters_Online.TryAdd((int)src.CharID,src);
+            Characters_Online.TryAdd((int)src.CharID, src);
         }
 
         public void OnCharacterLeave(Player src)
@@ -1332,7 +1359,7 @@ namespace DataBase
             if (Characters_Online.TryRemove((int)src.CharID, out s))
             {
                 //Begin Saving Character Data
-                WritePlayer(src.CharID,src);
+                WritePlayer(src.CharID, src);
 
 
 

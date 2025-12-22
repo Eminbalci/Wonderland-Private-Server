@@ -1,17 +1,18 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using System.Threading;
-using System.Collections.Concurrent;
+using System.Threading.Tasks;
+using DataBase;
 using DataFiles;
-using RCLibrary.Core.Networking;
-using Network;
 using Game;
 using Game.Code;
 using Game.Maps;
-using System.Reflection;
+using Network;
+using RCLibrary.Core.Networking;
 
 namespace Game
 {
@@ -44,12 +45,12 @@ namespace Game
         protected string m_name;
 
         bool shutdown = false;
-        
+
 
 
         public GameMap()
         {
-            
+
             m_playerlist = new List<Player>();
             ItemsDropped = new List<Item>(255);
             DisconnectedQueue = new Queue<Player>(50);
@@ -62,7 +63,7 @@ namespace Game
         public GameMap(Plugin.PluginHost host, System.IO.FileInfo src)
             : base(src)
         {
-            
+
             myhost = (Plugin.PluginHost)host;
             m_playerlist = new List<Player>();
             ItemsDropped = new List<Item>(255);
@@ -84,7 +85,7 @@ namespace Game
         protected virtual void LoadData()
         {
             this.LogInfo("tesT");
-            DebugSystem.Write("["+Assembly.GetAssembly(this.GetType()).FullName+"] - Initializing Map " + MapID + " - " + MapName);
+            DebugSystem.Write("[" + Assembly.GetAssembly(this.GetType()).FullName + "] - Initializing Map " + MapID + " - " + MapName);
 
             var myDllAssembly = Assembly.GetAssembly(this.GetType());
 
@@ -154,7 +155,7 @@ namespace Game
 
         #region Properties
         public virtual MapType Type { get { return MapType.RegularMap; } }
-        public virtual uint MapID { get { lock (mlock) return m_mapid; } set { lock (mlock)m_mapid = value; } }
+        public virtual uint MapID { get { lock (mlock) return m_mapid; } set { lock (mlock) m_mapid = value; } }
         public virtual string MapName { get { return ""; } }
         #endregion
 
@@ -275,8 +276,8 @@ namespace Game
                         //        o.dropin = DateTime.Now.AddMinutes(2);
                         //    }
                         //}
-                        src.Send( Tools.FromFormat("bbwb", 23, 2, res.ItemID, 1));
-                        Broadcast( Tools.FromFormat("bbwb", 23, 2, res.ItemID, 0), "Ex", src.CharID);
+                        src.Send(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 1));
+                        Broadcast(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 0), "Ex", src.CharID);
                     }
                 }
             });
@@ -358,7 +359,7 @@ namespace Game
             src.PrevMap.DstY_Axis = src.CurY;
 
             SendAc12(src, portalID, To, toTent);
-                m_playerlist.Remove(src);
+            m_playerlist.Remove(src);
         }
 
         public bool Teleport(TeleportType teletype, Player sender, byte portalID = 0, WarpData warp = null)
@@ -370,7 +371,7 @@ namespace Game
 
                 if (teletype == TeleportType.Regular || teletype == TeleportType.CmD)
                     sender.Send(Tools.FromFormat("bb", 20, 7));
-                
+
                 tmp.Pack8((byte)23);
                 tmp.Pack8((byte)32);
                 tmp.Pack32(sender.CharID);
@@ -395,37 +396,126 @@ namespace Game
 
                 case TeleportType.Regular:
                     {
-                        
-                            WarpDest target = Destinations[(byte)Portals[portalID].DstID];
-                            GameMap map = myhost.gMapManager.GetMap((ushort)target.DstID);
+                        // Try to get portal from database if not in local dictionary
+                        byte destId = 0;
+                        ushort dstMap = 0, dstX = 0, dstY = 0;
+                        bool foundPortal = false;
 
-                            if (Type != MapType.RegularMap && portalID == 1)  //create warp from Prev Map
+                        // First check local dictionary (loaded from reflection)
+                        if (Portals.ContainsKey(portalID) && Destinations.ContainsKey((byte)Portals[portalID].DstID))
+                        {
+                            destId = (byte)Portals[portalID].DstID;
+                            var target = Destinations[destId];
+                            dstMap = (ushort)target.DstID;
+                            dstX = (ushort)target.DstX;
+                            dstY = (ushort)target.DstY;
+                            foundPortal = true;
+                        }
+                        // If not found, try database
+                        else if (PortalDataBase.Instance != null)
+                        {
+                            try
+                            {
+                                var portalData = PortalDataBase.Instance.GetPortalsForMap(MapID);
+                                if (portalData != null)
+                                {
+                                    foreach (System.Data.DataRow row in portalData.Rows)
+                                    {
+                                        if (Convert.ToByte(row["portalID"]) == portalID)
+                                        {
+                                            destId = Convert.ToByte(row["destID"]);
+                                            var destData = PortalDataBase.Instance.GetDestinationsForMap(MapID);
+                                            if (destData != null)
+                                            {
+                                                foreach (System.Data.DataRow dRow in destData.Rows)
+                                                {
+                                                    if (Convert.ToByte(dRow["destID"]) == destId)
+                                                    {
+                                                        dstMap = Convert.ToUInt16(dRow["dstMap"]);
+                                                        dstX = Convert.ToUInt16(dRow["dstX"]);
+                                                        dstY = Convert.ToUInt16(dRow["dstY"]);
+                                                        foundPortal = true;
+                                                        DebugSystem.Write($"[Teleport] Found portal {portalID} in database: Map {MapID} -> Map {dstMap} ({dstX}, {dstY})");
+                                                        break;
+                                                    }
+                                                }
+
+                                                if (!foundPortal)
+                                                {
+                                                    DebugSystem.Write($"[Teleport] ERROR: Portal {portalID} on map {MapID} points to DestID {destId}, but that DestID does not exist for this map in 'warp_destinations'.");
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[Teleport] Database error: {ex.Message}");
+                            }
+                        }
+
+                        if (!foundPortal)
+                        {
+                            tmp = new SendPacket();
+                            tmp.PackArray(new byte[] { 20, 8 });
+                            sender.Send(tmp);
+                            DebugSystem.Write($"[Teleport] Portal {portalID} not found on map {MapID}. Add it via Portals tab in UI.");
+                            return false;
+                        }
+
+
+                        GameMap map = null;
+                        if (Game.Maps.MapManager.Instance != null)
+                        {
+                            map = Game.Maps.MapManager.Instance.GetMap(dstMap);
+                        }
+
+                        if (Type != MapType.RegularMap && portalID == 1)  //create warp from Prev Map
+                        {
+                            try
                             {
                                 Warp_Out(portalID, sender, sender.PrevMap);// warp out of map                            
+                            }
+                            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
-                                if ((map = myhost.gMapManager.GetMap((ushort)target.DstID)) != null)
-                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)target.DstID, DstX_Axis = (ushort)target.DstX, DstY_Axis = (ushort)target.DstY }, portalID);
+                            if (Game.Maps.MapManager.Instance != null && (map = Game.Maps.MapManager.Instance.GetMap(dstMap)) != null)
+                            {
+                                try
+                                {
+                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, portalID);
+                                }
+                                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+                            }
+                        }
+                        else
+                        {
+                            if (map != null)
+                            {
+                                try
+                                {
+                                    Warp_Out(portalID, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY });// warp out of map
+                                }
+                                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+                                try
+                                {
+                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, portalID);
+                                }
+                                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
                             }
                             else
                             {
-                                //var WarpID = (int)Events[Portals[portalID].unknownbytearray1[0]].SubEntry[0].SubEntry[0].dialog2;
-                                if (!Portals.ContainsKey(portalID))
-                                {
-
-                                    tmp = new SendPacket();
-                                    tmp.PackArray(new byte[] { 20, 8 });
-                                    sender.Send(tmp); return false;
-                                }
-
-                                if (map != null)
-                                {
-                                    Warp_Out(portalID, sender, new WarpData() { DstMap = (ushort)target.DstID, DstX_Axis = (ushort)target.DstX, DstY_Axis = (ushort)target.DstY });// warp out of map
-                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)target.DstID, DstX_Axis = (ushort)target.DstX, DstY_Axis = (ushort)target.DstY }, portalID);
-                                }
-
-                                //cGlobal.WLO_World.onTelePort(portalID, new WarpData(Destinations[(byte)WarpID]), ref sender);
+                                tmp = new SendPacket();
+                                tmp.PackArray(new byte[] { 20, 8 });
+                                sender.Send(tmp);
+                                DebugSystem.Write($"[Teleport] Target map {dstMap} not loaded for portal {portalID}");
+                                return false;
                             }
-                    } break;
+                        }
+                    }
+                    break;
                 #endregion
                 case TeleportType.Special:
                     {
@@ -440,7 +530,8 @@ namespace Game
                         //map.Phase2Warp(t);
                         //globals.packet.cCharacter.DatatoSend.Enqueue(globals.gServer.GenerateQueuepkt(t));
                         //globals.gServer.SendCombinepkt(t);
-                    } break;
+                    }
+                    break;
                 case TeleportType.Quest:
                     {
                         //var exitpoint = mapData.Entry_Points[Entry - 1];
@@ -452,7 +543,8 @@ namespace Game
                         //globals.gServer.Queue_Request(t);
                         //map.Phase2Warp(t);
                         //globals.packet.cCharacter.DatatoSend.Enqueue(globals.gServer.GenerateQueuepkt(t));
-                    } break;
+                    }
+                    break;
                 #region Tent Warp
                 case TeleportType.Tent:
                     {
@@ -460,7 +552,8 @@ namespace Game
                         sender.CurX = warp.DstX_Axis;//switch x
                         sender.CurY = warp.DstY_Axis;//switch y
                         Tents[warp.DstMap].Warp_In(TeleportType.Tent, sender, warp);
-                    } break;
+                    }
+                    break;
                 #endregion
                 case TeleportType.Tool:/*t.inv.RemoveInv((byte)Entry, 1);*/ break;
                 #region Cmd Warp
@@ -471,8 +564,9 @@ namespace Game
 
                         Warp_Out(portalID, sender, warp, (map.Type == MapType.Tent));// warp out of map
                         map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }, portalID);
-                        
-                    } break;
+
+                    }
+                    break;
                 #endregion
                 case TeleportType.Login: Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }); break;
             }
@@ -482,155 +576,155 @@ namespace Game
 
         protected virtual void SendMapInfo(Player t, bool login = false)
         {
-              RCLibrary.Core.Networking.PacketBuilder tmp = new RCLibrary.Core.Networking.PacketBuilder();
-                tmp.Begin(null);
-                tmp.Add(Tools.FromFormat("bb", 23, 138));
-                /* p = new SendPacket();
-                 p.PackArray(new byte[]{(6, 2);
-                 p.Pack(1);
-                 p.SetSize();
-                 g.SendPacket(t, p);*/
-                #region Send Npc
-                #endregion
-                #region Send Item
-                //if (Items_Dropped.Count > 0)
-                //{
-                //    int unk = 0;
-                //    p = new SendPacket();
-                //    p.PackArray(new byte[] { 23, 4 });
-                //    for (byte a = 0; a < Items_Dropped.ToList().Count; a++)
-                //    {
-                //        if (Items_Dropped[a].NonExpirable)
-                //        {
-                //            p.Pack((byte)3);
-                //            p.Pack((byte)1);
-                //            unk = Items_Dropped[a].Control;
-                //        }
+            RCLibrary.Core.Networking.PacketBuilder tmp = new RCLibrary.Core.Networking.PacketBuilder();
+            tmp.Begin(null);
+            tmp.Add(Tools.FromFormat("bb", 23, 138));
+            /* p = new SendPacket();
+             p.PackArray(new byte[]{(6, 2);
+             p.Pack(1);
+             p.SetSize();
+             g.SendPacket(t, p);*/
+            #region Send Npc
+            #endregion
+            #region Send Item
+            //if (Items_Dropped.Count > 0)
+            //{
+            //    int unk = 0;
+            //    p = new SendPacket();
+            //    p.PackArray(new byte[] { 23, 4 });
+            //    for (byte a = 0; a < Items_Dropped.ToList().Count; a++)
+            //    {
+            //        if (Items_Dropped[a].NonExpirable)
+            //        {
+            //            p.Pack((byte)3);
+            //            p.Pack((byte)1);
+            //            unk = Items_Dropped[a].Control;
+            //        }
 
-                //        p.Pack16((ushort)a);
-                //        p.Pack((ushort)Items_Dropped[a].ItemID);
-                //        p.Pack16((ushort)Items_Dropped[a].X);
-                //        p.Pack16((ushort)Items_Dropped[a].Y);
-                //        p.Pack((uint)unk);
-                //    }
-                //    t.Send(p);
-                //}
-                #endregion
-                //SendNpcs(t);
-                //SendItems(t);
-                //SendOpenTents(t);
+            //        p.Pack16((ushort)a);
+            //        p.Pack((ushort)Items_Dropped[a].ItemID);
+            //        p.Pack16((ushort)Items_Dropped[a].X);
+            //        p.Pack16((ushort)Items_Dropped[a].Y);
+            //        p.Pack((uint)unk);
+            //    }
+            //    t.Send(p);
+            //}
+            #endregion
+            //SendNpcs(t);
+            //SendItems(t);
+            //SendOpenTents(t);
 
 
-                foreach (var r in m_playerlist)
+            foreach (var r in m_playerlist)
+            {
+                tmp.Add(Tools.FromFormat("bbd", 23, 122, r.CharID));
+                tmp.Add(Tools.FromFormat("bbdb", 10, 3, r.CharID, 255));
+
+                if (r.CharID != t.CharID)
                 {
-                    tmp.Add(Tools.FromFormat("bbd", 23, 122, r.CharID));
-                    tmp.Add(Tools.FromFormat("bbdb", 10, 3, r.CharID, 255));
+                    //r.SendPacket(Tools.FromFormat("bbd", 23, 122, t.CharID));
+                    //r.SendPacket(Tools.FromFormat("bbdb", 10, 3, t.CharID, 255));
 
-                    if (r.CharID != t.CharID)
-                    {
-                        //r.SendPacket(Tools.FromFormat("bbd", 23, 122, t.CharID));
-                        //r.SendPacket(Tools.FromFormat("bbdb", 10, 3, t.CharID, 255));
+                    if (r.Emote != 0)
+                        tmp.Add(Tools.FromFormat("bbdb", 32, 2, r.CharID, r.Emote));
 
-                        if (r.Emote != 0)
-                            tmp.Add(Tools.FromFormat("bbdb", 32, 2, r.CharID, r.Emote));
+                    #region Pets in Map
+                    //if (t.Pets.BattlePet != null)//to them
+                    //{
+                    //    SendPacket tmp = new SendPacket();
+                    //    tmp.PackArray(new byte[] { 15, 4 });
+                    //    tmp.Pack(t.CharID);
+                    //    tmp.Pack(t.Pets.BattlePet.ID);
+                    //    tmp.Pack((byte)0);
+                    //    tmp.Pack((byte)1);
+                    //    tmp.PackString(t.Pets.BattlePet.Name);
+                    //    tmp.Pack16(0);//weapon
+                    //    r.Send(tmp);
+                    //}
+                    //if (r.Pets.BattlePet != null)//to me
+                    //{
+                    //    SendPacket tmp = new SendPacket();
+                    //    tmp.PackArray(new byte[] { 15, 4 });
+                    //    tmp.Pack(r.CharID);
+                    //    tmp.Pack(r.Pets.BattlePet.ID);
+                    //    tmp.Pack((byte)0);
+                    //    tmp.Pack((byte)1);
+                    //    tmp.PackString(r.Pets.BattlePet.Name);
+                    //    tmp.Pack16(0);//weapon
+                    //    t.Send(tmp);
+                    //}
 
-                        #region Pets in Map
-                        //if (t.Pets.BattlePet != null)//to them
-                        //{
-                        //    SendPacket tmp = new SendPacket();
-                        //    tmp.PackArray(new byte[] { 15, 4 });
-                        //    tmp.Pack(t.CharID);
-                        //    tmp.Pack(t.Pets.BattlePet.ID);
-                        //    tmp.Pack((byte)0);
-                        //    tmp.Pack((byte)1);
-                        //    tmp.PackString(t.Pets.BattlePet.Name);
-                        //    tmp.Pack16(0);//weapon
-                        //    r.Send(tmp);
-                        //}
-                        //if (r.Pets.BattlePet != null)//to me
-                        //{
-                        //    SendPacket tmp = new SendPacket();
-                        //    tmp.PackArray(new byte[] { 15, 4 });
-                        //    tmp.Pack(r.CharID);
-                        //    tmp.Pack(r.Pets.BattlePet.ID);
-                        //    tmp.Pack((byte)0);
-                        //    tmp.Pack((byte)1);
-                        //    tmp.PackString(r.Pets.BattlePet.Name);
-                        //    tmp.Pack16(0);//weapon
-                        //    t.Send(tmp);
-                        //}
+                    #endregion
+                    #region Riceball
+                    //if (characters_in_map[a].riceBall.id > 0)
+                    //{
+                    //    if (characters_in_map[a].riceBall.active) g.ac5.Send_5(characters_in_map[a].riceBall.id, characters_in_map[a], t);
+                    //}
+                    //if (t.riceBall.id > 0)
+                    //{
+                    //    if (t.riceBall.active) g.ac5.Send_5(t.riceBall.id, t, characters_in_map[a]);
+                    //}
+                    #endregion
+                    #region Team
+                    //if (t.MyTeam.PartyLeader && t.MyTeam.hasParty && plist[a] != t)
+                    //{
+                    //    SendPacket fg = t.MyTeam._13_6;
+                    //    plist[a].Send(fg);
+                    //}
+                    //if (plist[a].MyTeam.PartyLeader && plist[a].MyTeam.hasParty)
+                    //{
+                    //    SendPacket fg = plist[a].MyTeam._13_6;
+                    //    t.Send(fg);
+                    //}
+                    #endregion
+                    //if (Player.PlayerID != t.PlayerID)
+                    //g.ac23.Send_74(Player.PlayerID, 0, c); //TODO find out what this does
+                    #region Pets in Map
+                    //AC 15,4 //possibly pet info for players on map with pets
 
-                        #endregion
-                        #region Riceball
-                        //if (characters_in_map[a].riceBall.id > 0)
-                        //{
-                        //    if (characters_in_map[a].riceBall.active) g.ac5.Send_5(characters_in_map[a].riceBall.id, characters_in_map[a], t);
-                        //}
-                        //if (t.riceBall.id > 0)
-                        //{
-                        //    if (t.riceBall.active) g.ac5.Send_5(t.riceBall.id, t, characters_in_map[a]);
-                        //}
-                        #endregion
-                        #region Team
-                        //if (t.MyTeam.PartyLeader && t.MyTeam.hasParty && plist[a] != t)
-                        //{
-                        //    SendPacket fg = t.MyTeam._13_6;
-                        //    plist[a].Send(fg);
-                        //}
-                        //if (plist[a].MyTeam.PartyLeader && plist[a].MyTeam.hasParty)
-                        //{
-                        //    SendPacket fg = plist[a].MyTeam._13_6;
-                        //    t.Send(fg);
-                        //}
-                        #endregion
-                        //if (Player.PlayerID != t.PlayerID)
-                        //g.ac23.Send_74(Player.PlayerID, 0, c); //TODO find out what this does
-                        #region Pets in Map
-                        //AC 15,4 //possibly pet info for players on map with pets
-
-                        //if (plist[a].CharacterState == PlayerState.inBattle)
-                        //{
-                        //    SendPacket qp = new SendPacket(t);
-                        //    qp.PackArray(new byte[]{(11, 4);
-                        //    qp.Pack((byte)2);
-                        //    qp.Pack(plist[a].CharacterID);
-                        //    qp.Pack16(0);
-                        //    qp.Pack((byte)0);
-                        //    qp.Send();
-                        //}
-                        #endregion
-                        //23_76                    
-                    }
-                    tmp.Add(Tools.FromFormat("bbd", 23, 76, r.CharID));
-
+                    //if (plist[a].CharacterState == PlayerState.inBattle)
+                    //{
+                    //    SendPacket qp = new SendPacket(t);
+                    //    qp.PackArray(new byte[]{(11, 4);
+                    //    qp.Pack((byte)2);
+                    //    qp.Pack(plist[a].CharacterID);
+                    //    qp.Pack16(0);
+                    //    qp.Pack((byte)0);
+                    //    qp.Send();
+                    //}
+                    #endregion
+                    //23_76                    
                 }
-                //39_9
-                //SendPacket gh = new SendPacket(g);
-                //gh.PackArray(new byte[] { 244, 68, 5, 0, 22, 6, 1, 0, 1, 244, 68, 5, 0, 22, 6, 21, 0, 1, 244, 68, 5, 0, 22, 6, 22, 0, 1, 244, 68, 5, 0, 22, 6, 23, 0, 1, 244, 68, 5, 0, 22, 6, 24, 0, 1, });
-                // cServer.Send(gh, t);
-                /*tmp = new SendPacket(g);
-                tmp.PackArray(new byte[]{(6, 2);
-                tmp.Pack((byte)1);
-                tmp.SetSize();
-                tmp.Player = t;
-                tmp.Send();
-                for (int a = 0; a < 1; a++)
-                {
-                    gh = new SendPacket(g);
-                    gh.PackArray(new byte[] { 244, 68, 2, 0, 20, 11, 244, 68, 2, 0, 20, 10 });
-                    t.DatatoSend.Enqueue(gh);
-                }
-                for (int a = 0; a < 1; a++)
-                {
-                    gh = new SendPacket(g);
-                    gh.PackArray(new byte[] { 244, 68, 2, 0, 20, 10 });
-                    t.DatatoSend.Enqueue(gh);
-                }*/
-                tmp.Add(Tools.FromFormat("bb", 23, 102));
-                tmp.Add(Tools.FromFormat("bb", 20, 8));
-                t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
-                t.Send(new SendPacket(tmp.End()));
+                tmp.Add(Tools.FromFormat("bbd", 23, 76, r.CharID));
+
             }
+            //39_9
+            //SendPacket gh = new SendPacket(g);
+            //gh.PackArray(new byte[] { 244, 68, 5, 0, 22, 6, 1, 0, 1, 244, 68, 5, 0, 22, 6, 21, 0, 1, 244, 68, 5, 0, 22, 6, 22, 0, 1, 244, 68, 5, 0, 22, 6, 23, 0, 1, 244, 68, 5, 0, 22, 6, 24, 0, 1, });
+            // cServer.Send(gh, t);
+            /*tmp = new SendPacket(g);
+            tmp.PackArray(new byte[]{(6, 2);
+            tmp.Pack((byte)1);
+            tmp.SetSize();
+            tmp.Player = t;
+            tmp.Send();
+            for (int a = 0; a < 1; a++)
+            {
+                gh = new SendPacket(g);
+                gh.PackArray(new byte[] { 244, 68, 2, 0, 20, 11, 244, 68, 2, 0, 20, 10 });
+                t.DatatoSend.Enqueue(gh);
+            }
+            for (int a = 0; a < 1; a++)
+            {
+                gh = new SendPacket(g);
+                gh.PackArray(new byte[] { 244, 68, 2, 0, 20, 10 });
+                t.DatatoSend.Enqueue(gh);
+            }*/
+            tmp.Add(Tools.FromFormat("bb", 23, 102));
+            tmp.Add(Tools.FromFormat("bb", 20, 8));
+            t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
+            t.Send(new SendPacket(tmp.End()));
+        }
 
         #endregion
 
@@ -691,12 +785,12 @@ namespace Game
         /// <param name="To">"Multiple target IDs as string to send to specific people"</param>
         public void Broadcast(SendPacket pkt, string parameter, params object[] To)
         {
-                switch (parameter)
-                {
-                    case "ALL": m_playerlist.ForEach(c => c.Send(pkt)); break;
-                    case "Ex": m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) == 0).ToList().ForEach(c => c.Send(pkt)); break;
-                    case "To": m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) > 0).ToList().ForEach(c => c.Send(pkt)); break;
-                }
+            switch (parameter)
+            {
+                case "ALL": m_playerlist.ForEach(c => c.Send(pkt)); break;
+                case "Ex": m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) == 0).ToList().ForEach(c => c.Send(pkt)); break;
+                case "To": m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) > 0).ToList().ForEach(c => c.Send(pkt)); break;
+            }
         }
 
         void SendAc12(Player target, byte portalID, WarpData To, bool toTent = false)

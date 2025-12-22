@@ -1,0 +1,9 @@
+{
+    "profiles": {
+        "Wonderland Private Server": {
+            "commandName": "Executable",
+            "executablePath": ".\\bin\\Debug\\Wonderland Private Server.exe",
+            "workingDirectory": ".\\bin\\Debug"
+        }
+    }
+}

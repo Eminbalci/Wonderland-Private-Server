@@ -9,8 +9,11 @@ namespace Game.Maps
     public class MapManager
     {
 
+        public static MapManager Instance { get; private set; }
+
         public MapManager()
         {
+            Instance = this;
         }
 
         public GameMap GetMap(ushort ID)

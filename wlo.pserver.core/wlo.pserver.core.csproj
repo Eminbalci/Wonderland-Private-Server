@@ -12,7 +12,7 @@
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
-    <RestorePackages>true</RestorePackages>
+    <RestorePackages>false</RestorePackages>
     <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -101,6 +101,7 @@
     <Compile Include="DataBase\Migration\characterDB_Mig.cs" />
     <Compile Include="DataBase\Migration\DBMigrationWiz.cs" />
     <Compile Include="DataBase\UserDataBase.cs" />
+    <Compile Include="DataBase\PortalDataBase.cs" />
     <Compile Include="Game\Battle\Battle.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -128,6 +129,7 @@
     <Compile Include="Game\Item.cs" />
     <Compile Include="Game\Maps\Code\InteractableObjects.cs" />
     <Compile Include="Game\Maps\Code\ShoppingCart.cs" />
+    <Compile Include="Game\Maps\MapManager.cs" />
     <Compile Include="Game\Maps\Map.cs" />
     <Compile Include="Game\Maps\MapObject.cs" />
     <Compile Include="Game\Maps\Code\WalkableObjects.cs" />

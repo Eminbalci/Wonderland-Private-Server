@@ -65,7 +65,7 @@ namespace Server
         //        cGlobal.gGameDataBase.SetupMap(ref tmp);
         //        if (!MapList.TryAdd(map.DstMap, tmp)) return false;
         //    }
-            
+
         //    MapList[map.DstMap].onWarp_In(portalID, ref target, map);
         //    DebugSystem.Write("Loaded Map (" + MapList[map.DstMap].MapID.ToString() + ") " + MapList[map.DstMap].Name);
         //    return true;

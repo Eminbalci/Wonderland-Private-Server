@@ -1,10 +1,12 @@
-﻿using Server;
-using Server.System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
+using Server;
+using Server.System;
 
-namespace System {
-    static class cGlobal {
+namespace System
+{
+    static class cGlobal
+    {
 
 
         public static bool Run;
@@ -15,6 +17,7 @@ namespace System {
         public static DataBase.CharacterDataBase gCharacterDataBase;
         public static DataBase.UserDataBase gUserDataBase;
         public static DataBase.GameDataBase gGameDataBase;
+        public static DataBase.PortalDataBase gPortalDataBase;
 
         public static DataFiles.PhxItemDat ItemDatManager;
 
