@@ -20,7 +20,8 @@ namespace Game.Battle
     {
         public Fighter src;
         public Fighter dst;
-        //public Skill skill;
+        //public Wonderland_Private_Server.DataManagement.DataFiles.Skill skill;  // Commented out due to cross-project reference issue
+
         public byte unknownbyte;
         public byte unknownbyte2;
     }
@@ -39,9 +40,9 @@ namespace Game.Battle
         public eBattleState BattleState;
         public eBattleRoundState RoundState;
 
-        public UInt16 Background,battleID;
+        public UInt16 Background, battleID;
         public Fighter startedby;
-        
+
         #endregion
         public UInt16 BattleID { get { return battleID; } }
         public BattleScene this[BattleRole key]
@@ -51,9 +52,9 @@ namespace Game.Battle
                 return Side[(byte)key];
             }
         }
-        
 
-        public Battle(UInt16 BG,int BattleID)
+
+        public Battle(UInt16 BG, int BattleID)
         {
             Background = BG;
             Side = new Dictionary<byte, BattleScene>();
@@ -150,7 +151,7 @@ namespace Game.Battle
             }
             blockupdt = false;
         }
-        
+
         //Send StartRd info
         public void StartRound()
         {
@@ -242,7 +243,7 @@ namespace Game.Battle
         {
             BattleState = eBattleState.Ended;
         }
-    
+
         #endregion
 
 
@@ -462,7 +463,8 @@ namespace Game.Battle
                             case Affinity.Water: return 0.6;
                             case Affinity.Wind: return 1.5;
                         }
-                    } break;
+                    }
+                    break;
                 case Affinity.Earth:
                     {
                         switch (target)
@@ -473,7 +475,8 @@ namespace Game.Battle
                             case Affinity.Water: return 1.7;
                             case Affinity.Wind: return 0.6;
                         }
-                    } break;
+                    }
+                    break;
                 case Affinity.Water:
                     {
                         switch (target)
@@ -484,7 +487,8 @@ namespace Game.Battle
                             case Affinity.Water: return 1.0;
                             case Affinity.Wind: return 1.0;
                         }
-                    } break;
+                    }
+                    break;
                 case Affinity.Wind:
                     {
                         switch (target)
@@ -495,7 +499,8 @@ namespace Game.Battle
                             case Affinity.Water: return 1.0;
                             case Affinity.Wind: return 1.0;
                         }
-                    } break;
+                    }
+                    break;
                 case Affinity.Normal:
                     {
                         switch (target)
@@ -506,7 +511,8 @@ namespace Game.Battle
                             case Affinity.Water: return 1.3;
                             case Affinity.Wind: return 1.3;
                         }
-                    } break;
+                    }
+                    break;
             }
             return 0;
         }
@@ -763,8 +769,8 @@ namespace Game.Battle
                 //case EffectLayer.Seals1:
                 case EffectLayer.Magical:
                 case EffectLayer.Physical: return 25;
-                //case EffectLayer.Mana: attktype = 28; break;
-                //case EffectLayer.noEffects: attktype = 23; break;
+                    //case EffectLayer.Mana: attktype = 28; break;
+                    //case EffectLayer.noEffects: attktype = 23; break;
             }
             return 0;
         }
@@ -879,7 +885,7 @@ namespace Game.Battle
             //            //{
             //            //    case BattleSide.Defending: success = CanFlee((byte)t.src.Level, (byte)Rightside.fighterlist[0].Stats.Level); break;
             //            //    case BattleSide.Attacking: success = CanFlee((byte)t.src.Level, (byte)Leftside.fighterlist[0].Stats.Level); break;
-                                
+
             //            //}
             //            success = true;
             //        } break;

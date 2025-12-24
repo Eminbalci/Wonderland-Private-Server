@@ -98,6 +98,9 @@
   <ItemGroup>
     <Compile Include="DataBase\CharacterDataBase.cs" />
     <Compile Include="DataBase\GameDataBase.cs" />
+    <Compile Include="DataFiles\EveLoader.cs" />
+    <Compile Include="DataFiles\EveExt.cs" />
+    <Compile Include="DataFiles\SceneLoader.cs" />
     <Compile Include="DataBase\Migration\characterDB_Mig.cs" />
     <Compile Include="DataBase\Migration\DBMigrationWiz.cs" />
     <Compile Include="DataBase\UserDataBase.cs" />
@@ -147,7 +150,13 @@
     <Compile Include="Game\PlayerRelated\Tent\TentItem.cs" />
     <Compile Include="Game\PlayerRelated\Tent\TentItemContainer.cs" />
     <Compile Include="Game\PlayerRelated\Tent\Tools.cs" />
+    <Compile Include="Game\PlayerRelated\RiceBall.cs" />
+    <Compile Include="Game\PlayerRelated\MailManager.cs" />
+    <Compile Include="Game\PlayerRelated\Friendlist.cs" />
+    <Compile Include="Game\PlayerRelated\PetList.cs" />
+    <Compile Include="Game\PlayerRelated\Quest.cs" />
     <Compile Include="Game\User.cs" />
+
     <Compile Include="Generics\Tools.cs" />
     <Compile Include="Network\ActionCodes\AC.cs" />
     <Compile Include="Network\Packet.cs" />

@@ -13,14 +13,14 @@ namespace Game.Code
 {
     public class Inventory
     {
-        DataFiles.PhxItemDat ItemDat;
+        global::DataFiles.PhxItemDat ItemDat;
 
 
         Player owner;
         private readonly object mylock;
         private InvItem[] m_Items;
 
-        public Inventory(Player src,DataFiles.PhxItemDat ItemDat)
+        public Inventory(Player src, global::DataFiles.PhxItemDat ItemDat)
         {
             owner = src;
             this.ItemDat = ItemDat;
@@ -162,7 +162,7 @@ namespace Game.Code
                                 else
                                     this[slot].Clear();
                             }
-                        if (senddata) owner.Send( Tools.FromFormat("bbbb", 23, 9, at, ammt));
+                        if (senddata) owner.Send(Tools.FromFormat("bbbb", 23, 9, at, ammt));
                         return remItem;
                     }
                 }
@@ -235,7 +235,7 @@ namespace Game.Code
                         else
                             goto end;
 
-                end:
+                        end:
                     if (ammt > 0 && sendData)
                     {
                         addammt -= ammt;
@@ -307,7 +307,8 @@ namespace Game.Code
 
                         if (((src > 0) && (src < 51)) && ((dst > 0) && (dst < 51)) && ((ammt > 0) && (ammt < 51)))
                             MoveItem(src, dst, ammt);
-                    } break;
+                    }
+                    break;
                 #endregion
                 #region item being used
                 case 15:
@@ -332,11 +333,12 @@ namespace Game.Code
                         if (this[pos].ItemID > 0)
                         {
                             // test confirm destroy item
-                            owner.Send( Tools.FromFormat("bbWb", 23, 26, this[pos].ItemID, qnt));
+                            owner.Send(Tools.FromFormat("bbWb", 23, 26, this[pos].ItemID, qnt));
                             RemoveItem(pos, qnt);
                         }
-                    } break;
-                #endregion
+                    }
+                    break;
+                    #endregion
             }
         }
 
@@ -397,7 +399,7 @@ namespace Game.Code
                 {
                     Dictionary<byte, uint[]> tmp = new Dictionary<byte, uint[]>();
 
-                    for(byte a =1;a<51;a++)
+                    for (byte a = 1; a < 51; a++)
                         tmp.Add(a, new uint[] { this[a].ItemID, this[a].Damage, this[a].Ammt, a, 0, 0, 0, 0 });
                     return tmp;
                 }
@@ -470,8 +472,8 @@ namespace Game.Code
     public class TentInventoryManager : Inventory
     {
 
-        public TentInventoryManager(Player src, DataFiles.PhxItemDat ItemDat)
-            : base(src,ItemDat)
+        public TentInventoryManager(Player src, global::DataFiles.PhxItemDat ItemDat)
+            : base(src, ItemDat)
         {
 
         }

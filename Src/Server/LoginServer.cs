@@ -37,6 +37,26 @@ namespace Server
 
         public int Count { get { return ClientList.Count; } }
 
+        public List<Player> GetAllPlayers()
+        {
+            List<Player> list = new List<Player>();
+            lock (ClientList)
+            {
+                foreach (var c in ClientList)
+                {
+                    if (c == null) continue;
+                    try
+                    {
+                        foreach (var p in c.Values)
+                        {
+                            if (p != null) list.Add(p);
+                        }
+                    }
+                    catch { }
+                }
+            }
+            return list;
+        }
 
         public override void ListenThread()
         {

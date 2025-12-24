@@ -179,51 +179,83 @@ namespace DataBase
 
         public bool GetUserData(string user, string pass, out uint userID, out string[] userData)
         {
+            DebugSystem.Write($"[UserDataBase.GetUserData] Called for user: '{user}'");
+            DebugSystem.Write($"[UserDataBase.GetUserData] TableName={TableName}, Username_Ref={Username_Ref}");
+
             DataRow[] rows = new DataRow[0];
 
-            var src = GetDataTable("SELECT * FROM " + TableName + " WHERE " + Username_Ref + " = @id", new DbParam("@id", user));
-
-            if (src.Rows.Count > 0)
+            try
             {
-                rows = new DataRow[src.Rows.Count];
-                src.Rows.CopyTo(rows, 0);
+                var src = GetDataTable("SELECT * FROM " + TableName + " WHERE " + Username_Ref + " = @id", new DbParam("@id", user));
+                DebugSystem.Write($"[UserDataBase.GetUserData] Query executed. Rows found: {src?.Rows.Count ?? -1}");
 
-                switch (PassVerification)
+                if (src.Rows.Count > 0)
                 {
-                    case VerifyPassType.None:
-                        if (VerifyPassword(pass, rows[0][Password_Ref].ToString()))
-                        {
-                            string ch = "";
-                            if (rows[0][Char_Delete_Code_Ref] != DBNull.Value)
-                                ch = rows[0][Char_Delete_Code_Ref].ToString();
-                            uint.TryParse(rows[0][DataBaseID_Ref].ToString(), out userID);
-                            userData = new string[] { rows[0][Username_Ref].ToString(), ch, (rows[0][IM_Ref].ToString() == "") ? "0" : rows[0][IM_Ref].ToString() };
-                            return true;
-                        }
-                        break;
-                    //if (BCrypt.Net.BCrypt.Verify(pass, rows[0][Password_Ref].ToString()))
-                    //{
-                    //    string ch = "0";
-                    //    if (rows[0][Char_Delete_Code_Ref] != DBNull.Value)
-                    //        ch = rows[0][Char_Delete_Code_Ref].ToString();
+                    rows = new DataRow[src.Rows.Count];
+                    src.Rows.CopyTo(rows, 0);
 
-                    //    return new string[] { rows[0][Username_Ref].ToString(), ch, (rows[0][IM_Ref].ToString() == "")?"0":rows[0][IM_Ref].ToString()};
-                    //}
-                    case VerifyPassType.IPBoard_3x:
-                        if (VerifySaltedPassword(pass, rows[0]["members_pass_salt"].ToString(), rows[0][Password_Ref].ToString()))
-                        {
-                            string ch = "";
-                            if (rows[0][Char_Delete_Code_Ref] != DBNull.Value)
-                                ch = rows[0][Char_Delete_Code_Ref].ToString();
-                            uint.TryParse(rows[0][DataBaseID_Ref].ToString(), out userID);
-                            userData = new string[] { rows[0][Username_Ref].ToString(), ch, (rows[0][IM_Ref].ToString() == "") ? "0" : rows[0][IM_Ref].ToString() };
-                            return true;
-                        }
-                        break;
+                    DebugSystem.Write($"[UserDataBase.GetUserData] PassVerification type: {PassVerification}");
+                    switch (PassVerification)
+                    {
+                        case VerifyPassType.None:
+                            DebugSystem.Write("[UserDataBase.GetUserData] Using VerifyPassType.None");
+                            if (VerifyPassword(pass, rows[0][Password_Ref].ToString()))
+                            {
+                                DebugSystem.Write("[UserDataBase.GetUserData] Password verified successfully!");
+                                string ch = "";
+                                // Check if char_delete_code column exists before accessing it
+                                if (src.Columns.Contains(Char_Delete_Code_Ref) && rows[0][Char_Delete_Code_Ref] != DBNull.Value)
+                                    ch = rows[0][Char_Delete_Code_Ref].ToString();
+                                uint.TryParse(rows[0][DataBaseID_Ref].ToString(), out userID);
+
+                                // Check if IM column exists before accessing it
+                                string imValue = "0";
+                                if (src.Columns.Contains(IM_Ref) && !string.IsNullOrEmpty(rows[0][IM_Ref].ToString()))
+                                    imValue = rows[0][IM_Ref].ToString();
+
+                                userData = new string[] { rows[0][Username_Ref].ToString(), ch, imValue };
+                                DebugSystem.Write($"[UserDataBase.GetUserData] Returning TRUE with userID={userID}");
+                                return true;
+                            }
+                            else
+                            {
+                                DebugSystem.Write("[UserDataBase.GetUserData] Password verification FAILED");
+                            }
+                            break;
+                        case VerifyPassType.IPBoard_3x:
+                            DebugSystem.Write("[UserDataBase.GetUserData] Using VerifyPassType.IPBoard_3x");
+                            if (VerifySaltedPassword(pass, rows[0]["members_pass_salt"].ToString(), rows[0][Password_Ref].ToString()))
+                            {
+                                string ch = "";
+                                // Check if char_delete_code column exists before accessing it
+                                if (src.Columns.Contains(Char_Delete_Code_Ref) && rows[0][Char_Delete_Code_Ref] != DBNull.Value)
+                                    ch = rows[0][Char_Delete_Code_Ref].ToString();
+                                uint.TryParse(rows[0][DataBaseID_Ref].ToString(), out userID);
+
+                                // Check if IM column exists before accessing it
+                                string imValue = "0";
+                                if (src.Columns.Contains(IM_Ref) && !string.IsNullOrEmpty(rows[0][IM_Ref].ToString()))
+                                    imValue = rows[0][IM_Ref].ToString();
+
+                                userData = new string[] { rows[0][Username_Ref].ToString(), ch, imValue };
+                                return true;
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    DebugSystem.Write($"[UserDataBase.GetUserData] No user found with username '{user}'");
                 }
             }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[UserDataBase.GetUserData] EXCEPTION: {ex.Message}\n{ex.StackTrace}");
+            }
+
             userID = 0;
             userData = null;
+            DebugSystem.Write("[UserDataBase.GetUserData] Returning FALSE");
             return false;
         }
 
@@ -308,7 +340,19 @@ namespace DataBase
         {
             try
             {
-                return GetDataTable("SELECT userID, username, password, email FROM users ORDER BY userID");
+                // Use IFNULL/COALESCE to handle missing char_delete_code column gracefully
+                string query = "SELECT userID, username, password, email";
+
+                // Try to include char_delete_code if it exists
+                var testTable = GetDataTable("SHOW COLUMNS FROM users LIKE 'char_delete_code'");
+                if (testTable != null && testTable.Rows.Count > 0)
+                {
+                    query += ", char_delete_code as cipher";
+                }
+
+                query += " FROM users ORDER BY userID";
+
+                return GetDataTable(query);
             }
             catch (Exception ex)
             {

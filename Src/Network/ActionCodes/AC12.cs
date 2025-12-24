@@ -9,7 +9,7 @@ using Game;
 
 namespace Wonderland_Private_Server.ActionCodes
 {
-    public class AC12:AC
+    public class AC12 : AC
     {
         public override int ID { get { return 12; } }
 
@@ -33,8 +33,19 @@ namespace Wonderland_Private_Server.ActionCodes
                     {
                         p.Flags.Add(PlayerFlag.InMap);
                         p.Send(Tools.FromFormat("bb", 5, 4));
+
+                        // Resend party info upon warp completion
+                        if (p.m_teammembers != null && p.m_teammembers.Count > 0)
+                        {
+                            var leader = p.m_teammembers.FirstOrDefault(x => x.PartyLeader);
+                            if (leader != null)
+                            {
+                                DebugSystem.Write($"[AC12] Resending party info to {p.CharName} after warp");
+                                p.Send(leader._13_6Data);
+                            }
+                        }
                     }
-                    
+
                     //switch (p.Flags.)
                     //{
                     //    case PlayerState.InGame_Warping:
@@ -48,10 +59,10 @@ namespace Wonderland_Private_Server.ActionCodes
                     //            p.object_interactingwith = null;
                     //        } break;
                     //}
-                    
+
                 }
             }
-            catch (Exception t) {DebugSystem.Write(new ExceptionData(t)); }
+            catch (Exception t) { DebugSystem.Write(new ExceptionData(t)); }
         }
     }
 }

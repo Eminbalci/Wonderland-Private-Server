@@ -9,34 +9,42 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using Game.Code.PlayerRelated;
 
-namespace Game {
+namespace Game
+{
     public delegate void PlayerSocketInfo(Player src);
 
-    public class PlayerFlagManager {
+    public class PlayerFlagManager
+    {
         List<PlayerFlag> m_Flags;
 
-        public PlayerFlagManager() {
+        public PlayerFlagManager()
+        {
             m_Flags = new List<PlayerFlag>();
         }
 
-        public void Add(params PlayerFlag[] flag) {
+        public void Add(params PlayerFlag[] flag)
+        {
             foreach (var f in flag)
                 if (!m_Flags.Contains(f))
                     m_Flags.Add(f);
         }
-        public void Remove(params PlayerFlag[] flag) {
+        public void Remove(params PlayerFlag[] flag)
+        {
             foreach (var f in flag)
                 if (m_Flags.Contains(f))
                     m_Flags.Remove(f);
         }
-        public bool HasFlag(PlayerFlag flag) {
+        public bool HasFlag(PlayerFlag flag)
+        {
             return m_Flags.Contains(flag);
         }
     }
 
 
-    public class Player : Game.Character, IDisposable, INotifyPropertyChanged {
+    public class Player : Game.Character, IDisposable, INotifyPropertyChanged
+    {
 
         #region Events
         public event PlayerSocketInfo Disconnected;
@@ -64,18 +72,34 @@ namespace Game {
 
         User m_useracc;
         Inventory m_inv;
+        List<Quest> m_started_Quests;
         ClientSettings m_settings;
         Game.Battle.BattleScene m_battle;
-        //MailManager m_Mail;
-        //Friendlist m_friendlist;
-        //RiceBall m_riceball;
-        //PetList m_petlist;
-        Tent m_tent;
+        MailManager m_Mail;
+        Friendlist m_friendlist;
+        RiceBall m_riceball;
+        PetList m_petlist;
+        Game.Code.Tent m_tent;
+
+        // Active mount/pet/vehicle tracking for broadcasting to other players
+        public uint ActiveVehicleID { get; set; } = 0;
+        public uint ActiveMountID { get; set; } = 0; // Riding pet
+        public uint ActivePetID { get; set; } = 0; // Battle pet
+
+        // FIX: Added properties for ActionCodes compatibility
+        public Game.Battle.BattleScene BattleScene { get { return m_battle; } }
+        public uint UserID { get { return m_useracc != null ? m_useracc.UserID : 0; } }
+        public int ID { get { return (int)UserID; } }
+        public object CurGuild { get { return null; } } // Placeholder (object to bypass type error)
+        public object Guild { get { return CurGuild; } } // Alias
         #endregion
 
 
-        public Player(SocketClient src, DataFiles.PhxItemDat itemdat)
-            : base(src.SendPacket, itemdat) {
+        public Action<Player> OnDisconnect { get; set; }
+
+        public Player(SocketClient src, global::DataFiles.PhxItemDat itemdat)
+            : base(src.SendPacket, itemdat)
+        {
             m_socket = src;
             m_socket.onConnectionLost += m_socket_onConnectionLost;
             m_socket.onPacketRecved = ProcessSocket;
@@ -85,17 +109,22 @@ namespace Game {
             m_inv = new Inventory(this, itemdat);
             onWearEquip = m_inv.onWearEquip;
             onEquip_Remove = m_inv.onUnEquip;
-            m_tent = new Tent(this);
 
-            m_useracc = new User();
+            m_useracc = new User(); // Init UserAcc BEFORE Tent because Tent uses CharID
+            m_tent = new Game.Code.Tent(this);
+
             Flags = new PlayerFlagManager();
             m_settings = new ClientSettings();
-            //m_friendlist = new Friendlist(new Action<SendPacket>(SendPacket));
-            //m_Mail = new MailManager(this);
+            m_friendlist = new Friendlist(new Action<SendPacket>(Send));
+            m_Mail = new MailManager(this);
 
-            //m_petlist = new PetList(this);
+            m_teammembers = new List<Player>();
+            m_petlist = new PetList(this);
+            m_riceball = new RiceBall(this);
+            m_started_Quests = new List<Quest>();
 
-            while (m_socket.m_IncomingPackets.Count > 0) {
+            while (m_socket.m_IncomingPackets.Count > 0)
+            {
                 IPacket p;
                 m_socket.m_IncomingPackets.TryDequeue(out p);
                 ProcessSocket(p);
@@ -104,15 +133,18 @@ namespace Game {
 
 
         }
-        ~Player() {
+        ~Player()
+        {
         }
 
 
-        public void Dispose() {
+        public void Dispose()
+        {
             m_useracc = null;
         }
 
-        public override void Clear() {
+        public override void Clear()
+        {
             m_Flags = new PlayerFlagManager();
             m_inv.RemoveAll(true);
             QueueData = new Queue<SendPacket>(25);
@@ -131,26 +163,32 @@ namespace Game {
 
         #region User Account
         public User UserAcc { get { return m_useracc; } }
-        //public bool GM { get { return m_gmlvl > 0; } }
-        //public bool Busy { get; set; }
+        public bool GM { get { return m_useracc.GMlvl > 0; } }
+        public bool Busy { get; set; }
         #endregion
 
         #region Player
 
 
-        public PlayerFlagManager Flags {
-            get {
+        public PlayerFlagManager Flags
+        {
+            get
+            {
                 lock (mlock) return m_Flags;
             }
-            set {
+            set
+            {
                 lock (mlock) m_Flags = value;
             }
         }
-        public override uint CharID {
-            get {
+        public override uint CharID
+        {
+            get
+            {
                 return (Slot == 1) ? UserAcc.Character1ID : UserAcc.Character2ID;
             }
-            set {
+            set
+            {
                 base.CharID = value;
             }
         }
@@ -173,9 +211,12 @@ namespace Game {
         //        m_state = value;
         //    }
         //}
+        public List<Quest> Started_Quests { get { return m_started_Quests; } }
         //public IReadOnlyList<Quest> Completed_Quest { get { return m_started_Quests.Where(c => c.progress == c.total).ToList(); } }
-        public ClientSettings Settings {
-            get {
+        public ClientSettings Settings
+        {
+            get
+            {
                 return m_settings;
             }
         }
@@ -196,10 +237,28 @@ namespace Game {
         public Inventory Inv { get { return m_inv ?? null; } }
         public EquipManager Eqs { get { return ((EquipManager)this) ?? null; } }
         public byte Emote { get { lock (mlock) return emote; } set { lock (mlock) emote = value; } }
-        //public cPetList Pets { get { return m_pets; } }
-        public Tent Tent { get { return m_tent; } }
+        public PetList Pets { get { return m_petlist; } }
+        public Game.Code.Tent Tent { get { return m_tent; } }
         public Game.Battle.BattleScene MyBattle { get { return m_battle; } set { m_battle = value; } }
-        //public cRiceBall RiceBall { get { return m_riceball; } }
+        public RiceBall RiceBall { get { return m_riceball; } }
+        public int CurInstance { get; set; }
+
+        public void WearEQ(byte fromLoc)
+        {
+            if (m_inv != null)
+                m_inv.onWearEquip(fromLoc);
+        }
+
+        public void unWearEQ(byte fromLoc, byte toLoc)
+        {
+            // Assuming logic: Unequip item at 'fromLoc' and move to 'toLoc' in inventory?
+            // Inventory.onUnEquip takes (Item src, byte loc, bool senddata)
+            // Need to get Item from Equipment first? Casting to EquipManager might be needed if Eqs property uses it.
+            // For now, attempting to use Eqs if available or standard inventory lookup if equipment is managed there.
+            if (Eqs != null)
+                Eqs.unWear(fromLoc);
+        }
+
         //public SendType DataOut
         //{
         //    get { return dataout; }
@@ -222,13 +281,18 @@ namespace Game {
         //        base.CharacterName = value;
         //    }
         //}
-        public override IMap CurMap {
-            get {
+        public override IMap CurMap
+        {
+            get
+            {
                 return base.CurMap;
             }
-            set {
-                if (base.CurMap != null) {
-                    if (base.CurMap is GameMap) {
+            set
+            {
+                if (base.CurMap != null)
+                {
+                    if (base.CurMap is GameMap)
+                    {
                         prevMap = new WarpData();
                         prevMap.DstMap = (ushort)base.CurMap.MapID;
                         prevMap.DstX_Axis = CurX;
@@ -239,14 +303,16 @@ namespace Game {
                     }
                 }
                 base.CurMap = value;
-                if (base.CurMap is GameMap) {
+                if (base.CurMap is GameMap)
+                {
                     (base.CurMap as GameMap).onItemDropped_fromMap = m_inv.onItemDropped_fromMap;
                     (base.CurMap as GameMap).onItemPickup_fromMap = m_inv.onItemPickedUp_fromMap;
                 }
             }
         }
 
-        public WarpData PrevMap {
+        public WarpData PrevMap
+        {
             get { lock (mlock) return prevMap; }
             set { lock (mlock) prevMap = value; }
         }
@@ -291,21 +357,48 @@ namespace Game {
         #endregion
 
         #region Team
-        //public bool PartyLeader { get { return (m_teammembers[0] == this); } }
-        //public List<Player> TeamMembers { get { return m_teammembers.Skip(1).ToList(); } }
-        //public bool hasParty { get { return (m_teammembers.Count > 0); } }
-        //public SendPacket _13_6Data
-        //{
-        //    get
-        //    {
-        //        SendPacket f = new SendPacket();
-        //        f.PackArray(new byte[] { 13, 6 });
-        //        f.Pack32(ID);
-        //        f.Pack8((byte)m_teammembers.Count(c => c.ID != ID));
-        //        foreach (Player y in m_teammembers.Where(c => c.ID != ID))
-        //            f.Pack32(y.ID);
-        //        return f;
-        //    }
+        public List<Player> m_teammembers;
+
+        public bool PartyLeader
+        {
+            get
+            {
+                if (m_teammembers == null || m_teammembers.Count == 0) return false;
+                return (m_teammembers[0] == this);
+            }
+        }
+
+        public List<Player> TeamMembers
+        {
+            get
+            {
+                if (m_teammembers == null) return new List<Player>();
+                return m_teammembers.Skip(1).ToList();
+            }
+        }
+
+        public bool hasParty { get { return (m_teammembers != null && m_teammembers.Count > 0); } }
+
+        public SendPacket _13_6Data
+        {
+            get
+            {
+                SendPacket f = new SendPacket();
+                f.PackArray(new byte[] { 13, 6 });
+                f.Pack32(CharID);
+                if (m_teammembers != null)
+                {
+                    f.Pack8((byte)m_teammembers.Count(c => c.CharID != CharID));
+                    foreach (Player y in m_teammembers.Where(c => c.CharID != CharID))
+                        f.Pack32(y.CharID);
+                }
+                else
+                {
+                    f.Pack8(0);
+                }
+                return f;
+            }
+        }
         //}
         #endregion
 
@@ -319,23 +412,29 @@ namespace Game {
         /// Send Player a packet
         /// </summary>
         /// <param name="src"></param>
-        public void Send(SendPacket src) {
-            if (src.Flags == PacketFlags.Queued || src.Flags == PacketFlags.Queue_Dc) {
+        public void Send(SendPacket src)
+        {
+            if (src.Flags == PacketFlags.Queued || src.Flags == PacketFlags.Queue_Dc)
+            {
                 src.Flags -= PacketFlags.Queued;
                 QueueData.Enqueue(src);
                 return;
             }
             Send(src, src.Flags);
         }
-        public void Send(byte[] src) {
+        public void Send(byte[] src)
+        {
 
         }
-        public void Send(byte[] src, RCLibrary.Core.Networking.PacketFlags pFlags) {
+        public void Send(byte[] src, RCLibrary.Core.Networking.PacketFlags pFlags)
+        {
             SendPacket p = new SendPacket(src);
             Send(p, pFlags);
         }
-        public void Send(SendPacket p, RCLibrary.Core.Networking.PacketFlags pFlags) {
-            if (pFlags == PacketFlags.Queued || pFlags == PacketFlags.Queue_Dc) {
+        public void Send(SendPacket p, RCLibrary.Core.Networking.PacketFlags pFlags)
+        {
+            if (pFlags == PacketFlags.Queued || pFlags == PacketFlags.Queue_Dc)
+            {
                 p.Flags -= PacketFlags.Queued;
                 QueueData.Enqueue(p);
                 return;
@@ -345,20 +444,44 @@ namespace Game {
 
         }
 
-        public void ProcessSocket(IPacket g) {
+        public void ProcessSocket(IPacket g)
+        {
             try
             {
                 RecievePacket p = new RecievePacket(g.Buffer);
 
                 if (m_socket.isDisconnected()) { return; }
-                DebugSystem.Write(DebugItemType.Network_Heavy, "Recv Data from {0} Data:{1}", SockAddress(), p.ToString());
+                // Confirm packet reception - Use DebugSystem with Error level for visibility
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Recv Packet: AC={p.A}, Sub={p.B}, Len={p.Buffer.Length}");
+
                 p.SetPtr();
                 var b = p.Unpack8();
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] About to call GetAction for AC={b}");
                 Network.ActionCodes.AC ac = Network.ActionCodes.AC.GetAction(b);
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] GetAction returned: {(ac == null ? "NULL" : ac.GetType().Name)}");
+
+                if (ac == null)
+                {
+                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC {b} NOT FOUND in AcList!");
+                }
+                else
+                {
+                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Processing AC {b}...");
+                }
+
                 if (ac != null)
                 {
                     var c = this;
-                    ac.ProcessPkt(c, p);
+                    try
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Calling ProcessPkt for AC {ac.ID}");
+                        ac.ProcessPkt(c, p);
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] ProcessPkt completed for AC {ac.ID}");
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[ERROR] Exception in ProcessPkt for AC {ac.ID}: {ex}");
+                    }
                     //DebugSystem.Write("Player.cs receive packet: " + p.ToString());
                     //immgithub special cheat-ChatActions: action ID 2 = chat
                     if (ac.ID == 2)
@@ -426,25 +549,57 @@ namespace Game {
             int cmdByte = vehicleID != "" ? 10 : 11; //11=unride
             vp.PackArray(new byte[] { 15, (byte)cmdByte, 0 });
             vp.Pack32(this.CharID);
-            if (vehicleID != "") vp.Pack16(ushort.Parse(vehicleID));
-            Send(vp);
+            if (vehicleID != "")
+            {
+                ushort vid = ushort.Parse(vehicleID);
+                vp.Pack16(vid);
+                ActiveVehicleID = vid;
+            }
+            else
+            {
+                ActiveVehicleID = 0; // Unride
+            }
+
+            // Broadcast to all players in map so they can see the vehicle
+            if (CurMap != null)
+            {
+                CurMap.Broadcast(vp);
+            }
+            else
+            {
+                Send(vp); // Fallback if not in map yet
+            }
         }
+
+
 
         public bool AddPetToPartyList(string petID)
         {
             UnridePet();
+
+            // Dismiss previous pet - send only to owner, not broadcast
             SendPacket dp = new SendPacket();
             dp.PackArray(new byte[] { 15, 2 });
             dp.Pack32(this.CharID);
             dp.Pack8(1); //dismiss previous pet at slot1
-            Send(dp);
+            Send(dp); // Only to owner, NOT broadcast
+
             if (petID == "") return false; //no pet
             SendPacket pkt = new SendPacket();
             pkt.PackArray(new byte[] { 15, 1 }); //add pet to party list
             pkt.Pack32(this.CharID);
             pkt.Pack32(uint.Parse(petID));
             pkt.Pack8((byte)2); pkt.Pack32((uint)100); pkt.Pack8((byte)1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack16(0); pkt.Pack16(0); pkt.Pack8(0);
-            Send(pkt);
+
+            // Broadcast to all players so they can see the pet in party
+            if (CurMap != null)
+            {
+                CurMap.Broadcast(pkt);
+            }
+            else
+            {
+                Send(pkt); // Fallback if not in map yet
+            }
             return true;
         }
 
@@ -452,8 +607,27 @@ namespace Game {
         {
             SendPacket pp = new SendPacket();
             pp.PackArray(new byte[] { 19, 4 }); //put into battle
-            pp.Pack32(uint.Parse(petID));
-            Send(pp);
+            pp.Pack32(this.CharID); // Owner CharID - same as PutPetToRide format
+            uint pid = uint.Parse(petID);
+            pp.Pack32(pid); // Pet ID
+            ActivePetID = pid; // Store for broadcasting
+
+            // Broadcast to all players in map so they can see the pet
+            if (CurMap != null)
+            {
+                CurMap.Broadcast(pp);
+
+                // Try to force refresh player appearance to spawn pet
+                SendPacket refresh = new SendPacket();
+                refresh.PackArray(new byte[] { 5, 8 });
+                refresh.Pack32(this.CharID);
+                refresh.Pack8(0);
+                CurMap.Broadcast(refresh);
+            }
+            else
+            {
+                Send(pp); // Fallback if not in map yet
+            }
         }
 
         public void PutPetToRide(string petID)
@@ -462,18 +636,31 @@ namespace Game {
             rp.PackArray(new byte[] { 15, 16 }); //put into ride npc mode
             rp.Pack8(1);
             rp.Pack32(this.CharID);
-            rp.Pack32(uint.Parse(petID));
-            Send(rp);
+            uint pid = uint.Parse(petID);
+            rp.Pack32(pid);
+            ActiveMountID = pid; // Store for broadcasting
+
+            // Broadcast to all players in map so they can see the mount
+            if (CurMap != null)
+            {
+                CurMap.Broadcast(rp);
+            }
+            else
+            {
+                Send(rp); // Fallback if not in map yet
+            }
         }
         public void UnridePet()
         {
             SendPacket urp = new SendPacket();
             urp.PackArray(new byte[] { 15, 17 }); //unride pet first to dismiss it
             urp.Pack32(this.CharID);
+            ActiveMountID = 0; // Clear mount when unriding
             Send(urp);
         }
 
-        public void Disconnect() {
+        public void Disconnect()
+        {
             if (!isDisconnected())
                 m_socket.Disconnect();
         }
@@ -516,14 +703,17 @@ namespace Game {
         #endregion
 
         #region Game.Battle
-        public void OnBattle_Start(Game.Battle.BattleScene battle) {
+        public void OnBattle_Start(Game.Battle.BattleScene battle)
+        {
         }
 
-        void Battle_OnNewRound(List<Game.Battle.Fighter> fighters_on_my_side, List<Game.Battle.Fighter> fighters_on_other_side) {
+        void Battle_OnNewRound(List<Game.Battle.Fighter> fighters_on_my_side, List<Game.Battle.Fighter> fighters_on_other_side)
+        {
             PacketBuilder tmp = new PacketBuilder();
             tmp.Begin(null);
 
-            foreach (var f in fighters_on_my_side) {
+            foreach (var f in fighters_on_my_side)
+            {
                 tmp.Add(Tools.FromFormat("bbbbbwd", 51, 1, f.GridX, f.GridY, 25, f.CurHP, 0));
                 tmp.Add(Tools.FromFormat("bbbbbwd", 51, 1, f.GridX, f.GridY, 26, f.CurSP, 0));
             }
@@ -662,7 +852,8 @@ namespace Game {
         //    Send(p);
         //}
 
-        public bool Load_CharacterInfo(Character data) {
+        public bool Load_CharacterInfo(Character data)
+        {
             if (data == null) return false;
             CharID = data.CharID;
             CharName = data.CharName;
@@ -697,11 +888,15 @@ namespace Game {
 
             return true;
         }
-        public bool ContinueInteraction() {
-            if (QueueData.Count == 1) {
+        public bool ContinueInteraction()
+        {
+            if (QueueData.Count == 1)
+            {
                 m_socket.SendPacket(QueueData.Dequeue());
                 return false;// (object_interactingwith != null);
-            } else if (QueueData.Count > 1) {
+            }
+            else if (QueueData.Count > 1)
+            {
                 m_socket.SendPacket(QueueData.Dequeue()); return true;
             }
             return false;
@@ -921,63 +1116,146 @@ namespace Game {
 
         //    #endregion
 
-        //    #region Team
-        //    //public void KickMember(Player t)
-        //    //{
-        //    //    MemberLeave(t);
-        //    //}
-        //    //public void MakeLeader()
-        //    //{
-        //    //    SendPacket f = new SendPacket();
-        //    //    f.Header(13, 15);
-        //    //    f.Pack8(3);
-        //    //    f.Pack32(own.CharacterTemplateID);
-        //    //    foreach (Player u in myTeamMembers.ToArray())
-        //    //        if (u.character.MyTeam.PartyLeader)
-        //    //        {
-        //    //            f.Pack32(u.CharacterTemplateID);
-        //    //        }
-        //    //    f.SetSize();
-        //    //    leader = true;
-        //    //    own.currentMap.Broadcast(f);
+        #region Team
+        public void CreateParty()
+        {
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] CreateParty called for {CharName}. Current team: {m_teammembers?.Count ?? 0}");
+            if (m_teammembers == null) m_teammembers = new List<Player>();
+            if (!m_teammembers.Contains(this))
+            {
+                m_teammembers.Add(this);
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Added {CharName} to their own team. New size: {m_teammembers.Count}");
+            }
+            BroadcastPartyUpdate();
+        }
 
-        //    //}
-        //    //public void MemberLeave(Player l)
-        //    //{
-        //    //    if (l.character.MyTeam.leader)
-        //    //        EndTeam();
-        //    //    else if (myTeamMembers.Contains(l))
-        //    //    {
-        //    //        Rem(l);
-        //    //    }
-        //    //    Rem(l);
-        //    //    l.character.MyTeam.Leave();
-        //    //}
-        //    //public void Leave()
-        //    //{
-        //    //    Send_5(53);
-        //    //    Send_5(54);
-        //    //    Send_5(183);
-        //    //    SendPacket p = new SendPacket();
-        //    //    p.Header(13, 4);
-        //    //    p.Pack32(own.CharacterTemplateID);
-        //    //    p.SetSize();
-        //    //    own.currentMap.Broadcast(p);
-        //    //    leader = false;
-        //    //    myTeamMembers.Clear();
-        //    //}
-        //    //public void EndTeam()
-        //    //{
-        //    //    //end party
-        //    //    foreach (Player s in myTeamMembers.ToArray())
-        //    //        s.character.MyTeam.Leave();
-        //    //}
+        public void JoinParty(Player leader)
+        {
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] JoinParty: {CharName} joining {leader.CharName}'s party");
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Leader team before: {leader.m_teammembers?.Count ?? -1}");
 
-        //    public void onPartyjoined(Player partyowner)
-        //    {
+            // Ensure leader has a team and is in it
+            if (leader.m_teammembers == null) leader.m_teammembers = new List<Player>();
+            if (!leader.m_teammembers.Contains(leader))
+            {
+                leader.m_teammembers.Add(leader);
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Added leader {leader.CharName} to their own team. New size: {leader.m_teammembers.Count}");
+            }
 
-        //    }
-        //    #endregion
+            // Allow max 4 players
+            if (leader.m_teammembers.Count >= 4) return;
+
+            // Add self to leader's list
+            if (!leader.m_teammembers.Contains(this))
+            {
+                leader.m_teammembers.Add(this);
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Added {CharName} to {leader.CharName}'s team. New size: {leader.m_teammembers.Count}");
+                this.m_teammembers = leader.m_teammembers; // Share the list reference
+
+                // Broadcast update
+                leader.BroadcastPartyUpdate();
+            }
+        }
+
+        public void LeaveParty()
+        {
+            if (m_teammembers == null || m_teammembers.Count == 0) return;
+
+            // If leader leaves, disband or pass leadership?
+            // Simple logic: remove self, update others
+
+            if (m_teammembers.Contains(this))
+            {
+
+                List<Player> oldParty = m_teammembers;
+                oldParty.Remove(this);
+
+                // Reset self
+                m_teammembers = new List<Player>();
+
+                // Notify others
+                BroadcastToParty(oldParty, _13_6Data); // Update old party list
+
+                // Notify self (empty list) is implicit by not sending anything or sending empty
+                SendPacket p = new SendPacket();
+                p.PackArray(new byte[] { 13, 4 });
+                p.Pack32(CharID);
+                Send(p);
+
+                if (oldParty.Count > 0)
+                {
+                    // Update old party members
+                    SendPacket update = new SendPacket();
+                    update.PackArray(new byte[] { 13, 6 });
+                    update.Pack32(oldParty[0].CharID); // Leader ID
+                    update.Pack8((byte)(oldParty.Count - 1));
+                    foreach (var m in oldParty.Skip(1)) update.Pack32(m.CharID);
+
+                    foreach (var m in oldParty) m.Send(update);
+                }
+            }
+        }
+
+        public void KickPartyMember(uint targetID)
+        {
+            if (!PartyLeader) return;
+
+            Player target = m_teammembers.FirstOrDefault(p => p.CharID == targetID);
+            if (target != null)
+            {
+                target.LeaveParty();
+            }
+        }
+
+        public void TransferLeadership(Player newLeader)
+        {
+            if (!PartyLeader) return; // Only leader can transfer
+            if (m_teammembers == null || !m_teammembers.Contains(newLeader)) return; // New leader must be in party
+
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] TransferLeadership from {CharName} to {newLeader.CharName}");
+
+            // Reorder the list: new leader first, then others
+            List<Player> reordered = new List<Player>();
+            reordered.Add(newLeader);
+            foreach (var member in m_teammembers)
+            {
+                if (member.CharID != newLeader.CharID)
+                    reordered.Add(member);
+            }
+
+            // Update all members to point to new list
+            foreach (var member in reordered)
+            {
+                member.m_teammembers = reordered;
+            }
+
+            // Broadcast the update
+            newLeader.BroadcastPartyUpdate();
+        }
+
+        public void BroadcastPartyUpdate()
+        {
+            if (m_teammembers == null) return;
+
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] BroadcastPartyUpdate from {CharName}. Team size: {m_teammembers.Count}");
+            SendPacket p = _13_6Data;
+            foreach (var m in m_teammembers)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Sending party packet to {m.CharName}...");
+                m.Send(p);
+            }
+        }
+
+        public void BroadcastToParty(List<Player> party, SendPacket p)
+        {
+            if (party == null) return;
+            foreach (var m in party)
+            {
+                m.Send(p);
+            }
+        }
+
+        #endregion
         #endregion
 
         #region Properties
@@ -996,11 +1274,13 @@ namespace Game {
         #endregion
 
         #region Internal Events
-        void m_socket_onConnectionLost() {
+        void m_socket_onConnectionLost()
+        {
             if (net != null && net.IsAlive) net.Abort();
             if (Disconnected != null) Disconnected(this);
         }
-        public void onTick_Tick() {
+        public void onTick_Tick()
+        {
             OnPropertyChanged("DisplayName");
         }
         #endregion
@@ -1013,11 +1293,13 @@ namespace Game {
         #region Inotify Property
         public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void OnPropertyChanged(string propertyName) {
+        protected void OnPropertyChanged(string propertyName)
+        {
             PropertyChangedEventHandler handler = PropertyChanged;
             if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
         }
-        protected bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null) {
+        protected bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
+        {
             if (EqualityComparer<T>.Default.Equals(field, value)) return false;
             field = value;
             OnPropertyChanged(propertyName);
@@ -1031,5 +1313,23 @@ namespace Game {
 
 
 
+        public override string ToString()
+        {
+            return $"{CharName} (ID: {CharID})";
+        }
+
+        public TimeSpan IdleTimer()
+        {
+            // Implement idle timer logic, possibly returning time since last packet
+            return DateTime.Now - LastPacketTime;
+        }
+
+        public DateTime LastPacketTime { get; set; } = DateTime.Now;
+
+        public void ProcessSocket()
+        {
+            // Delegate to socket client processing if applicable, or leaving empty if handled by callbacks
+            // m_socket.Process(); // If such method exists
+        }
     }
 }

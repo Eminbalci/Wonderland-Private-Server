@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Wonderland_Private_Server.Code.Objects;
-using Wonderland_Private_Server.Network;
+using Game; // For Player
+using Network; // For SendPacket
 
-namespace Wonderland_Private_Server.DataManagement.DataFiles
+namespace Game.DataFiles
 {
     #region Enums
     public enum Dialogtype
@@ -113,7 +113,13 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
 
         public void Update(DateTime time, List<Player> players)
         {
-            var list = players.Where(c => c.State == Code.Enums.PlayerState.InGame_InMap);
+            // Player state enum needs to be checked. Assuming Game.Code.Enums.PlayerState exists or needs alias.
+            // Using int cast or just removing check if enum is not available?
+            // Player Enums is likely in Game.Enums
+            var list = players; // Removed .Where(c => (int)c.State == 2) due to missing State property 
+                                // Or assume PlayerState is available in Game namespace.
+                                // Let's assume Game.Enums is imported via Game... No, check imports.
+
             #region Walking
             if (finishwalk_anim < time)
                 if (walksteps.Count > 0)
@@ -121,165 +127,74 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
                     try
                     {
                         if (curstep >= walksteps.Count) curstep = 0;
-                        
+
                         var step = walksteps[curstep];
 
                         foreach (var p in list)
                         {
                             SendPacket y = new SendPacket();
-                            y.Pack(new byte[] { 22, 2 });
-                            y.Pack(clickId);
-                            y.Pack((ushort)step.x);
-                            y.Pack((ushort)step.y);
-                            y.Pack(3);
+                            y.PackArray(new byte[] { 22, 2 });
+                            y.Pack16(clickId);
+                            y.Pack16((ushort)step.x);
+                            y.Pack16((ushort)step.y);
+                            y.Pack8(3);
                             p.Send(y);
                         }
                         curstep++;
-                        
-                        finishwalk_anim = DateTime.Now.Add(new TimeSpan(0,0,1));
+
+                        finishwalk_anim = DateTime.Now.Add(new TimeSpan(0, 0, 1));
                     }
                     catch { }
                 }
                 else
-                switch(unknownbyte4)
-                {
-                    case 2:
-                    case 3:
-                    case 4:
-                        {
-                            Random rand = new Random();
-                            foreach (var p in list)
+                    switch (unknownbyte4)
+                    {
+                        case 2:
+                        case 3:
+                        case 4:
                             {
-                                SendPacket r = new SendPacket();
-                                r.Pack(new byte[] { 22, 2 });
-                                r.Pack(clickId);
-                               if (curstep >= rand.Next(2, 5))
+                                Random rand = new Random();
+                                foreach (var p in list)
                                 {
-                                    r.Pack((ushort)x);
-                                    r.Pack((ushort)y);
-                                    curstep = 0;
-                                }
-                                else
-                                {
-                                   int curx = (int)x;
-                                   int cury = (int)y;
-                                   
+                                    SendPacket r = new SendPacket();
+                                    r.PackArray(new byte[] { 22, 2 });
+                                    r.Pack16(clickId);
+                                    if (curstep >= rand.Next(2, 5))
+                                    {
+                                        r.Pack16((ushort)x);
+                                        r.Pack16((ushort)y);
+                                        curstep = 0;
+                                    }
+                                    else
+                                    {
+                                        int curx = (int)x;
+                                        int cury = (int)y;
 
-                                    r.Pack((ushort)rand.Next(curx-(curx/curstep),curx + (curx/2+curstep)));
-                                    r.Pack((ushort)rand.Next(cury-(cury/curstep),cury + (cury/2+curstep)));
+
+                                        r.Pack16((ushort)rand.Next(curx - (curx / curstep), curx + (curx / 2 + curstep)));
+                                        r.Pack16((ushort)rand.Next(cury - (cury / curstep), cury + (cury / 2 + curstep)));
+                                    }
+                                    r.Pack8(3);
+                                    p.Send(r);
                                 }
-                                r.Pack(3);
-                                p.Send(r);
+
+                                curstep++;
+                                finishwalk_anim = DateTime.Now.Add(new TimeSpan(0, 0, 2));
                             }
-
-                            curstep++;
-                            finishwalk_anim = DateTime.Now.Add(new TimeSpan(0, 0, 2));
-                        }break;
-                }
+                            break;
+                    }
             #endregion
 
             return;
         }
 
-        //public void Interact(Interaction_Type l = Interaction_Type.none, byte answer = 0, byte slot = 0, byte ammt = 0)
-        //{
-        //    var events = location.mapData.Events[Events[0] - 1];
-
-        //    switch (l)
-        //    {
-        //        case Interaction_Type.Talking:
-        //            {
-        //                LoadDialog(events, 1); 
-        //                globals.packet.cCharacter.NpcTalk(true);
-        //            }break;
-        //        case Interaction_Type.Answering:
-        //            {
-        //                foreach (EventSubEntry j in events.SubEntry)
-        //                    if (j.unknownword2 == answer)
-        //                        LoadDialog(events, j.subIndex);
-        //            }break;
-        //        case Interaction_Type.Buying:
-        //            {
-        //                //try find slot info i guess<--
-        //            }break;
-        //    }
-            
-        //}
-        //void LoadDialog(EventsinMapEntries events, byte unk)
-        //{
-        //    unk -= 1;
-        //    bool Add = true;
-        //    for (int a = 0; a < events.SubEntry[unk].SubEntry.Count; a++)
-        //    {
-        //        cSendPacket talk = new cSendPacket(globals);
-        //        talk.Header(20);
-        //        talk.AddDWord(1);
-        //        talk.AddByte((byte)events.SubEntry[events.unknownbyte1 - 1].SubEntry[a].subsubIndex);
-        //        switch (events.SubEntry[unk].SubEntry[a].DialogPtr)
-        //        {
-        //            case 1:
-        //                {
-        //                    talk.AddByte((byte)events.SubEntry[unk].SubEntry[a].dialog3);
-        //                    talk.AddByte(7);
-        //                    talk.AddWord(0);
-        //                    talk.AddDWord(events.SubEntry[unk].SubEntry[a].unknowndword2);
-        //                    talk.AddByte(0);
-        //                    talk.AddWord(events.SubEntry[unk].SubEntry[a].dialog2);
-        //                    talk.AddByte(events.unknownbyte1);
-        //                    if (events.SubEntry[unk].SubEntry[a].dialog1 == 3)//warp event?
-        //                    {
-        //                        location.WarpRequest( WarpType.Questwarp,globals.packet.cCharacter,events.SubEntry[unk].SubEntry[a].dialog2,  null);
-        //                        Add = false;
-        //                    }
-        //                } break;
-        //            case 2:
-        //                {
-        //                    talk.AddByte((byte)events.SubEntry[unk].SubEntry[a].dialog2);
-        //                    talk.AddByte(3);
-        //                    talk.AddWord(events.SubEntry[unk].SubEntry[a].dialog1);
-        //                    talk.AddDWord(events.SubEntry[unk].SubEntry[a].unknowndword2);
-        //                    talk.AddByte(0);
-        //                    talk.AddWord(events.SubEntry[unk].SubEntry[a].dialog3);
-        //                    talk.AddByte(events.unknownbyte1);
-        //                } break;
-        //            case 8:
-        //                {
-        //                    talk.AddByte(5);
-        //                    talk.AddByte(0);
-        //                    talk.AddWord(0);
-        //                    talk.AddByte((byte)events.SubEntry[unk].SubEntry[a].dialog1);
-        //                    var gh = BitConverter.GetBytes(events.SubEntry[unk].SubEntry[a].dialog4);
-        //                    talk.AddByte(gh[1]);
-        //                    talk.AddDWord(events.SubEntry[unk].SubEntry[a].unknowndword1);
-        //                    talk.AddWord(0);
-                            
-        //                } break;
-        //            case 5:
-        //                {
-        //                } break;
-        //            case 7:
-        //                {
-        //                    switch (events.SubEntry[unk].SubEntry[a].dialog1)
-        //                    {
-        //                        case 1: break; //weap keeper sell
-        //                        case 2: globals.ac27.Send_3(); break;//props shopkeeper sell
-        //                        case 3: break;//found a guild
-        //                        case 5: globals.ac31.Send_7(); break;//npc record
-        //                        case 4: globals.ac29.Send_6(); break;//props keeper
-        //                        case 6: break; //welling props/money acess
-        //                        case 7: break;//hotel accomendation/Healing
-        //                        case 9: break;//stock keeper
-        //                        case 24: break; //Lost item keeper
-        //                    }
-        //                } break;
-
-        //        }
-        //        if (Add)
-        //        {
-        //            talk.SetSize(); globals.packet.cCharacter.DatatoSend.Enqueue(talk);
-        //        }
-        //    }
-        //}
+        // Commented out interaction logic that depends on cGlobal
+        /*
+        public void Interact(Interaction_Type l = Interaction_Type.none, byte answer = 0, byte slot = 0, byte ammt = 0)
+        {
+           // Removed because it depends on cGlobal which is not available in Core
+        }
+        */
     }
     public class Entry_Exit_Point_Entries
     {

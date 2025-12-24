@@ -15,12 +15,16 @@ namespace Network.ActionCodes
 
         public override void ProcessPkt(Player p, RecievePacket r)
         {
-            switch (r.Unpack8())
+            byte subCommand = r.Unpack8();
+            DebugSystem.Write($"[AC63] Received sub-command: {subCommand}");
+
+            switch (subCommand)
             {
                 case 0:
                 //case 3: Recv3(ref p, r); break;
                 case 2: Recv2(ref p, r); break;
                 case 4: Recv4(ref p, r); break;
+                default: DebugSystem.Write($"[AC63] Unknown sub-command: {subCommand}"); break;
             }
 
         }
@@ -38,6 +42,7 @@ namespace Network.ActionCodes
 
         void Recv2(ref Player p, RecievePacket e)
         {
+            DebugSystem.Write($"[AC63.Recv2] Client selected a character slot");
             try
             {
                 byte charNum = e.Unpack8();
@@ -72,6 +77,10 @@ namespace Network.ActionCodes
                     tmp.Pack32(p.UserAcc.UserID);
                     p.Send(tmp);
                     cGlobal.gWorld.OnLogin(p);
+
+                    // Automatically send friend list on login
+                    AC14.SendFriendList(p);
+
                     //NormalLog(p);
                     #endregion
                 }
@@ -88,6 +97,7 @@ namespace Network.ActionCodes
         {
             try
             {
+                DebugSystem.Write("[AC63.Recv4] Starting login validation");
                 int loginState = 0; //0-good login  1-bad un/pw  2-dup log 3-wrong version 4-need update
 
                 //sending username and password
@@ -95,64 +105,64 @@ namespace Network.ActionCodes
                 string password = r.UnpackString();
                 name = name.ToLower();
 
-                string[] userdata = null;//data of user
-                /*
-                UInt16 version = r.Unpack16();
-                byte lcLen = r.Unpack8();
-                byte key = r.Unpack8();
-                char[] lCode = new char[20];
-                Array.Copy(r.Buffer, r.GetPtr(), lCode, 0, lcLen);
-                for (int n = 0; n < lcLen; n++)
-                    lCode[n] = (char)((byte)lCode[n] ^ (byte)key);
-                r.SetPtr((int)(r.GetPtr() + lcLen));
+                DebugSystem.Write($"[AC63.Recv4] Username: '{name}', Password length: {password.Length}");
 
+                string[] userdata = null; // data of user
+
+
+                // Validate username and password length
                 if ((name.Length < 4) || (name.Length > 14))
                 {
+                    DebugSystem.Write($"[AC63.Recv4] Invalid username length: {name.Length}");
                     loginState = 1;
                 }
                 else if ((password.Length < 4) || (password.Length > 14))
                 {
+                    DebugSystem.Write($"[AC63.Recv4] Invalid password length: {password.Length}");
                     loginState = 1;
                 }
-                else if (version < 1096)//bad aloign version
+                else if (loginState == 0)
                 {
-                    loginState = 3;
-                }
-                else if ((lcLen < 2) || (lcLen > 15))//bad login code length
-                {
-                    loginState = 4;
-                }
-
-                //at this point we have no use, and only an empty cCharacter object
-                //check to see if we are still in the clear for loggin ing
-                if (loginState == 0)
-                {
-                    //should have correct version if at this point
-
+                    DebugSystem.Write("[AC63.Recv4] Calling GetUserData...");
                     uint dbid = 0;
-                    //check if user exist on wloforever
                     #region Validate Account
 
                     if (cGlobal.gUserDataBase.GetUserData(name, password, out dbid, out userdata))
                     {
+                        DebugSystem.Write($"[AC63.Recv4] GetUserData SUCCESS! dbid={dbid}");
                         if ((p.UserAcc.DataBaseID = dbid) != 0)
                         {
                             if (cGlobal.gLoginServer.IsOnline(p.UserAcc.UserID))
+                            {
+                                DebugSystem.Write($"[AC63.Recv4] User already online! UserID={p.UserAcc.UserID}");
                                 loginState = 2;
+                            }
                             else if (userdata != null)
                             {
                                 p.UserAcc.UserName = userdata[0];
                                 p.UserAcc.Cipher = userdata[1];
                                 p.UserAcc.IM = int.Parse(userdata[2]);
+                                DebugSystem.Write($"[AC63] User '{name}' logged in successfully. DataBaseID={dbid}, UserID={p.UserAcc.UserID}");
                             }
                             else
+                            {
+                                DebugSystem.Write("[AC63.Recv4] userdata is null!");
                                 loginState = 1;
+                            }
+                        }
+                        else
+                        {
+                            DebugSystem.Write($"[AC63.Recv4] dbid is 0!");
+                            loginState = 1;
                         }
                     }
                     else
+                    {
+                        DebugSystem.Write($"[AC63.Recv4] GetUserData FAILED for user '{name}'");
                         loginState = 1;
+                    }
                     #endregion
-                }*/
+                }
                 //if (userdata != null)
                 //    if (userdata.Length != 6)
                 //loginState = 1;
@@ -177,22 +187,100 @@ namespace Network.ActionCodes
                             DebugSystem.Write("[AC63] Encrypting Character List Packet");
 
                             var char1 = cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character1ID);
-                            if (char1 != null)
-                                tmp.PackArray(char1.ToArray());
+                            DebugSystem.Write($"[AC63] GetCharacterData({p.UserAcc.Character1ID}) returned: {(char1 == null ? "NULL" : $"CharID={char1.CharID}, Name={char1.CharName}")}");
+
+                            // Always send character 1 data (create empty if null)
+                            if (char1 == null)
+                            {
+                                DebugSystem.Write("[AC63] Creating empty Character 1...");
+                                // Don't send empty character - just skip it
+                                // Client expects only existing characters
+                            }
                             else
-                                DebugSystem.Write("[AC63] Character 1 not found (Valid for new accounts)");
+                            {
+                                try
+                                {
+                                    var char1Data = char1.ToArray();
+                                    if (char1Data == null)
+                                    {
+                                        DebugSystem.Write("[AC63] ERROR: char1.ToArray() returned NULL!");
+                                    }
+                                    else
+                                    {
+                                        tmp.PackArray(char1Data);
+                                        DebugSystem.Write($"[AC63] Character 1 data packed ({char1Data.Count()} bytes)");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    DebugSystem.Write($"[AC63] ERROR packing Character 1: {ex.Message}\n{ex.StackTrace}");
+                                }
+                            }
 
                             var char2 = cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character2ID);
-                            if (char2 != null)
-                                tmp.PackArray(char2.ToArray());
-                            else
-                                DebugSystem.Write("[AC63] Character 2 not found (Valid for new accounts)");
+                            DebugSystem.Write($"[AC63] GetCharacterData({p.UserAcc.Character2ID}) returned: {(char2 == null ? "NULL" : $"CharID={char2.CharID}, Name={char2.CharName}")}");
 
-                            p.Send(tmp);
-                            DebugSystem.Write("[AC63] Character List Sent");
+                            // Always send character 2 data (create empty if null)
+                            if (char2 == null)
+                            {
+                                DebugSystem.Write("[AC63] Creating empty Character 2...");
+                                // Don't send empty character - just skip it
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    var char2Data = char2.ToArray();
+                                    if (char2Data == null)
+                                    {
+                                        DebugSystem.Write("[AC63] ERROR: char2.ToArray() returned NULL!");
+                                    }
+                                    else
+                                    {
+                                        tmp.PackArray(char2Data);
+                                        DebugSystem.Write($"[AC63] Character 2 data packed ({char2Data.Count()} bytes)");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    DebugSystem.Write($"[AC63] ERROR packing Character 2: {ex.Message}\n{ex.StackTrace}");
+                                }
+                            }
+
+                            try
+                            {
+                                p.Send(tmp);
+                                DebugSystem.Write("[AC63] Character List Sent successfully");
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[AC63] ERROR sending character list: {ex.Message}\n{ex.StackTrace}");
+                            }
 
                             //p.State = PlayerState.Connected_CharacterSelection;
                             p.Send(Tools.FromFormat("bb", 35, 11));
+                            DebugSystem.Write("[AC63] Sent packet 35,11 - Waiting for client response...");
+
+                            // Start 5-second timeout for character selection
+                            Player playerCopy = p; // Create local copy for lambda
+                            Task.Run(async () =>
+                            {
+                                await Task.Delay(60000); // 60 seconds
+
+                                // Check if player is still waiting for character selection
+                                if (!playerCopy.isDisconnected() && playerCopy.Slot == 0)
+                                {
+                                    DebugSystem.Write($"[AC63] Player {playerCopy.UserAcc?.UserName ?? "Unknown"} timeout - no character selected in 60 seconds. Disconnecting...");
+                                    try
+                                    {
+                                        playerCopy.Disconnect();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        DebugSystem.Write($"[AC63] Error disconnecting timed-out player: {ex.Message}");
+                                    }
+                                }
+                            });
 
                         }
                         break;

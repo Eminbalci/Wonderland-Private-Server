@@ -23,6 +23,7 @@ namespace Game
         void Broadcast(SendPacket pkt);
         void Broadcast(SendPacket pkt, string parameter, params object[] To);
         bool Teleport(TeleportType teletype, Player sender, byte portalID, WarpData warp = null);
+        bool ProcessInteraction(byte clickID, Player player);
     }
 
     public class GameMap : Plugin.PluginObj, IDisposable, IMap
@@ -37,6 +38,7 @@ namespace Game
         protected ConcurrentDictionary<uint, Tent> Tents;
         protected Dictionary<byte, WarpDest> Destinations;
         protected Dictionary<byte, WarpPortal> Portals;
+        protected List<Game.Maps.InteractableObjects> NPCs;
 
         protected Queue<Player> DisconnectedQueue;
         protected Queue<KeyValuePair<DateTime, Action>> WaitingtoLogin;
@@ -59,7 +61,11 @@ namespace Game
             //Battles = new ConcurrentDictionary<int, Battle>();
             Destinations = new Dictionary<byte, WarpDest>();
             Portals = new Dictionary<byte, WarpPortal>();
+            NPCs = new List<Game.Maps.InteractableObjects>();
         }
+
+        public List<Player> PlayersList { get { return m_playerlist; } }
+
         public GameMap(Plugin.PluginHost host, System.IO.FileInfo src)
             : base(src)
         {
@@ -73,6 +79,29 @@ namespace Game
             //Battles = new ConcurrentDictionary<int, Battle>();
             Destinations = new Dictionary<byte, WarpDest>();
             Portals = new Dictionary<byte, WarpPortal>();
+            NPCs = new List<Game.Maps.InteractableObjects>();
+
+            try
+            {
+                if (src != null)
+                {
+                    string filename = System.IO.Path.GetFileNameWithoutExtension(src.Name);
+                    uint parsedId;
+                    if (uint.TryParse(filename, out parsedId))
+                    {
+                        MapID = parsedId;
+                        DebugSystem.Write("[GameMap] Parsed MapID: " + MapID + " from " + src.Name);
+                    }
+                    else
+                    {
+                        DebugSystem.Write("[GameMap] Could not parse MapID from filename: " + src.Name);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write("[GameMap] Error parsing MapID: " + ex.Message);
+            }
 
             LoadData();
 
@@ -90,26 +119,7 @@ namespace Game
             var myDllAssembly = Assembly.GetAssembly(this.GetType());
 
             #region load Interactable Objects for this map
-
-            //load data from data files
-
-
-            //foreach (var y in (from c in myDllAssembly.GetTypes()
-            //                   where c.IsClass && c.IsPublic && c.IsSubclassOf(typeof(InteractableObj))
-            //                   select c))
-            //{
-            //    InteractableObj m = null;
-
-            //    try
-            //    {
-            //        m = (Activator.CreateInstance(y) as InteractableObj);
-            //        if (MapObjects.ContainsKey(m.clickID))
-            //            MapObjects[m.clickID].DataOverride = m;
-            //    }
-            //    catch { DLogger.DllError((myDllAssembly == null) ? Assembly.GetExecutingAssembly().FullName : myDllAssembly.FullName, "LoadData", new Exception("failed to load Map Object " + (Activator.CreateInstance(y) as InteractableObj).clickID)); }
-            //}
-
-            //DLogger.DllLog((myDllAssembly == null) ? Assembly.GetExecutingAssembly().FullName : myDllAssembly.FullName, "loaded " + MapObjects.Count + " Map Objects");
+            ReloadSpawns();
             #endregion
 
             #region load Warp Destinations for this map
@@ -152,6 +162,138 @@ namespace Game
 
         }
 
+        public void ReloadSpawns()
+        {
+            if (DataBase.GameDataBase.GlobalInstance == null) return;
+
+            if (NPCs == null) NPCs = new List<Game.Maps.InteractableObjects>();
+            else NPCs.Clear();
+
+            // 1. Native Map Loading (Primary Source)
+            try
+            {
+                // Access EveManager via the singleton GameDataBase instance
+                var mapData = DataBase.GameDataBase.GlobalInstance.EveDat.GetMapData(Convert.ToUInt16(this.MapID));
+                if (mapData != null && mapData.Npclist != null)
+                {
+                    foreach (var entry in mapData.Npclist)
+                    {
+                        try
+                        {
+                            Game.Maps.QuestNpc newNpc = new Game.Maps.QuestNpc();
+                            newNpc.CickID = entry.clickId;
+                            newNpc.TemplateID = entry.npcId;
+                            newNpc.X = (ushort)entry.x;
+                            newNpc.Y = (ushort)entry.y;
+
+                            // Use native name from eve.Emg by default
+                            newNpc.Name = !string.IsNullOrEmpty(entry.Name) ? entry.Name.Trim('\0') : $"NPC_{entry.npcId}";
+
+                            // Set default stats
+                            newNpc.Level = 1;
+                            newNpc.HP = 100;
+                            newNpc.Element = 0;
+
+                            // Try to get NPC data from Npc.dat using hybrid formula approach
+                            try
+                            {
+                                var npcList = DataBase.GameDataBase.GlobalInstance.NpcDat?.NpcList;
+                                if (npcList != null)
+                                {
+                                    global::DataFiles.PhoneixNpc npcData = null;
+
+                                    // Try formula 1: TID × 2
+                                    npcData = npcList.FirstOrDefault(npcItem => npcItem.NpcID == newNpc.TemplateID * 2);
+
+                                    // Try formula 2: TID + 16000
+                                    if (npcData == null)
+                                        npcData = npcList.FirstOrDefault(npcItem => npcItem.NpcID == newNpc.TemplateID + 16000);
+
+                                    if (npcData != null)
+                                    {
+                                        // Found in Npc.dat - decode and use
+                                        string decodedName = System.Text.Encoding.GetEncoding(950).GetString(npcData.NpcName).Trim('\0');
+                                        char[] nameArray = decodedName.ToCharArray();
+                                        Array.Reverse(nameArray);
+                                        newNpc.Name = new string(nameArray).Trim();
+
+                                        // Use stats from Npc.dat
+                                        newNpc.Level = npcData.Level;
+                                        newNpc.HP = npcData.HP;
+                                        newNpc.Element = npcData.element;
+                                    }
+                                    // If not found in Npc.dat, name stays as eve.Emg default ("Npc" or whatever)
+                                }
+                            }
+                            catch (Exception npcDatEx)
+                            {
+                                DebugSystem.Write($"[Map {MapID}] Npc.dat lookup exception for TID {newNpc.TemplateID}: {npcDatEx.Message}");
+                            }
+
+                            NPCs.Add(newNpc);
+                            DebugSystem.Write($"[Map {MapID}] Loaded Native NPC {newNpc.Name} (TID {newNpc.TemplateID}) at {newNpc.X},{newNpc.Y}");
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write(ex.ToString());
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write("Error loading Native Map Data for Map " + this.MapID);
+                DebugSystem.Write(ex.ToString());
+            }
+
+            // 2. Database Overrides (Secondary Source) and Custom Spawns
+            var n = DataBase.GameDataBase.GlobalInstance.GetNPCsForMap(this.MapID);
+            if (n != null)
+            {
+                foreach (System.Data.DataRow row in n.Rows)
+                {
+                    try
+                    {
+                        var newNpc = new Game.Maps.QuestNpc();
+                        newNpc.CickID = Convert.ToByte(row["click_id"]);
+                        newNpc.X = Convert.ToUInt16(row["x"]);
+                        newNpc.Y = Convert.ToUInt16(row["y"]);
+                        newNpc.Name = row["npc_name"].ToString();
+
+                        int templateId = 0;
+                        try { templateId = Convert.ToInt32(row["template_id"]); } catch { }
+                        newNpc.TemplateID = (uint)templateId;
+
+                        // Lookup stats from npc_data if available
+                        try
+                        {
+                            int lookupId = (templateId > 0) ? templateId : newNpc.CickID;
+                            var template = DataBase.GameDataBase.GlobalInstance.GetDataTable($"SELECT * FROM npc_data WHERE id={lookupId} LIMIT 1");
+                            if (template != null && template.Rows.Count > 0)
+                            {
+                                newNpc.Level = Convert.ToUInt16(template.Rows[0]["level"]);
+                                newNpc.HP = Convert.ToUInt32(template.Rows[0]["hp"]);
+                                newNpc.Element = Convert.ToByte(template.Rows[0]["element"]);
+                                if (newNpc.Name == "Unknown" || newNpc.Name.StartsWith("Imported"))
+                                    newNpc.Name = template.Rows[0]["name"].ToString();
+                            }
+                        }
+                        catch { }
+
+                        // Override Native Spawn if exists
+                        var existing = NPCs.FirstOrDefault(existingNpc => existingNpc.CickID == newNpc.CickID);
+                        if (existing != null)
+                        {
+                            NPCs.Remove(existing);
+                        }
+                        NPCs.Add(newNpc);
+                        DebugSystem.Write($"[Map {MapID}] Loaded DB NPC {newNpc.Name} (ID {newNpc.CickID}) at {newNpc.X},{newNpc.Y}");
+                    }
+                    catch { }
+                }
+            }
+        }
+
 
         #region Properties
         public virtual MapType Type { get { return MapType.RegularMap; } }
@@ -163,20 +305,20 @@ namespace Game
         {
         }
 
-        public virtual void Process(Player src, RecievePacket data)
+        public void Process()
         {
             try
             {
-                //Parallel.ForEach(m_playerlist, player =>
-                //{
-                //    if (player.IdleTimer() > new TimeSpan(0, 30, 0) || player.isDisconnected())
-                //    {
-                //        player.Disconnect();
-                //        DisconnectedQueue.Enqueue(player);
-                //    }
-                //    else
-                //        player.ProcessSocket();
-                //});
+                Parallel.ForEach(m_playerlist, player =>
+                {
+                    if (player.IdleTimer() > new TimeSpan(0, 30, 0) || player.isDisconnected())
+                    {
+                        player.Disconnect();
+                        DisconnectedQueue.Enqueue(player);
+                    }
+                    else
+                        player.ProcessSocket();
+                });
             }
             catch { }
 
@@ -206,6 +348,11 @@ namespace Game
                 var p = DisconnectedQueue.Dequeue();
                 m_playerlist.Remove(p);
             }
+        }
+
+        public virtual void Process(Player src, RecievePacket data)
+        {
+            // Implementation for packet processing if needed
         }
 
         #region Events/Funcs/Actions
@@ -296,7 +443,14 @@ namespace Game
             src.CurY = from.DstY_Axis;//switch y
 
             if (!m_playerlist.Contains(src))
+            {
                 m_playerlist.Add(src);
+                DebugSystem.Write($"[Map.Warp_In] Added {src.CharName} to m_playerlist. Total players: {m_playerlist.Count}");
+            }
+            else
+            {
+                DebugSystem.Write($"[Map.Warp_In] Player {src.CharName} already in m_playerlist. Total players: {m_playerlist.Count}");
+            }
 
             if (teletype != TeleportType.Login)
             {
@@ -307,9 +461,10 @@ namespace Game
             {
                 if (r != src)
                 {
-                    //send to them
-                    if (teletype == TeleportType.Login)
-                        Broadcast(src.ToAC3Packet(), "Ex", src.CharID);
+                    //send to them - broadcast for ALL teleport types so players see each other
+                    DebugSystem.Write($"[Map.Warp_In] Sending {src.CharName} spawn to {r.CharName}");
+                    Broadcast(src.ToAC3Packet(), "Ex", src.CharID);
+
                     SendPacket p = new SendPacket();
                     p.Pack8((byte)5);
                     p.Pack8((byte)0);
@@ -331,24 +486,81 @@ namespace Game
                         p.Pack8((byte)0);
                         Broadcast(p);
                     }
-                    //send to me
+
+                    //send to me - send existing player's FULL spawn data to new arrival
+                    DebugSystem.Write($"[Map.Warp_In] Sending {r.CharName} full spawn to {src.CharName}");
+                    src.Send(r.ToAC3Packet());
+
+                    // Send existing player's equipment to new arrival
+                    p = new SendPacket();
+                    p.Pack8((byte)5);
+                    p.Pack8((byte)0);
+                    p.Pack32(r.CharID);
+                    p.PackArray(r.Worn_Equips);
+                    src.Send(p);
+
+                    // Send existing player's vehicle if they have one
+                    if (r.ActiveVehicleID > 0)
+                    {
+                        p = new SendPacket();
+                        p.Pack8((byte)15);
+                        p.Pack8((byte)10); // Ride vehicle
+                        p.Pack8(0);
+                        p.Pack32(r.CharID);
+                        p.Pack16((ushort)r.ActiveVehicleID);
+                        src.Send(p);
+                        DebugSystem.Write($"[Map.Warp_In] Sent vehicle {r.ActiveVehicleID} of {r.CharName} to {src.CharName}");
+                    }
+
+                    // Send existing player's mount (riding pet) if they have one
+                    if (r.ActiveMountID > 0)
+                    {
+                        p = new SendPacket();
+                        p.Pack8((byte)15);
+                        p.Pack8((byte)16); // Mount/ride pet
+                        p.Pack8(1);
+                        p.Pack32(r.CharID);
+                        p.Pack32(r.ActiveMountID);
+                        src.Send(p);
+                        DebugSystem.Write($"[Map.Warp_In] Sent mount {r.ActiveMountID} of {r.CharName} to {src.CharName}");
+                    }
+
+                    // Send existing player's battle pet if they have one
+                    if (r.ActivePetID > 0)
+                    {
+                        p = new SendPacket();
+                        p.Pack8((byte)19);
+                        p.Pack8((byte)4); // Pet battle
+                        p.Pack32(r.CharID); // Owner CharID - same format as PutPetToRide
+                        p.Pack32(r.ActivePetID); // Pet ID
+                                                 // Broadcast to everyone so pet is visible to all players
+                        Broadcast(p);
+                        DebugSystem.Write($"[Map.Warp_In] Broadcast battle pet {r.ActivePetID} (owner: {r.CharName}) to all players");
+                    }
+
                     p = new SendPacket();
                     p.Pack8((byte)7);
                     p.Pack32(r.CharID);
                     p.Pack16((ushort)MapID);
-                    p.Pack32(r.CurX);
-                    p.Pack32(r.CurY);
-                    src.Send(p);
-                    p = new SendPacket();
-                    p.Pack8(5);
-                    p.Pack8(0);
-                    p.Pack32(r.CharID);
-                    p.PackArray(r.Worn_Equips);
+                    p.Pack16(r.CurX);
+                    p.Pack16(r.CurY);
                     src.Send(p);
                 }
             }
 
             SendMapInfo(src);
+
+            // Resend party info if player is in a party
+            // Client might clear party state on map change, so we need to refresh it
+            if (src.m_teammembers != null && src.m_teammembers.Count > 0)
+            {
+                var leader = src.m_teammembers.FirstOrDefault(x => x.PartyLeader);
+                if (leader != null)
+                {
+                    DebugSystem.Write($"[Map.Warp_In] Resending party info to {src.CharName} (Leader: {leader.CharName})");
+                    src.Send(leader._13_6Data);
+                }
+            }
         }
 
         protected virtual void Warp_Out(byte portalID, Player src, WarpData To, bool toTent = false)
@@ -364,6 +576,11 @@ namespace Game
 
         public bool Teleport(TeleportType teletype, Player sender, byte portalID = 0, WarpData warp = null)
         {
+            if (teletype == TeleportType.Regular)
+            {
+                DebugSystem.Write($"[Teleport] Req: {teletype}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
+            }
+
             SendPacket tmp = new SendPacket();
 
             if (teletype != TeleportType.Login)
@@ -548,6 +765,13 @@ namespace Game
                 #region Tent Warp
                 case TeleportType.Tent:
                     {
+                        // Check if tent exists
+                        if (!Tents.ContainsKey(warp.DstMap))
+                        {
+                            DebugSystem.Write(DebugItemType.Error, $"[ERROR] Tent {warp.DstMap} not found in Tents dictionary!");
+                            break;
+                        }
+
                         Warp_Out(portalID, sender, warp, (teletype == TeleportType.Tent));// warp out of map
                         sender.CurX = warp.DstX_Axis;//switch x
                         sender.CurY = warp.DstY_Axis;//switch y
@@ -559,16 +783,58 @@ namespace Game
                 #region Cmd Warp
                 case TeleportType.CmD:
                     {
-                        GameMap map = new GameMap();
-                        map.MapID = warp.DstMap;
+                        // Use MapManager to get the singleton map instance
+                        GameMap map = null;
+                        if (MapManager.Instance != null)
+                        {
+                            map = MapManager.Instance.GetMap((ushort)warp.DstMap);
+                        }
+                        else
+                        {
+                            // Fallback if manager not initialized (shouldn't happen)
+                            map = new GameMap();
+                            map.MapID = warp.DstMap;
+                            DebugSystem.Write("[Teleport] WARNING: MapManager.Instance is null, creating new map interface!");
+                        }
 
                         Warp_Out(portalID, sender, warp, (map.Type == MapType.Tent));// warp out of map
                         map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }, portalID);
-
                     }
                     break;
                 #endregion
                 case TeleportType.Login: Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }); break;
+            }
+
+            // Party follow: If sender is party leader, teleport all team members
+            // Only for Regular teleports (portal usage), not for CmD/Special to avoid recursion
+            if (teletype == TeleportType.Regular && sender.PartyLeader && sender.m_teammembers != null && sender.m_teammembers.Count > 1)
+            {
+                DebugSystem.Write($"[Teleport] Party leader {sender.CharName} is teleporting. Bringing team members...");
+
+                // Create warp data from sender's new position
+                WarpData teamWarp = new WarpData()
+                {
+                    DstMap = (ushort)sender.CurMap.MapID,
+                    DstX_Axis = sender.CurX,
+                    DstY_Axis = sender.CurY
+                };
+
+                foreach (var member in sender.m_teammembers.ToList())
+                {
+                    if (member.CharID != sender.CharID && member.CurMap != null)
+                    {
+                        try
+                        {
+                            DebugSystem.Write($"[Teleport] Teleporting team member {member.CharName} to follow leader to map {teamWarp.DstMap}");
+                            // Teleport member to same destination using CmD type to avoid recursion
+                            member.CurMap.Teleport(TeleportType.CmD, member, portalID, teamWarp);
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write($"[Teleport] Error teleporting team member: {ex.Message}");
+                        }
+                    }
+                }
             }
 
             return true;
@@ -741,6 +1007,13 @@ namespace Game
         }
         public void onEnterTent(UInt32 ID, Player p)
         {
+            // Ensure tent exists in dictionary (lazy loading)
+            if (p.Tent != null && !Tents.ContainsKey((ushort)ID))
+            {
+                Tents.TryAdd((ushort)ID, p.Tent);
+                DebugSystem.Write(DebugItemType.Error, $"[Map] Lazy-loaded tent {ID} into Tents dictionary for player {p.CharName}");
+            }
+
             WarpData tmp = new WarpData();
             tmp.DstMap = (ushort)ID;
             tmp.DstX_Axis = 460;
@@ -787,9 +1060,15 @@ namespace Game
         {
             switch (parameter)
             {
-                case "ALL": m_playerlist.ForEach(c => c.Send(pkt)); break;
-                case "Ex": m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) == 0).ToList().ForEach(c => c.Send(pkt)); break;
-                case "To": m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) > 0).ToList().ForEach(c => c.Send(pkt)); break;
+                case "ALL":
+                    m_playerlist.ForEach(c => c.Send(pkt));
+                    break;
+                case "Ex":
+                    m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) == 0).ToList().ForEach(c => c.Send(pkt));
+                    break;
+                case "To":
+                    m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) > 0).ToList().ForEach(c => c.Send(pkt));
+                    break;
             }
         }
 
@@ -810,6 +1089,78 @@ namespace Game
                 sp.Pack8(1);
             }
             Broadcast(sp);
+        }
+
+        public bool ProcessInteraction(byte clickID, Player player)
+        {
+            try
+            {
+                // Find NPC with matching clickID
+                var npc = NPCs?.FirstOrDefault(n => n.CickID == clickID);
+
+                if (npc != null)
+                {
+                    DebugSystem.Write("[ProcessInteraction] Found NPC with click_id " + clickID + ", calling Interact");
+                    npc.Interact(player);
+                    return true;
+                }
+                else
+                {
+                    DebugSystem.Write($"[ProcessInteraction] Auto-Importing Unknown NPC with click_id {clickID}");
+
+                    // Auto-Import using Player's coordinates
+                    // Use GameDataBase.GlobalInstance singleton
+                    string npcName = $"Imported {clickID}";
+                    string npcType = "QuestNpc";
+                    ushort npcLv = 1;
+                    uint npcHp = 100;
+                    byte npcElement = 0;
+
+                    // Try to finding matching template in npc_data
+                    try
+                    {
+                        var template = GameDataBase.GlobalInstance.GetDataTable($"SELECT * FROM npc_data WHERE id={clickID} LIMIT 1");
+                        if (template != null && template.Rows.Count > 0)
+                        {
+                            npcName = template.Rows[0]["name"].ToString();
+                            npcLv = Convert.ToUInt16(template.Rows[0]["level"]);
+                            npcHp = Convert.ToUInt32(template.Rows[0]["hp"]);
+                            npcElement = Convert.ToByte(template.Rows[0]["element"]);
+                            DebugSystem.Write($"[ProcessInteraction] Match FOUND for ID {clickID}: {npcName} Lv.{npcLv} HP.{npcHp}");
+                        }
+                        else
+                        {
+                            DebugSystem.Write($"[ProcessInteraction] NO MATCH for ID {clickID} in npc_data table. Table might be empty or ID mismatch.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugSystem.Write($"[ProcessInteraction] Lookup Error: {ex.Message}");
+                    }
+
+                    if (GameDataBase.GlobalInstance != null && GameDataBase.GlobalInstance.AddNPC((int)this.MapID, clickID, npcType, npcName, player.CurX, player.CurY, 0))
+                    {
+                        var newNpc = new Game.Maps.QuestNpc();
+                        newNpc.CickID = clickID;
+                        newNpc.X = player.CurX;
+                        newNpc.Y = player.CurY;
+                        newNpc.Name = npcName;
+                        newNpc.Level = npcLv;
+                        newNpc.HP = npcHp;
+                        newNpc.Element = npcElement;
+                        NPCs.Add(newNpc);
+
+                        newNpc.Interact(player);
+                        return true;
+                    }
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ProcessInteraction] Error: {ex.Message}");
+                return false;
+            }
         }
 
     }

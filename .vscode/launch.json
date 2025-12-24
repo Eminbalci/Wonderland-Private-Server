@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Server (Direct Execution)",
+            "type": "node-terminal",
+            "request": "launch",
+            "preLaunchTask": "rebuild",
+            "command": "Start-Process -FilePath '${workspaceFolder}/bin/Debug/Wonderland Private Server.exe' -WorkingDirectory '${workspaceFolder}/bin/Debug'"
+        },
+        {
+            "name": "Attach to Process",
+            "type": "clr",
+            "request": "attach",
+            "processName": "Wonderland Private Server.exe"
+        }
+    ]
+}

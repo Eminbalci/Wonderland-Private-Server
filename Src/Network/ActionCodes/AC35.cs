@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Game;
-using RCLibrary.Core.Networking;
+using Network;
 
 namespace Network.ActionCodes
 {
@@ -15,17 +15,22 @@ namespace Network.ActionCodes
         {
             switch (r.Unpack8())
             {
-                case 2: Recv2(ref p, r); break;
+                case 2: Recv2(p, r); break;
             }
         }
 
-        void Recv2(ref Player p, RecievePacket e)
+        void Recv2(Player p, RecievePacket e)
         {
             byte slot = e.Unpack8();
             string uknw = e.UnpackString();
             string pw = e.UnpackString();
 
-            if (p.UserAcc.Cipher == pw)
+            // Allow deletion if:
+            // 1. Cipher is not set (empty/null) - user hasn't configured deletion password yet
+            // 2. Cipher matches the provided password
+            bool cipherMatches = string.IsNullOrEmpty(p.UserAcc.Cipher) || p.UserAcc.Cipher == pw;
+
+            if (cipherMatches)
             {
                 cGlobal.gCharacterDataBase.DeleteCharacter((slot == 1) ? p.UserAcc.Character1ID : p.UserAcc.Character2ID);
 
@@ -33,21 +38,21 @@ namespace Network.ActionCodes
 
                 if (cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character1ID) == null && cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character2ID) == null)
                     p.UserAcc.Cipher = "";
-                p.Send( SendPacket.FromFormat("bbbb", 24, 5, 53, 0));
-                p.Send( SendPacket.FromFormat("bbbb", 24, 5, 52, 0));
-                p.Send( SendPacket.FromFormat("bbbb", 24, 5, 54, 0));
-                p.Send( SendPacket.FromFormat("bbbb", 24, 5, 183, 0));
-                p.Send( SendPacket.FromFormat("bb", 20, 8));
-                p.Send( SendPacket.FromFormat("bbbb", 35, 2, 1, slot));
+                p.Send(Tools.FromFormat("bbbb", 24, 5, 53, 0));
+                p.Send(Tools.FromFormat("bbbb", 24, 5, 52, 0));
+                p.Send(Tools.FromFormat("bbbb", 24, 5, 54, 0));
+                p.Send(Tools.FromFormat("bbbb", 24, 5, 183, 0));
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                p.Send(Tools.FromFormat("bbbb", 35, 2, 1, slot));
             }
             else
-                p.Send( SendPacket.FromFormat("bbbb", 35, 2, 3, slot));
+                p.Send(Tools.FromFormat("bbbb", 35, 2, 3, slot));
 
         }
 
         void Send_24_5(Player player, byte value)
         {
-            player.Send( SendPacket.FromFormat("bbbb", 24, 5, value, 0));
+            player.Send(Tools.FromFormat("bbbb", 24, 5, value, 0));
 
         }
     }

@@ -13,7 +13,7 @@ namespace Game.Code
         string username, cipher;
         uint databaseID;
         int im;
-        int gmlvl; public int GMlvl { private get { return gmlvl; } set { lock (mlock) gmlvl = value; } }
+        int gmlvl; public int GMlvl { get { return gmlvl; } set { lock (mlock) gmlvl = value; } }
 
         //public GMStatus GMRank
         //{

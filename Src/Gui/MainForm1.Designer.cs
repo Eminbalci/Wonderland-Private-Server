@@ -71,10 +71,32 @@
             this.dgvCharacters = new System.Windows.Forms.DataGridView();
             this.btnRefreshCharacters = new System.Windows.Forms.Button();
             this.btnDeleteCharacter = new System.Windows.Forms.Button();
+            this.tabPageSettings = new System.Windows.Forms.TabPage();
+            this.dgvSettings = new System.Windows.Forms.DataGridView();
+            this.btnRefreshSettings = new System.Windows.Forms.Button();
+            this.btnSaveSettings = new System.Windows.Forms.Button();
+            this.tabPageFriends = new System.Windows.Forms.TabPage();
+            this.dgvFriends = new System.Windows.Forms.DataGridView();
+            this.btnRefreshFriends = new System.Windows.Forms.Button();
+            this.btnDeleteFriendship = new System.Windows.Forms.Button();
+            this.tabPageInventory = new System.Windows.Forms.TabPage();
+            this.dgvInventory = new System.Windows.Forms.DataGridView();
+            this.cmbCharacterFilter = new System.Windows.Forms.ComboBox();
+            this.lblCharacterFilter = new System.Windows.Forms.Label();
+            this.btnRefreshInventory = new System.Windows.Forms.Button();
+            this.btnDeleteItem = new System.Windows.Forms.Button();
+            this.tabPageStats = new System.Windows.Forms.TabPage();
+            this.dgvStats = new System.Windows.Forms.DataGridView();
+            this.cmbCharacterFilterStats = new System.Windows.Forms.ComboBox();
+            this.lblCharacterFilterStats = new System.Windows.Forms.Label();
+            this.btnRefreshStats = new System.Windows.Forms.Button();
+            this.btnEditStat = new System.Windows.Forms.Button();
             this.tabPage6.SuspendLayout();
             this.tabControl3.SuspendLayout();
             this.tabPage7.SuspendLayout();
             this.tabPage1.SuspendLayout();
+            this.label_SelectedPlayer = new System.Windows.Forms.Label();
+            this.comboBox_OnlinePlayers = new System.Windows.Forms.ComboBox();
             this.tabPageUsers.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewUsers)).BeginInit();
             this.tabPagePortals.SuspendLayout();
@@ -107,6 +129,10 @@
             this.tabControl3.Controls.Add(this.tabPageUsers);
             this.tabControl3.Controls.Add(this.tabPagePortals);
             this.tabControl3.Controls.Add(this.tabPageCharacters);
+            this.tabControl3.Controls.Add(this.tabPageSettings);
+            this.tabControl3.Controls.Add(this.tabPageFriends);
+            this.tabControl3.Controls.Add(this.tabPageInventory);
+            this.tabControl3.Controls.Add(this.tabPageStats);
             this.tabControl3.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl3.Location = new System.Drawing.Point(3, 3);
             this.tabControl3.Name = "tabControl3";
@@ -137,6 +163,8 @@
             // 
             // tabPage1
             // 
+            this.tabPage1.Controls.Add(this.label_SelectedPlayer);
+            this.tabPage1.Controls.Add(this.comboBox_OnlinePlayers);
             this.tabPage1.Controls.Add(this.groupBox_Npc);
             this.tabPage1.Controls.Add(this.groupBox_Items);
             this.tabPage1.Controls.Add(this.groupBox_Vehicles);
@@ -148,6 +176,24 @@
             this.tabPage1.TabIndex = 1;
             this.tabPage1.Text = "Cheat";
             this.tabPage1.UseVisualStyleBackColor = true;
+            // 
+            // label_SelectedPlayer
+            // 
+            this.label_SelectedPlayer.AutoSize = true;
+            this.label_SelectedPlayer.Location = new System.Drawing.Point(260, 15); // Moved to top right area
+            this.label_SelectedPlayer.Name = "label_SelectedPlayer";
+            this.label_SelectedPlayer.Size = new System.Drawing.Size(80, 13);
+            this.label_SelectedPlayer.TabIndex = 10;
+            this.label_SelectedPlayer.Text = "Target Player:";
+            // 
+            // comboBox_OnlinePlayers
+            // 
+            this.comboBox_OnlinePlayers.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBox_OnlinePlayers.FormattingEnabled = true;
+            this.comboBox_OnlinePlayers.Location = new System.Drawing.Point(340, 12); // Moved to top right area
+            this.comboBox_OnlinePlayers.Name = "comboBox_OnlinePlayers";
+            this.comboBox_OnlinePlayers.Size = new System.Drawing.Size(150, 21);
+            this.comboBox_OnlinePlayers.TabIndex = 11;
             // 
             // tabPageUsers
             // 
@@ -377,10 +423,224 @@
             this.btnDeleteCharacter.Text = "Delete Char";
             this.btnDeleteCharacter.UseVisualStyleBackColor = true;
             this.btnDeleteCharacter.Click += new System.EventHandler(this.btnDeleteCharacter_Click);
-            this.btnDeleteDestination.TabIndex = 6;
-            this.btnDeleteDestination.Text = "Delete Dest";
-            this.btnDeleteDestination.UseVisualStyleBackColor = true;
-            this.btnDeleteDestination.Click += new System.EventHandler(this.btnDeleteDestination_Click);
+            // 
+            // tabPageSettings
+            // 
+            this.tabPageSettings.Controls.Add(this.dgvSettings);
+            this.tabPageSettings.Controls.Add(this.btnRefreshSettings);
+            this.tabPageSettings.Controls.Add(this.btnSaveSettings);
+            this.tabPageSettings.Location = new System.Drawing.Point(4, 22);
+            this.tabPageSettings.Name = "tabPageSettings";
+            this.tabPageSettings.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageSettings.Size = new System.Drawing.Size(774, 455);
+            this.tabPageSettings.TabIndex = 5;
+            this.tabPageSettings.Text = "Player Settings";
+            this.tabPageSettings.UseVisualStyleBackColor = true;
+            // 
+            // dgvSettings
+            // 
+            this.dgvSettings.AllowUserToAddRows = false;
+            this.dgvSettings.AllowUserToDeleteRows = false;
+            this.dgvSettings.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvSettings.Location = new System.Drawing.Point(6, 6);
+            this.dgvSettings.Name = "dgvSettings";
+            this.dgvSettings.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvSettings.Size = new System.Drawing.Size(650, 443);
+            this.dgvSettings.TabIndex = 0;
+            // 
+            // btnRefreshSettings
+            // 
+            this.btnRefreshSettings.Location = new System.Drawing.Point(662, 6);
+            this.btnRefreshSettings.Name = "btnRefreshSettings";
+            this.btnRefreshSettings.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshSettings.TabIndex = 1;
+            this.btnRefreshSettings.Text = "Refresh";
+            this.btnRefreshSettings.UseVisualStyleBackColor = true;
+            this.btnRefreshSettings.Click += new System.EventHandler(this.btnRefreshSettings_Click);
+            // 
+            // btnSaveSettings
+            // 
+            this.btnSaveSettings.Location = new System.Drawing.Point(662, 42);
+            this.btnSaveSettings.Name = "btnSaveSettings";
+            this.btnSaveSettings.Size = new System.Drawing.Size(100, 30);
+            this.btnSaveSettings.TabIndex = 2;
+            this.btnSaveSettings.Text = "Save";
+            this.btnSaveSettings.UseVisualStyleBackColor = true;
+            this.btnSaveSettings.Click += new System.EventHandler(this.btnSaveSettings_Click);
+            //
+            // tabPageFriends
+            //
+            this.tabPageFriends.Controls.Add(this.dgvFriends);
+            this.tabPageFriends.Controls.Add(this.btnRefreshFriends);
+            this.tabPageFriends.Controls.Add(this.btnDeleteFriendship);
+            this.tabPageFriends.Location = new System.Drawing.Point(4, 22);
+            this.tabPageFriends.Name = "tabPageFriends";
+            this.tabPageFriends.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageFriends.Size = new System.Drawing.Size(774, 455);
+            this.tabPageFriends.TabIndex = 6;
+            this.tabPageFriends.Text = "Friends";
+            this.tabPageFriends.UseVisualStyleBackColor = true;
+            //
+            // dgvFriends
+            //
+            this.dgvFriends.AllowUserToAddRows = false;
+            this.dgvFriends.AllowUserToDeleteRows = false;
+            this.dgvFriends.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvFriends.Location = new System.Drawing.Point(6, 6);
+            this.dgvFriends.Name = "dgvFriends";
+            this.dgvFriends.ReadOnly = true;
+            this.dgvFriends.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvFriends.Size = new System.Drawing.Size(650, 400);
+            this.dgvFriends.TabIndex = 0;
+            //
+            // btnRefreshFriends
+            //
+            this.btnRefreshFriends.Location = new System.Drawing.Point(662, 6);
+            this.btnRefreshFriends.Name = "btnRefreshFriends";
+            this.btnRefreshFriends.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshFriends.TabIndex = 1;
+            this.btnRefreshFriends.Text = "Refresh";
+            this.btnRefreshFriends.UseVisualStyleBackColor = true;
+            this.btnRefreshFriends.Click += new System.EventHandler(this.btnRefreshFriends_Click);
+            //
+            // btnDeleteFriendship
+            //
+            this.btnDeleteFriendship.Location = new System.Drawing.Point(662, 42);
+            this.btnDeleteFriendship.Name = "btnDeleteFriendship";
+            this.btnDeleteFriendship.Size = new System.Drawing.Size(100, 30);
+            this.btnDeleteFriendship.TabIndex = 2;
+            this.btnDeleteFriendship.Text = "Delete";
+            this.btnDeleteFriendship.UseVisualStyleBackColor = true;
+            this.btnDeleteFriendship.Click += new System.EventHandler(this.btnDeleteFriendship_Click);
+            //
+            // tabPageInventory
+            //
+            this.tabPageInventory.Controls.Add(this.lblCharacterFilter);
+            this.tabPageInventory.Controls.Add(this.cmbCharacterFilter);
+            this.tabPageInventory.Controls.Add(this.dgvInventory);
+            this.tabPageInventory.Controls.Add(this.btnRefreshInventory);
+            this.tabPageInventory.Controls.Add(this.btnDeleteItem);
+            this.tabPageInventory.Location = new System.Drawing.Point(4, 22);
+            this.tabPageInventory.Name = "tabPageInventory";
+            this.tabPageInventory.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageInventory.Size = new System.Drawing.Size(774, 455);
+            this.tabPageInventory.TabIndex = 7;
+            this.tabPageInventory.Text = "Inventory";
+            this.tabPageInventory.UseVisualStyleBackColor = true;
+            //
+            // lblCharacterFilter
+            //
+            this.lblCharacterFilter.AutoSize = true;
+            this.lblCharacterFilter.Location = new System.Drawing.Point(6, 10);
+            this.lblCharacterFilter.Name = "lblCharacterFilter";
+            this.lblCharacterFilter.Size = new System.Drawing.Size(56, 13);
+            this.lblCharacterFilter.Text = "Character:";
+            //
+            // cmbCharacterFilter
+            //
+            this.cmbCharacterFilter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbCharacterFilter.FormattingEnabled = true;
+            this.cmbCharacterFilter.Location = new System.Drawing.Point(70, 7);
+            this.cmbCharacterFilter.Name = "cmbCharacterFilter";
+            this.cmbCharacterFilter.Size = new System.Drawing.Size(200, 21);
+            this.cmbCharacterFilter.TabIndex = 0;
+            this.cmbCharacterFilter.SelectedIndexChanged += new System.EventHandler(this.cmbCharacterFilter_SelectedIndexChanged);
+            //
+            // dgvInventory
+            //
+            this.dgvInventory.AllowUserToAddRows = false;
+            this.dgvInventory.AllowUserToDeleteRows = false;
+            this.dgvInventory.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvInventory.Location = new System.Drawing.Point(6, 35);
+            this.dgvInventory.Name = "dgvInventory";
+            this.dgvInventory.ReadOnly = true;
+            this.dgvInventory.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvInventory.Size = new System.Drawing.Size(650, 370);
+            this.dgvInventory.TabIndex = 1;
+            //
+            // btnRefreshInventory
+            //
+            this.btnRefreshInventory.Location = new System.Drawing.Point(662, 35);
+            this.btnRefreshInventory.Name = "btnRefreshInventory";
+            this.btnRefreshInventory.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshInventory.TabIndex = 2;
+            this.btnRefreshInventory.Text = "Refresh";
+            this.btnRefreshInventory.UseVisualStyleBackColor = true;
+            this.btnRefreshInventory.Click += new System.EventHandler(this.btnRefreshInventory_Click);
+            //
+            // btnDeleteItem
+            //
+            this.btnDeleteItem.Location = new System.Drawing.Point(662, 71);
+            this.btnDeleteItem.Name = "btnDeleteItem";
+            this.btnDeleteItem.Size = new System.Drawing.Size(100, 30);
+            this.btnDeleteItem.TabIndex = 3;
+            this.btnDeleteItem.Text = "Delete Item";
+            this.btnDeleteItem.UseVisualStyleBackColor = true;
+            this.btnDeleteItem.Click += new System.EventHandler(this.btnDeleteItem_Click);
+            //
+            // tabPageStats
+            //
+            this.tabPageStats.Controls.Add(this.lblCharacterFilterStats);
+            this.tabPageStats.Controls.Add(this.cmbCharacterFilterStats);
+            this.tabPageStats.Controls.Add(this.dgvStats);
+            this.tabPageStats.Controls.Add(this.btnRefreshStats);
+            this.tabPageStats.Controls.Add(this.btnEditStat);
+            this.tabPageStats.Location = new System.Drawing.Point(4, 22);
+            this.tabPageStats.Name = "tabPageStats";
+            this.tabPageStats.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageStats.Size = new System.Drawing.Size(774, 455);
+            this.tabPageStats.TabIndex = 8;
+            this.tabPageStats.Text = "Stats";
+            this.tabPageStats.UseVisualStyleBackColor = true;
+            //
+            // lblCharacterFilterStats
+            //
+            this.lblCharacterFilterStats.AutoSize = true;
+            this.lblCharacterFilterStats.Location = new System.Drawing.Point(6, 10);
+            this.lblCharacterFilterStats.Name = "lblCharacterFilterStats";
+            this.lblCharacterFilterStats.Size = new System.Drawing.Size(56, 13);
+            this.lblCharacterFilterStats.Text = "Character:";
+            //
+            // cmbCharacterFilterStats
+            //
+            this.cmbCharacterFilterStats.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbCharacterFilterStats.FormattingEnabled = true;
+            this.cmbCharacterFilterStats.Location = new System.Drawing.Point(70, 7);
+            this.cmbCharacterFilterStats.Name = "cmbCharacterFilterStats";
+            this.cmbCharacterFilterStats.Size = new System.Drawing.Size(200, 21);
+            this.cmbCharacterFilterStats.TabIndex = 0;
+            this.cmbCharacterFilterStats.SelectedIndexChanged += new System.EventHandler(this.cmbCharacterFilterStats_SelectedIndexChanged);
+            //
+            // dgvStats
+            //
+            this.dgvStats.AllowUserToAddRows = false;
+            this.dgvStats.AllowUserToDeleteRows = false;
+            this.dgvStats.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvStats.Location = new System.Drawing.Point(6, 35);
+            this.dgvStats.Name = "dgvStats";
+            this.dgvStats.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvStats.Size = new System.Drawing.Size(650, 370);
+            this.dgvStats.TabIndex = 1;
+            //
+            // btnRefreshStats
+            //
+            this.btnRefreshStats.Location = new System.Drawing.Point(662, 35);
+            this.btnRefreshStats.Name = "btnRefreshStats";
+            this.btnRefreshStats.Size = new System.Drawing.Size(100, 30);
+            this.btnRefreshStats.TabIndex = 2;
+            this.btnRefreshStats.Text = "Refresh";
+            this.btnRefreshStats.UseVisualStyleBackColor = true;
+            this.btnRefreshStats.Click += new System.EventHandler(this.btnRefreshStats_Click);
+            //
+            // btnEditStat
+            //
+            this.btnEditStat.Location = new System.Drawing.Point(662, 71);
+            this.btnEditStat.Name = "btnEditStat";
+            this.btnEditStat.Size = new System.Drawing.Size(100, 30);
+            this.btnEditStat.TabIndex = 3;
+            this.btnEditStat.Text = "Edit Stat";
+            this.btnEditStat.UseVisualStyleBackColor = true;
+            this.btnEditStat.Click += new System.EventHandler(this.btnEditStat_Click);
             //
             // groupBox_Npc
             // 
@@ -591,13 +851,16 @@
         private System.Windows.Forms.GroupBox groupBox_Npc;
         private System.Windows.Forms.GroupBox groupBox_Items;
         private System.Windows.Forms.ListBox listBox_Maps;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.ComboBox comboBox_OnlinePlayers; // User selection for cheat commands
+        private System.Windows.Forms.Label label_SelectedPlayer; // Label for ComboBox
         private System.Windows.Forms.TextBox textBox_FindMap;
         private System.Windows.Forms.TextBox textBox_FindNPC;
         private System.Windows.Forms.ListBox listBox_NPC;
         private System.Windows.Forms.TextBox textBox_FindItems;
         private System.Windows.Forms.ListBox listBox_Items;
         private System.Windows.Forms.TextBox textBox_FindVehicle;
-        private System.Windows.Forms.ListBox listBox_Vehicles;
+        private System.Windows.Forms.ListBox listBox_Vehicles; // Added back
         private System.Windows.Forms.RadioButton radioButton_Ride;
         private System.Windows.Forms.RadioButton radioButton_Battle;
         private System.Windows.Forms.Button button_NpcLeave;
@@ -623,6 +886,26 @@
         private System.Windows.Forms.Button btnDeleteCharacter;
         private System.Windows.Forms.Button btnEditPortal;
         private System.Windows.Forms.Button btnEditDestination;
+        private System.Windows.Forms.TabPage tabPageSettings;
+        private System.Windows.Forms.DataGridView dgvSettings;
+        private System.Windows.Forms.Button btnRefreshSettings;
+        private System.Windows.Forms.Button btnSaveSettings;
+        private System.Windows.Forms.TabPage tabPageFriends;
+        private System.Windows.Forms.DataGridView dgvFriends;
+        private System.Windows.Forms.Button btnRefreshFriends;
+        private System.Windows.Forms.Button btnDeleteFriendship;
+        private System.Windows.Forms.TabPage tabPageInventory;
+        private System.Windows.Forms.DataGridView dgvInventory;
+        private System.Windows.Forms.ComboBox cmbCharacterFilter;
+        private System.Windows.Forms.Label lblCharacterFilter;
+        private System.Windows.Forms.Button btnRefreshInventory;
+        private System.Windows.Forms.Button btnDeleteItem;
+        private System.Windows.Forms.TabPage tabPageStats;
+        private System.Windows.Forms.DataGridView dgvStats;
+        private System.Windows.Forms.ComboBox cmbCharacterFilterStats;
+        private System.Windows.Forms.Label lblCharacterFilterStats;
+        private System.Windows.Forms.Button btnRefreshStats;
+        private System.Windows.Forms.Button btnEditStat;
     }
 }
 

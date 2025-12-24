@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj": {}
+    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj": {
+    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj",
+        "projectUniqueName": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj",
         "projectName": "PhoenixData",
-        "projectPath": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj",
+        "projectPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\PhoenixData.csproj",
         "packagesPath": "C:\\Users\\Muhammet\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\obj\\",
+        "outputPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\PhoenixData\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Muhammet\\AppData\\Roaming\\NuGet\\NuGet.Config",

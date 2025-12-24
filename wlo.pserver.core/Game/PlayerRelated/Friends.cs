@@ -19,11 +19,11 @@ namespace Game.Code.PlayerRelated
             m_friendlist = new Character[50];
             m_friendlist[0] = new Cupid();
         }
-        
+
         #region Events/Funcs/Actions
         Action<SendPacket> SendPacket;
         #endregion
-        
+
         public void ProcessSocket(SendPacket p)
         {
             p.m_nUnpackIndex = 4;
@@ -35,7 +35,7 @@ namespace Game.Code.PlayerRelated
 
             switch (a)
             {
-               
+
             }
         }
 
@@ -69,8 +69,8 @@ namespace Game.Code.PlayerRelated
         public void AddFriend(Player t)
         {
             if (m_friendlist.Count(c => c != null) == 50) return;
-            for (int a = 0; a < 50;a++ )
-                if(m_friendlist[a] == null)
+            for (int a = 0; a < 50; a++)
+                if (m_friendlist[a] == null)
                     m_friendlist[a] = (Character)t;
 
             SendPacket s = new SendPacket();
@@ -105,7 +105,7 @@ namespace Game.Code.PlayerRelated
         public bool LoadFriends(string str)
         {
             var frilist = str.Split('&');
-            for(int a = 0;a<50;a++)
+            for (int a = 0; a < 50; a++)
             {
                 if (frilist[a].Length > 0)
                 {

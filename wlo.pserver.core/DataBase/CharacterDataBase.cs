@@ -94,6 +94,7 @@ namespace DataBase
             col.Add("rebirth", "int/NN");
             col.Add("job", "int/NN");
             col.Add("online", "int/NN");
+            col.Add("cipher", "text");
 
             #endregion
 
@@ -1064,6 +1065,27 @@ namespace DataBase
                     }
                 }
             }
+
+            #region load settings from ExtData
+            try
+            {
+                src = GetDataTable(string.Format("SELECT Settings FROM charactersExtData where charID = '{0}'", charID));
+                if (src.Rows.Count > 0 && src.Rows[0]["Settings"] != DBNull.Value)
+                {
+                    string settingsStr = src.Rows[0]["Settings"].ToString();
+                    if (!string.IsNullOrEmpty(settingsStr))
+                    {
+                        t.Settings.Load(settingsStr);
+                        DebugSystem.Write($"[DEBUG] Loaded settings for {t.CharName}: PKABLE={t.Settings.PKABLE}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[DEBUG] Error loading settings: {ex.Message}");
+            }
+            #endregion
+
             return true;
         }
 
@@ -1217,9 +1239,28 @@ namespace DataBase
             insert.Add("head", c.Head.ToString());
             insert.Add("body", ((byte)c.Body).ToString());
             insert.Add("nickname", c.NickName);
-            insert.Add("location_map", (c.CurMap.Type == MapType.RegularMap) ? c.CurMap.MapID.ToString() : player.PrevMap.DstMap.ToString());
-            insert.Add("location_x", (c.CurMap.Type == MapType.RegularMap) ? c.CurX.ToString() : player.PrevMap.DstX_Axis.ToString());
-            insert.Add("location_y", (c.CurMap.Type == MapType.RegularMap) ? c.CurY.ToString() : player.PrevMap.DstY_Axis.ToString());
+
+            // Safer position saving logic
+            string mapID, mapX, mapY;
+
+            // Only save PrevMap if in Tent AND PrevMap is valid
+            if (c.CurMap != null && c.CurMap.Type == MapType.Tent && player.PrevMap != null && player.PrevMap.DstMap != 0)
+            {
+                mapID = player.PrevMap.DstMap.ToString();
+                mapX = player.PrevMap.DstX_Axis.ToString();
+                mapY = player.PrevMap.DstY_Axis.ToString();
+            }
+            else
+            {
+                // Otherwise always save current map position
+                mapID = (c.CurMap != null) ? c.CurMap.MapID.ToString() : "0";
+                mapX = c.CurX.ToString();
+                mapY = c.CurY.ToString();
+            }
+
+            insert.Add("location_map", mapID);
+            insert.Add("location_x", mapX);
+            insert.Add("location_y", mapY);
             insert.Add("haircolor", c.HairColor.ToString());
             insert.Add("skincolor", c.SkinColor.ToString());
             insert.Add("clothingcolor", c.ClothingColor.ToString());
@@ -1319,38 +1360,160 @@ namespace DataBase
                 p.Pack8(255); //??
                 tmp.Add(p);
             }
+
+            int playerCount = 0;
             foreach (var c in Characters_Online.Values)
             {
-                p = new SendPacket();
-                p.Pack8(4);
-                p.Pack32(c.CharID);
-                p.Pack8((byte)c.Body); //body style
-                p.Pack8((byte)c.Element); //element
-                p.Pack8(c.Level); //level
-                p.Pack16((ushort)c.CurMap.MapID); //map id
-                p.Pack16(c.CurX); //x
-                p.Pack16(c.CurY); //y
-                p.Pack8(0); p.Pack8(c.Head); p.Pack8(0);
-                p.Pack16(c.HairColor);
-                p.Pack16(c.SkinColor);
-                p.Pack16(c.ClothingColor);
-                p.Pack16(c.EyeColor);
-                p.Pack8(c.WornCount);//clothesAmmt); // ammt of clothes
-                p.PackArray(c.Worn_Equips);
-                p.Pack32(0); p.Pack8(0); //??
-                p.PackBool(c.Reborn); //is rebirth
-                p.Pack8((byte)c.Job); //rb class
-                p.PackString(c.CharName);//(BYTE*)c.CharacterName,c.nameLen); //CharacterName
-                p.PackString(c.NickName);//(BYTE*)c.nick,c.nickLen); //nickname
-                p.Pack8(255); //??
-                tmp.Add(p);
+                // Skip sending the player to themselves
+                if (c.CharID == src.CharID)
+                {
+                    DebugSystem.Write($"[SendOnlineCharacters] Skipping self (CharID={c.CharID})");
+                    continue;
+                }
+
+                // Skip if player doesn't have CurMap set yet
+                if (c.CurMap == null)
+                {
+                    DebugSystem.Write($"[SendOnlineCharacters] Skipping player {c.CharName} (CharID={c.CharID}) - CurMap is null");
+                    continue;
+                }
+
+                try
+                {
+                    DebugSystem.Write($"[SendOnlineCharacters] Adding player: CharID={c.CharID}, Name={c.CharName}, Map={c.CurMap.MapID}, Pos=({c.CurX},{c.CurY})");
+
+                    p = new SendPacket();
+                    p.Pack8(4);
+                    p.Pack32(c.CharID);
+                    p.Pack8((byte)c.Body); //body style
+                    p.Pack8((byte)c.Element); //element
+                    p.Pack8(c.Level); //level
+                    p.Pack16((ushort)c.CurMap.MapID); //map id
+                    p.Pack16(c.CurX); //x
+                    p.Pack16(c.CurY); //y
+                    p.Pack8(0); p.Pack8(c.Head); p.Pack8(0);
+                    p.Pack16(c.HairColor);
+                    p.Pack16(c.SkinColor);
+                    p.Pack16(c.ClothingColor);
+                    p.Pack16(c.EyeColor);
+                    p.Pack8(c.WornCount);//clothesAmmt); // ammt of clothes
+                    p.PackArray(c.Worn_Equips);
+                    p.Pack32(0); p.Pack8(0); //??
+                    p.PackBool(c.Reborn); //is rebirth
+                    p.Pack8((byte)c.Job); //rb class
+                    p.PackString(c.CharName);//(BYTE*)c.CharacterName,c.nameLen); //CharacterName
+                    p.PackString(c.NickName);//(BYTE*)c.nick,c.nickLen); //nickname
+                    p.Pack8(255); //??
+                    tmp.Add(p);
+                    playerCount++;
+
+                    DebugSystem.Write($"[SendOnlineCharacters] Successfully packed player {c.CharName}");
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[SendOnlineCharacters] ERROR packing player {c.CharName}: {ex.Message}\n{ex.StackTrace}");
+                }
             }
-            src.Send(tmp.End());
+
+            DebugSystem.Write($"[SendOnlineCharacters] Sent {playerCount} online players to {src.CharName}");
+            try
+            {
+                src.Send(new SendPacket(tmp.End()));
+                DebugSystem.Write($"[SendOnlineCharacters] Packet successfully sent to {src.CharName}");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[SendOnlineCharacters] ERROR sending packet to {src.CharName}: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         public void OnCharacterJoin(Player src)
         {
             Characters_Online.TryAdd((int)src.CharID, src);
+        }
+
+        public List<Player> GetOnlinePlayers()
+        {
+            return Characters_Online.Values.OfType<Player>().ToList();
+        }
+
+        public void BroadcastNewPlayer(Player newPlayer)
+        {
+            // Validate player has required data
+            if (newPlayer == null || newPlayer.CurMap == null)
+            {
+                DebugSystem.Write("[CharacterDataBase] Cannot broadcast new player - player or CurMap is null");
+                return;
+            }
+
+            try
+            {
+                // Create spawn packet for the new player using PacketBuilder (like SendOnlineCharacters)
+                PacketBuilder tmp = new PacketBuilder();
+                tmp.Begin(null);
+
+                SendPacket p = new SendPacket();
+                p.Pack8(4); // Spawn player packet type
+                p.Pack32(newPlayer.CharID);
+                p.Pack8((byte)newPlayer.Body);
+                p.Pack8((byte)newPlayer.Element);
+                p.Pack8(newPlayer.Level);
+                p.Pack16((ushort)newPlayer.CurMap.MapID);
+                p.Pack16(newPlayer.CurX);
+                p.Pack16(newPlayer.CurY);
+                p.Pack8(0);
+                p.Pack8(newPlayer.Head);
+                p.Pack8(0);
+                p.Pack16(newPlayer.HairColor);
+                p.Pack16(newPlayer.SkinColor);
+                p.Pack16(newPlayer.ClothingColor);
+                p.Pack16(newPlayer.EyeColor);
+                p.Pack8(newPlayer.WornCount);
+                p.PackArray(newPlayer.Worn_Equips ?? new byte[0]);
+                p.Pack32(0);
+                p.Pack8(0);
+                p.PackBool(newPlayer.Reborn);
+                p.Pack8((byte)newPlayer.Job);
+                p.PackString(newPlayer.CharName ?? "");
+                p.PackString(newPlayer.NickName ?? "");
+                p.Pack8(255);
+                tmp.Add(p);
+
+                SendPacket broadcastPacket = new SendPacket(tmp.End());
+
+                // Send to all other online players
+                int broadcastCount = 0;
+                foreach (var player in Characters_Online.Values.OfType<Player>())
+                {
+                    if (player.CharID != newPlayer.CharID && !player.isDisconnected())
+                    {
+                        try
+                        {
+                            DebugSystem.Write($"[BroadcastNewPlayer] Sending {newPlayer.CharName} to player {player.CharName} (CharID={player.CharID})");
+                            player.Send(broadcastPacket);
+                            broadcastCount++;
+                            DebugSystem.Write($"[BroadcastNewPlayer] Successfully sent to {player.CharName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write($"[CharacterDataBase] Error broadcasting new player to {player.CharName}: {ex.Message}\n{ex.StackTrace}");
+                        }
+                    }
+                    else
+                    {
+                        if (player.CharID == newPlayer.CharID)
+                            DebugSystem.Write($"[BroadcastNewPlayer] Skipping self (CharID={player.CharID})");
+                        else if (player.isDisconnected())
+                            DebugSystem.Write($"[BroadcastNewPlayer] Skipping disconnected player {player.CharName}");
+                    }
+                }
+
+                DebugSystem.Write($"[CharacterDataBase] Broadcasted new player {newPlayer.CharName} to {broadcastCount} other players");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error in BroadcastNewPlayer: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         public void OnCharacterLeave(Player src)

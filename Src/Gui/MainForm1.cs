@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -15,6 +16,19 @@ namespace Wonderland_Private_Server
         bool blockclose = true;
 
         PluginManager phostManager;
+
+        // NPC Database GUI Controls
+        TabPage tabPageNPC;
+        DataGridView dgvNPC;
+        Button btnRefreshNPC;
+        Button btnSaveNPC;
+
+        // NPC Templates GUI Controls
+        TabPage tabPageNpcTemplates;
+        DataGridView dgvNpcTemplates;
+        Button btnRefreshNpcTemplates;
+        Button btnImportNpcCsv;
+        Button btnSaveNpcTemplates;
 
 
         public Form1()
@@ -47,9 +61,42 @@ namespace Wonderland_Private_Server
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            // NPC Tabs removed as per request
+            // InitializeNPCTab();
+
+            // Load Compound Data
+            try
+            {
+                DebugSystem.Write(DebugItemType.Info_Light, "Loading Compound/Alchemy Data...");
+                cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
+                cGlobal.gCompoundDat.Load("Data\\Compound.dat");
+                cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false); // append
+                DebugSystem.Write(DebugItemType.Info_Light, "Compound Data Loaded.");
+            }
+            catch (Exception ex)
+            {
+                // Ensure we don't crash if files missing
+                DebugSystem.Write(DebugItemType.Error, "Failed to load Compound Data: " + ex.Message);
+            }
+
             Thread MainThread = new Thread(new ThreadStart(MainThreadWork));
             MainThread.IsBackground = true;
             MainThread.Init();
+
+            // Load character filters and NPCs
+            Task.Run(() =>
+            {
+                Thread.Sleep(2500); // Wait for server initialization
+                try
+                {
+                    this.Invoke(new Action(() =>
+                    {
+                        LoadCharacterFilters();
+                        // NPC tabs removed, so no refresh needed
+                    }));
+                }
+                catch { }
+            });
         }
 
         void GuiThread()
@@ -89,6 +136,17 @@ namespace Wonderland_Private_Server
                 //}
                 //catch { }
                 #endregion
+                #region Periodic Tasks
+                // Refresh online players list in cheat tab regularly (every ~1 second: 200 * 5ms = 1000ms)
+                if (DateTime.Now.Millisecond % 1000 < 50)
+                {
+                    try
+                    {
+                        RefreshOnlinePlayers();
+                    }
+                    catch { }
+                }
+                #endregion
                 Thread.Sleep(5);
             }
             while (cGlobal.Run);
@@ -112,6 +170,7 @@ namespace Wonderland_Private_Server
             cGlobal.gCharacterDataBase.ItemDat = cGlobal.ItemDatManager;
             cGlobal.gGameDataBase = new DataBase.GameDataBase();
             cGlobal.gGameDataBase.ItemDat = cGlobal.ItemDatManager;
+            cGlobal.gGameDataBase.VerifySetup(); // Create Friends table
             cGlobal.gPortalDataBase = new DataBase.PortalDataBase();
             cGlobal.gPortalDataBase.VerifySetup();
             DebugSystem.Write("[Init] - Intializing Systems Please Wait.....");
@@ -159,14 +218,23 @@ namespace Wonderland_Private_Server
 
 
 
+
+
             //cGlobal.gUserDataBase.TableName = cGlobal.SrvSettings.DB.TableName_Ref;
-            cGlobal.gUserDataBase.Username_Ref = cGlobal.SrvSettings.DB.Username_Ref;
-            cGlobal.gUserDataBase.Password_Ref = cGlobal.SrvSettings.DB.Password_Ref;
-            cGlobal.gUserDataBase.DataBaseID_Ref = cGlobal.SrvSettings.DB.UserID_Ref;
-            cGlobal.gUserDataBase.IM_Ref = cGlobal.SrvSettings.DB.IM_Ref;
-            cGlobal.gUserDataBase.CharacterID1_Ref = cGlobal.SrvSettings.DB.CharacterID1_Ref;
-            cGlobal.gUserDataBase.CharacterID2_Ref = cGlobal.SrvSettings.DB.CharacterID2_Ref;
-            cGlobal.gUserDataBase.Char_Delete_Code_Ref = cGlobal.SrvSettings.DB.Char_Delete_Code_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.Username_Ref))
+                cGlobal.gUserDataBase.Username_Ref = cGlobal.SrvSettings.DB.Username_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.Password_Ref))
+                cGlobal.gUserDataBase.Password_Ref = cGlobal.SrvSettings.DB.Password_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.UserID_Ref))
+                cGlobal.gUserDataBase.DataBaseID_Ref = cGlobal.SrvSettings.DB.UserID_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.IM_Ref))
+                cGlobal.gUserDataBase.IM_Ref = cGlobal.SrvSettings.DB.IM_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.CharacterID1_Ref))
+                cGlobal.gUserDataBase.CharacterID1_Ref = cGlobal.SrvSettings.DB.CharacterID1_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.CharacterID2_Ref))
+                cGlobal.gUserDataBase.CharacterID2_Ref = cGlobal.SrvSettings.DB.CharacterID2_Ref;
+            if (!string.IsNullOrEmpty(cGlobal.SrvSettings.DB.Char_Delete_Code_Ref))
+                cGlobal.gUserDataBase.Char_Delete_Code_Ref = cGlobal.SrvSettings.DB.Char_Delete_Code_Ref;
             cGlobal.gUserDataBase.PassVerification = (Game.VerifyPassType)cGlobal.SrvSettings.DB.PassVerification;
             //if (GitUptOption.SelectedIndex != (byte)cGlobal.SrvSettings.Update.UpdtControl)
             //    GitUptOption.SelectedIndex = (byte)cGlobal.SrvSettings.Update.UpdtControl;
@@ -253,7 +321,7 @@ namespace Wonderland_Private_Server
             //cGlobal.gItemManager.LoadItems("Data\\Item.dat");
             //cGlobal.gSkillManager.LoadSkills("Data\\Skill.dat");
             //cGlobal.gNpcManager.LoadNpc("Data\\Npc.dat");
-            //cGlobal.gEveManager.LoadFile("Data\\eve.Emg");
+            cGlobal.gGameDataBase.EveDat.LoadFile("Data\\eve.Emg");
             //cGlobal.gCompoundDat.Load("Data\\Compound.dat");
             //cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false);
 
@@ -427,7 +495,72 @@ namespace Wonderland_Private_Server
             return dictData;
         }
 
-        private Player GetPrivatePlayer() { return cGlobal.gLoginServer.privatePlayer; }
+        private Player GetPrivatePlayer()
+        {
+            // If a player is selected in the cheat tab combobox, use that player
+            if (comboBox_OnlinePlayers.InvokeRequired)
+            {
+                return (Player)comboBox_OnlinePlayers.Invoke(new Func<Player>(() =>
+                {
+                    if (comboBox_OnlinePlayers.SelectedItem != null && comboBox_OnlinePlayers.SelectedItem is Player)
+                        return (Player)comboBox_OnlinePlayers.SelectedItem;
+                    return cGlobal.gLoginServer.privatePlayer;
+                }));
+            }
+            else
+            {
+                if (comboBox_OnlinePlayers.SelectedItem != null && comboBox_OnlinePlayers.SelectedItem is Player)
+                    return (Player)comboBox_OnlinePlayers.SelectedItem;
+                return cGlobal.gLoginServer.privatePlayer;
+            }
+        }
+
+        private void RefreshOnlinePlayers()
+        {
+            if (comboBox_OnlinePlayers.InvokeRequired)
+            {
+                comboBox_OnlinePlayers.Invoke(new Action(RefreshOnlinePlayers));
+                return;
+            }
+
+            // Save current selection
+            Player selectedPlayer = null;
+            if (comboBox_OnlinePlayers.SelectedItem != null)
+                selectedPlayer = (Player)comboBox_OnlinePlayers.SelectedItem;
+
+            // Get online players safely
+            List<Player> onlinePlayers = new List<Player>();
+            try
+            {
+                // Access via new GetAllPlayers method
+                if (cGlobal.gLoginServer != null)
+                {
+                    onlinePlayers = cGlobal.gLoginServer.GetAllPlayers();
+                }
+            }
+            catch { }
+
+            // Update ComboBox items if list changed (simple check by count or just refresh)
+            // For smoother UI, we can clear and re-add. 
+            // Improve: check if list is actually different to avoid flickering? 
+            // For now, just refresh every time but keep selection if valid.
+
+            comboBox_OnlinePlayers.Items.Clear();
+            foreach (var p in onlinePlayers)
+            {
+                comboBox_OnlinePlayers.Items.Add(p);
+            }
+
+            // Restore selection or select default
+            if (selectedPlayer != null && onlinePlayers.Contains(selectedPlayer))
+            {
+                comboBox_OnlinePlayers.SelectedItem = selectedPlayer;
+            }
+            else if (onlinePlayers.Count > 0)
+            {
+                comboBox_OnlinePlayers.SelectedIndex = onlinePlayers.Count - 1; // Default to latest logic
+            }
+        }
 
         private void radioButton_Battle_CheckedChanged(object sender, EventArgs e)
         {
@@ -489,11 +622,164 @@ namespace Wonderland_Private_Server
                     dataGridViewUsers.Columns["username"].HeaderText = "Username";
                     dataGridViewUsers.Columns["password"].HeaderText = "Password";
                     dataGridViewUsers.Columns["email"].HeaderText = "Email";
+                    // Cipher column only shown if it exists in database
+                    if (users.Columns.Contains("cipher"))
+                        dataGridViewUsers.Columns["cipher"].HeaderText = "Deletion Password";
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Error loading users: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+        private void InitializeNPCTab()
+        {
+            // Tabs removed as per request
+        }
+
+        private void btnRefreshNpcTemplates_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (cGlobal.gGameDataBase == null) return;
+                var data = cGlobal.gGameDataBase.GetAllNpcTemplates();
+                if (data != null) dgvNpcTemplates.DataSource = data;
+            }
+            catch (Exception ex) { MessageBox.Show("Error loading templates: " + ex.Message); }
+        }
+
+        private void btnImportNpcCsv_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("CSV Import is disabled. Npc.dat is used automatically on startup.", "Info");
+            // try
+            // {
+            //     if (cGlobal.gGameDataBase == null) return;
+            //     // Assuming listdata/npc.csv is in bin/Debug/listdata/npc.csv
+            //     string path = Environment.CurrentDirectory + "\\listdata\\npc.csv";
+            //     // int count = cGlobal.gGameDataBase.ImportNpcDataFromCsv(path); // Method removed
+            //     // MessageBox.Show($"Imported {count} NPCs from CSV.");
+            //     btnRefreshNpcTemplates_Click(null, null);
+            // }
+            // catch (Exception ex) { MessageBox.Show("Error importing CSV: " + ex.Message); }
+        }
+
+        private void btnSaveNpcTemplates_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                int updatedCount = 0;
+                int addedCount = 0;
+
+                foreach (DataGridViewRow row in dgvNpcTemplates.Rows)
+                {
+                    if (row.IsNewRow) continue;
+
+                    if (row.Cells["id"].Value == null || row.Cells["id"].Value == DBNull.Value) continue;
+
+                    int id = Convert.ToInt32(row.Cells["id"].Value);
+                    string name = row.Cells["name"].Value?.ToString() ?? "";
+                    int level = row.Cells["level"].Value != null && row.Cells["level"].Value != DBNull.Value ? Convert.ToInt32(row.Cells["level"].Value) : 1;
+                    int hp = row.Cells["hp"].Value != null && row.Cells["hp"].Value != DBNull.Value ? Convert.ToInt32(row.Cells["hp"].Value) : 100;
+                    int element = row.Cells["element"].Value != null && row.Cells["element"].Value != DBNull.Value ? Convert.ToInt32(row.Cells["element"].Value) : 0;
+
+                    // For now, always update since we don't track new/modified easily in grid loop without bindings
+                    // But we have Duplicate Key Update in Add? No, UpdateNpcTemplate uses UPDATE.
+                    // AddNpcTemplate uses INSERT.
+                    // Check if exists?
+                    // Simplified: Try Update first, if rows affected=0, Add?
+                    // GameDataBase.UpdateNpcTemplate returns true/false but based on execution success, not rows.
+                    // Actually, ExecuteNonQuery returns rows affected?
+                    // My ExecuteNonQuery implementation in Database.cs?
+                    // Let's just use AddNpcTemplate with "ON DUPLICATE KEY UPDATE" logic if I changed it?
+                    // In Step 1489 Import uses ON DUPLICATE.
+                    // Here I wrote Update and Add separately.
+                    // Let's use Update. If it fails (or returns 0 rows? I can't check), assume Add?
+                    // Actually, if row exists in Grid and DB, Update works.
+                    // If row is NEW in Grid (added by user), it's not in DB. Update fails (0 rows).
+                    // So I should try Add if Update affects 0 rows.
+                    // But my wrapper doesn't return rows.
+                    // I'll call AddNpcTemplate which I should modify to use UPSERT logic?
+                    // Or just use `Import` logic for single row?
+                    // I'll use AddNpcTemplate (Insert). If it fails (duplicate), I'll try Update.
+
+                    if (cGlobal.gGameDataBase.AddNpcTemplate(id, name, level, hp, element))
+                    {
+                        addedCount++;
+                    }
+                    else
+                    {
+                        if (cGlobal.gGameDataBase.UpdateNpcTemplate(id, name, level, hp, element))
+                            updatedCount++;
+                    }
+                }
+                MessageBox.Show($"Saved Templates! Added/Updated: {addedCount + updatedCount}");
+                btnRefreshNpcTemplates_Click(null, null);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error saving templates: " + ex.Message);
+            }
+        }
+
+        private void btnSaveNPC_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                int updatedCount = 0;
+                int addedCount = 0;
+
+                foreach (DataGridViewRow row in dgvNPC.Rows)
+                {
+                    if (row.IsNewRow) continue;
+
+                    // Simple validation: check if map_id exists
+                    if (row.Cells["map_id"].Value == null || row.Cells["map_id"].Value == DBNull.Value) continue;
+
+                    int mapId = Convert.ToInt32(row.Cells["map_id"].Value);
+                    int clickId = Convert.ToInt32(row.Cells["click_id"].Value);
+                    string type = row.Cells["npc_type"].Value?.ToString() ?? "QuestNpc";
+                    string name = row.Cells["npc_name"].Value?.ToString() ?? "";
+                    int x = row.Cells["x"].Value != null && row.Cells["x"].Value != DBNull.Value ? Convert.ToInt32(row.Cells["x"].Value) : 0;
+                    int y = row.Cells["y"].Value != null && row.Cells["y"].Value != DBNull.Value ? Convert.ToInt32(row.Cells["y"].Value) : 0;
+
+                    // Check if it's an existing row (has npc_id) or new
+                    if (row.Cells["npc_id"].Value != null && row.Cells["npc_id"].Value != DBNull.Value)
+                    {
+                        int npcId = Convert.ToInt32(row.Cells["npc_id"].Value);
+                        if (cGlobal.gGameDataBase.UpdateNPC(npcId, mapId, clickId, type, name, x, y))
+                            updatedCount++;
+                    }
+                    else
+                    {
+                        if (cGlobal.gGameDataBase.AddNPC(mapId, clickId, type, name, x, y))
+                            addedCount++;
+                    }
+                }
+                MessageBox.Show($"Saved! Updated: {updatedCount}, Added: {addedCount}");
+                btnRefreshNPC_Click(null, null); // Refresh to get proper IDs for new rows
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error saving NPCs: " + ex.Message);
+            }
+        }
+
+        private void btnRefreshNPC_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (cGlobal.gGameDataBase == null) return;
+                var npcs = cGlobal.gGameDataBase.GetAllNPCs();
+                if (npcs != null)
+                {
+                    dgvNPC.DataSource = npcs;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading NPCs: " + ex.Message);
             }
         }
 
@@ -724,15 +1010,49 @@ namespace Wonderland_Private_Server
                 try
                 {
                     uint id = Convert.ToUInt32(dgvCharacters.SelectedRows[0].Cells["charID"].Value);
-                    if (MessageBox.Show($"Are you sure you want to delete character ID: {id}?", "Confirm Delete", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                    string charName = dgvCharacters.SelectedRows[0].Cells["name"].Value?.ToString() ?? "";
+
+                    if (MessageBox.Show($"Are you sure you want to delete character '{charName}' (ID: {id})?\n\nThis will also delete:\n- All stats\n- All inventory items\n- All friendships",
+                        "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
                     {
+                        // Delete related data first (cascade delete)
+                        try
+                        {
+                            // Delete stats
+                            cGlobal.gCharacterDataBase.ExecuteNonQuery($"DELETE FROM stats WHERE charID = {id}");
+
+                            // Delete inventory
+                            cGlobal.gCharacterDataBase.ExecuteNonQuery($"DELETE FROM inventory WHERE charID = {id}");
+
+                            // Delete friendships (both directions)
+                            cGlobal.gGameDataBase.ExecuteNonQuery($"DELETE FROM Friends WHERE CharID1 = {id} OR CharID2 = {id}");
+
+                            // Delete quests if table exists
+                            try { cGlobal.gCharacterDataBase.ExecuteNonQuery($"DELETE FROM charquest WHERE charID = {id}"); } catch { }
+
+                            // Delete tent data if table exists
+                            try { cGlobal.gCharacterDataBase.ExecuteNonQuery($"DELETE FROM chartent WHERE charID = {id}"); } catch { }
+
+                            // Delete unlocks if table exists
+                            try { cGlobal.gCharacterDataBase.ExecuteNonQuery($"DELETE FROM charunlocks WHERE charID = {id}"); } catch { }
+
+                            // Delete extended data if table exists
+                            try { cGlobal.gCharacterDataBase.ExecuteNonQuery($"DELETE FROM charactersextdata WHERE charID = {id}"); } catch { }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Warning: Some related data could not be deleted:\n{ex.Message}", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+
+                        // Finally delete the character
                         cGlobal.gCharacterDataBase.DeleteCharacter(id);
+                        MessageBox.Show("Character and all related data deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         btnRefreshCharacters_Click(sender, e);
                     }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Error deleting character: " + ex.Message);
+                    MessageBox.Show("Error deleting character: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else
@@ -740,5 +1060,348 @@ namespace Wonderland_Private_Server
                 MessageBox.Show("Please select a character/row to delete.");
             }
         }
+
+        #region Player Settings Tab
+        private void btnRefreshSettings_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                dgvSettings.Rows.Clear();
+                dgvSettings.Columns.Clear();
+
+                // Add columns
+                dgvSettings.Columns.Add("CharID", "Char ID");
+                dgvSettings.Columns.Add("CharName", "Name");
+                dgvSettings.Columns.Add("PKABLE", "PK Mode");
+                dgvSettings.Columns.Add("JOINABLE", "Join Mode");
+                dgvSettings.Columns.Add("TRADABLE", "Trade Mode");
+
+                // Get online players
+                var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                if (onlinePlayers != null)
+                {
+                    foreach (var player in onlinePlayers)
+                    {
+                        if (player.Settings != null)
+                        {
+                            dgvSettings.Rows.Add(
+                                player.CharID,
+                                player.CharName,
+                                player.Settings.PKABLE ? "ON" : "OFF",
+                                player.Settings.JOINABLE ? "ON" : "OFF",
+                                player.Settings.TRADABLE ? "ON" : "OFF"
+                            );
+                        }
+                    }
+                }
+
+                // Make PK/Join/Trade columns editable
+                dgvSettings.Columns["CharID"].ReadOnly = true;
+                dgvSettings.Columns["CharName"].ReadOnly = true;
+                dgvSettings.Columns["PKABLE"].ReadOnly = false;
+                dgvSettings.Columns["JOINABLE"].ReadOnly = false;
+                dgvSettings.Columns["TRADABLE"].ReadOnly = false;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error refreshing settings: " + ex.Message);
+            }
+        }
+
+        private void btnSaveSettings_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                int savedCount = 0;
+                foreach (DataGridViewRow row in dgvSettings.Rows)
+                {
+                    if (row.Cells["CharID"].Value == null) continue;
+
+                    uint charID = Convert.ToUInt32(row.Cells["CharID"].Value);
+                    string pkStr = row.Cells["PKABLE"].Value?.ToString() ?? "OFF";
+                    string joinStr = row.Cells["JOINABLE"].Value?.ToString() ?? "OFF";
+                    string tradeStr = row.Cells["TRADABLE"].Value?.ToString() ?? "OFF";
+
+                    // Find online player
+                    var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                    var player = onlinePlayers?.FirstOrDefault(p => p.CharID == charID);
+
+                    if (player?.Settings != null)
+                    {
+                        player.Settings.PKABLE = pkStr.ToUpper() == "ON" || pkStr == "1" || pkStr.ToUpper() == "TRUE";
+                        player.Settings.JOINABLE = joinStr.ToUpper() == "ON" || joinStr == "1" || joinStr.ToUpper() == "TRUE";
+                        player.Settings.TRADABLE = tradeStr.ToUpper() == "ON" || tradeStr == "1" || tradeStr.ToUpper() == "TRUE";
+                        savedCount++;
+                    }
+                }
+
+                MessageBox.Show($"Settings saved for {savedCount} player(s).");
+                btnRefreshSettings_Click(sender, e); // Refresh view
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error saving settings: " + ex.Message);
+            }
+        }
+        #endregion
+
+        #region Friends Management
+        private void btnRefreshFriends_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Query Friends table with character names
+                var friendsData = cGlobal.gGameDataBase.GetDataTable(@"
+                    SELECT 
+                        f.CharID1, 
+                        f.CharID2, 
+                        f.AddedDate,
+                        c1.name as CharName1,
+                        c2.name as CharName2
+                    FROM Friends f
+                    LEFT JOIN characters c1 ON f.CharID1 = c1.charID
+                    LEFT JOIN characters c2 ON f.CharID2 = c2.charID
+                    ORDER BY f.AddedDate DESC
+                ");
+
+                if (friendsData != null)
+                {
+                    dgvFriends.DataSource = friendsData;
+                    dgvFriends.Columns["CharID1"].HeaderText = "Char ID 1";
+                    dgvFriends.Columns["CharID2"].HeaderText = "Char ID 2";
+                    dgvFriends.Columns["CharName1"].HeaderText = "Character 1";
+                    dgvFriends.Columns["CharName2"].HeaderText = "Character 2";
+                    dgvFriends.Columns["AddedDate"].HeaderText = "Added Date";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading friends: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnDeleteFriendship_Click(object sender, EventArgs e)
+        {
+            if (dgvFriends.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Please select a friendship to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var row = dgvFriends.SelectedRows[0];
+            uint charID1 = Convert.ToUInt32(row.Cells["CharID1"].Value);
+            uint charID2 = Convert.ToUInt32(row.Cells["CharID2"].Value);
+            string name1 = row.Cells["CharName1"].Value?.ToString() ?? "Unknown";
+            string name2 = row.Cells["CharName2"].Value?.ToString() ?? "Unknown";
+
+            var result = MessageBox.Show($"Delete friendship between '{name1}' and '{name2}'?",
+                "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                try
+                {
+                    string deleteQuery = $"DELETE FROM Friends WHERE CharID1 = {charID1} AND CharID2 = {charID2}";
+                    cGlobal.gGameDataBase.ExecuteNonQuery(deleteQuery);
+                    MessageBox.Show("Friendship deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    btnRefreshFriends_Click(sender, e);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error deleting friendship: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        #endregion
+
+        #region Inventory Management
+        private void btnRefreshInventory_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Get selected character from filter
+                uint charID = 0;
+                if (cmbCharacterFilter.SelectedItem != null)
+                {
+                    string selected = cmbCharacterFilter.SelectedItem.ToString();
+                    charID = uint.Parse(selected.Split('-')[0].Trim());
+                }
+
+                if (charID == 0)
+                {
+                    MessageBox.Show("Please select a character first.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // Query inventory with item names
+                var inventoryData = cGlobal.gGameDataBase.GetDataTable($@"
+                    SELECT 
+                        i.charID,
+                        c.name as CharName,
+                        i.pos as Slot,
+                        i.itemID,
+                        i.dmg as Damage
+                    FROM inventory i
+                    LEFT JOIN characters c ON i.charID = c.charID
+                    WHERE i.charID = {charID} AND i.storID = 1
+                    ORDER BY i.pos
+                ");
+
+                if (inventoryData != null)
+                {
+                    dgvInventory.DataSource = inventoryData;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading inventory: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnDeleteItem_Click(object sender, EventArgs e)
+        {
+            if (dgvInventory.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Please select an item to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var row = dgvInventory.SelectedRows[0];
+            uint charID = Convert.ToUInt32(row.Cells["charID"].Value);
+            int slot = Convert.ToInt32(row.Cells["Slot"].Value);
+
+            var result = MessageBox.Show($"Delete item at slot {slot}?",
+                "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                try
+                {
+                    string deleteQuery = $"DELETE FROM inventory WHERE charID = {charID} AND pos = {slot} AND storID = 1";
+                    cGlobal.gGameDataBase.ExecuteNonQuery(deleteQuery);
+                    MessageBox.Show("Item deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    btnRefreshInventory_Click(null, null);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error deleting item: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void cmbCharacterFilter_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            btnRefreshInventory_Click(sender, e);
+        }
+        #endregion
+
+        #region Stats Management
+        private void btnRefreshStats_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Get selected character from filter
+                uint charID = 0;
+                if (cmbCharacterFilterStats.SelectedItem != null)
+                {
+                    string selected = cmbCharacterFilterStats.SelectedItem.ToString();
+                    charID = uint.Parse(selected.Split('-')[0].Trim());
+                }
+
+                if (charID == 0)
+                {
+                    MessageBox.Show("Please select a character first.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // Query stats
+                var statsData = cGlobal.gCharacterDataBase.GetDataTable($@"
+                    SELECT 
+                        s.charID,
+                        c.name as CharName,
+                        s.statID,
+                        s.StatusUp
+                    FROM stats s
+                    LEFT JOIN characters c ON s.charID = c.charID
+                    WHERE s.charID = {charID}
+                    ORDER BY s.statID
+                ");
+
+                if (statsData != null)
+                {
+                    dgvStats.DataSource = statsData;
+                    dgvStats.Columns["StatusUp"].ReadOnly = false; // Make editable
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading stats: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnEditStat_Click(object sender, EventArgs e)
+        {
+            if (dgvStats.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Please select a stat to edit.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var row = dgvStats.SelectedRows[0];
+            uint charID = Convert.ToUInt32(row.Cells["charID"].Value);
+            int statID = Convert.ToInt32(row.Cells["statID"].Value);
+            int currentValue = Convert.ToInt32(row.Cells["StatusUp"].Value);
+
+            string newValue = ShowInputDialog($"Edit Stat ID {statID}:", "Edit Stat", currentValue.ToString());
+
+            if (!string.IsNullOrWhiteSpace(newValue))
+            {
+                // Validate input is numeric
+                if (!int.TryParse(newValue, out int newStatValue))
+                {
+                    MessageBox.Show("Please enter a valid number.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                try
+                {
+                    string updateQuery = $"UPDATE stats SET StatusUp = {newStatValue} WHERE charID = {charID} AND statID = {statID}";
+                    cGlobal.gCharacterDataBase.ExecuteNonQuery(updateQuery);
+                    MessageBox.Show("Stat updated successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    btnRefreshStats_Click(null, null);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error updating stat: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void cmbCharacterFilterStats_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            btnRefreshStats_Click(sender, e);
+        }
+
+        private void LoadCharacterFilters()
+        {
+            try
+            {
+                var characters = cGlobal.gCharacterDataBase.GetAllCharacters();
+                if (characters != null)
+                {
+                    cmbCharacterFilter.Items.Clear();
+                    cmbCharacterFilterStats.Items.Clear();
+
+                    foreach (System.Data.DataRow row in characters.Rows)
+                    {
+                        string item = $"{row["charID"]} - {row["name"]}";
+                        cmbCharacterFilter.Items.Add(item);
+                        cmbCharacterFilterStats.Items.Add(item);
+                    }
+                }
+            }
+            catch { }
+        }
+        #endregion
     }
 }

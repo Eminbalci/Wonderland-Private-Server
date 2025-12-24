@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {}
+    "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {}
   },
   "projects": {
-    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {
+    "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+        "projectUniqueName": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
         "projectName": "Wlo.Core",
-        "projectPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+        "projectPath": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
         "packagesPath": "C:\\Users\\Muhammet\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
+        "outputPath": "C:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Muhammet\\AppData\\Roaming\\NuGet\\NuGet.Config",

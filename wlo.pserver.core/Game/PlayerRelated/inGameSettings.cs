@@ -23,19 +23,19 @@ namespace Game.Code
     {
         readonly object mlock = new object();
 
-        bool pk = false;
+        bool pk = true;
         bool fighting = true;
         bool trade = true;
 
         ChannelCodeType chatChannel;
         public ChannelCodeType ChannelCode
         {
-            get { lock (mlock)return chatChannel; }
-            set { lock (mlock)chatChannel = value; }
+            get { lock (mlock) return chatChannel; }
+            set { lock (mlock) chatChannel = value; }
         }
-        public bool PKABLE { get { lock (mlock)return pk; } set { lock (mlock)pk = value; } }
-        public bool JOINABLE { get { lock (mlock)return fighting; } set { lock (mlock)fighting = value; } }
-        public bool TRADABLE { get { lock (mlock) return trade; } set { lock (mlock)trade = value; } }
+        public bool PKABLE { get { lock (mlock) return pk; } set { lock (mlock) pk = value; } }
+        public bool JOINABLE { get { lock (mlock) return fighting; } set { lock (mlock) fighting = value; } }
+        public bool TRADABLE { get { lock (mlock) return trade; } set { lock (mlock) trade = value; } }
 
 
 
@@ -73,16 +73,18 @@ namespace Game.Code
                                         case 3: ChannelCode = (ChannelCodeType)p.Unpack8(); break;
                                         case 4: TRADABLE = p.UnpackBool(); break;
                                     }
-                                } break;
+                                }
+                                break;
                         }
-                    } break;
-                #endregion
+                    }
+                    break;
+                    #endregion
             }
         }
 
         public byte[] ToArray()
         {
-           RCLibrary.Core.Networking.PacketBuilder tmp = new RCLibrary.Core.Networking.PacketBuilder();
+            RCLibrary.Core.Networking.PacketBuilder tmp = new RCLibrary.Core.Networking.PacketBuilder();
             tmp.Begin();
             tmp.Add(33);
             tmp.Add(2);

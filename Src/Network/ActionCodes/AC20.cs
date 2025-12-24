@@ -29,13 +29,18 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv1(Player p, RecievePacket r)
         {
-            p.Send(Tools.FromFormat("bb", 20, 8));
-            //if (!p.CurrentMap.ProccessInteraction(r.Unpack8(), ref p))
-            //{
-            //    SendPacket tmp = new SendPacket();
-            //    tmp.Pack(new byte[] { 20, 8 });
-            //    p.Send(tmp);
-            //}
+            // NPC click - get click ID from packet
+            byte clickID = r.Unpack8();
+
+            if (p.CurMap != null && p.CurMap.ProcessInteraction(clickID, p))
+            {
+                // Interaction handled successfully
+            }
+            else
+            {
+                // Send default response if interaction fails
+                p.Send(Tools.FromFormat("bb", 20, 8));
+            }
         }
         void Recv6(Player p, RecievePacket r)
         {

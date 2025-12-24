@@ -4,42 +4,43 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Wonderland_Private_Server.Code.Objects;
-using Wonderland_Private_Server.Network;
 using Wonderland_Private_Server.Utilities;
-using Wlo.Core;
+using wlo.pserver.core;
+using Network;
+using Game;
+using Game.Battle;
 
-namespace Wonderland_Private_Server.ActionCodes
+namespace Network.ActionCodes
 {
-    public class AC50:AC
+    public class AC50 : AC
     {
         public override int ID { get { return 50; } }
-        public override void ProcessPkt(ref Player r, RecvPacket p)
+        public override void ProcessPkt(Player r, RecievePacket p)
         {
             switch (p.B)
             {
-                case 1:Recv_1(ref r,p);break;
-                default: LogServices.Log(p.A + "," + p.B + " Has not been coded"); break;
+                case 1: Recv_1(r, p); break;
+                default: Console.WriteLine(p.A + "," + p.B + " Has not been coded"); break;
 
             }
         }
-        void Recv_1(ref Player r, RecvPacket p) //recieve an attack command
+        void Recv_1(Player r, RecievePacket p) //recieve an attack command
         {
-            if (r.BattleScene != null && r.BattleScene.RoundState == Code.Enums.eBattleRoundState.ReadyState)
+            if (r.BattleScene != null && r.BattleScene.RoundState == eBattleRoundState.ReadyState)
             {
                 BattleAction tmp = new BattleAction();
                 tmp.src = r.BattleScene.FindFighter(p.Unpack8(), p.Unpack8());
                 tmp.dst = r.BattleScene.FindFighter(p.Unpack8(), p.Unpack8());
-                tmp.skill = new DataManagement.DataFiles.Skill();
-                var c1 = cGlobal.gSkillManager.Get_Skill((ushort)p.Unpack16());
+                //tmp.skill = new Wonderland_Private_Server.DataManagement.DataFiles.Skill();  // Commented: cross-project dependency
+                //var c1 = cGlobal.gSkillManager.Get_Skill((ushort)p.Unpack16());
                 //var c2 = cGlobal.gSkillManager.Get_Skill((ushort)p.Unpack32(6));
-                if (c1 != null)
-                {
-                    tmp.skill = new DataManagement.DataFiles.Skill(c1.GetData());
-                    tmp.skill.Grade = c1.Grade;
-                    //tmp.skill.Proficiency = c1.Proficiency;
-                }
+                //{
+                //    tmp.skill = new Wonderland_Private_Server.DataManagement.DataFiles.Skill(c1.GetData());
+                //    tmp.skill.Grade = c1.Grade;
+                //    //tmp.skill.Proficiency = c1.Proficiency;
+                //}
                 //else
-                    //tmp.skill = new DataManagement.DataFiles.Skill(c2.GetData());
+                //tmp.skill = new DataManagement.DataFiles.Skill(c2.GetData());
 
                 tmp.unknownbyte = p.Unpack8();
                 tmp.unknownbyte2 = p.Unpack8();

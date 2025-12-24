@@ -21,7 +21,7 @@ namespace Server
     /// </summary>
     public class WorldServer : MapSystem, WorldServerHost, MapHost
     {
-        Thread Mainthrd, Eventthrd;
+        Thread Mainthrd, Eventthrd, AutoSaveThread;
         bool killFlag;
         readonly ManualResetEvent mylock;
         //readonly Semaphore ProcessLock,SendLock;
@@ -92,6 +92,10 @@ namespace Server
             Eventthrd = new Thread(new ThreadStart(Eventwrk));
             Eventthrd.Name = "World Manager Event Thread";
             Eventthrd.Init();
+            AutoSaveThread = new Thread(new ThreadStart(AutoSaveLoop));
+            AutoSaveThread.Name = "Auto-Save Thread";
+            AutoSaveThread.Init();
+            DebugSystem.Write("[WorldServer] Auto-save thread started (saves every 1 second)");
         }
 
         public void Kill()
@@ -102,6 +106,8 @@ namespace Server
             Mainthrd = null;
             while (Eventthrd != null && Eventthrd.IsAlive) { Thread.Sleep(1); }
             Eventthrd = null;
+            while (AutoSaveThread != null && AutoSaveThread.IsAlive) { Thread.Sleep(1); }
+            AutoSaveThread = null;
         }
 
         void MainLoop()
@@ -516,9 +522,9 @@ namespace Server
             DebugSystem.Write("[WorldServer] Loading Final Data...");
             cGlobal.gGameDataBase.LoadFinalData(src);
             src.SendCharacterData();
-            DebugSystem.Write("[WorldServer] Sending Online Characters...");
-            cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
+            // First add new player to online list early (for tracking)
             cGlobal.gCharacterDataBase.OnCharacterJoin(src);
+
             src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
             //-----------send sidebar---------------------
             //------------Player Data---------------------
@@ -551,17 +557,18 @@ namespace Server
             //---------Warp Info---------------------------------------------------
             // //put me in my maps list
 
-            GameMap target = new GameMap();
-            target.MapID = src.LoginMap;
+            // Get the SHARED map instance from MapManager (not a new instance!)
+            GameMap target = MapManager.Instance.GetMap(src.LoginMap);
 
-            /*if((target = GetMap(src.LoginMap)) == null)
+            if (target == null)
             {
-                var ex = new Exception("Map " + src.LoginMap + " not found for player");
+                var ex = new Exception("Map " + src.LoginMap + " not found for player " + src.CharName);
                 DebugSystem.Write(new ExceptionData(ex));
                 src.Disconnect();
                 throw ex;
-                
-            }*/
+            }
+
+            DebugSystem.Write($"[WorldServer] Teleporting {src.CharName} to Map {src.LoginMap} (instance: {target.GetHashCode()})");
 
             target.Teleport(TeleportType.Login, src, 0, new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
 
@@ -604,7 +611,58 @@ namespace Server
             //src.SetSendMode(SendMode.Normal);
             src.Flags.Add(PlayerFlag.InMap);
 
+            // Now that player is fully spawned with CurMap set, send visibility data
+            DebugSystem.Write("[WorldServer] Sending Online Characters (after spawn)...");
+            cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
 
+            // Broadcast new player to all other online players (after player is fully spawned)
+            DebugSystem.Write($"[WorldServer] Broadcasting new player {src.CharName} to all online players...");
+            cGlobal.gCharacterDataBase.BroadcastNewPlayer(src);
+
+
+        }
+
+        void AutoSaveLoop()
+        {
+            int saveCounter = 0;
+            do
+            {
+                try
+                {
+                    // Save all online players every second
+                    var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                    if (onlinePlayers != null && onlinePlayers.Count > 0)
+                    {
+                        saveCounter++;
+                        foreach (var player in onlinePlayers)
+                        {
+                            try
+                            {
+                                cGlobal.gCharacterDataBase.WritePlayer(player.CharID, player);
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[AutoSave] Error saving player {player.CharName}: {ex.Message}");
+                            }
+                        }
+
+                        // Log every 60 seconds (once per minute)
+                        if (saveCounter % 60 == 0)
+                        {
+                            DebugSystem.Write($"[AutoSave] Saved {onlinePlayers.Count} online players (total saves: {saveCounter})");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[AutoSave] Critical error in auto-save loop: {ex.Message}");
+                }
+
+                Thread.Sleep(1000); // 1 second
+            }
+            while (!killFlag);
+
+            DebugSystem.Write("[AutoSave] Auto-save thread stopped");
         }
     }
 }

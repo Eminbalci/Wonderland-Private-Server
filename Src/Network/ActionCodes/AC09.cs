@@ -60,12 +60,13 @@ namespace Network.ActionCodes
                 tp.Settings.TRADABLE = true;
                 tp.Settings.PKABLE = false;
                 tp.Settings.JOINABLE = true;
-                tp.Eqs.TotalExp = 800; //6
-                tp.LoginMap = 60000; //ship map 10017;
-                tp.CurX = 602; // ship x 1042;
-                tp.CurY = 455; //ship y 1075;
+                tp.Eqs.TotalExp = 0; //6
+                tp.LoginMap = 10017; //ship map 10017;
+                tp.CurX = 1042; // ship x 1042;
+                tp.CurY = 1075; //ship y 1075;
                 tp.SetGold(0);
-                //tp.Started_Quests.Add(new Quest() { QID = 1 });
+                // Give starter quest
+                tp.Started_Quests.Add(new Quest() { QID = 1 });
 
                 //tp.Info.MySkills.AddSkill(cGlobal.SkillManager.GetSkillByID(15003));
                 //create a character id for this new character

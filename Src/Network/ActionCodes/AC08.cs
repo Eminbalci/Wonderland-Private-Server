@@ -4,25 +4,25 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Wonderland_Private_Server.Code.Objects;
-using Wonderland_Private_Server.Network;
 using Wonderland_Private_Server.Utilities;
-using Wlo.Core;
+using Network;
+using Game;
 
-namespace Wonderland_Private_Server.ActionCodes
+namespace Network.ActionCodes
 {
-    public class AC08:AC
+    public class AC08 : AC
     {
         public override int ID { get { return 8; } }
 
-        public override void ProcessPkt(ref Player r, RecvPacket p)
+        public override void ProcessPkt(Player r, RecievePacket p)
         {
             switch (p.B)
             {
-                case 1: Recv_1(ref r,p); break;
-                default: LogServices.Log(p.A+","+p.B+" Has not been coded"); break;
+                case 1: Recv_1(r, p); break;
+                default: Console.WriteLine(p.A + "," + p.B + " Has not been coded"); break;
             }
         }
-        void Recv_1(ref Player r, RecvPacket p)
+        void Recv_1(Player r, RecievePacket p)
         {
             //int max = p.Unpack8(3);
             //int ptr = 4;
