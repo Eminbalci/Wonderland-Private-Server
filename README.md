@@ -14,7 +14,7 @@ Running steps:
 4. Run aLogin.exe, select your server from step 2 then login with:
 Username: gmone
 password: gmone
-
+or you can register @ localhost:8080
 Tips:
 In the private server exe, click "Cheat" tab:
 - Double click the item in list:
