@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {}
+    "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {}
   },
   "projects": {
-    "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {
+    "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+        "projectUniqueName": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
         "projectName": "RCLibrary",
-        "projectPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
-        "packagesPath": "C:\\Users\\Muhammet\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\Muhammet\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
+        "projectPath": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+        "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Muhammet\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -40,18 +40,32 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net462": {
           "targetAlias": "net462",
           "dependencies": {
+            "BouncyCastle.Cryptography": {
+              "target": "Package",
+              "version": "[2.3.1, )"
+            },
+            "Microsoft.NETFramework.ReferenceAssemblies": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[1.0.3, )"
+            },
             "MySql.Data": {
               "target": "Package",
               "version": "[9.1.0, )"
+            },
+            "System.Resources.Extensions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.202\\RuntimeIdentifierGraph.json"
         }
       }
     }

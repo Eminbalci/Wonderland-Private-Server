@@ -79,3 +79,16 @@ C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\ob
 c:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pser.F17D6523.Up2Date
 C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pserver.core.dll
 C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pserver.core.pdb
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\wlo.pserver.core.dll.config
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\wlo.pserver.core.dll
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\wlo.pserver.core.pdb
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\PhoenixData.dll
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\RCLibrary.dll
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\System.Data.SQLite.dll
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\PhoenixData.pdb
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\RCLibrary.pdb
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pserver.core.csproj.AssemblyReference.cache
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pserver.core.csproj.CoreCompileInputs.cache
+c:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pser.F17D6523.Up2Date
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pserver.core.dll
+C:\Users\muham\OneDrive\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\obj\Debug\wlo.pserver.core.pdb
