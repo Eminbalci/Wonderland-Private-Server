@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -30,25 +30,40 @@ namespace Game.Maps
             {
                 DebugSystem.Write($"[QuestNpc] Interaction with ClickID: {this.CickID}. NPC Info: Name='{Name}', Level={Level}, HP={HP}, Element={Element}");
 
-                // Captain NPC - Start Quest 1
-                if (this.CickID == 10)
-                {
-                    DebugSystem.Write($"[QuestNpc] Captain clicked! Starting Quest 1");
+                string dialogueText = "Hello, traveller! Beautiful day, isn't it? Let me know if you need anything.";
+                string lowerName = (Name ?? "").ToLower();
 
-                    // Send quest dialog packet (AC 52 is typically for quest/dialog)
-                    // Format: AC, Sub, QuestID, DialogID, etc.
-                    // This is a placeholder - adjust based on actual packet structure
-                    try
-                    {
-                        // Simple approach: Send a message packet
-                        src.Send(Tools.FromFormat("bbws", 52, 1, (ushort)1, "Quest 1 started! Find the crew members."));
-                        DebugSystem.Write($"[QuestNpc] Quest 1 start packet sent");
-                    }
-                    catch (Exception questEx)
-                    {
-                        DebugSystem.Write($"[QuestNpc] Failed to send quest packet: {questEx.Message}");
-                    }
+                if (lowerName.Contains("cat") || TemplateID == 11000)
+                {
+                    dialogueText = "Meow~ (The fluffy Persian cat purrs contentedly as you pet it.)";
                 }
+                else if (lowerName.Contains("dog") || lowerName.Contains("shiba"))
+                {
+                    dialogueText = "Woof! (The dog wags its tail happily.)";
+                }
+                else if (this.CickID == 10 || lowerName.Contains("captain"))
+                {
+                    dialogueText = "Welcome aboard! Speak to the crew members if you need any assistance on the ship.";
+                }
+                else if (lowerName.Contains("bank") || lowerName.Contains("atm"))
+                {
+                    dialogueText = $"Welcome to WLO Bank!\nYour Inventory Gold: {src.Gold} gold.";
+                }
+                else if (lowerName.Contains("grandma"))
+                {
+                    dialogueText = "Ah... Çok hastayım. Eğer Bick'in evinden bana Kara İlaç (Black Medicine) getirebilirsen çok sevinirim...";
+                }
+                else if (lowerName.Contains("mary"))
+                {
+                    dialogueText = "Merhaba! En sevdiğim Saç Bandımı (Headband) ormanda kaybettim. Onu bulup bana getirebilir misin?";
+                }
+                else if (lowerName.Contains("niss"))
+                {
+                    dialogueText = "İmdat! Bu kafese canavarlar tarafından kilitlendim... Lütfen beni kurtar!";
+                }
+
+                // Send AC 52 Sub 1 Dialogue packet
+                src.Send(Tools.FromFormat("bbws", 52, 1, (ushort)1, dialogueText));
 
                 // Send response to release client movement lock
                 src.Send(Tools.FromFormat("bb", 20, 8));
@@ -56,6 +71,7 @@ namespace Game.Maps
             catch (Exception ex)
             {
                 DebugSystem.Write($"[QuestNpc] Error in Interact: {ex.Message}");
+                src.Send(Tools.FromFormat("bb", 20, 8));
             }
         }
         public override void Interact(Player src, byte? answer = null)

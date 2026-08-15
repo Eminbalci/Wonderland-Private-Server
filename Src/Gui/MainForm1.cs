@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
@@ -33,9 +33,55 @@ namespace Wonderland_Private_Server
 
         public Form1()
         {
-
             InitializeComponent();
+            this.KeyPreview = true;
             LoadAllLists();
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.F5)
+            {
+                RunClientProgram();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void RunClientProgram()
+        {
+            try
+            {
+                string[] searchPaths = new string[]
+                {
+                    @"D:\garipgudubetseyler\WLRI\aLogin.exe",
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "aLogin.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WLRI", "aLogin.exe"),
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "WLRI", "aLogin.exe")
+                };
+
+                string clientPath = searchPaths.FirstOrDefault(File.Exists);
+
+                if (!string.IsNullOrEmpty(clientPath))
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = clientPath,
+                        WorkingDirectory = Path.GetDirectoryName(clientPath),
+                        UseShellExecute = true
+                    };
+                    Process.Start(psi);
+                    DebugSystem.Write(DebugItemType.Info_Light, "[System] F5 pressed: Client process started (" + clientPath + ")");
+                }
+                else
+                {
+                    DebugSystem.Write(DebugItemType.Error, "[System] F5 pressed: Client executable (aLogin.exe) not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, "[System] F5 pressed error: " + ex.Message);
+            }
         }
 
 
@@ -163,7 +209,9 @@ namespace Wonderland_Private_Server
             DebugSystem.Write("[Init] - Initializing DataFile Objects");
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
-            cGlobal.ItemDatManager.Load(Environment.CurrentDirectory + "\\Data\\itemDat.wpdat");
+            string itemDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "itemDat.wpdat");
+            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Item.dat");
+            cGlobal.ItemDatManager.Load(itemDatPath);
             DebugSystem.Write("[Init] - Initializing DataBase Objects");
             cGlobal.gUserDataBase = new DataBase.UserDataBase();
             cGlobal.gCharacterDataBase = new DataBase.CharacterDataBase();

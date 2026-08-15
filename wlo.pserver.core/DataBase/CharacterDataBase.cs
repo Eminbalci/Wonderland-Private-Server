@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
@@ -749,7 +749,7 @@ namespace DataBase
             if (!client_requested_names.Contains(name.ToLower()))
             {
                 try { src = GetDataTable("SELECT * FROM characters where name_clean = @myname", new DbParam("@myname", name.ToLower())); }
-                catch (MySqlException ex) { DebugSystem.Write(new ExceptionData(ex)); throw; }
+                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); return false; }
 
                 if (src.Rows.Count == 0)
                 {
@@ -925,7 +925,11 @@ namespace DataBase
                         case 26: t.CurSP = ushort.Parse(row["StatusUp"].ToString()); break;
                         case 38: t.SkillPoints = ushort.Parse(row["StatusUp"].ToString()); break;
                         case 36: t.TotalExp = long.Parse(row["StatusUp"].ToString()); break;
-                        default: t.SetBaseStat(row["statID"], ushort.Parse(row["StatusUp"].ToString())); break;
+                        case 28: t.baseStr = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 29: t.baseCon = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 30: t.baseAgi = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 27: t.baseInt = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 33: t.baseWis = ushort.Parse(row["StatusUp"].ToString()); break;
                     }
                 }
             }
@@ -950,13 +954,12 @@ namespace DataBase
                         t[byte.Parse(rows[i]["pos"].ToString())].CopyFrom(ItemDat.GetItemByID(id));
                         t[byte.Parse(rows[i]["pos"].ToString())].Ammt = 1;
                         t[byte.Parse(rows[i]["pos"].ToString())].Damage = byte.Parse(rows[i]["dmg"].ToString());
-                        //                    tmp4.Add((byte)i, new string[]{id.ToString(), rows[i]["socketID"].ToString(), rows[i]["bombID"].ToString(),rows[i]["sewID"].ToString(), 
-                        //rows[i]["dmg"].ToString(),rows[i]["forge"].ToString(), });
                     }
                 }
             }
             #endregion
 
+            Cache[(int)charID] = t;
             return t;
         }
 
@@ -966,29 +969,46 @@ namespace DataBase
 
             if (Cache.ContainsKey((int)charID))
             {
-                t.CharID = Cache[(int)charID].CharID;
-                t.Head = Cache[(int)charID].Head;
-                t.Body = Cache[(int)charID].Body;
-                t.CharName = Cache[(int)charID].CharName;
-                t.NickName = Cache[(int)charID].NickName;
-                t.LoginMap = Cache[(int)charID].LoginMap;
-                t.CurX = Cache[(int)charID].CurX;
-                t.CurY = Cache[(int)charID].CurY;
-                t.HairColor = Cache[(int)charID].HairColor;
-                t.SkinColor = Cache[(int)charID].SkinColor;
-                t.ClothingColor = Cache[(int)charID].ClothingColor;
-                t.EyeColor = Cache[(int)charID].EyeColor;
-                t.SetGold((int)Cache[(int)charID].Gold);
-                t.Element = Cache[(int)charID].Element;
-                t.Job = Cache[(int)charID].Job;
+                var c = Cache[(int)charID];
+                t.CharID = c.CharID;
+                t.Head = c.Head;
+                t.Body = c.Body;
+                t.CharName = c.CharName;
+                t.NickName = c.NickName;
+                t.LoginMap = c.LoginMap;
+                t.CurX = c.CurX;
+                t.CurY = c.CurY;
+                t.HairColor = c.HairColor;
+                t.SkinColor = c.SkinColor;
+                t.ClothingColor = c.ClothingColor;
+                t.EyeColor = c.EyeColor;
+                t.SetGold((int)c.Gold);
+                t.Element = c.Element;
+                t.Job = c.Job;
+                t.baseStr = c.baseStr;
+                t.baseCon = c.baseCon;
+                t.baseAgi = c.baseAgi;
+                t.baseInt = c.baseInt;
+                t.baseWis = c.baseWis;
+                t.CurHP = c.CurHP;
+                t.CurSP = c.CurSP;
+                t.TotalExp = c.TotalExp;
+                t.SkillPoints = c.SkillPoints;
+                t.Potential = c.Potential;
+                for (byte i = 1; i <= 6; i++)
+                {
+                    if (c[i].ItemID > 0)
+                    {
+                        t[i].CopyFrom(c[i]);
+                        t[i].Ammt = c[i].Ammt;
+                        t[i].Damage = c[i].Damage;
+                    }
+                }
                 return true;
             }
 
             DataTable src = null;
             DataRow[] rows = new DataRow[0];
-
-
-
 
             try { src = GetDataTable("SELECT * FROM characters where charID = '" + charID + "'"); }
             catch (MySqlException ex) { DebugSystem.Write(new ExceptionData(ex)); throw; }
@@ -1025,7 +1045,6 @@ namespace DataBase
             {
                 rows = new DataRow[src.Rows.Count];
                 src.Rows.CopyTo(rows, 0);
-                List<long[]> tmp2 = new List<long[]>();
                 foreach (var row in rows)
                 {
                     switch (long.Parse(row["statID"].ToString()))
@@ -1034,11 +1053,11 @@ namespace DataBase
                         case 26: t.CurSP = ushort.Parse(row["StatusUp"].ToString()); break;
                         case 38: t.SkillPoints = ushort.Parse(row["StatusUp"].ToString()); break;
                         case 36: t.TotalExp = long.Parse(row["StatusUp"].ToString()); break;
-                        case 28: t.Str = ushort.Parse(row["StatusUp"].ToString()); break;
-                        case 29: t.Con = ushort.Parse(row["StatusUp"].ToString()); break;
-                        case 30: t.Agi = ushort.Parse(row["StatusUp"].ToString()); break;
-                        case 27: t.Int = ushort.Parse(row["StatusUp"].ToString()); break;
-                        case 33: t.Wis = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 28: t.baseStr = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 29: t.baseCon = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 30: t.baseAgi = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 27: t.baseInt = ushort.Parse(row["StatusUp"].ToString()); break;
+                        case 33: t.baseWis = ushort.Parse(row["StatusUp"].ToString()); break;
                     }
                 }
             }

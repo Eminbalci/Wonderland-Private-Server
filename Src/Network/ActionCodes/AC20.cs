@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,15 +24,49 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv8(Player p, RecievePacket r)
         {
-            if (!p.CurMap.Teleport(TeleportType.Regular, p, (byte)r.Unpack16()))
+            ushort portalID = r.Unpack16();
+            DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} stepped on portal {portalID} on Map {p.CurMap?.MapID} at pos({p.CurX},{p.CurY})");
+            if (p.CurMap == null || !p.CurMap.Teleport(TeleportType.Regular, p, portalID))
+            {
                 p.Send(Tools.FromFormat("bb", 20, 8));
+            }
         }
         void Recv1(Player p, RecievePacket r)
         {
-            // NPC click - get click ID from packet
-            byte clickID = r.Unpack8();
+            if (p.CurMap == null)
+            {
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
 
-            if (p.CurMap != null && p.CurMap.ProcessInteraction(clickID, p))
+            // NPC click - get click ID from packet (handle 3-byte padding if present)
+            ushort clickID = 0;
+            if (r.Buffer.Count() - r.GetPtr() >= 4)
+            {
+                r.Unpack8(); r.Unpack8(); r.Unpack8();
+                clickID = r.Unpack8();
+            }
+            else
+            {
+                clickID = r.Unpack8();
+            }
+
+            // Door / Portal trigger check on clicked NPC
+            if (p.CurMap.mapData != null && p.CurMap.mapData.Npclist != null)
+            {
+                var clickedNpc = p.CurMap.mapData.Npclist.FirstOrDefault(n => n.clickId == clickID);
+                if (clickedNpc != null && clickedNpc.unknownbytearray2 != null && clickedNpc.unknownbytearray2.Count > 0)
+                {
+                    ushort linkedPortal = clickedNpc.unknownbytearray2[0];
+                    DebugSystem.Write($"[AC20.Recv1] NPC {clickID} is a door linking to portal {linkedPortal} on Map {p.CurMap.MapID}");
+                    if (p.CurMap.Teleport(TeleportType.Regular, p, linkedPortal))
+                    {
+                        return;
+                    }
+                }
+            }
+
+            if (p.CurMap.ProcessInteraction((byte)clickID, p))
             {
                 // Interaction handled successfully
             }

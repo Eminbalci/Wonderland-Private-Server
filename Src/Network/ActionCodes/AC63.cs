@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -99,6 +99,14 @@ namespace Network.ActionCodes
             {
                 DebugSystem.Write("[AC63.Recv4] Starting login validation");
                 int loginState = 0; //0-good login  1-bad un/pw  2-dup log 3-wrong version 4-need update
+
+                // Check if client sent 2-byte version prefix (e.g. 1205)
+                int startPtr = r.GetPtr();
+                ushort checkVer = r.Unpack16();
+                if (checkVer < 1000 || checkVer > 2000)
+                {
+                    r.SetPtr(startPtr);
+                }
 
                 //sending username and password
                 string name = r.UnpackString();

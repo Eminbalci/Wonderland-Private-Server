@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,8 +22,9 @@ namespace Game
         MapType Type { get; }
         void Broadcast(SendPacket pkt);
         void Broadcast(SendPacket pkt, string parameter, params object[] To);
-        bool Teleport(TeleportType teletype, Player sender, byte portalID, WarpData warp = null);
+        bool Teleport(TeleportType teletype, Player sender, ushort portalID = 0, WarpData warp = null);
         bool ProcessInteraction(byte clickID, Player player);
+        Game.DataFiles.MapData mapData { get; }
     }
 
     public class GameMap : Plugin.PluginObj, IDisposable, IMap
@@ -194,40 +195,24 @@ namespace Game
                             newNpc.HP = 100;
                             newNpc.Element = 0;
 
-                            // Try to get NPC data from Npc.dat using hybrid formula approach
+                            // Resolve authentic NPC info from npc_data database matching Python server
                             try
                             {
-                                var npcList = DataBase.GameDataBase.GlobalInstance.NpcDat?.NpcList;
-                                if (npcList != null)
+                                if (DataBase.GameDataBase.GlobalInstance != null)
                                 {
-                                    global::DataFiles.PhoneixNpc npcData = null;
-
-                                    // Try formula 1: TID × 2
-                                    npcData = npcList.FirstOrDefault(npcItem => npcItem.NpcID == newNpc.TemplateID * 2);
-
-                                    // Try formula 2: TID + 16000
-                                    if (npcData == null)
-                                        npcData = npcList.FirstOrDefault(npcItem => npcItem.NpcID == newNpc.TemplateID + 16000);
-
-                                    if (npcData != null)
+                                    var info = DataBase.GameDataBase.GlobalInstance.ResolveNpcInfo((ushort)this.MapID, (byte)newNpc.CickID, (ushort)newNpc.TemplateID);
+                                    if (info != null && !string.IsNullOrEmpty(info.Name))
                                     {
-                                        // Found in Npc.dat - decode and use
-                                        string decodedName = System.Text.Encoding.GetEncoding(950).GetString(npcData.NpcName).Trim('\0');
-                                        char[] nameArray = decodedName.ToCharArray();
-                                        Array.Reverse(nameArray);
-                                        newNpc.Name = new string(nameArray).Trim();
-
-                                        // Use stats from Npc.dat
-                                        newNpc.Level = npcData.Level;
-                                        newNpc.HP = npcData.HP;
-                                        newNpc.Element = npcData.element;
+                                        newNpc.Name = info.Name;
+                                        newNpc.Level = (ushort)info.Level;
+                                        newNpc.HP = (uint)info.HP;
+                                        newNpc.Element = (byte)info.Element;
                                     }
-                                    // If not found in Npc.dat, name stays as eve.Emg default ("Npc" or whatever)
                                 }
                             }
                             catch (Exception npcDatEx)
                             {
-                                DebugSystem.Write($"[Map {MapID}] Npc.dat lookup exception for TID {newNpc.TemplateID}: {npcDatEx.Message}");
+                                DebugSystem.Write($"[Map {MapID}] NPC lookup exception for TID {newNpc.TemplateID}: {npcDatEx.Message}");
                             }
 
                             NPCs.Add(newNpc);
@@ -574,18 +559,166 @@ namespace Game
             m_playerlist.Remove(src);
         }
 
-        public bool Teleport(TeleportType teletype, Player sender, byte portalID = 0, WarpData warp = null)
+        public Game.DataFiles.MapData mapData
+        {
+            get { return DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(Convert.ToUInt16(this.MapID)); }
+        }
+
+        public bool LookupPortal(ushort portalID, int px, int py, out ushort dstMap, out ushort dstX, out ushort dstY)
+        {
+            dstMap = 0; dstX = 0; dstY = 0;
+
+            // 1. Check local Portals and Destinations dictionaries
+            if (portalID <= byte.MaxValue && Portals.ContainsKey((byte)portalID) && Destinations.ContainsKey((byte)Portals[(byte)portalID].DstID))
+            {
+                byte destId = (byte)Portals[(byte)portalID].DstID;
+                var target = Destinations[destId];
+                dstMap = (ushort)target.DstID;
+                dstX = (ushort)target.DstX;
+                dstY = (ushort)target.DstY;
+                return true;
+            }
+
+            // 2. Check Database Overrides (PortalDataBase)
+            if (PortalDataBase.Instance != null)
+            {
+                try
+                {
+                    var portalData = PortalDataBase.Instance.GetPortalsForMap(MapID);
+                    if (portalData != null)
+                    {
+                        foreach (System.Data.DataRow row in portalData.Rows)
+                        {
+                            if (Convert.ToUInt16(row["portalID"]) == portalID)
+                            {
+                                byte destId = Convert.ToByte(row["destID"]);
+                                var destData = PortalDataBase.Instance.GetDestinationsForMap(MapID);
+                                if (destData != null)
+                                {
+                                    foreach (System.Data.DataRow dRow in destData.Rows)
+                                    {
+                                        if (Convert.ToByte(dRow["destID"]) == destId)
+                                        {
+                                            dstMap = Convert.ToUInt16(dRow["dstMap"]);
+                                            dstX = Convert.ToUInt16(dRow["dstX"]);
+                                            dstY = Convert.ToUInt16(dRow["dstY"]);
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // 3. Geometric matching based on reverse-portal destinations (if px, py provided)
+            var currentWarpLoc = mapData?.WarpLoc;
+            if (currentWarpLoc != null && px > 0 && py > 0)
+            {
+                DataFiles.WarpInfo bestWarp = null;
+                double bestDist = 999999;
+
+                foreach (var w in currentWarpLoc)
+                {
+                    var dstMapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(w.mapID);
+                    if (dstMapData != null && dstMapData.WarpLoc != null)
+                    {
+                        foreach (var revW in dstMapData.WarpLoc)
+                        {
+                            if (revW.mapID == MapID)
+                            {
+                                double dist = Math.Sqrt(Math.Pow(px - (int)revW.x, 2) + Math.Pow(py - (int)revW.y, 2));
+                                if (dist < bestDist)
+                                {
+                                    bestDist = dist;
+                                    bestWarp = w;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bestWarp != null && bestDist < 400)
+                {
+                    dstMap = bestWarp.mapID;
+                    dstX = (ushort)bestWarp.x;
+                    dstY = (ushort)bestWarp.y;
+                    DebugSystem.Write($"[Portal] Geometric match: Map {MapID} pos({px},{py}) -> Map {dstMap} ({dstX},{dstY}) dist={bestDist:F1}");
+                    return true;
+                }
+            }
+
+            // 4. Direct match in eve.Emg WarpLoc by clickID == portalID
+            if (currentWarpLoc != null)
+            {
+                foreach (var w in currentWarpLoc)
+                {
+                    if (w.clickID == portalID)
+                    {
+                        dstMap = w.mapID;
+                        dstX = (ushort)w.x;
+                        dstY = (ushort)w.y;
+                        DebugSystem.Write($"[Portal] eve.Emg match: Map {MapID} portal {portalID} -> Map {dstMap} ({dstX},{dstY})");
+                        return true;
+                    }
+                }
+
+                // 5. Try Gray-decoded portalID
+                ushort grayID = GrayDecode(portalID);
+                if (grayID != portalID)
+                {
+                    foreach (var w in currentWarpLoc)
+                    {
+                        if (w.clickID == grayID)
+                        {
+                            dstMap = w.mapID;
+                            dstX = (ushort)w.x;
+                            dstY = (ushort)w.y;
+                            DebugSystem.Write($"[Portal] Gray-decoded match: Map {MapID} portal {portalID}->{grayID} -> Map {dstMap} ({dstX},{dstY})");
+                            return true;
+                        }
+                    }
+                }
+
+                // 6. Single-exit fallback: if this map has exactly one warp, use it!
+                if (currentWarpLoc.Count == 1)
+                {
+                    var singleWarp = currentWarpLoc[0];
+                    dstMap = singleWarp.mapID;
+                    dstX = (ushort)singleWarp.x;
+                    dstY = (ushort)singleWarp.y;
+                    DebugSystem.Write($"[Portal] Single-exit fallback: Map {MapID} -> Map {dstMap} ({dstX},{dstY})");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static ushort GrayDecode(ushort n)
+        {
+            ushort mask = n;
+            while (mask > 0)
+            {
+                mask >>= 1;
+                n ^= mask;
+            }
+            return n;
+        }
+
+        public bool Teleport(TeleportType teletype, Player sender, ushort portalID = 0, WarpData warp = null)
         {
             if (teletype == TeleportType.Regular)
             {
-                DebugSystem.Write($"[Teleport] Req: {teletype}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
+                DebugSystem.Write($"[Teleport] Req: {teletype}, PortalID: {portalID}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
             }
 
             SendPacket tmp = new SendPacket();
 
             if (teletype != TeleportType.Login)
             {
-
                 if (teletype == TeleportType.Regular || teletype == TeleportType.CmD)
                     sender.Send(Tools.FromFormat("bb", 20, 7));
 
@@ -610,67 +743,21 @@ namespace Game
             switch (teletype)
             {
                 #region Regular Warp
-
                 case TeleportType.Regular:
                     {
-                        // Try to get portal from database if not in local dictionary
-                        byte destId = 0;
                         ushort dstMap = 0, dstX = 0, dstY = 0;
                         bool foundPortal = false;
 
-                        // First check local dictionary (loaded from reflection)
-                        if (Portals.ContainsKey(portalID) && Destinations.ContainsKey((byte)Portals[portalID].DstID))
+                        if (warp != null)
                         {
-                            destId = (byte)Portals[portalID].DstID;
-                            var target = Destinations[destId];
-                            dstMap = (ushort)target.DstID;
-                            dstX = (ushort)target.DstX;
-                            dstY = (ushort)target.DstY;
+                            dstMap = warp.DstMap;
+                            dstX = warp.DstX_Axis;
+                            dstY = warp.DstY_Axis;
                             foundPortal = true;
                         }
-                        // If not found, try database
-                        else if (PortalDataBase.Instance != null)
+                        else
                         {
-                            try
-                            {
-                                var portalData = PortalDataBase.Instance.GetPortalsForMap(MapID);
-                                if (portalData != null)
-                                {
-                                    foreach (System.Data.DataRow row in portalData.Rows)
-                                    {
-                                        if (Convert.ToByte(row["portalID"]) == portalID)
-                                        {
-                                            destId = Convert.ToByte(row["destID"]);
-                                            var destData = PortalDataBase.Instance.GetDestinationsForMap(MapID);
-                                            if (destData != null)
-                                            {
-                                                foreach (System.Data.DataRow dRow in destData.Rows)
-                                                {
-                                                    if (Convert.ToByte(dRow["destID"]) == destId)
-                                                    {
-                                                        dstMap = Convert.ToUInt16(dRow["dstMap"]);
-                                                        dstX = Convert.ToUInt16(dRow["dstX"]);
-                                                        dstY = Convert.ToUInt16(dRow["dstY"]);
-                                                        foundPortal = true;
-                                                        DebugSystem.Write($"[Teleport] Found portal {portalID} in database: Map {MapID} -> Map {dstMap} ({dstX}, {dstY})");
-                                                        break;
-                                                    }
-                                                }
-
-                                                if (!foundPortal)
-                                                {
-                                                    DebugSystem.Write($"[Teleport] ERROR: Portal {portalID} on map {MapID} points to DestID {destId}, but that DestID does not exist for this map in 'warp_destinations'.");
-                                                }
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugSystem.Write($"[Teleport] Database error: {ex.Message}");
-                            }
+                            foundPortal = LookupPortal(portalID, sender.CurX, sender.CurY, out dstMap, out dstX, out dstY);
                         }
 
                         if (!foundPortal)
@@ -678,10 +765,9 @@ namespace Game
                             tmp = new SendPacket();
                             tmp.PackArray(new byte[] { 20, 8 });
                             sender.Send(tmp);
-                            DebugSystem.Write($"[Teleport] Portal {portalID} not found on map {MapID}. Add it via Portals tab in UI.");
+                            DebugSystem.Write($"[Teleport] Portal {portalID} not found on map {MapID} at pos({sender.CurX},{sender.CurY})");
                             return false;
                         }
-
 
                         GameMap map = null;
                         if (Game.Maps.MapManager.Instance != null)
@@ -689,11 +775,11 @@ namespace Game
                             map = Game.Maps.MapManager.Instance.GetMap(dstMap);
                         }
 
-                        if (Type != MapType.RegularMap && portalID == 1)  //create warp from Prev Map
+                        if (Type != MapType.RegularMap && portalID == 1) // create warp from Prev Map
                         {
                             try
                             {
-                                Warp_Out(portalID, sender, sender.PrevMap);// warp out of map                            
+                                Warp_Out((byte)(portalID & 0xFF), sender, sender.PrevMap);
                             }
                             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
@@ -701,10 +787,11 @@ namespace Game
                             {
                                 try
                                 {
-                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, portalID);
+                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, (byte)(portalID & 0xFF));
                                 }
                                 catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
                             }
+                            return true;
                         }
                         else
                         {
@@ -712,15 +799,16 @@ namespace Game
                             {
                                 try
                                 {
-                                    Warp_Out(portalID, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY });// warp out of map
+                                    Warp_Out((byte)(portalID & 0xFF), sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY });
                                 }
                                 catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
                                 try
                                 {
-                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, portalID);
+                                    map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, (byte)(portalID & 0xFF));
                                 }
                                 catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+                                return true;
                             }
                             else
                             {
@@ -732,7 +820,6 @@ namespace Game
                             }
                         }
                     }
-                    break;
                 #endregion
                 case TeleportType.Special:
                     {
@@ -772,7 +859,7 @@ namespace Game
                             break;
                         }
 
-                        Warp_Out(portalID, sender, warp, (teletype == TeleportType.Tent));// warp out of map
+                        Warp_Out((byte)(portalID & 0xFF), sender, warp, (teletype == TeleportType.Tent));// warp out of map
                         sender.CurX = warp.DstX_Axis;//switch x
                         sender.CurY = warp.DstY_Axis;//switch y
                         Tents[warp.DstMap].Warp_In(TeleportType.Tent, sender, warp);
@@ -797,8 +884,8 @@ namespace Game
                             DebugSystem.Write("[Teleport] WARNING: MapManager.Instance is null, creating new map interface!");
                         }
 
-                        Warp_Out(portalID, sender, warp, (map.Type == MapType.Tent));// warp out of map
-                        map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }, portalID);
+                        Warp_Out((byte)(portalID & 0xFF), sender, warp, (map.Type == MapType.Tent));// warp out of map
+                        map.Warp_In(teletype, sender, new WarpData() { DstMap = (ushort)warp.DstMap, DstX_Axis = (ushort)warp.DstX_Axis, DstY_Axis = (ushort)warp.DstY_Axis }, (byte)(portalID & 0xFF));
                     }
                     break;
                 #endregion

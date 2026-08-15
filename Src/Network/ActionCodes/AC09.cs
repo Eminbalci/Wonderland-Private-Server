@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -41,26 +41,42 @@ namespace Network.ActionCodes
                 tp.Eqs.Con = e.Unpack8();
                 if (string.IsNullOrEmpty(tp.UserAcc.Cipher))
                 {
-
-                    tp.UserAcc.Cipher = e.UnpackString();
-                    if ((tp.UserAcc.Cipher.Length < 6) ||
-                        (tp.UserAcc.Cipher.Length > 14))
+                    try
                     {
-                        //make sure no save of data by setting values to 0
-                        tp.Clear();
-                        tp.Send(Tools.FromFormat("bb", 0, 30));
-                        return;
+                        string cipherStr = e.UnpackString();
+                        if (!string.IsNullOrEmpty(cipherStr) && cipherStr.Length >= 6 && cipherStr.Length <= 14)
+                        {
+                            tp.UserAcc.Cipher = cipherStr;
+                        }
                     }
+                    catch { /* optional cipher string not present */ }
+                }
+
+                // Determine slot: slot 1 if free, else slot 2
+                if (cGlobal.gCharacterDataBase.GetCharacterData(tp.UserAcc.Character1ID) != null)
+                {
+                    tp.Slot = 2;
+                }
+                else
+                {
+                    tp.Slot = 1;
+                }
+
+                // Fallback charName safety
+                if (string.IsNullOrEmpty(tp.CharName) || tp.CharName.Length < 4 || tp.CharName.Length > 14)
+                {
+                    tp.CharName = tp.UserAcc.UserName;
                 }
 
                 tp.SetBeginnerOutfit();
+                tp.Eqs.ApplyCharacterBaseStats();
 
                 tp.FillHP(); tp.FillSP();
                 tp.Settings.ChannelCode = (ChannelCodeType)31;
                 tp.Settings.TRADABLE = true;
                 tp.Settings.PKABLE = false;
                 tp.Settings.JOINABLE = true;
-                tp.Eqs.TotalExp = 0; //6
+                tp.Eqs.TotalExp = 6;
                 tp.LoginMap = 10017; //ship map 10017;
                 tp.CurX = 1042; // ship x 1042;
                 tp.CurY = 1075; //ship y 1075;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -91,8 +91,8 @@ namespace Game
             p.Add((byte)WornCount);//clothesAmmt); // ammt of clothes
             p.Add(Worn_Equips);
             p.Add(0);
-            p.Add(CharName);
-            p.Add(NickName);
+            p.Add(CharName ?? "");
+            p.Add(NickName ?? "");
             p.Add(0);
             Send( new SendPacket(p.End()));
         }

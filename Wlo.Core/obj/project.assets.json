@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
-    ".NETFramework,Version=v4.6.2": {
+    "net462": {
       "Microsoft.NETFramework.ReferenceAssemblies/1.0.3": {
         "type": "package",
         "dependencies": {
@@ -606,7 +606,7 @@
     }
   },
   "projectFileDependencyGroups": {
-    ".NETFramework,Version=v4.6.2": [
+    "net462": [
       "Microsoft.NETFramework.ReferenceAssemblies >= 1.0.3",
       "System.Resources.Extensions >= 8.0.0"
     ]
@@ -617,11 +617,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+      "projectUniqueName": "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
       "projectName": "Wlo.Core",
-      "projectPath": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+      "projectPath": "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
       "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
+      "outputPath": "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -636,6 +636,7 @@
       },
       "frameworks": {
         "net462": {
+          "framework": "net462",
           "targetAlias": "net462",
           "projectReferences": {}
         }
@@ -650,10 +651,11 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.200"
+      "SdkAnalysisLevel": "10.0.300"
     },
     "frameworks": {
       "net462": {
+        "framework": "net462",
         "targetAlias": "net462",
         "dependencies": {
           "Microsoft.NETFramework.ReferenceAssemblies": {
@@ -667,7 +669,7 @@
             "version": "[8.0.0, )"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.202\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.303\\RuntimeIdentifierGraph.json"
       }
     }
   }

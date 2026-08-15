@@ -8,13 +8,11 @@ Database: sqlite bypass
 Private Server + CheatEngine for Wonderland Online
 
 Running steps:
-1. Download & Install WLO Client (IGG version): https://wonderland-online.en.softonic.com/
-2. Edit IP address of your desired server in SERVER.INI to 127.0.0.1
-3. Run [Wonderland Private Server.exe] found in cheatengine branch repository folder bin/Debug & wait until the log shows "Now listening for clients..."
-4. Run aLogin.exe, select your server from step 2 then login with:
-Username: gmone
-password: gmone
-or you can register @ localhost:8080
+1. Client Location: `D:\garipgudubetseyler\WLRI`
+2. Ensure `SERVER.INI` in the client directory is set to `127.0.0.1`
+3. Server DAT files in `./Data` are synchronized with the client data files (`Npc.dat`, `Item.dat`, `Skill.dat`, `Talk.dat`, `Eve.emg`, `Ground.MMG`, `SkillData.MBTM`, etc.)
+4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
+5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
 Tips:
 In the private server exe, click "Cheat" tab:
 - Double click the item in list:
@@ -29,3 +27,5 @@ In the private server exe, click "Cheat" tab:
     > Type in your search query and then hit Enter
     
     > To reload all, blank the search then hit Enter
+- Press `F5` key anywhere in the GUI window to automatically launch `aLogin.exe`.
+

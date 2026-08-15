@@ -1,7 +1,7 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
-    ".NETFramework,Version=v4.6.2": {
+    "net462": {
       "BouncyCastle.Cryptography/2.3.1": {
         "type": "package",
         "compile": {
@@ -1148,7 +1148,7 @@
     }
   },
   "projectFileDependencyGroups": {
-    ".NETFramework,Version=v4.6.2": [
+    "net462": [
       "BouncyCastle.Cryptography >= 2.3.1",
       "Microsoft.NETFramework.ReferenceAssemblies >= 1.0.3",
       "MySql.Data >= 9.1.0",
@@ -1161,11 +1161,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
+      "projectUniqueName": "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
       "projectName": "Phoenix.Core",
-      "projectPath": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
+      "projectPath": "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
       "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\muham\\OneDrive\\Documents\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\obj\\",
+      "outputPath": "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -1180,6 +1180,7 @@
       },
       "frameworks": {
         "net462": {
+          "framework": "net462",
           "targetAlias": "net462",
           "projectReferences": {}
         }
@@ -1194,10 +1195,11 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "10.0.200"
+      "SdkAnalysisLevel": "10.0.300"
     },
     "frameworks": {
       "net462": {
+        "framework": "net462",
         "targetAlias": "net462",
         "dependencies": {
           "BouncyCastle.Cryptography": {
@@ -1219,7 +1221,7 @@
             "version": "[8.0.0, )"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.202\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.303\\RuntimeIdentifierGraph.json"
       }
     }
   }

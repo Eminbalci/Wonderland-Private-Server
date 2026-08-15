@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,12 +24,28 @@ namespace Network.ActionCodes
         }
         void Recv_1(Player r, RecievePacket p)
         {
-            //int max = p.Unpack8(3);
-            //int ptr = 4;
-            //for (int a = 0; a < max; a++)
-            //{
-            //    r.AddStat(p.Unpack8(ptr), (byte)p.Unpack32(ptr + 1)); ptr += 5;
-            //}
+            if (p.Buffer.Count() - p.GetPtr() < 7) return;
+            byte targetType = p.Unpack8();
+            byte targetSlot = p.Unpack8();
+            byte statId = p.Unpack8();
+            uint amount = p.Unpack32();
+
+            if (targetType == 0) // Player
+            {
+                if (r.SkillPoints >= amount && amount > 0)
+                {
+                    r.SkillPoints -= (ushort)amount;
+                    switch (statId)
+                    {
+                        case 28: r.baseStr += (ushort)amount; break;
+                        case 29: r.baseCon += (ushort)amount; break;
+                        case 27: r.baseInt += (ushort)amount; break;
+                        case 33: r.baseWis += (ushort)amount; break;
+                        case 30: r.baseAgi += (ushort)amount; break;
+                    }
+                    r.Send8_1(true);
+                }
+            }
         }
     }
 }

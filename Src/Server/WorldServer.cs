@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -507,7 +507,6 @@ namespace Server
             src.Send(Tools.FromFormat("bbbswb", 70, 1, 23, "Something", 194, 0));
             src.Send(Tools.FromFormat("bbb", 20, 33, 0));
             //-----Player Stats values--------
-            src.Send8_1(false);
             Thread.Sleep(5);
             src.Send(Tools.FromFormat("bbb", 14, 13, 3));
             //-----Im Mall List
@@ -608,6 +607,7 @@ namespace Server
             src.Send(Tools.FromFormat("bbdddd", 35, 4, 0, 0, 0, 0));//first 0 is im
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
             src.Send(Tools.FromFormat("bb", 5, 4));
+            src.Send8_1(false);
             //src.SetSendMode(SendMode.Normal);
             src.Flags.Add(PlayerFlag.InMap);
 

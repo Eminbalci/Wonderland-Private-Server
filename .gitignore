@@ -62,5 +62,5 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-
-
+odd.dat
+*.odd
