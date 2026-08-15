@@ -233,7 +233,7 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
-                    return (Level * 6) + m_totalexp;
+                    return m_totalexp;
                 }
             }
             set
@@ -241,7 +241,6 @@ namespace Game.Code
                 lock (m_Lock)
                 {
                     m_totalexp = value;
-                    m_totalexp -= (Level * 6);
                 }
             }
         }
@@ -267,6 +266,28 @@ namespace Game.Code
                 {
                     return (uint)gold;
                 }
+            }
+            set
+            {
+                lock (m_Lock)
+                {
+                    gold = (int)value;
+                }
+            }
+        }
+
+        public void SetLevel(byte targetLvl)
+        {
+            lock (m_Lock)
+            {
+                long exp = 0;
+                for (int l = 1; l < targetLvl; l++)
+                {
+                    exp += (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], l);
+                }
+                m_totalexp = exp;
+                CurHP = FullHP;
+                CurSP = FullSP;
             }
         }
 
@@ -384,7 +405,7 @@ namespace Game.Code
                         var remainexp = exptolvl - m_currexp;
                         if (m_currexp + expgain >= exptolvl)
                         {
-                            SkillPoints += 5;
+                            SkillPoints += 3; // +3 stat points per level (matches Python server: points += levels_gained * 3)
                             m_currexp = 0;
                             TotalExp += remainexp;
                             expgain -= remainexp;
@@ -1134,27 +1155,14 @@ namespace Game.Code
             }
         }
 
-        private void SendStat(byte statId, int val)
+        public void SendStat(byte statId, int val)
         {
-            SendPacket pkt = new SendPacket();
-            pkt.Pack8(8);
-            pkt.Pack8(1);
-            pkt.Pack8(statId);
-            pkt.Pack8(1);
-            pkt.Pack32((uint)val);
-            pkt.Pack32(0);
-            Send(pkt);
+            Send(Tools.FromFormat("bbbbdd", 8, 1, statId, 1, val, 0));
         }
 
-        private void SendStat64(byte statId, long val)
+        public void SendStat64(byte statId, long val)
         {
-            SendPacket pkt = new SendPacket();
-            pkt.Pack8(8);
-            pkt.Pack8(1);
-            pkt.Pack8(statId);
-            pkt.Pack8(1);
-            pkt.Pack64((ulong)val);
-            Send(pkt);
+            Send(Tools.FromFormat("bbbbl", 8, 1, statId, 1, val));
         }
 
         public void Send8_1(bool levelup = false) // sends full updated stats to client

@@ -51,14 +51,23 @@ namespace Wonderland_Private_Server.ActionCodes
                 clickID = r.Unpack8();
             }
 
-            // Door / Portal trigger check on clicked NPC
+            DebugSystem.Write($"[AC20.Recv1] Player {p.CharName} clicked NPC {clickID} on Map {p.CurMap.MapID}");
+
+            // Prioritize NPC interaction (dialogue, quests, battles)
+            if (p.CurMap.ProcessInteraction((byte)clickID, p))
+            {
+                // Interaction handled successfully
+                return;
+            }
+
+            // Door / Portal trigger fallback ONLY if object name or type is explicitly a door
             if (p.CurMap.mapData != null && p.CurMap.mapData.Npclist != null)
             {
                 var clickedNpc = p.CurMap.mapData.Npclist.FirstOrDefault(n => n.clickId == clickID);
-                if (clickedNpc != null && clickedNpc.unknownbytearray2 != null && clickedNpc.unknownbytearray2.Count > 0)
+                if (clickedNpc != null && (clickedNpc.Name ?? "").ToLower().Contains("door") && clickedNpc.unknownbytearray2 != null && clickedNpc.unknownbytearray2.Count > 0)
                 {
                     ushort linkedPortal = clickedNpc.unknownbytearray2[0];
-                    DebugSystem.Write($"[AC20.Recv1] NPC {clickID} is a door linking to portal {linkedPortal} on Map {p.CurMap.MapID}");
+                    DebugSystem.Write($"[AC20.Recv1] Object {clickID} is an explicit door linking to portal {linkedPortal} on Map {p.CurMap.MapID}");
                     if (p.CurMap.Teleport(TeleportType.Regular, p, linkedPortal))
                     {
                         return;
@@ -66,15 +75,8 @@ namespace Wonderland_Private_Server.ActionCodes
                 }
             }
 
-            if (p.CurMap.ProcessInteraction((byte)clickID, p))
-            {
-                // Interaction handled successfully
-            }
-            else
-            {
-                // Send default response if interaction fails
-                p.Send(Tools.FromFormat("bb", 20, 8));
-            }
+            // Send default response if interaction fails
+            p.Send(Tools.FromFormat("bb", 20, 8));
         }
         void Recv6(Player p, RecievePacket r)
         {

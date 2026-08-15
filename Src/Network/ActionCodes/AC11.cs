@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -41,11 +41,8 @@ namespace Network.ActionCodes
                 switch (escapeType)
                 {
                     case 3: // Run away from battle
-                        if (p.MyBattle != null)
-                        {
-                            // TODO: Implement battle escape logic
-                            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] {p.CharName} attempting to flee battle");
-                        }
+                        Game.Battle.PvEBattleManager.HandleFlee(p);
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] {p.CharName} fleeing battle");
                         break;
                 }
             }
@@ -62,18 +59,28 @@ namespace Network.ActionCodes
             {
                 byte pkType = r.Unpack8();
                 uint rawTargetID = r.Unpack32();
-                uint targetID = rawTargetID >> 8; // Decode composite ID
+                uint targetID = (rawTargetID > 0xFFFF) ? (rawTargetID >> 8) : rawTargetID;
+                if (targetID == 0) targetID = rawTargetID & 0xFFFF;
                 ushort clickID = r.Unpack16();
 
                 DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv2 PK. Type: {pkType}, TargetID: {targetID}, ClickID: {clickID}");
 
                 switch (pkType)
                 {
-                    case 2: // PK against other player
-                        HandlePlayerPK(p, targetID);
+                    case 3: // PK against other player (PvP)
+                        if (p.CurMap is GameMap gMap && gMap.PlayersList.Any(x => x.CharID == rawTargetID))
+                        {
+                            HandlePlayerPK(p, rawTargetID);
+                        }
+                        else
+                        {
+                            HandleNpcPK(p, rawTargetID & 0xFFFF, clickID);
+                        }
                         break;
-                    case 3: // PK against NPC (monster battle)
-                        HandleNpcPK(p, targetID, clickID);
+                    case 2: // PK against NPC / Monster (PvE)
+                    case 1:
+                    default:
+                        HandleNpcPK(p, rawTargetID & 0xFFFF, clickID);
                         break;
                     case 4: // Join existing battle
                         DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Join battle request from {p.CharName}");
@@ -121,21 +128,13 @@ namespace Network.ActionCodes
             }
 
             DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK initiated: {attacker.CharName} vs {target.CharName}");
-
-            // Battle system integration is complex - requires the old Map/Battle system
-            // The old system in Maps/Map.cs has onPk_Started but uses different Player type
-            // TODO: Integrate battle system with new Player/Map architecture
-            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK: Battle system not yet integrated with new architecture");
+            SendPKError(attacker, "PvP battle feature is under construction!");
         }
 
         void HandleNpcPK(Player attacker, uint npcID, ushort clickID)
         {
-            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 NPC Battle: {attacker.CharName} attacking NPC {npcID}");
-
-            // TODO: Implement NPC battle logic
-            // GameMap map = attacker.CurMap as GameMap;
-            // if (map != null)
-            //     map.onNpcPk(attacker, npc);
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 NPC Battle: {attacker.CharName} attacking NPC {npcID} (ClickID: {clickID})");
+            Game.Battle.PvEBattleManager.StartBattle(attacker, clickID, npcID);
         }
 
         void SendPKError(Player p, string message)

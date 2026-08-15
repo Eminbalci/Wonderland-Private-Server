@@ -125,11 +125,7 @@ namespace Game
             p.Add(0);
 
             //--------------- Skills
-            p.Add((ushort)0/*(ushort)MySkills.Count*/);
-            //if (MySkills.Count > 0)
-            //    p.PackArray(MySkills.GetSkillData());
-            //p.Pack16(1); //ammt of skills
-            //p.Pack16(188); p.Pack16(1); p.Pack16(0); p.Pack((byte)0); //skill data
+            p.Add((ushort)0);
             //--------------- table with rebirth and job
             p.Add(0);
             p.Add(Reborn);

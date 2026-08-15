@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -111,6 +111,7 @@
     <Compile Include="Game\Battle\BattleScene.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Game\Battle\PvEBattleManager.cs" />
     <Compile Include="Game\Bots\Cupid.cs" />
     <Compile Include="Game\Bots\GmBot.cs" />
     <Compile Include="Game\Delegates.cs" />
@@ -123,6 +124,7 @@
     <Compile Include="Game\Enums\PetEnums.cs" />
     <Compile Include="Game\Enums\PlayerEnums.cs" />
     <Compile Include="Game\Enums\SkillEnums.cs" />
+    <Compile Include="Game\SkillRelated\SkillManager.cs" />
     <Compile Include="Game\Enums\SocketEnum.cs" />
     <Compile Include="Game\Enums\StatEnums.cs" />
     <Compile Include="Game\Enums\TentEnums.cs" />

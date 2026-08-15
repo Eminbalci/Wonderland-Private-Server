@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Network;
 
 namespace Game.Maps
 {
@@ -19,6 +20,114 @@ namespace Game.Maps
         public virtual uint HP { get; set; }
         public virtual byte Element { get; set; }
         public virtual uint TemplateID { get; set; } // Template ID for NPC definition lookup
+
+        public ushort SpawnX { get; set; }
+        public ushort SpawnY { get; set; }
+        public byte WalkBehavior { get; set; }
+        public List<DataFiles.npcWalkStep> WalkSteps { get; set; } = new List<DataFiles.npcWalkStep>();
+        public int CurStep { get; set; } = 0;
+        public DateTime NextWalkTime { get; set; } = DateTime.MinValue;
+
+        private static readonly Random _rng = new Random();
+        private static readonly object _rngLock = new object();
+
+        public static int NextRandom(int min, int max)
+        {
+            lock (_rngLock)
+            {
+                return _rng.Next(min, max);
+            }
+        }
+
+        public static double NextRandomDouble(double min, double max)
+        {
+            lock (_rngLock)
+            {
+                return min + (_rng.NextDouble() * (max - min));
+            }
+        }
+
+        public virtual void Update(DateTime now, GameMap map)
+        {
+            if (map == null || map.PlayersList == null || map.PlayersList.Count == 0) return;
+            if (NextWalkTime > now) return;
+
+            try
+            {
+                // 1. Scripted path walking from dat file (behavior 5 or has walksteps)
+                if (WalkSteps != null && WalkSteps.Count > 0)
+                {
+                    var step = WalkSteps[CurStep % WalkSteps.Count];
+
+                    SendPacket pkt = new SendPacket();
+                    pkt.PackArray(new byte[] { 22, 2 });
+                    pkt.Pack16(this.CickID);
+                    pkt.Pack16((ushort)step.x);
+                    pkt.Pack16((ushort)step.y);
+                    pkt.Pack8(3); // speed
+
+                    map.Broadcast(pkt);
+
+                    this.X = (ushort)step.x;
+                    this.Y = (ushort)step.y;
+
+                    CurStep = (CurStep + 1) % WalkSteps.Count;
+                    double delaySec = Math.Max(1.0, (double)step.delay / 1000.0);
+                    NextWalkTime = now.AddSeconds(delaySec);
+                }
+                // 2. Random walking ONLY if explicitly flagged in dat file (WalkBehavior == 4)
+                else if (WalkBehavior == 4 && !IsStaticNpc())
+                {
+                    int dx = NextRandom(-120, 121);
+                    int dy = NextRandom(-120, 121);
+                    int targetX = (int)this.X + dx;
+                    int targetY = (int)this.Y + dy;
+
+                    // If drifted too far from spawn origin, steer back towards spawn
+                    if (Math.Abs(targetX - this.SpawnX) > 220 || Math.Abs(targetY - this.SpawnY) > 220)
+                    {
+                        targetX = this.SpawnX + NextRandom(-40, 41);
+                        targetY = this.SpawnY + NextRandom(-40, 41);
+                    }
+
+                    ushort finalX = (ushort)Math.Max(50, Math.Min(3000, targetX));
+                    ushort finalY = (ushort)Math.Max(50, Math.Min(3000, targetY));
+
+                    SendPacket pkt = new SendPacket();
+                    pkt.PackArray(new byte[] { 22, 2 });
+                    pkt.Pack16(this.CickID);
+                    pkt.Pack16(finalX);
+                    pkt.Pack16(finalY);
+                    pkt.Pack8(3); // speed
+
+                    map.Broadcast(pkt);
+
+                    this.X = finalX;
+                    this.Y = finalY;
+
+                    double waitSec = NextRandomDouble(4.0, 9.0);
+                    NextWalkTime = now.AddSeconds(waitSec);
+                }
+                else
+                {
+                    // Static NPC (WalkBehavior == 0 or other) - do not move
+                    NextWalkTime = now.AddSeconds(60);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[QuestNpc] Error in Update for ClickID {this.CickID}: {ex.Message}");
+                NextWalkTime = now.AddSeconds(10);
+            }
+        }
+
+        private bool IsStaticNpc()
+        {
+            string lower = (Name ?? "").ToLower();
+            if (lower.Contains("portal") || lower.Contains("bank") || lower.Contains("atm") || lower.Contains("guide") || lower.Contains("captain") || this.CickID == 10)
+                return true;
+            return false;
+        }
 
         public virtual void EvaluateQuestData(Player src)
         {

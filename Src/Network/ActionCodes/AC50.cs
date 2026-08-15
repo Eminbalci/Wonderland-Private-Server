@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,11 +17,17 @@ namespace Network.ActionCodes
         public override int ID { get { return 50; } }
         public override void ProcessPkt(Player r, RecievePacket p)
         {
+            if (Game.Battle.PvEBattleManager.IsInBattle(r))
+            {
+                p.SetPtr(6);
+                Game.Battle.PvEBattleManager.HandleBattleAction(r, (byte)p.B, p);
+                return;
+            }
+
             switch (p.B)
             {
                 case 1: Recv_1(r, p); break;
                 default: Console.WriteLine(p.A + "," + p.B + " Has not been coded"); break;
-
             }
         }
         void Recv_1(Player r, RecievePacket p) //recieve an attack command

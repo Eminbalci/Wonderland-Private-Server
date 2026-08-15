@@ -29,4 +29,16 @@ In the private server exe, click "Cheat" tab:
     
     > To reload all, blank the search then hit Enter
 - Press `F5` key anywhere in the GUI window to automatically launch `aLogin.exe`.
+- Click the in-game PK button (sword icon) and click any monster/NPC to engage in turn-based combat. Supports attack, skills, defending, fleeing, XP/Gold rewards, and automatic battle exit.
+- Real-time NPC movement and roaming (`AC 22 Sub 2`) ported from Python server with scripted waypoints and random wandering.
+- Character skill unlocking system (`AC 5 Sub 11`, `AC 8 Sub 1`) with character-specific stunt skills, element skills, and `:skill <id> [grade]` chat command.
+- In-Game GM Chat Commands:
+    > `:heal [hp] [sp]` : Fully restores character HP and SP (or specified values).
+    > `:level <1-200>` : Sets character level and recalculates stats.
+    > `:gold <amount>` : Sets character gold.
+    > `:stat <str> <con> <int> <wis> <agi>` : Sets base character stats.
+    > `:item <id> [amount]` : Adds item(s) to inventory.
+    > `:skill <id> [grade]` : Unlocks or upgrades a skill.
+    > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
+    > `:help` : Shows command help in chat.
 

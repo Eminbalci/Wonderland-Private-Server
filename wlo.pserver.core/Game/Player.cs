@@ -1,4 +1,4 @@
-﻿using Game.Code;
+using Game.Code;
 using Game.Maps;
 using Network;
 using RCLibrary.Core.Networking;
@@ -92,6 +92,7 @@ namespace Game
         public int ID { get { return (int)UserID; } }
         public object CurGuild { get { return null; } } // Placeholder (object to bypass type error)
         public object Guild { get { return CurGuild; } } // Alias
+        public List<Game.SkillRelated.PlayerSkill> PlayerSkills { get; set; } = new List<Game.SkillRelated.PlayerSkill>();
         #endregion
 
 

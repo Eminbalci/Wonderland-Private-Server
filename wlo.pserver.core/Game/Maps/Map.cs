@@ -66,6 +66,7 @@ namespace Game
         }
 
         public List<Player> PlayersList { get { return m_playerlist; } }
+        public List<Game.Maps.InteractableObjects> NpcList { get { return NPCs; } }
 
         public GameMap(Plugin.PluginHost host, System.IO.FileInfo src)
             : base(src)
@@ -186,6 +187,11 @@ namespace Game
                             newNpc.TemplateID = entry.npcId;
                             newNpc.X = (ushort)entry.x;
                             newNpc.Y = (ushort)entry.y;
+                            newNpc.SpawnX = (ushort)entry.x;
+                            newNpc.SpawnY = (ushort)entry.y;
+                            newNpc.WalkBehavior = entry.unknownbyte4;
+                            newNpc.WalkSteps = entry.walksteps ?? new List<DataFiles.npcWalkStep>();
+                            newNpc.NextWalkTime = DateTime.Now.AddMilliseconds(Game.Maps.QuestNpc.NextRandom(1000, 8000));
 
                             // Use native name from eve.Emg by default
                             newNpc.Name = !string.IsNullOrEmpty(entry.Name) ? entry.Name.Trim('\0') : $"NPC_{entry.npcId}";
@@ -304,6 +310,19 @@ namespace Game
                     else
                         player.ProcessSocket();
                 });
+
+                // Update NPC AI and roaming (matching Python server's npc_walk_loop)
+                if (m_playerlist.Count > 0 && NPCs.Count > 0)
+                {
+                    DateTime now = DateTime.Now;
+                    for (int i = 0; i < NPCs.Count; i++)
+                    {
+                        if (NPCs[i] is Game.Maps.QuestNpc qNpc)
+                        {
+                            qNpc.Update(now, this);
+                        }
+                    }
+                }
             }
             catch { }
 
@@ -1145,18 +1164,31 @@ namespace Game
         /// <param name="To">"Multiple target IDs as string to send to specific people"</param>
         public void Broadcast(SendPacket pkt, string parameter, params object[] To)
         {
-            switch (parameter)
+            try
             {
-                case "ALL":
-                    m_playerlist.ForEach(c => c.Send(pkt));
-                    break;
-                case "Ex":
-                    m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) == 0).ToList().ForEach(c => c.Send(pkt));
-                    break;
-                case "To":
-                    m_playerlist.Where(c => To.Count(d => Convert.ToUInt32(d) == c.CharID) > 0).ToList().ForEach(c => c.Send(pkt));
-                    break;
+                var players = m_playerlist.ToList();
+                switch (parameter)
+                {
+                    case "ALL":
+                        foreach (var c in players) c.Send(pkt);
+                        break;
+                    case "Ex":
+                        foreach (var c in players)
+                        {
+                            if (To.Count(d => Convert.ToUInt32(d) == c.CharID) == 0)
+                                c.Send(pkt);
+                        }
+                        break;
+                    case "To":
+                        foreach (var c in players)
+                        {
+                            if (To.Count(d => Convert.ToUInt32(d) == c.CharID) > 0)
+                                c.Send(pkt);
+                        }
+                        break;
+                }
             }
+            catch { }
         }
 
         void SendAc12(Player target, byte portalID, WarpData To, bool toTent = false)

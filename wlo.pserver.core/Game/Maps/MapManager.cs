@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,6 +15,17 @@ namespace Game.Maps
         // Cache to store map instances - same map ID = same instance!
         private Dictionary<ushort, GameMap> _mapCache = new Dictionary<ushort, GameMap>();
 
+        public IEnumerable<GameMap> ActiveMaps
+        {
+            get
+            {
+                lock (_mapCache)
+                {
+                    return _mapCache.Values.ToList();
+                }
+            }
+        }
+
         public MapManager()
         {
             Instance = this;
@@ -22,20 +33,23 @@ namespace Game.Maps
 
         public GameMap GetMap(ushort ID)
         {
-            // Check if map already exists in cache
-            if (_mapCache.ContainsKey(ID))
+            lock (_mapCache)
             {
-                DebugSystem.Write($"[MapManager] Returning cached map {ID} (instance: {_mapCache[ID].GetHashCode()})");
-                return _mapCache[ID];
-            }
+                // Check if map already exists in cache
+                if (_mapCache.ContainsKey(ID))
+                {
+                    DebugSystem.Write($"[MapManager] Returning cached map {ID} (instance: {_mapCache[ID].GetHashCode()})");
+                    return _mapCache[ID];
+                }
 
-            // Create new map and cache it
-            GameMap tmp = new GameMap();
-            tmp.MapID = ID;
-            tmp.ReloadSpawns(); // Reload spawns now that MapID is set
-            _mapCache[ID] = tmp;
-            DebugSystem.Write($"[MapManager] Created new map {ID} (instance: {tmp.GetHashCode()})");
-            return tmp;
+                // Create new map and cache it
+                GameMap tmp = new GameMap();
+                tmp.MapID = ID;
+                tmp.ReloadSpawns(); // Reload spawns now that MapID is set
+                _mapCache[ID] = tmp;
+                DebugSystem.Write($"[MapManager] Created new map {ID} (instance: {tmp.GetHashCode()})");
+                return tmp;
+            }
         }
 
     }

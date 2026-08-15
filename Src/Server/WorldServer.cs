@@ -21,7 +21,7 @@ namespace Server
     /// </summary>
     public class WorldServer : MapSystem, WorldServerHost, MapHost
     {
-        Thread Mainthrd, Eventthrd, AutoSaveThread;
+        Thread Mainthrd, Eventthrd, AutoSaveThread, MapTickThread;
         bool killFlag;
         readonly ManualResetEvent mylock;
         //readonly Semaphore ProcessLock,SendLock;
@@ -96,6 +96,10 @@ namespace Server
             AutoSaveThread.Name = "Auto-Save Thread";
             AutoSaveThread.Init();
             DebugSystem.Write("[WorldServer] Auto-save thread started (saves every 1 second)");
+            MapTickThread = new Thread(new ThreadStart(MapTickLoop));
+            MapTickThread.Name = "Map & NPC Tick Thread";
+            MapTickThread.Init();
+            DebugSystem.Write("[WorldServer] Map & NPC Tick Thread started (500ms cycle)");
         }
 
         public void Kill()
@@ -108,6 +112,8 @@ namespace Server
             Eventthrd = null;
             while (AutoSaveThread != null && AutoSaveThread.IsAlive) { Thread.Sleep(1); }
             AutoSaveThread = null;
+            while (MapTickThread != null && MapTickThread.IsAlive) { Thread.Sleep(1); }
+            MapTickThread = null;
         }
 
         void MainLoop()
@@ -221,6 +227,37 @@ namespace Server
 
         //    MapList.Clear();
         //}
+        void MapTickLoop()
+        {
+            while (!killFlag)
+            {
+                try
+                {
+                    if (MapManager.Instance != null)
+                    {
+                        var maps = MapManager.Instance.ActiveMaps.ToList();
+                        foreach (var map in maps)
+                        {
+                            try
+                            {
+                                map.Process();
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[WorldServer] Error processing map {map.MapID}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WorldServer] Error in MapTickLoop: {ex.Message}");
+                }
+
+                Thread.Sleep(500);
+            }
+        }
+
         void Mapwrk()// processes tick
         {
             do
@@ -506,59 +543,29 @@ namespace Server
             src.Send(Tools.FromFormat("bbbw", 24, 5, 54, 0));
             src.Send(Tools.FromFormat("bbbswb", 70, 1, 23, "Something", 194, 0));
             src.Send(Tools.FromFormat("bbb", 20, 33, 0));
-            //-----Player Stats values--------
             Thread.Sleep(5);
             src.Send(Tools.FromFormat("bbb", 14, 13, 3));
-            //-----Im Mall List
-            // //g.ac75.Send_1(g.gImMall_Manager.Get_75IM);
             src.Send(Tools.FromFormat("bbw", 75, 8, 0));
-            SendPacket d = new SendPacket(new byte[] { 244, 68, 41, 0, 104, 1, 1, 0, 12, 44, 137, 1, 45, 137, 1, 25, 134, 1, 24, 134, 1, 22, 134, 1, 23, 134, 1, 76, 133, 1, 99, 133, 1, 100, 133, 1, 41, 133, 1, 91, 133, 1, 88, 133, 1 });
+            src.Send(new SendPacket(new byte[] { 244, 68, 41, 0, 104, 1, 1, 0, 12, 44, 137, 1, 45, 137, 1, 25, 134, 1, 24, 134, 1, 22, 134, 1, 23, 134, 1, 76, 133, 1, 99, 133, 1, 100, 133, 1, 41, 133, 1, 91, 133, 1, 88, 133, 1 }));
 
-            src.Send(d);
-
-            //------Player Base Info------------------
             //------Player Base Info------------------
             DebugSystem.Write("[WorldServer] Loading Final Data...");
             cGlobal.gGameDataBase.LoadFinalData(src);
             src.SendCharacterData();
-            // First add new player to online list early (for tracking)
             cGlobal.gCharacterDataBase.OnCharacterJoin(src);
-
             src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
-            //-----------send sidebar---------------------
-            //------------Player Data---------------------
-            src.Send_5_3();
+
+            // Populate PlayerSkills list in memory (no packets yet — must precede SendAllSkills below)
+            Game.SkillRelated.SkillManager.InitializePlayerSkillsNoSend(src);
+
+            // Inventory, equipment, gold, settings (before map teleport)
             src.Send(new SendPacket(src.Inv.GetAC23_5()));
             src.Send(new SendPacket(src._23_11Data));
-            ////SendQuest----------------------
-            // SendPacket g = new SendPacket();
-            // //    g.PackArray(new byte[]{(24, 6);
-            // //    g.PackArray(new byte[] { 001, 008, 047, 001, 002, 244, 050, 001, 003, 012, 043, 001 });
-            // //    g.SetSize();
-            // //    Send(g);
-            // //    g = new SPacket();
-            // //    g.PackArray(new byte[]{(53, 10);
-            // //    g.PackArray(new byte[] { 032, 164, 036, 002, 037, 240, 038, 041, 058, 048, 083, 015 });
-            // //    g.SetSize();
-            // //    Send(g);
-            // //    g = new SPacket();
-            // //    g.PackArray(new byte[]{(26, 7);
-            // //    g.PackArray(new byte[] { 001, 002, 002, 128, 003, 002, 004, 128 ,008,
-            // //                066, 009, 096, 010, 008, 011, 010 ,013, 001 });
-            // //    g.SetSize();
-            // //    Send(g);
             src.Send(Tools.FromFormat("bbd", 26, 4, src.Gold));
             src.Send(new SendPacket(src.Settings.ToArray()));
-            //src.MyFriends.SendFriendList();
 
-            // //pets
-            // //-----------------------------------   
-            //---------Warp Info---------------------------------------------------
-            // //put me in my maps list
-
-            // Get the SHARED map instance from MapManager (not a new instance!)
+            //---------Map Teleport---------------------------------------------------
             GameMap target = MapManager.Instance.GetMap(src.LoginMap);
-
             if (target == null)
             {
                 var ex = new Exception("Map " + src.LoginMap + " not found for player " + src.CharName);
@@ -566,24 +573,21 @@ namespace Server
                 src.Disconnect();
                 throw ex;
             }
-
             DebugSystem.Write($"[WorldServer] Teleporting {src.CharName} to Map {src.LoginMap} (instance: {target.GetHashCode()})");
-
             target.Teleport(TeleportType.Login, src, 0, new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
 
             src.Send(Tools.FromFormat("bbb", 5, 15, 0));
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.Send(Tools.FromFormat("bbb", 5, 21, src.Slot));
-            src.Send(Tools.FromFormat("bbdw", 5, 11, 15085, 5000));
-            // //g.ac5.Send_11(15085, 0);//244, 68, 8, 0, 5, 11, 237, 58, 0, 0, 0, 0, 
-            //---------------------------------
-            //g.ac62.Send_4(g.packet.cCharacter.cCharacterID); //tent items
-            //--------------------------------------
+
+            // AC 5:11 (Unlock Skill) + AC 8:1 stat 110 (Skill Grade) for each learned skill
+            // These packets populate the skill book window. Sent BEFORE AC 5:3 below.
+            Game.SkillRelated.SkillManager.SendAllSkills(src);
+
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
             src.Send(Tools.FromFormat("bbb", 5, 16, 0));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));
             src.Send(Tools.FromFormat("bbbl", 25, 44, 2, DateTime.Now.ToOADate()));
-            // //g.ac23.Send_106(1, 1);
             src.Send(Tools.FromFormat("bbb", 23, 160, 3));
             src.Send(Tools.FromFormat("bbb", 75, 7, 1));
             src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Welcome to the  WLO 4 EVER Community Server :! Enjoy !!"));
@@ -591,8 +595,7 @@ namespace Server
             src.Send(Tools.FromFormat("bbb", 20, 60, 1));
             src.Send(new SendPacket(new byte[] { 244, 68, 13, 0, 66, 1, 001, 012, 043, 000, 000, 000, 000, 000, 000, 000, 000 }));
 
-            for (byte a = 1; a < 11; a++)
-                src.Send(Tools.FromFormat("bbbw", 5, 13, a, 0));
+            // Clear hotbar / quickbar slots (AC 5:24)
             for (byte a = 1; a < 11; a++)
                 src.Send(Tools.FromFormat("bbbw", 5, 24, a, 0));
 
@@ -604,23 +607,24 @@ namespace Server
             src.Send(Tools.FromFormat("bb", 1, 11));
             src.Send(Tools.FromFormat("bbbbbb", 15, 19, 4, 6, 9, 94));
             src.Send(new SendPacket(new byte[] { 244, 68, 19, 0, 54, 89, 2, 2, 90, 2, 1, 91, 2, 1, 189, 2, 2, 190, 2, 1, 191, 2, 1 }));
-            src.Send(Tools.FromFormat("bbdddd", 35, 4, 0, 0, 0, 0));//first 0 is im
+            src.Send(Tools.FromFormat("bbdddd", 35, 4, 0, 0, 0, 0));
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
+
+            // AC 5:3 sent LAST — matching Python server (send_5_3_login at very end of login).
+            // Sending it early causes the client to reset its skill state, discarding all prior AC 5:11 packets.
+            src.Send_5_3();
             src.Send(Tools.FromFormat("bb", 5, 4));
             src.Send8_1(false);
-            //src.SetSendMode(SendMode.Normal);
+
             src.Flags.Add(PlayerFlag.InMap);
 
-            // Now that player is fully spawned with CurMap set, send visibility data
             DebugSystem.Write("[WorldServer] Sending Online Characters (after spawn)...");
             cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
-
-            // Broadcast new player to all other online players (after player is fully spawned)
             DebugSystem.Write($"[WorldServer] Broadcasting new player {src.CharName} to all online players...");
             cGlobal.gCharacterDataBase.BroadcastNewPlayer(src);
-
-
         }
+
+
 
         void AutoSaveLoop()
         {
