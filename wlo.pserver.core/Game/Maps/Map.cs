@@ -182,6 +182,10 @@ namespace Game
                     {
                         try
                         {
+                            // Skip corrupted / phantom entries from invalid eve binary offsets
+                            if (entry.clickId == 0 || entry.x > 4000 || entry.y > 4000 || (entry.x == 0 && entry.y == 0))
+                                continue;
+
                             Game.Maps.QuestNpc newNpc = new Game.Maps.QuestNpc();
                             newNpc.CickID = entry.clickId;
                             newNpc.TemplateID = entry.npcId;
@@ -565,6 +569,12 @@ namespace Game
                     src.Send(leader._13_6Data);
                 }
             }
+
+            // Authentic: real server sends A=54 B=201 catalog on every map enter (not just login)
+            if (teletype != TeleportType.Login)
+            {
+                Game.PlayerRelated.ItemMallManager.SendCatalog(src);
+            }
         }
 
         protected virtual void Warp_Out(byte portalID, Player src, WarpData To, bool toTent = false)
@@ -773,6 +783,26 @@ namespace Game
                             dstX = warp.DstX_Axis;
                             dstY = warp.DstY_Axis;
                             foundPortal = true;
+                        }
+                        else if (MapID == 11094)
+                        {
+                            // Carnie exit portal: return to saved previous location!
+                            if (sender.CarnieReturnMap != null && sender.CarnieReturnMap.DstMap > 0)
+                            {
+                                dstMap = sender.CarnieReturnMap.DstMap;
+                                dstX = sender.CarnieReturnMap.DstX_Axis;
+                                dstY = sender.CarnieReturnMap.DstY_Axis;
+                                foundPortal = true;
+                                DebugSystem.Write($"[Carnie Exit] Returning {sender.CharName} from Map 11094 to saved Map {dstMap} ({dstX},{dstY})");
+                            }
+                            else
+                            {
+                                dstMap = 11016;
+                                dstX = 1181;
+                                dstY = 243;
+                                foundPortal = true;
+                                DebugSystem.Write($"[Carnie Exit] Returning {sender.CharName} from Map 11094 to fallback Starter Beach");
+                            }
                         }
                         else
                         {
@@ -1096,6 +1126,15 @@ namespace Game
             tmp.Add(Tools.FromFormat("bb", 20, 8));
             t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
             t.Send(new SendPacket(tmp.End()));
+
+            // Personal Client-Side NPC Visibility Sync (Only hides completed/recruited NPCs for this specific player)
+            QuestRelated.QuestManager.SyncPerPlayerNpcVisibility(t, (ushort)this.MapID);
+
+            // Sync Guild Insignia
+            t.CurGuild?.SendInsignia(t);
+
+            // Sync Active Vehicle
+            PlayerRelated.VehicleManager.SyncVehicleOnMapEntry(t);
         }
 
         #endregion

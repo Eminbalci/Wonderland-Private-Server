@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -72,6 +72,23 @@ namespace Game.Code
         {
             return (AddItem(item) > 0);
         }
+
+        public ushort GetItemIdAtSlot(byte loc)
+        {
+            if (loc > 0 && loc <= 50)
+            {
+                lock (mylock) return this[loc].ItemID;
+            }
+            return 0;
+        }
+
+        public void RemoveItemAtSlot(byte loc, byte ammt = 1)
+        {
+            if (loc > 0 && loc <= 50)
+            {
+                RemoveItem(loc, ammt);
+            }
+        }
         #endregion
 
 
@@ -107,6 +124,57 @@ namespace Game.Code
                 }
                 slot = 0;
                 return false;
+            }
+        }
+
+        public bool RemoveItemById(ushort itemId, byte ammt = 1)
+        {
+            if (ContainsItem(itemId, out byte slot))
+            {
+                RemoveItem(slot, ammt);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Applies durability damage / wear to the active vehicle in inventory on movement.
+        /// </summary>
+        public void ApplyVehicleWear(ushort vehicleItemId, byte wearAmount = 1)
+        {
+            lock (mylock)
+            {
+                if (ContainsItem(vehicleItemId, out byte slot))
+                {
+                    var item = this[slot];
+                    if (item != null && item.ItemID > 0)
+                    {
+                        int newDmg = item.Damage + wearAmount;
+                        if (newDmg >= 100)
+                        {
+                            item.Damage = 100;
+                            RemoveItem(slot, 1);
+
+                            // Send Raft Wreck Animation (AC 15:15)
+                            SendPacket wreck = new SendPacket();
+                            wreck.Pack8(15);
+                            wreck.Pack8(15);
+                            wreck.Pack32(owner.CharID);
+                            wreck.Pack16(vehicleItemId);
+                            owner.Send(wreck);
+                            owner.CurMap?.Broadcast(wreck);
+
+                            // Dismount player
+                            owner.RideVehicle("");
+                            owner.SendSystemMessage("⚠️ Your raft broke into pieces from wear and tear!");
+                        }
+                        else
+                        {
+                            item.Damage = (byte)newDmg;
+                            owner.Send(new SendPacket(GetAC23_5()));
+                        }
+                    }
+                }
             }
         }
         /// <summary>
@@ -172,8 +240,13 @@ namespace Game.Code
         }
         public void AddItem(ushort ID, byte amt)
         {
+            var baseItem = ItemDat.GetItemByID(ID);
+            if (baseItem == null)
+            {
+                baseItem = new PhxItemInfo() { ItemID = ID, ItemName = Encoding.ASCII.GetBytes("Item " + ID) };
+            }
             InvItem i = new InvItem();
-            i.CopyFrom(ItemDat.GetItemByID(ID));
+            i.CopyFrom(baseItem);
             i.Ammt = amt;
             AddItem(i);
         }

@@ -14,6 +14,7 @@
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <RestorePackages>false</RestorePackages>
     <TargetFrameworkProfile />
+    <RuntimeIdentifiers>win;win-x86;win-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -112,6 +113,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Game\Battle\PvEBattleManager.cs" />
+    <Compile Include="Game\Battle\MonsterDropManager.cs" />
     <Compile Include="Game\Bots\Cupid.cs" />
     <Compile Include="Game\Bots\GmBot.cs" />
     <Compile Include="Game\Delegates.cs" />
@@ -141,6 +143,7 @@
     <Compile Include="Game\Maps\Code\WarpData.cs" />
     <Compile Include="Game\Maps\Code\ShopKeeper.cs" />
     <Compile Include="Game\Maps\Code\QuestNpc.cs" />
+    <Compile Include="Game\Maps\ChestDropManager.cs" />
     <Compile Include="Game\Maps\Code\TalkableObject.cs" />
     <Compile Include="Game\Maps\WarpDest.cs" />
     <Compile Include="Game\Maps\WarpPortal.cs" />
@@ -153,16 +156,42 @@
     <Compile Include="Game\PlayerRelated\Tent\TentItemContainer.cs" />
     <Compile Include="Game\PlayerRelated\Tent\Tools.cs" />
     <Compile Include="Game\PlayerRelated\RiceBall.cs" />
+    <Compile Include="Game\PlayerRelated\Mail.cs" />
     <Compile Include="Game\PlayerRelated\MailManager.cs" />
-    <Compile Include="Game\PlayerRelated\Friendlist.cs" />
+    <Compile Include="Game\PlayerRelated\Friends.cs" />
+    <Compile Include="Game\PlayerRelated\Guild.cs" />
+    <Compile Include="Game\PlayerRelated\MarriageManager.cs" />
+    <Compile Include="Game\PlayerRelated\GmManager.cs" />
+    <Compile Include="Game\PlayerRelated\ItemMallManager.cs" />
+    <Compile Include="Game\PlayerRelated\Trade.cs" />
+    <Compile Include="Game\PlayerRelated\StallManager.cs" />
+    <Compile Include="Game\PlayerRelated\RebornManager.cs" />
+    <Compile Include="Game\PlayerRelated\Vehicle.cs" />
+    <Compile Include="Game\PetRelated\PetAmityManager.cs" />
+    <Compile Include="Game\Crafting\AlchemyManager.cs" />
+    <Compile Include="Game\Crafting\GatheringManager.cs" />
+    <Compile Include="Game\Crafting\EquipmentRepairManager.cs" />
+    <Compile Include="Game\Crafting\ForgingManager.cs" />
+    <Compile Include="Game\Crafting\TentManufactureManager.cs" />
+    <Compile Include="Game\Battle\PvPManager.cs" />
+    <Compile Include="Game\Battle\PalaceTrialManager.cs" />
     <Compile Include="Game\PlayerRelated\PetList.cs" />
     <Compile Include="Game\PlayerRelated\Quest.cs" />
+    <Compile Include="Game\QuestRelated\QuestEnums.cs" />
+    <Compile Include="Game\QuestRelated\QuestDefinition.cs" />
+    <Compile Include="Game\QuestRelated\PlayerQuest.cs" />
+    <Compile Include="Game\QuestRelated\QuestManager.cs" />
     <Compile Include="Game\User.cs" />
 
     <Compile Include="Generics\Tools.cs" />
     <Compile Include="Network\ActionCodes\AC.cs" />
+    <Compile Include="Network\ActionCodes\AC11.cs" />
+    <Compile Include="Network\ActionCodes\AC15.cs" />
+    <Compile Include="Network\ActionCodes\AC25.cs" />
+    <Compile Include="Network\ActionCodes\AC56.cs" />
     <Compile Include="Network\Packet.cs" />
     <Compile Include="Network\SocketClient.cs" />
+    <Compile Include="Network\EmbeddedWebServer.cs" />
     <Compile Include="Plugin\InteractableObj.cs" />
     <Compile Include="Plugin\MapHost.cs" />
     <Compile Include="Plugin\PluginHost.cs" />

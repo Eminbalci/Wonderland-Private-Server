@@ -59,7 +59,7 @@ namespace Game
 
         PlayerFlagManager m_Flags;
 
-        Queue<SendPacket> QueueData;
+        public Queue<SendPacket> QueueData;
         SendMode m_sendMode;
 
         WarpData prevMap;
@@ -76,7 +76,7 @@ namespace Game
         ClientSettings m_settings;
         Game.Battle.BattleScene m_battle;
         MailManager m_Mail;
-        Friendlist m_friendlist;
+        Game.PlayerRelated.Friendlist m_friendlist;
         RiceBall m_riceball;
         PetList m_petlist;
         Game.Code.Tent m_tent;
@@ -85,15 +85,57 @@ namespace Game
         public uint ActiveVehicleID { get; set; } = 0;
         public uint ActiveMountID { get; set; } = 0; // Riding pet
         public uint ActivePetID { get; set; } = 0; // Battle pet
+        public WarpData CarnieReturnMap { get; set; } = null; // Return destination when exiting Carnie (Map 11094)
+        public int StepsSinceLastBattle { get; set; } = 0;
+        public int NextBattleSteps { get; set; } = 25;
 
         // FIX: Added properties for ActionCodes compatibility
         public Game.Battle.BattleScene BattleScene { get { return m_battle; } }
         public uint UserID { get { return m_useracc != null ? m_useracc.UserID : 0; } }
-        public int ID { get { return (int)UserID; } }
-        public object CurGuild { get { return null; } } // Placeholder (object to bypass type error)
-        public object Guild { get { return CurGuild; } } // Alias
+        public Game.PlayerRelated.Guild CurGuild { get; set; }
+        public ushort GuildID => (ushort)(CurGuild?.GuildID ?? 0);
+        public Game.PlayerRelated.Guild Guild => CurGuild;
+        public User UserAccount => m_useracc;
+        public void SendSystemMessage(string msg)
+        {
+            if (string.IsNullOrEmpty(msg)) return;
+            SendPacket s = new SendPacket();
+            s.Pack8(23);
+            s.Pack8(57);
+            s.Pack8(0);
+            s.PackString(msg);
+            Send(s);
+        }
+
+        public void SendHeadBanner(string msg)
+        {
+            if (string.IsNullOrEmpty(msg)) return;
+            SendPacket s = new SendPacket();
+            s.Pack8(23);
+            s.Pack8(57);
+            s.Pack8(0);
+            s.PackString(msg);
+            Send(s);
+        }
         public List<Game.SkillRelated.PlayerSkill> PlayerSkills { get; set; } = new List<Game.SkillRelated.PlayerSkill>();
+        public Dictionary<uint, Game.QuestRelated.PlayerQuest> Quests { get; set; } = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
+        public Dictionary<byte, PlayerPetData> PlayerPets { get; set; } = new Dictionary<byte, PlayerPetData>();
         #endregion
+
+        public class PlayerPetData
+        {
+            public byte Slot { get; set; } = 1;
+            public uint PetID { get; set; }
+            public string PetName { get; set; } = "";
+            public byte Level { get; set; } = 1;
+            public int HP { get; set; } = 250;
+            public int MaxHP { get; set; } = 250;
+            public int SP { get; set; } = 100;
+            public int MaxSP { get; set; } = 100;
+            public byte Amity { get; set; } = 60;
+            public bool IsBattle { get; set; } = true;
+            public bool IsRide { get; set; } = false;
+        }
 
 
         public Action<Player> OnDisconnect { get; set; }
@@ -116,7 +158,7 @@ namespace Game
 
             Flags = new PlayerFlagManager();
             m_settings = new ClientSettings();
-            m_friendlist = new Friendlist(new Action<SendPacket>(Send));
+            m_friendlist = new Game.PlayerRelated.Friendlist(this, new Action<SendPacket>(Send));
             m_Mail = new MailManager(this);
 
             m_teammembers = new List<Player>();
@@ -318,6 +360,20 @@ namespace Game
             set { lock (mlock) prevMap = value; }
         }
 
+        public WarpData ReturnSpawnMap
+        {
+            get { lock (mlock) return returnSpawnMap; }
+            set { lock (mlock) returnSpawnMap = value; }
+        }
+
+        public WarpData RecordMap
+        {
+            get { lock (mlock) return recordMap; }
+            set { lock (mlock) recordMap = value; }
+        }
+
+        public int MallQueryCount { get; set; } = 0;
+
         #endregion
 
         #region Fighter
@@ -452,22 +508,21 @@ namespace Game
                 RecievePacket p = new RecievePacket(g.Buffer);
 
                 if (m_socket.isDisconnected()) { return; }
-                // Confirm packet reception - Use DebugSystem with Error level for visibility
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Recv Packet: AC={p.A}, Sub={p.B}, Len={p.Buffer.Length}");
 
                 p.SetPtr();
                 var b = p.Unpack8();
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] About to call GetAction for AC={b}");
                 Network.ActionCodes.AC ac = Network.ActionCodes.AC.GetAction(b);
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] GetAction returned: {(ac == null ? "NULL" : ac.GetType().Name)}");
+
+                string hexData = BitConverter.ToString(p.Buffer).Replace("-", " ");
+                string who = string.IsNullOrEmpty(CharName) ? "Client" : CharName;
 
                 if (ac == null)
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC {b} NOT FOUND in AcList!");
+                    DebugSystem.Write(DebugItemType.Error, $"[RECV PKT] [{who}] AC={p.A}, Sub={p.B} (Handler: NONE) Len={p.Buffer.Length} Hex: {hexData}");
                 }
                 else
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Processing AC {b}...");
+                    DebugSystem.Write(DebugItemType.Error, $"[RECV PKT] [{who}] AC={p.A}, Sub={p.B} (Handler: {ac.GetType().Name}) Len={p.Buffer.Length} Hex: {hexData}");
                 }
 
                 if (ac != null)
@@ -484,35 +539,231 @@ namespace Game
                         DebugSystem.Write(DebugItemType.Error, $"[ERROR] Exception in ProcessPkt for AC {ac.ID}: {ex}");
                     }
                     //DebugSystem.Write("Player.cs receive packet: " + p.ToString());
-                    //immgithub special cheat-ChatActions: action ID 2 = chat
                     if (ac.ID == 2)
                     {
-                        string chatMsg = System.Text.Encoding.ASCII.GetString(p.Buffer.Skip(6).ToArray());
+                        string chatMsg = System.Text.Encoding.ASCII.GetString(p.Buffer.Skip(6).ToArray()).Trim('\0', ' ');
+                        
+                        if (chatMsg.StartsWith("/im", StringComparison.OrdinalIgnoreCase) ||
+                            chatMsg.StartsWith(":im", StringComparison.OrdinalIgnoreCase) ||
+                            chatMsg.StartsWith("/mall", StringComparison.OrdinalIgnoreCase) ||
+                            chatMsg.StartsWith(":mall", StringComparison.OrdinalIgnoreCase) ||
+                            chatMsg.StartsWith("/shop", StringComparison.OrdinalIgnoreCase) ||
+                            chatMsg.StartsWith(":shop", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int pts = Game.PlayerRelated.ItemMallManager.GetUserPoints(c);
+                            c.SendSystemMessage($"========== 🛍️ ITEM MALL (Balance: {pts} IM Pts) ==========");
+                            var catalog = Game.PlayerRelated.ItemMallManager.GetCatalog();
+                            for (int i = 0; i < catalog.Count; i++)
+                            {
+                                var it = catalog[i];
+                                c.SendSystemMessage($"[{i + 1}] {it.ItemName} (x{it.Count}) - {it.PointCost} Pts -> Type: /buy {i + 1}");
+                            }
+                            c.SendSystemMessage("💡 Type /buy <number> to purchase directly into your inventory!");
+                        }
+                        else if (chatMsg.StartsWith("/buy", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":buy", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            if (parts.Length > 1)
+                            {
+                                var catalog = Game.PlayerRelated.ItemMallManager.GetCatalog();
+                                Game.PlayerRelated.MallItemEntry targetItem = null;
+
+                                if (int.TryParse(parts[1], out int idx) && idx >= 1 && idx <= catalog.Count)
+                                {
+                                    targetItem = catalog[idx - 1];
+                                }
+                                else if (ushort.TryParse(parts[1], out ushort itemId))
+                                {
+                                    targetItem = catalog.FirstOrDefault(it => it.ItemID == itemId);
+                                }
+
+                                if (targetItem != null)
+                                {
+                                    if (Game.PlayerRelated.ItemMallManager.PurchaseItem(c, targetItem.ItemID, targetItem.Count))
+                                    {
+                                        c.SendSystemMessage($"🎉 Purchased {targetItem.ItemName} (x{targetItem.Count}) for {targetItem.PointCost} IM Points! Remaining: {Game.PlayerRelated.ItemMallManager.GetUserPoints(c)} Pts.");
+                                    }
+                                    else
+                                    {
+                                        c.SendSystemMessage($"❌ Purchase failed! Cost: {targetItem.PointCost} Pts (Your Balance: {Game.PlayerRelated.ItemMallManager.GetUserPoints(c)} Pts).");
+                                    }
+                                }
+                                else
+                                {
+                                    c.SendSystemMessage("❌ Item not found! Type /im to see the available list.");
+                                }
+                            }
+                            else
+                            {
+                                c.SendSystemMessage("💡 Usage: /buy <number> (e.g. /buy 1)");
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/points", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":points", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith("/myim", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":myim", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int pts = Game.PlayerRelated.ItemMallManager.GetUserPoints(c);
+                            c.SendSystemMessage($"💎 Your Current Balance: {pts} IM Points.");
+                        }
+                        else if (chatMsg.StartsWith("/acceptmarry", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.PlayerRelated.MarriageManager.AcceptProposal(c);
+                        }
+                        else if (chatMsg.StartsWith("/declinemarry", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.PlayerRelated.MarriageManager.DeclineProposal(c);
+                        }
+                        else if (chatMsg.StartsWith("/divorce", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.PlayerRelated.MarriageManager.Divorce(c);
+                        }
+                        else if (chatMsg.StartsWith("/warptospouse", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.PlayerRelated.MarriageManager.TeleportToSpouse(c);
+                        }
+                        else if (chatMsg.StartsWith("/reborn", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!Game.PlayerRelated.GmManager.IsGm(c))
+                            {
+                                c.SendSystemMessage("You do not have GM privileges to use the /reborn command.");
+                            }
+                            else
+                            {
+                                var parts = chatMsg.Split(' ');
+                                if (parts.Length > 1 && Enum.TryParse<Game.PlayerRelated.RebornJob>(parts[1], true, out var job))
+                                {
+                                    Game.PlayerRelated.RebornManager.PerformReborn(c, job);
+                                }
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/compound", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            if (parts.Length > 2 && byte.TryParse(parts[1], out byte s1) && byte.TryParse(parts[2], out byte s2))
+                            {
+                                Game.Crafting.AlchemyManager.CompoundItems(c, s1, s2);
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/fish", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.Crafting.GatheringManager.StartGathering(c, Game.Crafting.GatheringType.Fishing);
+                        }
+                        else if (chatMsg.StartsWith("/mine", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.Crafting.GatheringManager.StartGathering(c, Game.Crafting.GatheringType.Mining);
+                        }
+                        else if (chatMsg.StartsWith("/chop", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.Crafting.GatheringManager.StartGathering(c, Game.Crafting.GatheringType.Woodcutting);
+                        }
+                        else if (chatMsg.StartsWith("/stopgather", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.Crafting.GatheringManager.StopGathering(c);
+                        }
+                        else if (chatMsg.StartsWith("/inbox", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.PlayerRelated.MailSystem.OpenInbox(c);
+                        }
+                        else if (chatMsg.StartsWith("/duel", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            if (parts.Length > 1 && uint.TryParse(parts[1], out uint tid))
+                            {
+                                Player target = null;
+                                if (c.CurMap is GameMap curMap)
+                                    target = curMap.PlayersList.FirstOrDefault(pl => pl.CharID == tid);
+                                if (target != null)
+                                    Game.Battle.PvPManager.RequestDuel(c, target);
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/acceptduel", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.Battle.PvPManager.AcceptDuel(c);
+                        }
+                        else if (chatMsg.StartsWith("/declineduel", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Game.Battle.PvPManager.DeclineDuel(c);
+                        }
+                        else if (chatMsg.StartsWith("/feedpet", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            ushort foodId = (parts.Length > 1 && ushort.TryParse(parts[1], out ushort fid)) ? fid : (ushort)30025;
+                            Game.PetRelated.PetAmityManager.FeedPet(c, foodId);
+                        }
+                        else if (chatMsg.StartsWith("/repair", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            if (parts.Length > 1 && byte.TryParse(parts[1], out byte slot))
+                            {
+                                Game.Crafting.EquipmentRepairManager.RepairItem(c, slot);
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/forge", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            if (parts.Length > 2 && byte.TryParse(parts[1], out byte eqSlot) && byte.TryParse(parts[2], out byte gemSlot))
+                            {
+                                Game.Crafting.ForgingManager.ForgeGem(c, eqSlot, gemSlot);
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/manufacture", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            if (parts.Length > 5 && ushort.TryParse(parts[2], out ushort in1) && byte.TryParse(parts[3], out byte c1) && ushort.TryParse(parts[4], out ushort in2) && byte.TryParse(parts[5], out byte c2))
+                            {
+                                Game.Crafting.TentManufactureManager.Manufacture(c, parts[1], in1, c1, in2, c2);
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/palace", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!Game.PlayerRelated.GmManager.IsGm(c))
+                            {
+                                c.SendSystemMessage("You do not have GM privileges to use the /palace command.");
+                            }
+                            else
+                            {
+                                var parts = chatMsg.Split(' ');
+                                if (parts.Length > 1 && byte.TryParse(parts[1], out byte stage))
+                                {
+                                    Game.Battle.PalaceTrialManager.EnterPalaceTrial(c, stage);
+                                }
+                            }
+                        }
+
                         string[] msgsSent = chatMsg.Split('>');
                         if (msgsSent.Length > 1)
                         {
-                            string cmdChar = msgsSent[0];
-                            string cmdValue = msgsSent[1];
-                            switch (cmdChar)
+                            if (!Game.PlayerRelated.GmManager.IsGm(c))
                             {
-                                case "T": //teleport
-                                    TeleportPlayer(cmdValue);
-                                    break;
-                                case "I": //add item to inventory
-                                    AddItemToInventory(cmdValue);
-                                    break;
-                                case "R": //ride vehicle
-                                    UnridePet(); //unride any pet first
-                                    RideVehicle(cmdValue);
-                                    break;
-                                case "P": //add pet 
-                                    RideVehicle(""); //unride any vehicles first
-                                    if (AddPetToPartyList(cmdValue)) PutPetToBattle(cmdValue);
-                                    break;
-                                case "PR": //ride pet 
-                                    RideVehicle(""); //unride any vehicles first
-                                    if (AddPetToPartyList(cmdValue)) PutPetToRide(cmdValue);
-                                    break;
+                                c.SendSystemMessage("You do not have GM privileges to execute cheat commands.");
+                            }
+                            else
+                            {
+                                string cmdChar = msgsSent[0];
+                                string cmdValue = msgsSent[1];
+                                switch (cmdChar)
+                                {
+                                    case "T": //teleport
+                                        TeleportPlayer(cmdValue);
+                                        break;
+                                    case "I": //add item to inventory
+                                        AddItemToInventory(cmdValue);
+                                        break;
+                                    case "R": //ride vehicle
+                                        UnridePet(); //unride any pet first
+                                        RideVehicle(cmdValue);
+                                        break;
+                                    case "P": //add pet 
+                                        RideVehicle(""); //unride any vehicles first
+                                        if (AddPetToPartyList(cmdValue)) PutPetToBattle(cmdValue);
+                                        break;
+                                    case "PR": //ride pet 
+                                        RideVehicle(""); //unride any vehicles first
+                                        if (AddPetToPartyList(cmdValue)) PutPetToRide(cmdValue);
+                                        break;
+                                }
                             }
                         }
                     }
@@ -721,7 +972,6 @@ namespace Game
             foreach (var f in fighters_on_other_side)
                 tmp.Add(Tools.FromFormat("bbbbbwd", 51, 1, f.GridX, f.GridY, 25, f.CurHP, 0));
 
-            tmp.Add(Tools.FromFormat("bb", 52, 1));
             Send(tmp.End());
         }
 
@@ -889,16 +1139,27 @@ namespace Game
 
             return true;
         }
+        public Action OnInteractionComplete;
+        public bool PendingBeachCutscene { get; set; }
+
         public bool ContinueInteraction()
         {
-            if (QueueData.Count == 1)
+            if (QueueData != null && QueueData.Count > 0)
             {
                 m_socket.SendPacket(QueueData.Dequeue());
-                return false;// (object_interactingwith != null);
+                return true;
             }
-            else if (QueueData.Count > 1)
+            if (OnInteractionComplete != null)
             {
-                m_socket.SendPacket(QueueData.Dequeue()); return true;
+                var action = OnInteractionComplete;
+                OnInteractionComplete = null;
+                action.Invoke();
+                if (QueueData != null && QueueData.Count > 0)
+                {
+                    m_socket.SendPacket(QueueData.Dequeue());
+                    return true;
+                }
+                return false;
             }
             return false;
         }
@@ -1266,11 +1527,9 @@ namespace Game
 
 
 
-        //public MailManager Mail { get { return m_Mail; } }
-        //public Friendlist MyFriends { get { return m_friendlist; } }
-        //public RiceBall Disguise { get { return m_riceball; } }
-        //public PetList Pets { get { return m_petlist; } }
-        //public Tent Tent { get { return m_tent; } }
+        public Game.PlayerRelated.Friendlist MyFriends => m_friendlist;
+        public string GetFriends_Flag => m_friendlist?.GetFriends_Flag ?? "none";
+        public void LoadFriends(string str) => m_friendlist?.LoadFriends(str);
 
         #endregion
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -43,8 +43,6 @@ namespace Network.ActionCodes
                 uint x = r.Unpack32();
                 uint y = r.Unpack32();
                 uint floor = r.Unpack32();
-
-                byte rotation = 0; // No rotation in Place packet
 
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] AC62,1 Place: Bag={bagIndex} Slot={slotIndex} Pos=({x},{y}) Flr={floor} (Forcing 0)");
 

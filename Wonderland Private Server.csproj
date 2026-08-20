@@ -184,6 +184,7 @@
     </Compile>
     <Compile Include="Src\Network\ActionCodes\AC0.cs" />
     <Compile Include="Src\Network\ActionCodes\AC02.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC05.cs" />
     <Compile Include="Src\Network\ActionCodes\AC06.cs" />
     <Compile Include="Src\Network\ActionCodes\AC08.cs" />
     <Compile Include="Src\Network\ActionCodes\AC09.cs">
@@ -193,10 +194,14 @@
     <Compile Include="Src\Network\ActionCodes\AC12.cs" />
     <Compile Include="Src\Network\ActionCodes\AC13.cs" />
     <Compile Include="Src\Network\ActionCodes\AC14.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC15.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC19.cs" />
     <Compile Include="Src\Network\ActionCodes\AC20.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC21.cs" />
     <Compile Include="Src\Network\ActionCodes\AC23.cs" />
     <Compile Include="Src\Network\ActionCodes\AC32.cs" />
     <Compile Include="Src\Network\ActionCodes\AC33.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC34.cs" />
     <Compile Include="Src\Network\ActionCodes\AC35.cs" />
     <Compile Include="Src\Network\ActionCodes\AC39.cs" />
     <Compile Include="Src\Network\ActionCodes\AC50.cs" />
@@ -204,8 +209,15 @@
     <Compile Include="Src\Network\ActionCodes\AC63.cs" />
     <Compile Include="Src\Network\ActionCodes\AC64.cs" />
     <Compile Include="Src\Network\ActionCodes\AC65.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC75.cs" />
     <Compile Include="Src\Network\ActionCodes\AC82.cs" />
     <Compile Include="Src\Network\ActionCodes\AC85.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC89.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC92.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC104.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC183.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC186.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC226.cs" />
     <Compile Include="Src\Network\Client.cs" />
     <Compile Include="Src\Program.cs" />
     <Compile Include="Src\Server\Bots\Cupid.cs" />
@@ -216,6 +228,7 @@
     <Compile Include="Src\Server\Config\Update.cs" />
     <Compile Include="Src\Server\GM\BigLetterLogo.cs" />
     <Compile Include="Src\Server\LoginServer.cs" />
+    <Compile Include="Src\Server\ItemMallServer.cs" />
     <Compile Include="Src\Server\API\RegistrationServer.cs" />
     <Compile Include="Src\Server\Plugin\Plugin.cs" />
     <Compile Include="Src\Server\System\MapSystem.cs" />

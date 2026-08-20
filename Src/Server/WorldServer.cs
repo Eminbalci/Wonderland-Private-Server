@@ -558,6 +558,9 @@ namespace Server
             // Populate PlayerSkills list in memory (no packets yet — must precede SendAllSkills below)
             Game.SkillRelated.SkillManager.InitializePlayerSkillsNoSend(src);
 
+            // Load player quests from database
+            Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
+
             // Inventory, equipment, gold, settings (before map teleport)
             src.Send(new SendPacket(src.Inv.GetAC23_5()));
             src.Send(new SendPacket(src._23_11Data));
@@ -584,6 +587,9 @@ namespace Server
             // These packets populate the skill book window. Sent BEFORE AC 5:3 below.
             Game.SkillRelated.SkillManager.SendAllSkills(src);
 
+            // Send quest journal
+            Game.QuestRelated.QuestManager.SendQuestJournal(src);
+
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
             src.Send(Tools.FromFormat("bbb", 5, 16, 0));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));
@@ -606,8 +612,21 @@ namespace Server
             src.Send(Tools.FromFormat("bbbbd", 23, 208, 2, 4, 0));
             src.Send(Tools.FromFormat("bb", 1, 11));
             src.Send(Tools.FromFormat("bbbbbb", 15, 19, 4, 6, 9, 94));
-            src.Send(new SendPacket(new byte[] { 244, 68, 19, 0, 54, 89, 2, 2, 90, 2, 1, 91, 2, 1, 189, 2, 2, 190, 2, 1, 191, 2, 1 }));
-            src.Send(Tools.FromFormat("bbdddd", 35, 4, 0, 0, 0, 0));
+            // Authentic Item Mall Login Initialization sequence:
+            // S->C A=54 B=201: item mall catalog (dynamic, from ItemMallManager)
+            Game.PlayerRelated.ItemMallManager.SendCatalog(src);
+
+            // 3. AC 35 Sub 11
+            src.Send(Tools.FromFormat("bb", 35, 11));
+
+            // 4. AC 35 Sub 12 (CharID + 00)
+            SendPacket mallUser = new SendPacket();
+            mallUser.Pack8(35);
+            mallUser.Pack8(12);
+            mallUser.Pack32(src.CharID);
+            mallUser.Pack8(0);
+            src.Send(mallUser);
+
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
 
             // AC 5:3 sent LAST — matching Python server (send_5_3_login at very end of login).
@@ -643,6 +662,10 @@ namespace Server
                             try
                             {
                                 cGlobal.gCharacterDataBase.WritePlayer(player.CharID, player);
+                                if (player.UserAccount != null && player.UserAccount.DataBaseID != 0)
+                                {
+                                    cGlobal.gUserDataBase?.SetIMPoints(player.UserAccount.DataBaseID, player.UserAccount.IM);
+                                }
                             }
                             catch (Exception ex)
                             {

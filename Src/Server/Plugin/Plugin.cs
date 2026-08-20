@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -88,7 +88,7 @@ namespace Plugin
                     }
                 }
             }
-            catch (Exception d) { }
+            catch { }
         }
 
         void folderwatch_Created(object sender, FileSystemEventArgs e)

@@ -32,6 +32,7 @@ In the private server exe, click "Cheat" tab:
 - Click the in-game PK button (sword icon) and click any monster/NPC to engage in turn-based combat. Supports attack, skills, defending, fleeing, XP/Gold rewards, and automatic battle exit.
 - Real-time NPC movement and roaming (`AC 22 Sub 2`) ported from Python server with scripted waypoints and random wandering.
 - Character skill unlocking system (`AC 5 Sub 11`, `AC 8 Sub 1`) with character-specific stunt skills, element skills, and `:skill <id> [grade]` chat command.
+- Interactive Quest & Journal System (`AC 39`, `AC 52`, `charquest` DB table) supporting multi-stage NPC dialogues, item delivery verification, automatic reward distribution (Gold, EXP, Items, Companions), and quest battle encounters.
 - In-Game GM Chat Commands:
     > `:heal [hp] [sp]` : Fully restores character HP and SP (or specified values).
     > `:level <1-200>` : Sets character level and recalculates stats.
@@ -41,4 +42,17 @@ In the private server exe, click "Cheat" tab:
     > `:skill <id> [grade]` : Unlocks or upgrades a skill.
     > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
     > `:help` : Shows command help in chat.
-
+- Technical documentation and reverse engineering analysis of the client launcher available in [docs/alogin_decompiled_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/alogin_decompiled_analysis.md).
+- Detailed technical overview of the NPC and Quest systems available in [docs/npc_and_quest_systems_overview.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_and_quest_systems_overview.md).
+- Reverse engineering analysis of decompiled NPC and quest routines in [docs/decompiled_npc_and_quest_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_npc_and_quest_analysis.md).
+- Reverse engineering analysis of decompiled skill systems in [docs/decompiled_skill_system_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_skill_system_analysis.md).
+- Comprehensive game mechanics and mathematical formulas reference in [docs/game_systems_and_formulas_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/game_systems_and_formulas_reference.md).
+- Extended reverse engineering analysis of gameplay subsystems in [docs/decompiled_extended_systems_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_extended_systems_analysis.md).
+- Master binary packet Action Code protocol specification in [docs/master_action_codes_protocol_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/master_action_codes_protocol_reference.md).
+- Reverse engineering memory map, asset formats, and engine internals in [docs/decompiled_engine_internals_and_memory_map.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_engine_internals_and_memory_map.md).
+- Technical diagnosis and solution for NPC/chest blinking and state toggling in [docs/npc_blinking_and_chest_state_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_blinking_and_chest_state_fix.md).
+- Authentic map chest, prop gathering drop tables and timed respawn system in [docs/map_chest_and_gathering_drop_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/map_chest_and_gathering_drop_system.md).
+- Chest & Gathering Drop GUI Editor documentation in [docs/chest_drop_editor_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/chest_drop_editor_gui.md).
+- Player inventory and equipment persistence on save/shutdown in [docs/player_inventory_persistence_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/player_inventory_persistence_fix.md).
+- Safe server shutdown and instant data save GUI controls in [docs/safe_shutdown_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/safe_shutdown_system.md).
+- Authentic Item Mall & Catalog System (Port 6416 & AC 23/35/54) in [docs/item_mall_system_status.md](file:///d:/GitHub/Wonderland-Private-Server/docs/item_mall_system_status.md).

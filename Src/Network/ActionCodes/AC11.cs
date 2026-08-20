@@ -133,8 +133,9 @@ namespace Network.ActionCodes
 
         void HandleNpcPK(Player attacker, uint npcID, ushort clickID)
         {
-            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 NPC Battle: {attacker.CharName} attacking NPC {npcID} (ClickID: {clickID})");
-            Game.Battle.PvEBattleManager.StartBattle(attacker, clickID, npcID);
+            // In Wonderland Online, wild roaming monsters do not initiate battles via click.
+            // Battles are triggered authentically by walking near them (proximity encounter) or stepping in wild zones.
+            DebugSystem.Write($"[AC11] Clicked NPC {npcID} (ClickID: {clickID}) - wild encounters trigger via movement proximity.");
         }
 
         void SendPKError(Player p, string message)

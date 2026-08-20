@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -63,10 +63,7 @@ namespace Server.System
         public FlowLayoutPanel AppUpdtPanel { internal get; set; }
         public FlowLayoutPanel MapUpdtPanel { internal get; set; }
         gitClient GitClient;
-
-        WebClient webclient;
-
-        Octokit.Release LatestVer;
+        Octokit.Release LatestVer = null;
 
         public UpdateSystem()
         {

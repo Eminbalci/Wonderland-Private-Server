@@ -36,6 +36,8 @@ namespace DataBase
         public global::DataFiles.PhxItemDat ItemDat { private get; set; }
         public Game.DataFiles.EveManager EveDat { get; set; } // Added Property
         public global::DataFiles.PhxNpcDat NpcDat { get; set; } // Added Property for Npc.dat
+        public global::DataFiles.PhxTalkDat TalkDat { get; set; } // Added Property for Talk.dat
+        public global::DataFiles.PhxMarkDat MarkDat { get; set; } // Added Property for Mark.dat
 
         public static GameDataBase GlobalInstance;
 
@@ -152,55 +154,75 @@ namespace DataBase
             DataTable src = null;
 
             #region Inventory
-            src = GetDataTable("SELECT * FROM inventory where charID = '" + c.CharID + "'");
-
-            if (src.Rows.Count > 0)
+            try
             {
-                ushort id;
+                src = GetDataTable("SELECT * FROM inventory where charID = '" + c.CharID + "'");
 
-                for (int i = 0; i < src.Rows.Count; i++)
+                if (src != null && src.Rows.Count > 0)
                 {
-                    id = ushort.Parse(src.Rows[i]["itemID"].ToString());
-                    switch (uint.Parse(src.Rows[i]["storID"].ToString()))
+                    for (int i = 0; i < src.Rows.Count; i++)
                     {
-                        case 0:
-                            if (id != 0)
+                        try
+                        {
+                            ushort id = ushort.Parse(src.Rows[i]["itemID"].ToString());
+                            if (id == 0) continue;
+
+                            uint storId = uint.Parse(src.Rows[i]["storID"].ToString());
+                            byte pos = byte.Parse(src.Rows[i]["pos"].ToString());
+                            byte qty = byte.Parse(src.Rows[i]["qty"].ToString());
+                            byte dmg = byte.Parse(src.Rows[i]["dmg"].ToString());
+
+                            var baseItem = ItemDat?.GetItemByID(id) ?? new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+
+                            switch (storId)
                             {
-                                Game.Code.InvItem data = new Game.Code.InvItem();
-                                data.CopyFrom(ItemDat.GetItemByID(id));
-                                data.Ammt = byte.Parse(src.Rows[i]["qty"].ToString());
-                                data.Damage = byte.Parse(src.Rows[i]["dmg"].ToString());
-                                c.Inv[byte.Parse(src.Rows[i]["pos"].ToString())].CopyFrom(data);
+                                case 0: // Bag inventory
+                                    if (pos >= 1 && pos <= 50)
+                                    {
+                                        Game.Code.InvItem data = new Game.Code.InvItem();
+                                        data.CopyFrom(baseItem);
+                                        data.Ammt = Math.Max((byte)1, qty);
+                                        data.Damage = dmg;
+                                        c.Inv[pos].CopyFrom(data);
+                                    }
+                                    break;
+                                case 1: // Equips
+                                    if (pos >= 1 && pos <= 6)
+                                    {
+                                        c[pos].CopyFrom(baseItem);
+                                        c[pos].Ammt = 1;
+                                        c[pos].Damage = dmg;
+                                    }
+                                    break;
                             }
-                            break;
-                        case 1:
-                            if (id != 0)
-                            {
-                                byte pos = byte.Parse(src.Rows[i]["pos"].ToString());
-                                if (pos >= 1 && pos <= 6)
-                                {
-                                    c[pos].CopyFrom(ItemDat.GetItemByID(id));
-                                    c[pos].Ammt = 1;
-                                    c[pos].Damage = byte.Parse(src.Rows[i]["dmg"].ToString());
-                                }
-                            }
-                            break;
+                        }
+                        catch (Exception itemEx)
+                        {
+                            DebugSystem.Write($"[GameDataBase] Error loading inventory row {i}: {itemEx.Message}");
+                        }
                     }
+                    DebugSystem.Write($"[GameDataBase] Loaded {src.Rows.Count} inventory/equip records for {c.CharName}");
                 }
             }
-
-            src = null;
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error loading inventory for {c.CharName}: {ex.Message}");
+            }
+            finally
+            {
+                src = null;
+            }
             #endregion
 
             #region Tent
             #endregion
 
             #region Friends
-            //src = cGlobal.gDataBaseConnection.GetDataTable("SELECT * FROM charactersextdata where charID = '" + c.ID + "'");
-
-            //if (src.Rows.Count > 0)
-            //    c.LoadFriends(src.Rows[0]["Friends"].ToString());
-
+            src = GetDataTable("SELECT Friends FROM charactersextdata where charID = '" + c.CharID + "'");
+            if (src != null && src.Rows.Count > 0 && src.Rows[0]["Friends"] != DBNull.Value)
+            {
+                c.LoadFriends(src.Rows[0]["Friends"].ToString());
+            }
             src = null;
             #endregion
 
@@ -242,6 +264,62 @@ namespace DataBase
                 c.Settings.Load(src.Rows[0]["Settings"].ToString());
 
             src = null;
+            #endregion
+
+            #region Pets
+            try
+            {
+                // Ensure character_pets table exists
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INT AUTO_INCREMENT PRIMARY KEY, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName VARCHAR(50), level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, KEY(charID));");
+
+                var petTable = GetDataTable("SELECT * FROM character_pets WHERE charID = '" + c.CharID + "'");
+                c.PlayerPets.Clear();
+                if (petTable != null && petTable.Rows.Count > 0)
+                {
+                    foreach (DataRow row in petTable.Rows)
+                    {
+                        byte slot = byte.Parse(row["slot"].ToString());
+                        uint petId = uint.Parse(row["petID"].ToString());
+                        string petName = row["petName"] != DBNull.Value ? row["petName"].ToString() : "Companion";
+                        byte lvl = byte.Parse(row["level"].ToString());
+                        int hp = int.Parse(row["hp"].ToString());
+                        int maxHp = int.Parse(row["maxHp"].ToString());
+                        int sp = int.Parse(row["sp"].ToString());
+                        int maxSp = int.Parse(row["maxSp"].ToString());
+                        byte amity = byte.Parse(row["amity"].ToString());
+                        bool isBattle = row["isBattle"].ToString() == "1";
+                        bool isRide = row["isRide"].ToString() == "1";
+
+                        var petData = new Player.PlayerPetData()
+                        {
+                            Slot = slot,
+                            PetID = petId,
+                            PetName = petName,
+                            Level = lvl,
+                            HP = hp,
+                            MaxHP = maxHp,
+                            SP = sp,
+                            MaxSP = maxSp,
+                            Amity = amity,
+                            IsBattle = isBattle,
+                            IsRide = isRide
+                        };
+                        c.PlayerPets[slot] = petData;
+
+                        // Send recruited companion to client upon spawn
+                        Game.QuestRelated.QuestManager.SendCompanionReward(c, petId, petName, setBattle: isBattle);
+                        if (isRide)
+                        {
+                            c.PutPetToRide(petId.ToString());
+                        }
+                        DebugSystem.Write($"[GameDataBase] Loaded companion '{petName}' (ID: {petId}, Slot: {slot}) for {c.CharName}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error loading pets for {c.CharName}: {ex.Message}");
+            }
             #endregion
 
             #region Quests

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -44,6 +44,7 @@ namespace Server
         void onDisconnectedClient(Player src)
         {
             DisconnectedQueue.Push(src);
+            onPlayerDced?.Invoke(src);
         }
 
         public event Action<Player[]> onNewPlayer;//for Form
@@ -257,7 +258,7 @@ namespace Server
             if (Maplist.Count(c => c.MapID == map.DstMap) == 0)
             {
                 //Create Map
-                Game.GameMap tmp = cGlobal.gMapManager.GetMap(map.DstMap);
+                Game.GameMap tmp = Game.Maps.MapManager.Instance.GetMap(map.DstMap);
                 //cGlobal.gGameDataBase.SetupMap(ref tmp);
                 Maplist.Add(tmp);
             }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,9 +17,6 @@ namespace Server
     /// </summary>
     public class LoginServer : RCLibrary.Core.Networking.TcpServer
     {
-        private TcpListener listener;
-
-
         /// <summary>
         /// Event used to forward new player to the actual game loop
         /// </summary>

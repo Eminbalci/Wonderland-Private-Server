@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
@@ -278,6 +278,22 @@ namespace DataBase
                 return int.Parse(rows[0][IM_Ref].ToString());
             }
             return 0;
+        }
+
+        public bool SetIMPoints(uint userId, int points)
+        {
+            if (userId == 0) return false;
+            try
+            {
+                string query = "UPDATE " + TableName + " SET " + IM_Ref + " = @im WHERE " + DataBaseID_Ref + " = @uid";
+                ExecuteNonQuery(query, new DbParam("@im", points), new DbParam("@uid", userId));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[UserDataBase] Error updating IM points: {ex.Message}");
+                return false;
+            }
         }
 
         public bool UpdateUser(uint user, string delete = null, object im = null, object char1 = null, object char2 = null)

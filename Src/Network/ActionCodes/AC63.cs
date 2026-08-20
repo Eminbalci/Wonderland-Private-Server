@@ -341,7 +341,7 @@ namespace Network.ActionCodes
                 }
                 #endregion
             }
-            catch (Exception t) { throw; }
+            catch { throw; }
         }
 
         #region wlo methods

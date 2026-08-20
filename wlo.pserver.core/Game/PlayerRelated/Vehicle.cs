@@ -1,277 +1,204 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using Phoenix.Core.Networking;
+using Network;
 
-
-namespace PhoenixGameServer.Game.Data.Code
+namespace Game.PlayerRelated
 {
-    public class Veichle
+    public enum VehicleType : byte
     {
-        public Player owner;
-        public ushort ID;
-        public byte invLoc;
-        const int maxdamage = 1800;
-        public Item item;
-        ushort MaxFuel;
-        public ushort Fuelleft;
-        public ushort dmg;
-        public ushort HP;
-        List<Player> PassengersList = new List<Player>();
-        public List<Player> Passengers { get { return PassengersList; } }
-        public bool Broke { get { if (dmg == maxdamage)return true; else return false; } }
-        public bool hasFuel { get { if (Fuelleft > 0)return true; else return false; } }
-        public Veichle()
-        {
-        }
-        public void DriverGetin(Player t)
-        {
-            owner = t;
-            FuelGuage();
-        }
-        public void AddPassenger(Player t)
-        {
-            PassengersList.Add(t);
-        }
-        public void RemPassenger(Player t, bool All)
-        {
-            if (t == owner)
-                owner = null;
-            if (All)
-            {
-                PassengersList.Clear();
-                return;
-            }
-            PassengersList.Remove(t);
-
-        }
-        public void FuelUP(int ammt)
-        {
-            if (Fuelleft + ammt < MaxFuel)
-            {
-                Fuelleft += (ushort)ammt;
-            }
-            else
-                Fuelleft = MaxFuel;
-            FuelGuage();
-        }
-        public void UseFuel(int amt = 50)
-        {
-            if (hasFuel)
-            {
-                Fuelleft -= (ushort)amt;
-                if (Fuelleft < 0)
-                    Fuelleft = 0;
-            }
-            else
-                dmg += (ushort)new Random().Next(amt, amt + 1);
-            if (dmg > maxdamage)
-            {
-                dmg = maxdamage;
-            }
-            FuelGuage();
-        }
-        void FuelGuage()
-        {
-            //SendPacket veh = new SendPacket();
-            //veh.Header(15, 14);
-            //veh.AddByte(invLoc);
-            //veh.AddDWord(owner.characterID);
-            //if (hasFuel)
-            //{
-            //    veh.AddDWord(0);
-            //    veh.AddWord((ushort)(Fuelleft));
-            //}
-            //else
-            //{
-            //    veh.AddWord((ushort)(dmg));
-            //    veh.AddDWord(0);
-            //}
-            //veh.SetSize();
-            //veh.Player = owner;
-            //veh.Send();
-        }
-
+        None = 0,
+        Land = 1,
+        Water = 2,
+        Air = 3
     }
-    public class TransportationManager
+
+    public class VehicleItem
     {
-        List<Veichle> myStoredVech = new List<Veichle>(4);
-        List<Veichle> myInvVech = new List<Veichle>();
-        Veichle vech_riding;
+        public ushort VehicleID { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public VehicleType Type { get; set; } = VehicleType.Land;
+        public ushort MaxFuel { get; set; } = 1000;
+        public ushort CurrentFuel { get; set; } = 1000;
+        public ushort MaxHp { get; set; } = 1000;
+        public ushort CurrentHp { get; set; } = 1000;
+        public byte Capacity { get; set; } = 1; // 1 = solo, 2+ = multi-passenger
 
-        public bool inVechile { get { if (vech_riding != null) return true; else return false; } }
-        public Veichle Car { get { return vech_riding; } }
-        public TransportationManager()
+        public VehicleItem() { }
+
+        public VehicleItem(ushort id, string name, VehicleType type, ushort maxFuel = 1000, byte cap = 1)
         {
+            VehicleID = id;
+            Name = name;
+            Type = type;
+            MaxFuel = maxFuel;
+            CurrentFuel = maxFuel;
+            MaxHp = 1000;
+            CurrentHp = 1000;
+            Capacity = cap;
+        }
+    }
+
+    public static class VehicleManager
+    {
+        private static readonly Dictionary<ushort, VehicleItem> _vehicleTemplates = new Dictionary<ushort, VehicleItem>();
+        private static readonly object _lock = new object();
+
+        static VehicleManager()
+        {
+            // Water Vehicles (Rafts & Ships)
+            Register(new VehicleItem(36001, "Raft", VehicleType.Water, 0, 1));
+            Register(new VehicleItem(36002, "Canoe", VehicleType.Water, 0, 1));
+            Register(new VehicleItem(36003, "Sailboat", VehicleType.Water, 0, 4));
+            Register(new VehicleItem(36004, "Steamboat", VehicleType.Water, 2000, 4));
+            Register(new VehicleItem(36005, "Submarine", VehicleType.Water, 3000, 4));
+
+            // Air Vehicles
+            Register(new VehicleItem(36006, "Hot Air Balloon", VehicleType.Air, 1500, 2));
+            Register(new VehicleItem(36007, "Airship", VehicleType.Air, 5000, 4));
+            Register(new VehicleItem(36008, "UFO", VehicleType.Air, 9999, 4));
+
+            // Land Vehicles (Motorbike, Beetle Car, etc.)
+            Register(new VehicleItem(36010, "Bicycle", VehicleType.Land, 0, 1));
+            Register(new VehicleItem(36011, "Motorcycle", VehicleType.Land, 1000, 2));
+            Register(new VehicleItem(36012, "Beetle Car", VehicleType.Land, 2000, 4));
         }
 
-        void StoreVech()
+        public static void Register(VehicleItem v)
         {
-        }
-        void GetStoredVech()
-        {
-        }
-
-        public void VechWalk()
-        {
-            if (!vech_riding.Broke)
-                vech_riding.UseFuel();
-            else
-                VechBroke(vech_riding);
-
-        }
-        public void VechBroke(Veichle tool)
-        {
-            //own.inv.RemoveInv(tool.invLoc, 1);
-            //globals.ac15.Send_15(own.characterID, tool.ID);
-            //cSendPacket veh = new cSendPacket(globals);
-            //veh.Header(15, 11);
-            //veh.AddByte(tool.invLoc);
-            //veh.AddDWord(own.characterID);
-            //veh.SetSize();
-            //globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharacters(veh);
-            //veh = new cSendPacket(globals);
-            //veh.Header(15, 13);
-            //veh.AddDWord(own.characterID);
-            //veh.SetSize();
-            //globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharacters(veh);
-            //veh = new cSendPacket(globals);
-            //own.Spawnto(1);
-            //vech_riding = null;
-            //Rem(tool.invLoc);
-        }
-        public Veichle GetVechilebyID(ushort ID)
-        {
-            for (int a = 0; a < myInvVech.Count; a++)
+            lock (_lock)
             {
-                if (myInvVech[a].ID == ID)
+                _vehicleTemplates[v.VehicleID] = v;
+            }
+        }
+
+        public static VehicleItem GetTemplate(ushort vid)
+        {
+            lock (_lock)
+            {
+                _vehicleTemplates.TryGetValue(vid, out var v);
+                return v;
+            }
+        }
+
+        public static bool MountVehicle(Player player, ushort vehicleId)
+        {
+            if (player == null) return false;
+
+            // Dismount any pet first
+            player.UnridePet();
+
+            player.ActiveVehicleID = vehicleId;
+
+            // Send Mount Packet (AC 15:10)
+            SendPacket vp = new SendPacket();
+            vp.Pack8(15);
+            vp.Pack8(10);
+            vp.Pack32(player.CharID);
+            vp.Pack16(vehicleId);
+
+            player.CurMap?.Broadcast(vp);
+
+            // Send Fuel Status (AC 15:14)
+            var templ = GetTemplate(vehicleId);
+            if (templ != null && templ.MaxFuel > 0)
+            {
+                SendFuelUpdate(player, templ.CurrentFuel, templ.MaxFuel);
+            }
+
+            SendSystemMsg(player, $"Boarded vehicle {(templ != null ? templ.Name : vehicleId.ToString())}!");
+            DebugSystem.Write($"[VehicleManager] Player {player.CharName} mounted vehicle #{vehicleId}.");
+            return true;
+        }
+
+        public static void DismountVehicle(Player player)
+        {
+            if (player == null || player.ActiveVehicleID == 0) return;
+
+            ushort prevVid = (ushort)player.ActiveVehicleID;
+            player.ActiveVehicleID = 0;
+
+            // Send Dismount Packet (AC 15:11)
+            SendPacket vp = new SendPacket();
+            vp.Pack8(15);
+            vp.Pack8(11);
+            vp.Pack32(player.CharID);
+
+            player.CurMap?.Broadcast(vp);
+
+            SendSystemMsg(player, "Dismounted from vehicle.");
+            DebugSystem.Write($"[VehicleManager] Player {player.CharName} dismounted vehicle #{prevVid}.");
+        }
+
+        public static void ConsumeFuel(Player player, ushort amount = 1)
+        {
+            if (player == null || player.ActiveVehicleID == 0) return;
+
+            var templ = GetTemplate((ushort)player.ActiveVehicleID);
+            if (templ != null && templ.MaxFuel > 0)
+            {
+                if (templ.CurrentFuel >= amount)
                 {
-                    return myInvVech[a];
+                    templ.CurrentFuel -= amount;
                 }
+                else
+                {
+                    templ.CurrentFuel = 0;
+                    SendSystemMsg(player, "Vehicle is out of fuel!");
+                }
+
+                SendFuelUpdate(player, templ.CurrentFuel, templ.MaxFuel);
             }
-            return null;
         }
-        public void PullOut(Veichle tool)
+
+        public static void RefuelVehicle(Player player, ushort fuelAmount)
         {
-            //try
-            //{
-            //    cSendPacket veh = new cSendPacket(globals);
-            //    veh.Header(15, 12);
-            //    veh.AddByte(tool.invLoc);
-            //    veh.AddDWord(own.characterID);
-            //    veh.AddWord(tool.ID);
-            //    veh.AddDWord((uint)(own.x + new Random().Next(0, 40)));
-            //    veh.AddDWord((uint)(own.y - new Random().Next(0, 20)));
-            //    veh.SetSize();
-            //    globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharacters(veh);
-            //}
-            //catch { }
-        }
-        public void RideVech(Veichle tool, bool warping = false)
-        {
-            //cSendPacket veh = new cSendPacket(globals);
-            //veh.Header(15, 10);
-            //veh.AddByte(tool.invLoc);
-            //veh.AddDWord(own.characterID);
-            //veh.AddWord(tool.ID);
-            //veh.SetSize();
-            //globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharacters(veh);
-            //if (!warping)
-            //{
-            //    vech_riding = tool;
-            //    vech_riding.DriverGetin(own);
-            //    if (own.Party.Count > 0)
-            //    {
-            //        for (int a = 0; a < own.Party.Count; a++)
-            //            vech_riding.AddPassenger(own.Party.TeamMembers[a]);
-            //    }
-            //}
-        }
-        public void LeaveVech(byte slot, Veichle tool)
-        {
-            if (vech_riding == null)
-                PutinVech(slot, tool);
-            else
+            if (player == null || player.ActiveVehicleID == 0) return;
+
+            var templ = GetTemplate((ushort)player.ActiveVehicleID);
+            if (templ != null && templ.MaxFuel > 0)
             {
-                unRideVech(slot, tool);
-                vech_riding = null;
+                templ.CurrentFuel = (ushort)Math.Min(templ.MaxFuel, templ.CurrentFuel + fuelAmount);
+                SendFuelUpdate(player, templ.CurrentFuel, templ.MaxFuel);
+                SendSystemMsg(player, $"Refueled vehicle! Fuel: {templ.CurrentFuel}/{templ.MaxFuel}");
             }
         }
-        public void AutoOpen(Veichle tool)
-        {
-            //cSendPacket g = new cSendPacket(globals);
-            //g.Header(15, 18);
-            //g.AddByte(tool.invLoc);
-            //g.AddDWord(own.characterID);
-            //g.AddWord(tool.ID);
-            //g.AddDWord((uint)(own.x - 1));
-            //g.AddDWord((uint)(own.y - 1));
-            //g.SetSize();
-            //g.cCharacter = own;
-            //g.Send();
-        }
-        void unRideVech(byte invslot, Veichle tool)
-        {
-            //cSendPacket veh = new cSendPacket(globals);
-            //veh.Header(15, 11);
-            //veh.AddByte(invslot);
-            //veh.AddDWord(own.characterID);
-            //veh.SetSize();
-            //globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharacters(veh);
-            //veh = new cSendPacket(globals);
-            //veh.Header(15, 12);
-            //veh.AddByte(invslot);
-            //veh.AddDWord(own.characterID);
-            //veh.AddWord(tool.ID);
-            //veh.AddDWord((uint)(own.x + new Random().Next(0, 40)));
-            //veh.AddDWord((uint)(own.y - new Random().Next(0, 20)));
-            //veh.SetSize();
-            //globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharacters(veh);
-            //vech_riding.RemPassenger(own, true);
 
-        }
-        void PutinVech(byte unk, Veichle y)
+        public static void SendFuelUpdate(Player player, ushort fuelLeft, ushort maxFuel)
         {
-            //cSendPacket veh = new cSendPacket(globals);
-            //veh.Header(15, 22);
-            //veh.AddDWord(own.characterID);
-            //veh.AddWord(y.ID);
-            //veh.SetSize();
-            //globals.gDataManager.MapManager.GetMapByID(own.mapLoc).SendtocCharactersEx(veh, own);
-            //globals.ac15.Send_13(unk);
-
-        }
-        void RefuelVech(int red)
-        {
-            //cSendPacket veh = new cSendPacket(globals);
-            //veh.Header(15, 14);
-            //veh.AddByte(3);
-            //veh.AddDWord(own.characterID);
-            //veh.AddDWord(0);
-            //veh.AddWord((ushort)(vech_riding.Fuelleft + red));
-        }
-        public void Add(ushort ID, int slot)
-        {
-            //Veichle j = new Veichle(globals);
-            //j.owner = own;
-            //var sslot = globals.NumbertoMatrix(slot);
-            //j.item = own.inv.mainInv[sslot[0]][sslot[1]].itemtype;
-            //j.invLoc = (byte)slot;
-            //j.ID = own.inv.mainInv[sslot[0]][sslot[1]].ID;
-            //j.HP = 100;
-            //myInvVech.Add(j);
-        }
-        public void Rem(int slot)
-        {
-            for (int a = 0; a < myInvVech.Count; a++)
-                if (myInvVech[a].invLoc == slot)
-                    myInvVech.Remove(myInvVech[a]);
-        }
-        void RepairVech()
-        {
+            if (player == null) return;
+            SendPacket p = new SendPacket();
+            p.Pack8(15);
+            p.Pack8(14);
+            p.Pack32(player.CharID);
+            p.Pack16(fuelLeft);
+            p.Pack16(maxFuel);
+            player.Send(p);
         }
 
+        public static void SyncVehicleOnMapEntry(Player player)
+        {
+            if (player == null || player.ActiveVehicleID == 0) return;
+
+            SendPacket vp = new SendPacket();
+            vp.Pack8(15);
+            vp.Pack8(10);
+            vp.Pack32(player.CharID);
+            vp.Pack16((ushort)player.ActiveVehicleID);
+
+            player.CurMap?.Broadcast(vp);
+        }
+
+        private static void SendSystemMsg(Player p, string msg)
+        {
+            if (p == null || string.IsNullOrEmpty(msg)) return;
+            SendPacket s = new SendPacket();
+            s.Pack8(23);
+            s.Pack8(57);
+            s.Pack8(0);
+            s.PackString(msg);
+            p.Send(s);
+        }
     }
 }

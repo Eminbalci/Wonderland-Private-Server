@@ -32,16 +32,8 @@ namespace Wonderland_Private_Server.ActionCodes
                             var target = p.CurMap.PlayersList.FirstOrDefault(x => x.CharID == targetID);
                             if (target != null)
                             {
-                                // Send request to target? Or directly add?
-                                // WLO usually sends request. 
-                                // But p.m_friendlist.AddFriend(target) seems to handle adding directly or sending generic response.
-                                // Let's check logic: AddFriend calls SendPacket which sends AC 14,9 (Success?)
-                                // It adds to array immediately.
-                                p.m_friendlist.AddFriend(target);
-
-                                // Also add inviter to target's list?
-                                if (target.m_friendlist != null)
-                                    target.m_friendlist.AddFriend(p);
+                                p.MyFriends?.AddFriend(target);
+                                target.MyFriends?.AddFriend(p);
                             }
                         }
                     }
@@ -49,17 +41,14 @@ namespace Wonderland_Private_Server.ActionCodes
                     break;
 
                 case 3: // Request Friend List
-                    // Code.PlayerRelated.Friendlist has SendFriendList()
-                    if (p.m_friendlist != null)
-                        p.m_friendlist.SendFriendList();
+                    p.MyFriends?.SendFriendList();
                     break;
 
                 case 4: // Delete Friend
                     try
                     {
                         uint targetID = r.Unpack32();
-                        if (p.m_friendlist != null)
-                            p.m_friendlist.DelFriend(targetID);
+                        p.MyFriends?.DelFriend(targetID);
                     }
                     catch { }
                     break;

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -110,19 +112,31 @@ namespace Server.API
 
             try
             {
-                if (request.Url.AbsolutePath == "/register" && request.HttpMethod == "POST")
+                string path = request.Url.AbsolutePath.ToLowerInvariant();
+
+                if (path == "/register" && request.HttpMethod == "POST")
                 {
                     responseString = HandleRegister(request);
                 }
-                else if (request.Url.AbsolutePath == "/" || request.Url.AbsolutePath == "/register.html")
+                else if (path == "/register" || path == "/register.html")
                 {
                     response.ContentType = "text/html";
                     responseString = GetRegistrationPage();
                 }
+                else if (path.StartsWith("/api/buy"))
+                {
+                    response.ContentType = "application/json";
+                    responseString = HandleApiBuy(request);
+                }
+                else if (path.StartsWith("/api/catalog"))
+                {
+                    response.ContentType = "application/json";
+                    responseString = HandleApiCatalog();
+                }
                 else
                 {
-                    response.StatusCode = 404;
-                    responseString = "{\"success\":false,\"message\":\"Not found\"}";
+                    response.ContentType = "text/html; charset=utf-8";
+                    responseString = GetItemMallPage();
                 }
             }
             catch (Exception ex)
@@ -135,6 +149,127 @@ namespace Server.API
             response.ContentLength64 = buffer.Length;
             response.OutputStream.Write(buffer, 0, buffer.Length);
             response.Close();
+        }
+
+        private string HandleApiCatalog()
+        {
+            var catalog = Game.PlayerRelated.ItemMallManager.GetCatalog();
+            var jsonBuilder = new StringBuilder();
+            jsonBuilder.Append("[");
+            for (int i = 0; i < catalog.Count; i++)
+            {
+                var it = catalog[i];
+                jsonBuilder.Append($"{{\"id\":{it.ItemID},\"name\":\"{it.ItemName}\",\"category\":\"{it.Category}\",\"cost\":{it.PointCost},\"count\":{it.Count}}}");
+                if (i < catalog.Count - 1) jsonBuilder.Append(",");
+            }
+            jsonBuilder.Append("]");
+            return jsonBuilder.ToString();
+        }
+
+        private string HandleApiBuy(HttpListenerRequest request)
+        {
+            string itemIdStr = request.QueryString["item"];
+            string userStr = request.QueryString["user"];
+
+            if (ushort.TryParse(itemIdStr, out ushort itemId))
+            {
+                var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                Game.Player target = null;
+                if (online != null && online.Count > 0)
+                {
+                    if (!string.IsNullOrEmpty(userStr))
+                    {
+                        target = online.FirstOrDefault(p => p.CharName.Equals(userStr, StringComparison.OrdinalIgnoreCase) || (p.UserAccount != null && p.UserAccount.UserName.Equals(userStr, StringComparison.OrdinalIgnoreCase)));
+                    }
+                    if (target == null)
+                    {
+                        target = online.FirstOrDefault();
+                    }
+                }
+
+                if (target != null)
+                {
+                    bool ok = Game.PlayerRelated.ItemMallManager.PurchaseItem(target, itemId, 1);
+                    return $"{{\"success\":{(ok ? "true" : "false")},\"points\":{Game.PlayerRelated.ItemMallManager.GetUserPoints(target)}}}";
+                }
+            }
+
+            return "{\"success\":false,\"error\":\"No active player found\"}";
+        }
+
+        private string GetItemMallPage()
+        {
+            var catalog = Game.PlayerRelated.ItemMallManager.GetCatalog();
+            var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+            Game.Player player = (online != null && online.Count > 0) ? online.FirstOrDefault() : null;
+
+            int currentPoints = player != null ? Game.PlayerRelated.ItemMallManager.GetUserPoints(player) : 0;
+            string charName = player != null ? player.CharName : "Player";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("<!DOCTYPE html>");
+            sb.AppendLine("<html lang='en'>");
+            sb.AppendLine("<head>");
+            sb.AppendLine("<meta charset='UTF-8'>");
+            sb.AppendLine("<title>Wonderland Online - Item Mall</title>");
+            sb.AppendLine("<style>");
+            sb.AppendLine("  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }");
+            sb.AppendLine("  body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc; padding: 20px; }");
+            sb.AppendLine("  .header { display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.85); padding: 18px 24px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 24px; }");
+            sb.AppendLine("  .title { font-size: 22px; font-weight: 700; color: #38bdf8; }");
+            sb.AppendLine("  .balance-badge { background: linear-gradient(135deg, #f59e0b, #d97706); padding: 8px 18px; border-radius: 30px; font-weight: 700; font-size: 15px; color: #fff; }");
+            sb.AppendLine("  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }");
+            sb.AppendLine("  .card { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; }");
+            sb.AppendLine("  .card-category { font-size: 11px; text-transform: uppercase; color: #38bdf8; font-weight: 700; margin-bottom: 6px; }");
+            sb.AppendLine("  .card-name { font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 12px; }");
+            sb.AppendLine("  .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }");
+            sb.AppendLine("  .card-price { font-size: 16px; font-weight: 700; color: #fbbf24; }");
+            sb.AppendLine("  .buy-btn { background: #2563eb; color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; }");
+            sb.AppendLine("  .buy-btn:hover { background: #1d4ed8; }");
+            sb.AppendLine("</style>");
+            sb.AppendLine("</head>");
+            sb.AppendLine("<body>");
+            sb.AppendLine("  <div class='header'>");
+            sb.AppendLine("    <div class='title'>🛍️ Wonderland Online Item Mall</div>");
+            sb.AppendLine($"    <div class='balance-badge'>💎 {charName}: <span id='user-pts'>{currentPoints}</span> IM Points</div>");
+            sb.AppendLine("  </div>");
+            sb.AppendLine("  <div class='grid'>");
+
+            foreach (var item in catalog)
+            {
+                sb.AppendLine("    <div class='card'>");
+                sb.AppendLine("      <div>");
+                sb.AppendLine($"        <div class='card-category'>{item.Category} (x{item.Count})</div>");
+                sb.AppendLine($"        <div class='card-name'>{item.ItemName}</div>");
+                sb.AppendLine("      </div>");
+                sb.AppendLine("      <div class='card-footer'>");
+                sb.AppendLine($"        <div class='card-price'>{item.PointCost} Pts</div>");
+                sb.AppendLine($"        <button class='buy-btn' onclick='buyItem({item.ItemID}, \"{item.ItemName}\", {item.PointCost})'>Buy Now</button>");
+                sb.AppendLine("      </div>");
+                sb.AppendLine("    </div>");
+            }
+
+            sb.AppendLine("  </div>");
+            sb.AppendLine("<script>");
+            sb.AppendLine("  function buyItem(id, name, cost) {");
+            sb.AppendLine("    if(!confirm('Purchase ' + name + ' for ' + cost + ' IM Points?')) return;");
+            sb.AppendLine($"    fetch('/api/buy?item=' + id + '&user={charName}')");
+            sb.AppendLine("      .then(r => r.json())");
+            sb.AppendLine("      .then(d => {");
+            sb.AppendLine("        if(d.success) {");
+            sb.AppendLine("          alert('Purchase successful! Item delivered directly to your inventory in-game.');");
+            sb.AppendLine("          document.getElementById('user-pts').innerText = d.points;");
+            sb.AppendLine("        } else {");
+            sb.AppendLine("          alert('Purchase failed: ' + (d.error || 'Insufficient IM Points!'));");
+            sb.AppendLine("        }");
+            sb.AppendLine("      })");
+            sb.AppendLine("      .catch(e => alert('Network error: ' + e));");
+            sb.AppendLine("  }");
+            sb.AppendLine("</script>");
+            sb.AppendLine("</body>");
+            sb.AppendLine("</html>");
+
+            return sb.ToString();
         }
 
         private string HandleRegister(HttpListenerRequest request)

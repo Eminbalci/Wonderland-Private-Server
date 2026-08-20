@@ -1,22 +1,28 @@
 using Game;
 using Game.Maps;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Network.ActionCodes {
     public class AC02 : AC {
         public override int ID { get { return 2; } }
         public override void ProcessPkt(Player r, RecievePacket p) {
             switch (p.Unpack8()) {
-                // case 1: Recv1(ref r, p); break;
+                case 1: Recv1(r, p); break;
                 case 2: Recv2(r, p); break;
             }
         }
         void Recv1(Player p, RecievePacket r) {
-
+            try {
+                string str = r.UnpackStringN();
+                DebugSystem.Write($"[Chat.Global] {p.CharName}: {str}");
+            } catch { }
         }
         void Recv2(Player p, RecievePacket r) {
             try {
                 string str = r.UnpackStringN();
+                DebugSystem.Write($"[Chat] {p.CharName}: {str}");
                 string[] words = str.Split(' ');
                 if (words.Length >= 1) {
                     switch (words[0]) {
@@ -37,7 +43,7 @@ namespace Network.ActionCodes {
                                     }
                                     p.Eqs.SendStat(25, p.Eqs.CurHP);
                                     p.Eqs.SendStat(26, p.Eqs.CurSP);
-                                    p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[GM] HP/SP Restored! HP: {p.Eqs.CurHP}/{p.Eqs.FullHP}, SP: {p.Eqs.CurSP}/{p.Eqs.FullSP}"));
+                                    p.SendSystemMessage($"[GM] HP/SP Restored! HP: {p.Eqs.CurHP}/{p.Eqs.FullHP}, SP: {p.Eqs.CurSP}/{p.Eqs.FullSP}");
                                 } catch { }
                             }
                             break;
@@ -51,7 +57,7 @@ namespace Network.ActionCodes {
                                         byte targetLvl = Math.Max((byte)1, Math.Min((byte)200, newLvl));
                                         p.Eqs.SetLevel(targetLvl);
                                         p.Eqs.Send8_1(true);
-                                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[GM] Level updated to {p.Eqs.Level}!"));
+                                        p.SendSystemMessage($"[GM] Level updated to {p.Eqs.Level}!");
                                     }
                                 } catch { }
                             }
@@ -65,7 +71,7 @@ namespace Network.ActionCodes {
                                     if (words.Length >= 2 && int.TryParse(words[1], out int amount)) {
                                         p.Eqs.Gold = (uint)Math.Max(0, amount);
                                         p.Eqs.SendStat(39, (int)p.Eqs.Gold);
-                                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[GM] Gold set to {p.Eqs.Gold}!"));
+                                        p.SendSystemMessage($"[GM] Gold set to {p.Eqs.Gold}!");
                                     }
                                 } catch { }
                             }
@@ -90,9 +96,9 @@ namespace Network.ActionCodes {
                                         p.Eqs.CurHP = p.Eqs.FullHP;
                                         p.Eqs.CurSP = p.Eqs.FullSP;
                                         p.Eqs.Send8_1(true);
-                                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[GM] Stats updated: STR={strVal} CON={conVal} INT={intVal} WIS={wisVal} AGI={agiVal}"));
+                                        p.SendSystemMessage($"[GM] Stats updated: STR={strVal} CON={conVal} INT={intVal} WIS={wisVal} AGI={agiVal}");
                                     } else {
-                                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "[GM] Usage: :stat <str> <con> <int> <wis> <agi>"));
+                                        p.SendSystemMessage("[GM] Usage: :stat <str> <con> <int> <wis> <agi>");
                                     }
                                 } catch { }
                             }
@@ -115,10 +121,10 @@ namespace Network.ActionCodes {
                                         if (itemid > 0) {
                                             ammt = Math.Max((byte)1, ammt);
                                             if (itemid == 34076 && (p.Inv.ContainsItem(34076) || p.Eqs.IsEquipped(34076))) {
-                                                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "[GM] You already have a Radio Set!"));
+                                                p.SendSystemMessage("[GM] You already have a Radio Set!");
                                             } else {
                                                 p.Inv.AddItem(itemid, ammt);
-                                                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[GM] Added Item {itemid} x{ammt} to inventory!"));
+                                                p.SendSystemMessage($"[GM] Added Item {itemid} x{ammt} to inventory!");
                                             }
                                         }
                                     }
@@ -148,18 +154,112 @@ namespace Network.ActionCodes {
                                         byte grade = 1;
                                         if (words.Length >= 3) byte.TryParse(words[2], out grade);
                                         Game.SkillRelated.SkillManager.UnlockSkill(p, skillId, grade);
-                                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Skill {skillId} unlocked/updated to Grade {grade}!"));
+                                        p.SendSystemMessage($"Skill {skillId} unlocked/updated to Grade {grade}!");
                                     }
                                 } catch { }
                             }
                             break;
                         #endregion
 
+                        #region Item Mall Buy Command
+                        case ":buy":
+                        case "/buy": {
+                                try {
+                                    if (words.Length >= 2) {
+                                        string query = string.Join(" ", words.Skip(1)).Trim();
+                                        byte quantity = 1;
+                                        var lastWord = words[words.Length - 1];
+                                        if (words.Length >= 3 && byte.TryParse(lastWord, out byte qVal)) {
+                                            quantity = qVal;
+                                            query = string.Join(" ", words.Skip(1).Take(words.Length - 2)).Trim();
+                                        }
+
+                                        var catalog = Game.PlayerRelated.ItemMallManager.GetCatalog();
+                                        Game.PlayerRelated.MallItemEntry match = null;
+
+                                        if (ushort.TryParse(query, out ushort idQuery)) {
+                                            match = catalog.FirstOrDefault(i => i.ItemID == idQuery);
+                                        }
+                                        if (match == null) {
+                                            match = catalog.FirstOrDefault(i => i.ItemName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+                                        }
+
+                                        if (match != null) {
+                                            bool success = Game.PlayerRelated.ItemMallManager.PurchaseItem(p, match.ItemID, quantity);
+                                            if (success) {
+                                                p.SendSystemMessage($"[Item Mall] Successfully purchased {quantity}x {match.ItemName} for {match.PointCost * quantity} Points!");
+                                            }
+                                        } else if (ushort.TryParse(query, out ushort anyItemId) && anyItemId > 0) {
+                                            // Dynamic purchase directly from ItemDat
+                                            var itemInfo = cGlobal.ItemDatManager?.GetItemByID(anyItemId);
+                                            string name = itemInfo != null ? System.Text.Encoding.ASCII.GetString(itemInfo.ItemName).TrimEnd('\0') : $"Item #{anyItemId}";
+                                            p.Inv.AddItem(anyItemId, quantity);
+                                            p.SendSystemMessage($"[Item Mall] Added {quantity}x {name} (#{anyItemId}) to inventory!");
+                                        } else {
+                                            p.SendSystemMessage($"[Item Mall] Item '{query}' not found. Example: :buy star, :buy jalor, :buy robot, :buy 30025, :item <id> [count]");
+                                        }
+                                    } else {
+                                        p.SendSystemMessage("[Item Mall] Usage: :buy <item name or ID> [amount]. Example: :buy star 1, :buy jalor 1");
+                                    }
+                                } catch (Exception ex) {
+                                    p.SendSystemMessage($"[Item Mall] Error: {ex.Message}");
+                                }
+                            }
+                            break;
+                        #endregion
+
+
+
+                        case ":unride":
+                        case "/unride":
+                        case ":dismount":
+                        case "/dismount": {
+                                p.RideVehicle("");
+                                if (p.CurMap != null && p.CurMap.MapID == 10036) {
+                                    var shoreWarp = new WarpData() { DstMap = 10036, DstX_Axis = 1038, DstY_Axis = 2235 };
+                                    p.CurMap.Teleport(TeleportType.CmD, p, 0, shoreWarp);
+                                }
+                                p.SendSystemMessage("🚶 Dismounted from vehicle.");
+                            }
+                            break;
+
+                        case ":carnie":
+                        case "/carnie": {
+                                if (p.CurMap != null && p.CurMap.MapID != 11094) {
+                                    p.CarnieReturnMap = new WarpData() {
+                                        DstMap = (ushort)p.CurMap.MapID,
+                                        DstX_Axis = (ushort)p.CurX,
+                                        DstY_Axis = (ushort)p.CurY
+                                    };
+                                }
+                                var carnieWarp = new WarpData() { DstMap = 11094, DstX_Axis = 1180, DstY_Axis = 875 };
+                                p.CurMap?.Teleport(TeleportType.CmD, p, 0, carnieWarp);
+                                p.SendSystemMessage("🎪 Teleported to Carnie (Map 11094, 1180, 875)!");
+                            }
+                            break;
+
+                        case ":pet":
+                        case "/pet": {
+                                try {
+                                    if (words.Length >= 2 && uint.TryParse(words[1], out uint petId)) {
+                                        string petName = words.Length >= 3 ? words[2] : (petId == 12178 ? "Robinson" : petId == 10727 ? "Monkey" : petId == 14161 ? "Roca" : $"Pet_{petId}");
+                                        Game.QuestRelated.QuestManager.SendCompanionReward(p, petId, petName, setBattle: true);
+                                        cGlobal.gCharacterDataBase?.WritePlayer(p.CharID, p);
+                                        p.SendSystemMessage($"🐾 Companion '{petName}' (ID: {petId}) added and saved!");
+                                    } else {
+                                        p.SendSystemMessage("[GM] Usage: :pet <petId> [name]. Example: :pet 12178 Robinson, :pet 10727 Monkey, :pet 14161 Roca");
+                                    }
+                                } catch (Exception ex) {
+                                    p.SendSystemMessage($"[GM] Error: {ex.Message}");
+                                }
+                            }
+                            break;
+
                         #region Help Command
                         case ":help":
                         case ":cmds":
                         case ":cmd": {
-                                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "[GM Commands] :heal [hp] [sp] | :level <1-200> | :gold <amount> | :item <id> [amt] | :stat <str> <con> <int> <wis> <agi> | :skill <id> [grade] | :warp <map> <x> <y>"));
+                                p.SendSystemMessage("[Player Commands] :heal | :level | :gold | :item | :pet | :skill | :warp | :unride | :carnie");
                             }
                             break;
                         #endregion

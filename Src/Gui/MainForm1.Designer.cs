@@ -1,4 +1,4 @@
-﻿namespace Wonderland_Private_Server
+namespace Wonderland_Private_Server
 {
     partial class Form1
     {
@@ -91,6 +91,27 @@
             this.lblCharacterFilterStats = new System.Windows.Forms.Label();
             this.btnRefreshStats = new System.Windows.Forms.Button();
             this.btnEditStat = new System.Windows.Forms.Button();
+            this.btnSafeShutdown = new System.Windows.Forms.Button();
+            this.btnSaveAllNow = new System.Windows.Forms.Button();
+            this.tabPageChestDrops = new System.Windows.Forms.TabPage();
+            this.lblChestDropTarget = new System.Windows.Forms.Label();
+            this.cmbChestDropTarget = new System.Windows.Forms.ComboBox();
+            this.lblRespawnSeconds = new System.Windows.Forms.Label();
+            this.numRespawnSeconds = new System.Windows.Forms.NumericUpDown();
+            this.dgvChestDrops = new System.Windows.Forms.DataGridView();
+            this.btnRefreshChestDrops = new System.Windows.Forms.Button();
+            this.btnSaveChestDrops = new System.Windows.Forms.Button();
+            this.btnDeleteChestDrop = new System.Windows.Forms.Button();
+            this.grpAddDrop = new System.Windows.Forms.GroupBox();
+            this.lblNewItemId = new System.Windows.Forms.Label();
+            this.txtNewItemId = new System.Windows.Forms.TextBox();
+            this.lblNewItemName = new System.Windows.Forms.Label();
+            this.txtNewItemName = new System.Windows.Forms.TextBox();
+            this.lblNewItemCount = new System.Windows.Forms.Label();
+            this.numNewItemCount = new System.Windows.Forms.NumericUpDown();
+            this.lblNewItemWeight = new System.Windows.Forms.Label();
+            this.numNewItemWeight = new System.Windows.Forms.NumericUpDown();
+            this.btnAddChestDrop = new System.Windows.Forms.Button();
             this.tabPage6.SuspendLayout();
             this.tabControl3.SuspendLayout();
             this.tabPage7.SuspendLayout();
@@ -104,6 +125,12 @@
             ((System.ComponentModel.ISupportInitialize)(this.dgvDestinations)).BeginInit();
             this.tabPageCharacters.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dgvCharacters)).BeginInit();
+            this.tabPageChestDrops.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dgvChestDrops)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numRespawnSeconds)).BeginInit();
+            this.grpAddDrop.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numNewItemCount)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numNewItemWeight)).BeginInit();
             this.groupBox_Npc.SuspendLayout();
             this.groupBox_Items.SuspendLayout();
             this.groupBox_Vehicles.SuspendLayout();
@@ -133,6 +160,7 @@
             this.tabControl3.Controls.Add(this.tabPageFriends);
             this.tabControl3.Controls.Add(this.tabPageInventory);
             this.tabControl3.Controls.Add(this.tabPageStats);
+            this.tabControl3.Controls.Add(this.tabPageChestDrops);
             this.tabControl3.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl3.Location = new System.Drawing.Point(3, 3);
             this.tabControl3.Name = "tabControl3";
@@ -142,6 +170,8 @@
             // 
             // tabPage7
             // 
+            this.tabPage7.Controls.Add(this.btnSaveAllNow);
+            this.tabPage7.Controls.Add(this.btnSafeShutdown);
             this.tabPage7.Controls.Add(this.MainOutput);
             this.tabPage7.Location = new System.Drawing.Point(4, 22);
             this.tabPage7.Name = "tabPage7";
@@ -151,13 +181,41 @@
             this.tabPage7.Text = "Status";
             this.tabPage7.UseVisualStyleBackColor = true;
             // 
+            // btnSaveAllNow
+            // 
+            this.btnSaveAllNow.BackColor = System.Drawing.Color.SteelBlue;
+            this.btnSaveAllNow.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSaveAllNow.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnSaveAllNow.ForeColor = System.Drawing.Color.White;
+            this.btnSaveAllNow.Location = new System.Drawing.Point(440, 6);
+            this.btnSaveAllNow.Name = "btnSaveAllNow";
+            this.btnSaveAllNow.Size = new System.Drawing.Size(160, 30);
+            this.btnSaveAllNow.TabIndex = 1;
+            this.btnSaveAllNow.Text = "💾 Save All Data Now";
+            this.btnSaveAllNow.UseVisualStyleBackColor = false;
+            this.btnSaveAllNow.Click += new System.EventHandler(this.btnSaveAllNow_Click);
+            // 
+            // btnSafeShutdown
+            // 
+            this.btnSafeShutdown.BackColor = System.Drawing.Color.DarkRed;
+            this.btnSafeShutdown.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSafeShutdown.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnSafeShutdown.ForeColor = System.Drawing.Color.White;
+            this.btnSafeShutdown.Location = new System.Drawing.Point(608, 6);
+            this.btnSafeShutdown.Name = "btnSafeShutdown";
+            this.btnSafeShutdown.Size = new System.Drawing.Size(160, 30);
+            this.btnSafeShutdown.TabIndex = 2;
+            this.btnSafeShutdown.Text = "🛡️ Safe Server Shutdown";
+            this.btnSafeShutdown.UseVisualStyleBackColor = false;
+            this.btnSafeShutdown.Click += new System.EventHandler(this.btnSafeShutdown_Click);
+            // 
             // MainOutput
             // 
             this.MainOutput.BackColor = System.Drawing.SystemColors.InactiveCaptionText;
             this.MainOutput.ForeColor = System.Drawing.Color.White;
-            this.MainOutput.Location = new System.Drawing.Point(6, 6);
+            this.MainOutput.Location = new System.Drawing.Point(6, 42);
             this.MainOutput.Name = "MainOutput";
-            this.MainOutput.Size = new System.Drawing.Size(762, 443);
+            this.MainOutput.Size = new System.Drawing.Size(762, 407);
             this.MainOutput.TabIndex = 8;
             this.MainOutput.Text = "";
             // 
@@ -642,6 +700,196 @@
             this.btnEditStat.UseVisualStyleBackColor = true;
             this.btnEditStat.Click += new System.EventHandler(this.btnEditStat_Click);
             //
+            // tabPageChestDrops
+            //
+            this.tabPageChestDrops.Controls.Add(this.lblChestDropTarget);
+            this.tabPageChestDrops.Controls.Add(this.cmbChestDropTarget);
+            this.tabPageChestDrops.Controls.Add(this.lblRespawnSeconds);
+            this.tabPageChestDrops.Controls.Add(this.numRespawnSeconds);
+            this.tabPageChestDrops.Controls.Add(this.dgvChestDrops);
+            this.tabPageChestDrops.Controls.Add(this.btnRefreshChestDrops);
+            this.tabPageChestDrops.Controls.Add(this.btnSaveChestDrops);
+            this.tabPageChestDrops.Controls.Add(this.btnDeleteChestDrop);
+            this.tabPageChestDrops.Controls.Add(this.grpAddDrop);
+            this.tabPageChestDrops.Location = new System.Drawing.Point(4, 22);
+            this.tabPageChestDrops.Name = "tabPageChestDrops";
+            this.tabPageChestDrops.Padding = new System.Windows.Forms.Padding(3);
+            this.tabPageChestDrops.Size = new System.Drawing.Size(774, 455);
+            this.tabPageChestDrops.TabIndex = 9;
+            this.tabPageChestDrops.Text = "Chest Drops";
+            this.tabPageChestDrops.UseVisualStyleBackColor = true;
+            //
+            // lblChestDropTarget
+            //
+            this.lblChestDropTarget.AutoSize = true;
+            this.lblChestDropTarget.Location = new System.Drawing.Point(6, 10);
+            this.lblChestDropTarget.Name = "lblChestDropTarget";
+            this.lblChestDropTarget.Size = new System.Drawing.Size(103, 13);
+            this.lblChestDropTarget.Text = "Map / Category Loot:";
+            //
+            // cmbChestDropTarget
+            //
+            this.cmbChestDropTarget.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbChestDropTarget.FormattingEnabled = true;
+            this.cmbChestDropTarget.Location = new System.Drawing.Point(115, 7);
+            this.cmbChestDropTarget.Name = "cmbChestDropTarget";
+            this.cmbChestDropTarget.Size = new System.Drawing.Size(220, 21);
+            this.cmbChestDropTarget.TabIndex = 0;
+            this.cmbChestDropTarget.SelectedIndexChanged += new System.EventHandler(this.cmbChestDropTarget_SelectedIndexChanged);
+            //
+            // lblRespawnSeconds
+            //
+            this.lblRespawnSeconds.AutoSize = true;
+            this.lblRespawnSeconds.Location = new System.Drawing.Point(345, 10);
+            this.lblRespawnSeconds.Name = "lblRespawnSeconds";
+            this.lblRespawnSeconds.Size = new System.Drawing.Size(117, 13);
+            this.lblRespawnSeconds.Text = "Respawn Cooldown (s):";
+            //
+            // numRespawnSeconds
+            //
+            this.numRespawnSeconds.Location = new System.Drawing.Point(465, 8);
+            this.numRespawnSeconds.Maximum = new decimal(new int[] { 3600, 0, 0, 0 });
+            this.numRespawnSeconds.Minimum = new decimal(new int[] { 5, 0, 0, 0 });
+            this.numRespawnSeconds.Name = "numRespawnSeconds";
+            this.numRespawnSeconds.Size = new System.Drawing.Size(60, 20);
+            this.numRespawnSeconds.TabIndex = 1;
+            this.numRespawnSeconds.Value = new decimal(new int[] { 60, 0, 0, 0 });
+            //
+            // dgvChestDrops
+            //
+            this.dgvChestDrops.AllowUserToAddRows = false;
+            this.dgvChestDrops.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dgvChestDrops.Location = new System.Drawing.Point(6, 35);
+            this.dgvChestDrops.Name = "dgvChestDrops";
+            this.dgvChestDrops.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dgvChestDrops.Size = new System.Drawing.Size(520, 290);
+            this.dgvChestDrops.TabIndex = 2;
+            //
+            // btnRefreshChestDrops
+            //
+            this.btnRefreshChestDrops.Location = new System.Drawing.Point(535, 35);
+            this.btnRefreshChestDrops.Name = "btnRefreshChestDrops";
+            this.btnRefreshChestDrops.Size = new System.Drawing.Size(110, 30);
+            this.btnRefreshChestDrops.TabIndex = 3;
+            this.btnRefreshChestDrops.Text = "Refresh";
+            this.btnRefreshChestDrops.UseVisualStyleBackColor = true;
+            this.btnRefreshChestDrops.Click += new System.EventHandler(this.btnRefreshChestDrops_Click);
+            //
+            // btnSaveChestDrops
+            //
+            this.btnSaveChestDrops.Location = new System.Drawing.Point(535, 71);
+            this.btnSaveChestDrops.Name = "btnSaveChestDrops";
+            this.btnSaveChestDrops.Size = new System.Drawing.Size(110, 30);
+            this.btnSaveChestDrops.TabIndex = 4;
+            this.btnSaveChestDrops.Text = "Save Changes";
+            this.btnSaveChestDrops.UseVisualStyleBackColor = true;
+            this.btnSaveChestDrops.Click += new System.EventHandler(this.btnSaveChestDrops_Click);
+            //
+            // btnDeleteChestDrop
+            //
+            this.btnDeleteChestDrop.Location = new System.Drawing.Point(535, 107);
+            this.btnDeleteChestDrop.Name = "btnDeleteChestDrop";
+            this.btnDeleteChestDrop.Size = new System.Drawing.Size(110, 30);
+            this.btnDeleteChestDrop.TabIndex = 5;
+            this.btnDeleteChestDrop.Text = "Delete Item";
+            this.btnDeleteChestDrop.UseVisualStyleBackColor = true;
+            this.btnDeleteChestDrop.Click += new System.EventHandler(this.btnDeleteChestDrop_Click);
+            //
+            // grpAddDrop
+            //
+            this.grpAddDrop.Controls.Add(this.lblNewItemId);
+            this.grpAddDrop.Controls.Add(this.txtNewItemId);
+            this.grpAddDrop.Controls.Add(this.lblNewItemName);
+            this.grpAddDrop.Controls.Add(this.txtNewItemName);
+            this.grpAddDrop.Controls.Add(this.lblNewItemCount);
+            this.grpAddDrop.Controls.Add(this.numNewItemCount);
+            this.grpAddDrop.Controls.Add(this.lblNewItemWeight);
+            this.grpAddDrop.Controls.Add(this.numNewItemWeight);
+            this.grpAddDrop.Controls.Add(this.btnAddChestDrop);
+            this.grpAddDrop.Location = new System.Drawing.Point(6, 332);
+            this.grpAddDrop.Name = "grpAddDrop";
+            this.grpAddDrop.Size = new System.Drawing.Size(760, 110);
+            this.grpAddDrop.TabIndex = 6;
+            this.grpAddDrop.TabStop = false;
+            this.grpAddDrop.Text = "Add New Drop Item";
+            //
+            // lblNewItemId
+            //
+            this.lblNewItemId.AutoSize = true;
+            this.lblNewItemId.Location = new System.Drawing.Point(10, 25);
+            this.lblNewItemId.Name = "lblNewItemId";
+            this.lblNewItemId.Size = new System.Drawing.Size(44, 13);
+            this.lblNewItemId.Text = "Item ID:";
+            //
+            // txtNewItemId
+            //
+            this.txtNewItemId.Location = new System.Drawing.Point(60, 22);
+            this.txtNewItemId.Name = "txtNewItemId";
+            this.txtNewItemId.Size = new System.Drawing.Size(70, 20);
+            this.txtNewItemId.TabIndex = 0;
+            this.txtNewItemId.TextChanged += new System.EventHandler(this.txtNewItemId_TextChanged);
+            //
+            // lblNewItemName
+            //
+            this.lblNewItemName.AutoSize = true;
+            this.lblNewItemName.Location = new System.Drawing.Point(145, 25);
+            this.lblNewItemName.Name = "lblNewItemName";
+            this.lblNewItemName.Size = new System.Drawing.Size(61, 13);
+            this.lblNewItemName.Text = "Item Name:";
+            //
+            // txtNewItemName
+            //
+            this.txtNewItemName.Location = new System.Drawing.Point(212, 22);
+            this.txtNewItemName.Name = "txtNewItemName";
+            this.txtNewItemName.Size = new System.Drawing.Size(150, 20);
+            this.txtNewItemName.TabIndex = 1;
+            //
+            // lblNewItemCount
+            //
+            this.lblNewItemCount.AutoSize = true;
+            this.lblNewItemCount.Location = new System.Drawing.Point(375, 25);
+            this.lblNewItemCount.Name = "lblNewItemCount";
+            this.lblNewItemCount.Size = new System.Drawing.Size(38, 13);
+            this.lblNewItemCount.Text = "Count:";
+            //
+            // numNewItemCount
+            //
+            this.numNewItemCount.Location = new System.Drawing.Point(419, 22);
+            this.numNewItemCount.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
+            this.numNewItemCount.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.numNewItemCount.Name = "numNewItemCount";
+            this.numNewItemCount.Size = new System.Drawing.Size(50, 20);
+            this.numNewItemCount.TabIndex = 2;
+            this.numNewItemCount.Value = new decimal(new int[] { 1, 0, 0, 0 });
+            //
+            // lblNewItemWeight
+            //
+            this.lblNewItemWeight.AutoSize = true;
+            this.lblNewItemWeight.Location = new System.Drawing.Point(485, 25);
+            this.lblNewItemWeight.Name = "lblNewItemWeight";
+            this.lblNewItemWeight.Size = new System.Drawing.Size(44, 13);
+            this.lblNewItemWeight.Text = "Weight:";
+            //
+            // numNewItemWeight
+            //
+            this.numNewItemWeight.Location = new System.Drawing.Point(535, 22);
+            this.numNewItemWeight.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+            this.numNewItemWeight.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.numNewItemWeight.Name = "numNewItemWeight";
+            this.numNewItemWeight.Size = new System.Drawing.Size(60, 20);
+            this.numNewItemWeight.TabIndex = 3;
+            this.numNewItemWeight.Value = new decimal(new int[] { 50, 0, 0, 0 });
+            //
+            // btnAddChestDrop
+            //
+            this.btnAddChestDrop.Location = new System.Drawing.Point(610, 18);
+            this.btnAddChestDrop.Name = "btnAddChestDrop";
+            this.btnAddChestDrop.Size = new System.Drawing.Size(120, 27);
+            this.btnAddChestDrop.TabIndex = 4;
+            this.btnAddChestDrop.Text = "Add Drop to Pool";
+            this.btnAddChestDrop.UseVisualStyleBackColor = true;
+            this.btnAddChestDrop.Click += new System.EventHandler(this.btnAddChestDrop_Click);
+            //
             // groupBox_Npc
             // 
             this.groupBox_Npc.Controls.Add(this.button_NpcLeave);
@@ -851,7 +1099,6 @@
         private System.Windows.Forms.GroupBox groupBox_Npc;
         private System.Windows.Forms.GroupBox groupBox_Items;
         private System.Windows.Forms.ListBox listBox_Maps;
-        private System.Windows.Forms.Label label1;
         private System.Windows.Forms.ComboBox comboBox_OnlinePlayers; // User selection for cheat commands
         private System.Windows.Forms.Label label_SelectedPlayer; // Label for ComboBox
         private System.Windows.Forms.TextBox textBox_FindMap;
@@ -906,6 +1153,27 @@
         private System.Windows.Forms.Label lblCharacterFilterStats;
         private System.Windows.Forms.Button btnRefreshStats;
         private System.Windows.Forms.Button btnEditStat;
+        private System.Windows.Forms.TabPage tabPageChestDrops;
+        private System.Windows.Forms.ComboBox cmbChestDropTarget;
+        private System.Windows.Forms.Label lblChestDropTarget;
+        private System.Windows.Forms.DataGridView dgvChestDrops;
+        private System.Windows.Forms.Button btnRefreshChestDrops;
+        private System.Windows.Forms.Button btnSaveChestDrops;
+        private System.Windows.Forms.Button btnAddChestDrop;
+        private System.Windows.Forms.Button btnDeleteChestDrop;
+        private System.Windows.Forms.Label lblRespawnSeconds;
+        private System.Windows.Forms.NumericUpDown numRespawnSeconds;
+        private System.Windows.Forms.GroupBox grpAddDrop;
+        private System.Windows.Forms.TextBox txtNewItemId;
+        private System.Windows.Forms.TextBox txtNewItemName;
+        private System.Windows.Forms.NumericUpDown numNewItemCount;
+        private System.Windows.Forms.NumericUpDown numNewItemWeight;
+        private System.Windows.Forms.Label lblNewItemId;
+        private System.Windows.Forms.Label lblNewItemName;
+        private System.Windows.Forms.Label lblNewItemCount;
+        private System.Windows.Forms.Label lblNewItemWeight;
+        private System.Windows.Forms.Button btnSafeShutdown;
+        private System.Windows.Forms.Button btnSaveAllNow;
     }
 }
 

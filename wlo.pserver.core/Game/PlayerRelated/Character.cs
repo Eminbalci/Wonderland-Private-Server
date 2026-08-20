@@ -30,6 +30,9 @@ namespace Game
         UInt32 m_charID = 0; public virtual UInt32 CharID { get { lock (c_lock)return m_charID; } set { lock (c_lock)m_charID = value; } }
         string m_name; public String CharName { get { lock (c_lock)return m_name; } set { lock (c_lock)m_name = value; } }
         string m_nickname; public String NickName { get { lock (c_lock)return m_nickname; } set { lock (c_lock)m_nickname = value; } }
+        public uint SpouseID { get; set; } = 0;
+        public string SpouseName { get; set; } = string.Empty;
+        public bool IsMarried => SpouseID > 0;
         UInt16 m_x; public UInt16 CurX { get { lock (c_lock)return m_x; } set { lock (c_lock)m_x = value; } }
         UInt16 m_y; public UInt16 CurY { get { lock (c_lock)return m_y; } set { lock (c_lock)m_y = value; } }
         IMap curMap;

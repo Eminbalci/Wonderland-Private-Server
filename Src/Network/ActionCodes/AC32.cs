@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,12 +25,16 @@ namespace Network.ActionCodes
         {
             try
             {
-                p.Emote = r.Unpack8();
-                SendPacket s = new SendPacket();
-                s.PackArray(new byte[] { 32, 1 });
-                s.Pack32(p.UserID);
-                s.Pack8(r.Unpack8());
-                p.CurMap.Broadcast(s, "Ex", p.ID);
+                byte emote = r.Unpack8();
+                if (p.Emote != emote)
+                {
+                    p.Emote = emote;
+                    SendPacket s = new SendPacket();
+                    s.PackArray(new byte[] { 32, 1 });
+                    s.Pack32(p.CharID);
+                    s.Pack8(emote);
+                    p.CurMap?.Broadcast(s, "Ex", p.CharID);
+                }
             }
             catch (Exception t) { Console.WriteLine(t); }
         }
@@ -38,12 +42,16 @@ namespace Network.ActionCodes
         {
             try
             {
-                p.Emote = r.Unpack8();
-                SendPacket s = new SendPacket();
-                s.PackArray(new byte[] { 32, 2 });
-                s.Pack32(p.UserID);
-                s.Pack8(r.Unpack8());
-                p.CurMap.Broadcast(s, "Ex", p.ID);
+                byte emote = r.Unpack8();
+                if (p.Emote != emote)
+                {
+                    p.Emote = emote;
+                    SendPacket s = new SendPacket();
+                    s.PackArray(new byte[] { 32, 2 });
+                    s.Pack32(p.CharID);
+                    s.Pack8(emote);
+                    p.CurMap?.Broadcast(s, "Ex", p.CharID);
+                }
             }
             catch (Exception t) { Console.WriteLine(t); }
         }

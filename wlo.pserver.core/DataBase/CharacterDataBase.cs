@@ -951,9 +951,14 @@ namespace DataBase
                     id = ushort.Parse(rows[i]["itemID"].ToString());
                     if (id != 0)
                     {
-                        t[byte.Parse(rows[i]["pos"].ToString())].CopyFrom(ItemDat.GetItemByID(id));
-                        t[byte.Parse(rows[i]["pos"].ToString())].Ammt = 1;
-                        t[byte.Parse(rows[i]["pos"].ToString())].Damage = byte.Parse(rows[i]["dmg"].ToString());
+                        var baseItem = ItemDat?.GetItemByID(id) ?? new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                        byte pos = byte.Parse(rows[i]["pos"].ToString());
+                        if (pos >= 1 && pos <= 6)
+                        {
+                            t[pos].CopyFrom(baseItem);
+                            t[pos].Ammt = 1;
+                            t[pos].Damage = byte.Parse(rows[i]["dmg"].ToString());
+                        }
                     }
                 }
             }
@@ -1076,11 +1081,14 @@ namespace DataBase
                     id = ushort.Parse(rows[i]["itemID"].ToString());
                     if (id != 0)
                     {
-                        t[byte.Parse(rows[i]["pos"].ToString())].CopyFrom(ItemDat.GetItemByID(id));
-                        t[byte.Parse(rows[i]["pos"].ToString())].Ammt = 1;
-                        t[byte.Parse(rows[i]["pos"].ToString())].Damage = byte.Parse(rows[i]["dmg"].ToString());
-                        //                    tmp4.Add((byte)i, new string[]{id.ToString(), rows[i]["socketID"].ToString(), rows[i]["bombID"].ToString(),rows[i]["sewID"].ToString(), 
-                        //rows[i]["dmg"].ToString(),rows[i]["forge"].ToString(), });
+                        var baseItem = ItemDat?.GetItemByID(id) ?? new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                        byte pos = byte.Parse(rows[i]["pos"].ToString());
+                        if (pos >= 1 && pos <= 6)
+                        {
+                            t[pos].CopyFrom(baseItem);
+                            t[pos].Ammt = 1;
+                            t[pos].Damage = byte.Parse(rows[i]["dmg"].ToString());
+                        }
                     }
                 }
             }
@@ -1152,7 +1160,7 @@ namespace DataBase
             Dictionary<string, object> cols = new Dictionary<string, object>();
             cols.Add("charID", charID.ToString());
             cols.Add("Settings", player.Settings.ToString());
-            cols.Add("Friends", /*player.GetFriends_Flag*/"");
+            cols.Add("Friends", player.GetFriends_Flag);
             cols.Add("Guild", "0");
             cols.Add("Mail", /*player.GetMailboxFlags()*/"");
 
@@ -1312,32 +1320,93 @@ namespace DataBase
             #endregion
 
             #region write inv
-
-            string str = "";
-            if (player.Inv.InventoryDBData != null)
-                foreach (var u in player.Inv.InventoryDBData)
+            try
+            {
+                ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "' AND storID = '0';");
+                if (player.Inv.InventoryDBData != null)
                 {
-                    ExecuteNonQuery(string.Format("UPDATE inventory SET {0} where {1};", string.Format("itemID = '{0}', dmg = '{1}', qty = '{2}', pos = '{3}', socketID = '{4}', bombID = '{5}', sewID = '{6}', forge = '{7}'",
-                          u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]), "charID ='" + charID + "' AND storID ='0' AND invIdx = '" + u.Key + "'"));
+                    List<string> invRows = new List<string>();
+                    foreach (var u in player.Inv.InventoryDBData)
+                    {
+                        if (u.Value[0] > 0) // itemID > 0
+                        {
+                            invRows.Add(string.Format("('{0}','{1}','0','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}')",
+                                 u.Key, charID, u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]));
+                        }
+                    }
+                    if (invRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO inventory (invIdx,charID,storID,itemID,dmg,qty,pos,socketID,bombID,sewID,forge) VALUES {0};", string.Join(",", invRows)));
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving inventory for charID {charID}: {ex.Message}");
+            }
             #endregion
 
             #region write eqs
-
-            str = "";
-            if (player.EqData != null)
-                foreach (var u in player.EqData)
+            try
+            {
+                ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "' AND storID = '1';");
+                if (player.EqData != null)
                 {
-                    ExecuteNonQuery(string.Format("UPDATE inventory SET {0} where {1};", string.Format("itemID = '{0}', dmg = '{1}', qty = '{2}', pos = '{3}', socketID = '{4}', bombID = '{5}', sewID = '{6}', forge = '{7}'",
-                          u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]), "charID ='" + charID + "' AND storID ='1' AND invIdx = '" + u.Key + "'"));
+                    List<string> eqRows = new List<string>();
+                    foreach (var u in player.EqData)
+                    {
+                        if (u.Value[0] > 0) // itemID > 0
+                        {
+                            eqRows.Add(string.Format("('{0}','{1}','1','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}')",
+                                 u.Key, charID, u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]));
+                        }
+                    }
+                    if (eqRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO inventory (invIdx,charID,storID,itemID,dmg,qty,pos,socketID,bombID,sewID,forge) VALUES {0};", string.Join(",", eqRows)));
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving equips for charID {charID}: {ex.Message}");
+            }
+
             if (Cache.ContainsKey((int)charID))
                 Cache[(int)charID] = player;
 
             #endregion
 
             #region write ext data
-            ExecuteNonQuery(string.Format("UPDATE charactersExtData SET {0} where charID = '" + charID + "';", string.Format(" Settings = '{0}', Friends = '{1}', Guild = '{2}', Mail = '{3}'", player.Settings.ToString(), /*player.GetFriends_Flag*/"", "0", /*player.GetMailboxFlags()*/"")));
+            ExecuteNonQuery(string.Format("UPDATE charactersExtData SET {0} where charID = '" + charID + "';", string.Format(" Settings = '{0}', Friends = '{1}', Guild = '{2}', Mail = '{3}'", player.Settings.ToString(), player.GetFriends_Flag, "0", "")));
+            #endregion
+
+            #region write pets
+            try
+            {
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0);");
+                ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
+                if (player.PlayerPets != null && player.PlayerPets.Count > 0)
+                {
+                    List<string> petRows = new List<string>();
+                    foreach (var pet in player.PlayerPets.Values)
+                    {
+                        if (pet.PetID > 0)
+                        {
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}')",
+                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0));
+                        }
+                    }
+                    if (petRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,hp,maxHp,sp,maxSp,amity,isBattle,isRide) VALUES {0};", string.Join(",", petRows)));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving pets for charID {charID}: {ex.Message}");
+            }
             #endregion
 
             return true;

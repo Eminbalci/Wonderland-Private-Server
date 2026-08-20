@@ -25,9 +25,32 @@ namespace Network.ActionCodes
                 case 4: Recv4(ref p, r); break; // Leave Team
                 case 9: Recv9(ref p, r); break; // Kick from Party
                 case 10: Recv10(ref p, r); break; // Transfer Leadership
+                case 238: Recv238(ref p, r); break; // Item Mall query (authentic itemmall.pcapng)
                 default:
                     DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Unknown SubAction: {r.B}");
                     break;
+            }
+        }
+
+        void Recv238(ref Player p, RecievePacket r)
+        {
+            try
+            {
+                // Authentic Item Mall Confirmation (Pkt #109, #113 in itemmall.pcapng)
+                SendPacket s = new SendPacket();
+                s.Pack8(13);
+                s.Pack8(42);
+                s.Pack32(p.CharID);
+                p.Send(s);
+
+                // Open Web Item Mall Portal with Point Balance & Shop
+                Game.PlayerRelated.ItemMallManager.SendPointBalance(p);
+
+                DebugSystem.Write(DebugItemType.Error, $"[AC13.Recv238] Item Mall query confirmed (13:42) and Web Shop opened for {p.CharName}.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[AC13.Recv238] Error: {ex.Message}");
             }
         }
 
