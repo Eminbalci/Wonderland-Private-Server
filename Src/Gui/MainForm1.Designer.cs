@@ -35,6 +35,10 @@ namespace Wonderland_Private_Server
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.panel_CheatTop = new System.Windows.Forms.Panel();
             this.label_CheatHint = new System.Windows.Forms.Label();
+            this.lblStatPoints = new System.Windows.Forms.Label();
+            this.numStatPoints = new System.Windows.Forms.NumericUpDown();
+            this.btnGiveStatPoints = new System.Windows.Forms.Button();
+            this.btnResetStats = new System.Windows.Forms.Button();
             this.tableLayoutPanel_Cheat = new System.Windows.Forms.TableLayoutPanel();
             this.groupBox_Npc = new System.Windows.Forms.GroupBox();
             this.button_NpcLeave = new System.Windows.Forms.Button();
@@ -135,6 +139,7 @@ namespace Wonderland_Private_Server
             this.grpAddDrop.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numNewItemCount)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numNewItemWeight)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numStatPoints)).BeginInit();
             this.panel_CheatTop.SuspendLayout();
             this.tableLayoutPanel_Cheat.SuspendLayout();
             this.groupBox_Npc.SuspendLayout();
@@ -246,6 +251,10 @@ namespace Wonderland_Private_Server
             // 
             this.panel_CheatTop.Controls.Add(this.label_SelectedPlayer);
             this.panel_CheatTop.Controls.Add(this.comboBox_OnlinePlayers);
+            this.panel_CheatTop.Controls.Add(this.lblStatPoints);
+            this.panel_CheatTop.Controls.Add(this.numStatPoints);
+            this.panel_CheatTop.Controls.Add(this.btnGiveStatPoints);
+            this.panel_CheatTop.Controls.Add(this.btnResetStats);
             this.panel_CheatTop.Controls.Add(this.label_CheatHint);
             this.panel_CheatTop.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel_CheatTop.Location = new System.Drawing.Point(6, 6);
@@ -259,30 +268,73 @@ namespace Wonderland_Private_Server
             this.label_SelectedPlayer.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.label_SelectedPlayer.Location = new System.Drawing.Point(4, 9);
             this.label_SelectedPlayer.Name = "label_SelectedPlayer";
-            this.label_SelectedPlayer.Size = new System.Drawing.Size(90, 15);
+            this.label_SelectedPlayer.Size = new System.Drawing.Size(58, 15);
             this.label_SelectedPlayer.TabIndex = 10;
-            this.label_SelectedPlayer.Text = "🎯 Target Player:";
+            this.label_SelectedPlayer.Text = "🎯 Player:";
             // 
             // comboBox_OnlinePlayers
             // 
             this.comboBox_OnlinePlayers.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboBox_OnlinePlayers.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.comboBox_OnlinePlayers.FormattingEnabled = true;
-            this.comboBox_OnlinePlayers.Location = new System.Drawing.Point(100, 6);
+            this.comboBox_OnlinePlayers.Location = new System.Drawing.Point(64, 6);
             this.comboBox_OnlinePlayers.Name = "comboBox_OnlinePlayers";
-            this.comboBox_OnlinePlayers.Size = new System.Drawing.Size(200, 23);
+            this.comboBox_OnlinePlayers.Size = new System.Drawing.Size(140, 23);
             this.comboBox_OnlinePlayers.TabIndex = 11;
+            // 
+            // lblStatPoints
+            // 
+            this.lblStatPoints.AutoSize = true;
+            this.lblStatPoints.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            this.lblStatPoints.Location = new System.Drawing.Point(210, 9);
+            this.lblStatPoints.Name = "lblStatPoints";
+            this.lblStatPoints.Size = new System.Drawing.Size(44, 15);
+            this.lblStatPoints.TabIndex = 13;
+            this.lblStatPoints.Text = "Points:";
+            // 
+            // numStatPoints
+            // 
+            this.numStatPoints.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.numStatPoints.Location = new System.Drawing.Point(256, 6);
+            this.numStatPoints.Maximum = new decimal(new int[] { 99999, 0, 0, 0 });
+            this.numStatPoints.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            this.numStatPoints.Name = "numStatPoints";
+            this.numStatPoints.Size = new System.Drawing.Size(65, 23);
+            this.numStatPoints.TabIndex = 14;
+            this.numStatPoints.Value = new decimal(new int[] { 10, 0, 0, 0 });
+            // 
+            // btnGiveStatPoints
+            // 
+            this.btnGiveStatPoints.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
+            this.btnGiveStatPoints.Location = new System.Drawing.Point(327, 5);
+            this.btnGiveStatPoints.Name = "btnGiveStatPoints";
+            this.btnGiveStatPoints.Size = new System.Drawing.Size(110, 25);
+            this.btnGiveStatPoints.TabIndex = 15;
+            this.btnGiveStatPoints.Text = "➕ Give Points";
+            this.btnGiveStatPoints.UseVisualStyleBackColor = true;
+            this.btnGiveStatPoints.Click += new System.EventHandler(this.btnGiveStatPoints_Click);
+            // 
+            // btnResetStats
+            // 
+            this.btnResetStats.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            this.btnResetStats.Location = new System.Drawing.Point(442, 5);
+            this.btnResetStats.Name = "btnResetStats";
+            this.btnResetStats.Size = new System.Drawing.Size(95, 25);
+            this.btnResetStats.TabIndex = 16;
+            this.btnResetStats.Text = "🔄 Reset Stats";
+            this.btnResetStats.UseVisualStyleBackColor = true;
+            this.btnResetStats.Click += new System.EventHandler(this.btnResetStats_Click);
             // 
             // label_CheatHint
             // 
             this.label_CheatHint.AutoSize = true;
             this.label_CheatHint.Font = new System.Drawing.Font("Segoe UI", 8.5F);
             this.label_CheatHint.ForeColor = System.Drawing.Color.DimGray;
-            this.label_CheatHint.Location = new System.Drawing.Point(315, 10);
+            this.label_CheatHint.Location = new System.Drawing.Point(542, 10);
             this.label_CheatHint.Name = "label_CheatHint";
-            this.label_CheatHint.Size = new System.Drawing.Size(430, 15);
+            this.label_CheatHint.Size = new System.Drawing.Size(210, 15);
             this.label_CheatHint.TabIndex = 12;
-            this.label_CheatHint.Text = "💡 Double-click any row to execute cheat (Teleport, Spawn Item, Ride Vehicle, Battle/Ride NPC).";
+            this.label_CheatHint.Text = "💡 Double-click row to cheat";
             // 
             // tableLayoutPanel_Cheat
             // 
@@ -1215,6 +1267,7 @@ namespace Wonderland_Private_Server
             this.tabPage7.ResumeLayout(false);
             this.panel_CheatTop.ResumeLayout(false);
             this.panel_CheatTop.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numStatPoints)).EndInit();
             this.tableLayoutPanel_Cheat.ResumeLayout(false);
             this.tabPage1.ResumeLayout(false);
             this.tabPageUsers.ResumeLayout(false);
@@ -1252,6 +1305,10 @@ namespace Wonderland_Private_Server
         private System.Windows.Forms.ListBox listBox_Maps;
         private System.Windows.Forms.ComboBox comboBox_OnlinePlayers; // User selection for cheat commands
         private System.Windows.Forms.Label label_SelectedPlayer; // Label for ComboBox
+        private System.Windows.Forms.Label lblStatPoints;
+        private System.Windows.Forms.NumericUpDown numStatPoints;
+        private System.Windows.Forms.Button btnGiveStatPoints;
+        private System.Windows.Forms.Button btnResetStats;
         private System.Windows.Forms.TextBox textBox_FindMap;
         private System.Windows.Forms.TextBox textBox_FindNPC;
         private System.Windows.Forms.ListBox listBox_NPC;

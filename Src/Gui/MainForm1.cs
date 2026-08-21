@@ -802,6 +802,76 @@ namespace Wonderland_Private_Server
             GetPrivatePlayer().RideVehicle("");
         }
 
+        private void btnGiveStatPoints_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Player targetPlayer = GetPrivatePlayer();
+                if (targetPlayer == null)
+                {
+                    MessageBox.Show("Please select an online player from the dropdown first!", "No Player Selected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                ushort ptsToAdd = (ushort)numStatPoints.Value;
+                if (ptsToAdd <= 0) ptsToAdd = 1;
+
+                targetPlayer.Eqs.SkillPoints += ptsToAdd;
+
+                // Sync full updated stats and stat points to client status window immediately
+                targetPlayer.Eqs.Send8_1(true);
+
+                // Persist to database
+                cGlobal.gCharacterDataBase?.WritePlayer(targetPlayer.CharID, targetPlayer);
+
+                targetPlayer.SendSystemMessage($"✨ [Server GUI] You were granted +{ptsToAdd} Stat Points! Total Available: {targetPlayer.Eqs.SkillPoints}");
+                DebugSystem.Write($"[GUI] Granted +{ptsToAdd} stat points to {targetPlayer.CharName}. Total Available: {targetPlayer.Eqs.SkillPoints}");
+
+                MessageBox.Show($"Successfully added +{ptsToAdd} stat points to {targetPlayer.CharName}!\nTotal Available Points: {targetPlayer.Eqs.SkillPoints}", "Points Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error giving stat points: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnResetStats_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                Player targetPlayer = GetPrivatePlayer();
+                if (targetPlayer == null)
+                {
+                    MessageBox.Show("Please select an online player from the dropdown first!", "No Player Selected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                var confirm = MessageBox.Show($"Are you sure you want to reset all distributed stats for '{targetPlayer.CharName}'?\nAll invested STR, CON, INT, WIS, AGI points will be refunded back to Available Stat Points.", "Confirm Stat Reset", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm != DialogResult.Yes) return;
+
+                // Baseline starting stats are 10
+                ushort refund = 0;
+                if (targetPlayer.baseStr > 10) { refund += (ushort)(targetPlayer.baseStr - 10); targetPlayer.baseStr = 10; }
+                if (targetPlayer.baseCon > 10) { refund += (ushort)(targetPlayer.baseCon - 10); targetPlayer.baseCon = 10; }
+                if (targetPlayer.baseInt > 10) { refund += (ushort)(targetPlayer.baseInt - 10); targetPlayer.baseInt = 10; }
+                if (targetPlayer.baseWis > 10) { refund += (ushort)(targetPlayer.baseWis - 10); targetPlayer.baseWis = 10; }
+                if (targetPlayer.baseAgi > 10) { refund += (ushort)(targetPlayer.baseAgi - 10); targetPlayer.baseAgi = 10; }
+
+                targetPlayer.Eqs.SkillPoints += refund;
+                targetPlayer.Eqs.Send8_1(true);
+                cGlobal.gCharacterDataBase?.WritePlayer(targetPlayer.CharID, targetPlayer);
+
+                targetPlayer.SendSystemMessage($"🔄 [Server GUI] All base stats have been reset to 10! +{refund} Points refunded. Total Available: {targetPlayer.Eqs.SkillPoints}");
+                DebugSystem.Write($"[GUI] Reset stats for {targetPlayer.CharName}. Refunded {refund} points. Total Available: {targetPlayer.Eqs.SkillPoints}");
+
+                MessageBox.Show($"Stats reset successfully for {targetPlayer.CharName}!\nRefunded {refund} points.\nTotal Available Points: {targetPlayer.Eqs.SkillPoints}", "Stats Reset", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error resetting stats: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         #region User Management
         private void btnRefreshUsers_Click(object sender, EventArgs e)
         {
@@ -1452,6 +1522,24 @@ namespace Wonderland_Private_Server
                 {
                     string updateQuery = $"UPDATE stats SET StatusUp = {newStatValue} WHERE charID = {charID} AND statID = {statID}";
                     cGlobal.gCharacterDataBase.ExecuteNonQuery(updateQuery);
+
+                    // If player is currently online, update memory and sync client UI immediately
+                    var onlinePlayer = cGlobal.gLoginServer?.GetAllPlayers()?.FirstOrDefault(p => p.CharID == charID);
+                    if (onlinePlayer != null)
+                    {
+                        switch (statID)
+                        {
+                            case 38: onlinePlayer.Eqs.SkillPoints = (ushort)newStatValue; break;
+                            case 28: onlinePlayer.baseStr = (ushort)newStatValue; break;
+                            case 29: onlinePlayer.baseCon = (ushort)newStatValue; break;
+                            case 27: onlinePlayer.baseInt = (ushort)newStatValue; break;
+                            case 33: onlinePlayer.baseWis = (ushort)newStatValue; break;
+                            case 30: onlinePlayer.baseAgi = (ushort)newStatValue; break;
+                        }
+                        onlinePlayer.Eqs.Send8_1(true);
+                        onlinePlayer.SendSystemMessage($"✨ [Server GUI] Stat ID {statID} updated to {newStatValue}!");
+                    }
+
                     MessageBox.Show("Stat updated successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     btnRefreshStats_Click(null, null);
                 }

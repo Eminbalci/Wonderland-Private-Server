@@ -280,12 +280,17 @@ namespace Game.Code
         {
             lock (m_Lock)
             {
+                byte oldLvl = Level;
                 long exp = 0;
                 for (int l = 1; l < targetLvl; l++)
                 {
                     exp += (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], l);
                 }
                 m_totalexp = exp;
+                if (targetLvl > oldLvl)
+                {
+                    SkillPoints += (ushort)((targetLvl - oldLvl) * 3);
+                }
                 CurHP = FullHP;
                 CurSP = FullSP;
             }

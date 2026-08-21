@@ -76,6 +76,9 @@ In the private server exe, click "Cheat" tab:
 - Character Props Keeper Storage & Database Persistence (AC 30 / AC 29 / storID 2) in [docs/props_keeper_storage_persistence.md](file:///d:/GitHub/Wonderland-Private-Server/docs/props_keeper_storage_persistence.md).
 - Pet Hotel Storage System & Companion Database Persistence (AC 31 / isHotel 1) in [docs/pet_hotel_storage_persistence.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pet_hotel_storage_persistence.md).
 - Overworld Monsters, Aggro, and Dynamic Encounter Combat Protocol in [docs/overworld_monsters_and_encounter_combat.md](file:///d:/GitHub/Wonderland-Private-Server/docs/overworld_monsters_and_encounter_combat.md).
+- Character & Companion Stat Point Allocation Protocol (AC 8 / Stat 38) in [docs/stat_point_allocation_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/stat_point_allocation_protocol.md).
+- Companion & Pet Combat System (AC 11:5, AC 50:1, AC 51:1) in [docs/companion_battle_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/companion_battle_system.md).
+
 
 
 

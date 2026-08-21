@@ -135,6 +135,12 @@ namespace Game
             public int MaxHP { get; set; } = 250;
             public int SP { get; set; } = 100;
             public int MaxSP { get; set; } = 100;
+            public ushort Str { get; set; } = 10;
+            public ushort Con { get; set; } = 10;
+            public ushort Int { get; set; } = 10;
+            public ushort Wis { get; set; } = 10;
+            public ushort Agi { get; set; } = 10;
+            public ushort SkillPoints { get; set; } = 0;
             public byte Amity { get; set; } = 60;
             public bool IsBattle { get; set; } = true;
             public bool IsRide { get; set; } = false;

@@ -57,7 +57,27 @@ namespace Network.ActionCodes {
                                         byte targetLvl = Math.Max((byte)1, Math.Min((byte)200, newLvl));
                                         p.Eqs.SetLevel(targetLvl);
                                         p.Eqs.Send8_1(true);
-                                        p.SendSystemMessage($"[GM] Level updated to {p.Eqs.Level}!");
+                                        DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                        p.SendSystemMessage($"[GM] Level updated to {p.Eqs.Level}! Available Stat Points: {p.Eqs.SkillPoints}");
+                                    }
+                                } catch { }
+                            }
+                            break;
+                        #endregion
+
+                        #region Points / SP Command
+                        case ":points":
+                        case ":sp":
+                        case ":statpoint":
+                        case ":statpoints": {
+                                try {
+                                    if (words.Length >= 2 && ushort.TryParse(words[1], out ushort addPts)) {
+                                        p.Eqs.SkillPoints += addPts;
+                                        p.Eqs.Send8_1(true);
+                                        DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                        p.SendSystemMessage($"[GM] Added +{addPts} Stat Points! Total Available: {p.Eqs.SkillPoints}");
+                                    } else {
+                                        p.SendSystemMessage($"[GM] Current Available Stat Points: {p.Eqs.SkillPoints}. Usage: :points <amount>");
                                     }
                                 } catch { }
                             }
