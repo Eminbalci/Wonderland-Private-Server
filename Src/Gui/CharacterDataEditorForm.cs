@@ -1121,7 +1121,7 @@ namespace Wonderland_Private_Server
                         if (sk != null)
                         {
                             livePlayer.PlayerSkills.Remove(sk);
-                            Game.SkillRelated.SkillManager.SendSkillSlots(livePlayer);
+                            Game.SkillRelated.SkillManager.SendAllSkills(livePlayer);
                         }
                     }
 

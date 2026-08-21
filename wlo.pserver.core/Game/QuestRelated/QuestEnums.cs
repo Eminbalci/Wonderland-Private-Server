@@ -15,6 +15,7 @@ namespace Game.QuestRelated
         Dialogue = 0,
         ItemCollection = 1,
         MonsterBattle = 2,
-        Delivery = 3
+        Delivery = 3,
+        Exploration = 4
     }
 }

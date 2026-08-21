@@ -127,6 +127,22 @@ namespace Game.Code
             }
         }
 
+        public int GetItemCount(ushort ItemID)
+        {
+            lock (mylock)
+            {
+                int total = 0;
+                for (byte a = 1; a < 51; a++)
+                {
+                    if (this[a].ItemID == ItemID)
+                    {
+                        total += Math.Max(1, (int)this[a].Ammt);
+                    }
+                }
+                return total;
+            }
+        }
+
         public bool RemoveItemById(ushort itemId, byte ammt = 1)
         {
             if (ContainsItem(itemId, out byte slot))

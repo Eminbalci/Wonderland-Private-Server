@@ -95,28 +95,69 @@ namespace Game.Maps
                     foreach (var op in sub.SubEntry)
                     {
                         uint talkId24 = 0;
-                        bool isItemOp = (op.DialogPtr == 1 && op.dialog1 == 1 && op.dialog3 >= 10000 && op.dialog3 <= 65000);
+                        bool isFlagOp = (op.DialogPtr == 1 && (op.dialog1 == 1 || op.dialog1 == 2) && op.dialog3 >= 10000);
                         bool isAnimOp = (op.DialogPtr == 2 && (op.dialog2 == 5 || op.dialog2 == 2 || op.dialog2 == 3 || op.dialog2 == 4 || op.dialog2 == 8));
                         bool isChoiceOp = (op.DialogPtr == 2 && op.dialog2 == 6 && sub.unknownbyte1 != 7);
+                        bool isSystemOp = (op.DialogPtr == 5 || op.DialogPtr == 6 || op.DialogPtr == 7 || op.DialogPtr == 8 || op.DialogPtr == 3);
 
-                        if (!isItemOp && !isAnimOp)
+                        if (!isFlagOp && !isAnimOp && !isSystemOp)
                         {
-                            if (op.dialog3 >= 10000 && op.dialog3 <= 65000)
+                            if (op.DialogPtr == 1 && op.dialog1 == 2 && op.dialog2 >= 10000)
                             {
-                                uint highByte = (op.dialog2 > 0 && op.dialog2 < 20) ? (uint)op.dialog2 : (uint)Math.Max(1, sub.subIndex + 1);
-                                talkId24 = (uint)op.dialog3 | (highByte << 16);
+                                // Player speech line: dialog2 is TalkID
+                                talkId24 = (uint)op.dialog2 | (2u << 16);
                             }
-                            else if (op.dialog2 >= 10000 && op.dialog2 <= 65000)
+                            else if (op.DialogPtr == 2)
                             {
-                                talkId24 = (uint)op.dialog2 | ((uint)Math.Max(1, (int)op.dialog3) << 16);
+                                if (op.dialog3 >= 10000 && op.dialog3 <= 65000)
+                                {
+                                    uint highByte = (op.dialog1 > 0) ? (uint)op.dialog1 : ((op.dialog2 > 0 && op.dialog2 < 20) ? (uint)op.dialog2 : 3u);
+                                    talkId24 = (uint)op.dialog3 | (highByte << 16);
+                                }
+                                else if (op.dialog2 >= 10000 && op.dialog2 <= 65000)
+                                {
+                                    uint highByte = (op.dialog1 > 0) ? (uint)op.dialog1 : (uint)Math.Max(1, (int)op.dialog3);
+                                    talkId24 = (uint)op.dialog2 | (highByte << 16);
+                                }
                             }
                         }
 
-                        bool isDialog = (op.DialogPtr == 1 || op.DialogPtr == 2) && !isItemOp && !isAnimOp && (talkId24 >= 10000 || isChoiceOp);
+                        bool isDialog = !isFlagOp && !isAnimOp && !isSystemOp && (talkId24 >= 10000 || isChoiceOp);
 
                         if (isDialog)
                         {
                             byte portrait = 3; // Official WLO Protocol: 3 = NPC Portrait Window, 7 = Player Portrait Window
+                            byte speakerClickId = (byte)clickId;
+
+                            if (op.DialogPtr == 1)
+                            {
+                                if (op.dialog1 == 2)
+                                {
+                                    portrait = 7; // Player portrait
+                                    speakerClickId = 0;
+                                }
+                                else if (op.dialog1 > 0)
+                                {
+                                    speakerClickId = (byte)op.dialog1;
+                                }
+                            }
+                            else if (op.DialogPtr == 2)
+                            {
+                                if (op.dialog2 == 2)
+                                {
+                                    portrait = 7; // Player portrait
+                                    speakerClickId = 0;
+                                }
+                                else
+                                {
+                                    portrait = 3; // NPC portrait
+                                    if (op.dialog1 > 0)
+                                    {
+                                        speakerClickId = (byte)op.dialog1;
+                                    }
+                                }
+                            }
+
                             byte stepNum = (byte)Math.Max(1, (int)op.subsubIndex);
 
                             // Choice prompt (e.g. Robinson asking 3 options, Breillat asking Yes/No: dialog2 == 6)
@@ -132,7 +173,7 @@ namespace Game.Maps
                                 cPkt.Pack8(stepNum);                             // step
                                 cPkt.Pack8(6);                                    // choice prompt flag (0x06)
                                 cPkt.Pack8(portrait);                             // portrait
-                                cPkt.Pack8((byte)clickId);                        // npc click id
+                                cPkt.Pack8(speakerClickId);                       // speaker click id
                                 cPkt.Pack8(0);                                    // padding
                                 cPkt.Pack8(0); cPkt.Pack8(0); cPkt.Pack8(0); cPkt.Pack8(0); // flags
                                 cPkt.Pack8(0);                                    // padding
@@ -182,7 +223,7 @@ namespace Game.Maps
                                 {
                                     player.Send(cPkt);
                                     firstDialogSent = true;
-                                    DebugSystem.Write($"[EveEventInterpreter] Sent Choice Step {stepNum} to {player.CharName} for ClickID {clickId}");
+                                    DebugSystem.Write($"[EveEventInterpreter] Sent Choice Step {stepNum} to {player.CharName} for ClickID {speakerClickId}");
                                 }
                                 else
                                 {
@@ -202,7 +243,7 @@ namespace Game.Maps
                             dPkt.Pack8(stepNum);                             // step
                             dPkt.Pack8(1);                                    // fixed
                             dPkt.Pack8(portrait);                             // portrait (3=NPC, 7=Player)
-                            dPkt.Pack8((byte)clickId);                        // npc click id
+                            dPkt.Pack8(speakerClickId);                       // npc click id
                             dPkt.Pack8(0);                                    // padding
                             dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // flags
                             dPkt.Pack8(0);                                    // padding
@@ -214,7 +255,7 @@ namespace Game.Maps
                             {
                                 player.Send(dPkt);
                                 firstDialogSent = true;
-                                DebugSystem.Write($"[EveEventInterpreter] Sent Step {stepNum} (TalkID: 0x{talkId24:X}) to {player.CharName} for ClickID {clickId}");
+                                DebugSystem.Write($"[EveEventInterpreter] Sent Step {stepNum} (TalkID: 0x{talkId24:X}) to {player.CharName} for ClickID {speakerClickId}");
                             }
                             else
                             {
@@ -268,12 +309,16 @@ namespace Game.Maps
 
                         // Check if newly updated quest flags activate a follow-up action branch (e.g. Sub #5 companion recruitment / despawn)
                         EventSubEntry postSub = SelectMatchingBranch(player, map, clickId, eventEntry, excludeSub: selectedSub);
-                        if (postSub != null && postSub.SubEntry != null)
+                        if (postSub != null && postSub != selectedSub && postSub.SubEntry != null)
                         {
-                            DebugSystem.Write($"[EveEventInterpreter] Executing follow-up action branch Sub #{postSub.subIndex} after dialogue completion");
-                            foreach (var actOp in postSub.SubEntry)
+                            bool isActionBranch = postSub.SubEntry.Any(o => o.DialogPtr == 3 || (o.DialogPtr == 2 && (o.dialog2 == 2 || o.dialog2 == 5)));
+                            if (isActionBranch)
                             {
-                                ExecuteOpcode(player, map, clickId, eventEntry, postSub, actOp);
+                                DebugSystem.Write($"[EveEventInterpreter] Executing follow-up action branch Sub #{postSub.subIndex} after dialogue completion");
+                                foreach (var actOp in postSub.SubEntry)
+                                {
+                                    ExecuteOpcode(player, map, clickId, eventEntry, postSub, actOp);
+                                }
                             }
                         }
 
@@ -302,6 +347,83 @@ namespace Game.Maps
             }
         }
 
+        private static int GetPlayerFreeSlots(Player player)
+        {
+            if (player?.Inv == null) return 0;
+            int free = 0;
+            for (byte s = 1; s <= 50; s++)
+            {
+                var slot = player.Inv[s];
+                // Exclude child slots of multi-cell items: ItemID==0 but Parent!=0 means slot is physically occupied
+                if (slot == null || (slot.ItemID == 0 && slot.Parent == 0)) free++;
+            }
+            return free;
+        }
+
+        private static bool IsInventoryFullErrorBranch(EventSubEntry sub)
+        {
+            if (sub?.SubEntry == null) return false;
+            return sub.SubEntry.Any(o =>
+                o.dialog2 == 11087 || o.dialog3 == 11087 ||
+                o.dialog2 == 50062 || o.dialog3 == 50062 ||
+                o.dialog2 == 30025 || o.dialog3 == 30025);
+        }
+
+        private static EventSubEntry GetExecutableBranch(Player player, EventsinMapEntries eventEntry, EventSubEntry sub)
+        {
+            if (sub.SubEntry != null && sub.SubEntry.Count > 0)
+            {
+                int free = GetPlayerFreeSlots(player);
+                if (free >= 1 && IsInventoryFullErrorBranch(sub))
+                {
+                    // Ignore error branch if player has space
+                }
+                else
+                {
+                    return sub;
+                }
+            }
+
+            int freeSlots = GetPlayerFreeSlots(player);
+            int currentIdx = eventEntry.SubEntry.IndexOf(sub);
+            int nextIdx = (currentIdx >= 0) ? (currentIdx + 1) : 0;
+            while (nextIdx < eventEntry.SubEntry.Count)
+            {
+                var nextSub = eventEntry.SubEntry[nextIdx];
+
+                // If next sub is an inventory space condition check (CondType == 15)
+                if (nextSub.unknownbyte1 == 15)
+                {
+                    byte reqSlots = (byte)Math.Max(1, (int)nextSub.unknownword1);
+                    // w4 == 2: Inventory is full error condition
+                    if (nextSub.unknownword4 == 2 && freeSlots >= reqSlots)
+                    {
+                        // Player HAS enough space, so skip the full inventory error branch
+                        nextIdx++;
+                        while (nextIdx < eventEntry.SubEntry.Count && (eventEntry.SubEntry[nextIdx].SubEntry == null || eventEntry.SubEntry[nextIdx].SubEntry.Count == 0))
+                        {
+                            nextIdx++;
+                        }
+                        nextIdx++; // Skip the error branch with opcodes
+                        continue;
+                    }
+                }
+
+                if (nextSub.SubEntry != null && nextSub.SubEntry.Count > 0)
+                {
+                    bool isInvFullError = IsInventoryFullErrorBranch(nextSub);
+                    if (isInvFullError && freeSlots >= 1)
+                    {
+                        nextIdx++;
+                        continue;
+                    }
+                    return nextSub;
+                }
+                nextIdx++;
+            }
+            return null;
+        }
+
         private static EventSubEntry SelectMatchingBranch(Player player, GameMap map, ushort clickId, EventsinMapEntries eventEntry, EventSubEntry excludeSub = null)
         {
             if (eventEntry.SubEntry == null || eventEntry.SubEntry.Count == 0)
@@ -310,8 +432,24 @@ namespace Game.Maps
             if (eventEntry.SubEntry.Count == 1)
                 return eventEntry.SubEntry[0];
 
-            // 0. Special Breillat (Map 10027 NPC 5) 10-talks character swap check
-            if (eventEntry.clickID == 4 || eventEntry.clickID == 5)
+            int playerFreeSlots = GetPlayerFreeSlots(player);
+
+            // 0. Primary Chest / Item Pickup Priority: If event has an item grant branch and player has free space, award it directly!
+            if (playerFreeSlots >= 1)
+            {
+                var rewardBranch = eventEntry.SubEntry.FirstOrDefault(s => s != excludeSub && s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 5 && o.dialog2 == 1));
+                if (rewardBranch != null)
+                {
+                    uint qId = rewardBranch.unknownword1;
+                    if (qId == 0 || player.Quests == null || !player.Quests.TryGetValue(qId, out var pq) || pq.State != QuestState.Completed)
+                    {
+                        return rewardBranch;
+                    }
+                }
+            }
+
+            // 0. Special Breillat (Map 10027 NPC 5) 10-talks character swap check — ONLY on Map 10027
+            if (map.MapID == 10027 && (eventEntry.clickID == 4 || eventEntry.clickID == 5))
             {
                 bool hasVoucher = player.Inv != null && player.Inv.ContainsItem(30002);
                 if (!hasVoucher)
@@ -325,28 +463,55 @@ namespace Game.Maps
                 }
             }
 
-            // 0. Choice Prompt Branch priority (for repeating interactive NPCs like Robinson, Guides, Ferrymen)
-            var choicePromptSub = eventEntry.SubEntry.FirstOrDefault(s => s != excludeSub && s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 6));
-            if (choicePromptSub != null)
-            {
-                return choicePromptSub;
-            }
-
-            // 0. Item-dependent exchange / quest branch matching (e.g. Breillat requiring Voucher #30002)
+            // 1. Condition-Specific SubEntry Evaluations (Level, Item, Quest, Pet, Gold)
             foreach (var sub in eventEntry.SubEntry)
             {
-                if (sub == excludeSub || sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
+                if (sub == excludeSub) continue;
+
+                // Level Condition (unknownbyte1 == 1)
+                if (sub.unknownbyte1 == 1 && sub.unknownword1 > 0)
+                {
+                    if (player.Level >= sub.unknownword1)
+                    {
+                        var target = GetExecutableBranch(player, eventEntry, sub);
+                        if (target != null && target != excludeSub) return target;
+                    }
+                }
+
+                // Item Condition (unknownbyte1 == 2)
                 if (sub.unknownbyte1 == 2 && sub.unknownword3 >= 10000 && sub.unknownword3 <= 65000)
                 {
                     ushort reqItem = sub.unknownword3;
-                    if (player.Inv != null && player.Inv.ContainsItem(reqItem))
+                    byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
+                    if (player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount)
                     {
-                        return sub;
+                        var target = GetExecutableBranch(player, eventEntry, sub);
+                        if (target != null && target != excludeSub) return target;
+                    }
+                }
+
+                // Companion Pet Condition (unknownbyte1 == 4)
+                if (sub.unknownbyte1 == 4 && sub.unknownword1 > 0)
+                {
+                    if (player.PlayerPets != null && player.PlayerPets.Values.Any(pet => pet != null && pet.PetID == sub.unknownword1))
+                    {
+                        var target = GetExecutableBranch(player, eventEntry, sub);
+                        if (target != null && target != excludeSub) return target;
+                    }
+                }
+
+                // Gold Condition (unknownbyte1 == 5)
+                if (sub.unknownbyte1 == 5 && sub.unknownword1 > 0)
+                {
+                    if (player.Gold >= sub.unknownword1)
+                    {
+                        var target = GetExecutableBranch(player, eventEntry, sub);
+                        if (target != null && target != excludeSub) return target;
                     }
                 }
             }
 
-            // 1. In-Progress Quest exact step match: unknownword2 == 1 (InProgress) && unknownword3 == pq.Step
+            // 2. In-Progress Quest exact step match: unknownword2 == 1 (InProgress) && unknownword3 == pq.Step
             foreach (var sub in eventEntry.SubEntry)
             {
                 if (sub == excludeSub || sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
@@ -364,7 +529,7 @@ namespace Game.Maps
             var mapNpc = map?.NpcList?.FirstOrDefault(n => n.CickID == clickId) as QuestNpc;
             bool isGatheringNode = (mapNpc != null && (mapNpc.TemplateID == 19039 || (mapNpc.Name ?? "").ToLower().Contains("coconut") || (mapNpc.Name ?? "").ToLower().Contains("wood") || (mapNpc.Name ?? "").ToLower().Contains("ore")));
 
-            // 2. New Quest / Not Started matching branch (or Respawned Gathering Node)
+            // 3. New Quest / Not Started matching branch (or Respawned Gathering Node)
             foreach (var sub in eventEntry.SubEntry)
             {
                 if (sub == excludeSub || sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
@@ -401,7 +566,12 @@ namespace Game.Maps
                 bool isChestOrProp = eventEntry.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5));
                 if (!isChestOrProp)
                 {
-                    var generalSub = eventEntry.SubEntry.FirstOrDefault(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2));
+                    // Skip CondType=15 inventory gate branches and inventory-full error branches when player has space
+                    var generalSub = eventEntry.SubEntry.FirstOrDefault(s =>
+                        s.SubEntry != null &&
+                        s.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2) &&
+                        s.unknownbyte1 != 15 &&
+                        (playerFreeSlots < 1 || !IsInventoryFullErrorBranch(s)));
                     if (generalSub != null) return generalSub;
                 }
                 else
@@ -409,6 +579,8 @@ namespace Game.Maps
                     foreach (var sub in eventEntry.SubEntry)
                     {
                         if (sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
+                        if (sub.unknownbyte1 == 15) continue; // Skip inventory check gate branches
+                        if (playerFreeSlots >= 1 && IsInventoryFullErrorBranch(sub)) continue; // Skip inv full error when player has space
                         uint questId = sub.unknownword1;
                         if (questId > 0 && player.Quests != null && player.Quests.TryGetValue(questId, out var pq) && pq.State == QuestState.Completed)
                         {
@@ -434,58 +606,55 @@ namespace Game.Maps
                 switch (op.DialogPtr)
                 {
                     // Opcode 1: Item Grant / Consume / Dialogue Frame
+                    // Opcode 1: Set Quest Flag / Variable
                     case 1:
-                        // Item Grant / Consume Detection: dialog3 is a valid ItemID
-                        if (op.dialog3 >= 10000 && op.dialog3 <= 65000 && op.dialog1 == 1)
+                        if (op.dialog3 >= 10000 && op.dialog3 <= 65000 && (op.dialog1 == 1 || op.dialog1 == 2))
                         {
-                            ushort itemId = op.dialog3;
-                            byte count = (byte)Math.Max(1, (int)op.dialog2);
+                            uint flagId = op.dialog3;
+                            byte step = (byte)(op.dialog4 >= 256 ? 1 : Math.Max(1, (int)op.dialog2));
+                            QuestState state = (op.dialog4 >= 32768) ? QuestState.Completed : QuestState.InProgress;
 
-                            if (op.dialog4 >= 32768) // Item Consume (e.g. 65024, 65280)
+                            if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+                            if (!player.Quests.ContainsKey(flagId))
                             {
-                                byte consumeCount = (byte)(op.dialog4 == 65024 ? 2 : 1);
-                                player.Inv.RemoveItem(itemId, consumeCount);
-                                // S->C AC 23:7 [itemId_2B, count_1B, 00, 00, 00]
-                                player.Send(Tools.FromFormat("bbwbbbb", 23, 7, itemId, consumeCount, 0, 0, 0));
-                                player.Send(new SendPacket(player.Inv.GetAC23_5()));
-                                player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
-                                DebugSystem.Write($"[EveEventInterpreter] Consumed Item #{itemId} x{consumeCount} from {player.CharName}");
+                                player.Quests[flagId] = new PlayerQuest(flagId, state, step);
                             }
-                            else // Item Grant (e.g. 256, 2048, 3072, 3328)
+                            else
                             {
-                                player.Inv.AddItem(itemId, count);
-                                player.Send(new SendPacket(player.Inv.GetAC23_5()));
-                                string itemName = Game.Battle.MonsterDropManager.ResolveItemName(itemId);
-                                if (string.IsNullOrEmpty(itemName) || itemName.StartsWith("Item #"))
-                                {
-                                    itemName = $"Item #{itemId}";
-                                }
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
-                                player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
-                                DebugSystem.Write($"[EveEventInterpreter] Granted Item {itemName} (#{itemId}) x{count} directly from eve.dat to {player.CharName}");
+                                player.Quests[flagId].Step = step;
+                                player.Quests[flagId].State = state;
+                                if (state == QuestState.Completed) player.Quests[flagId].CompletedAt = DateTime.UtcNow;
                             }
+
+                            QuestManager.SavePlayerQuest(player, flagId);
+                            QuestManager.SendQuestUpdate(player, flagId, state, step);
+                            DebugSystem.Write($"[EveEventInterpreter] Set Quest Flag #{flagId} -> Step {step} ({state}) for {player.CharName}");
                             return true;
                         }
-                        // Dialogue Sequence
+                        // Dialogue Sequence fallback
                         if (op.dialog2 > 0)
                         {
-                            // Reconstruct 24-bit talkId: dialog2 = low16, dialog3 = high8
                             uint talkId24 = (uint)op.dialog2 | ((uint)op.dialog3 << 16);
+                            if ((talkId24 == 11087 || talkId24 == 50062 || talkId24 == 30025) && GetPlayerFreeSlots(player) >= 1)
+                            {
+                                return true; // Suppress false-positive inventory full dialog
+                            }
+
                             byte portrait = (byte)(op.dialog1 > 0 ? op.dialog1 : 3);
                             SendPacket dPkt = new SendPacket();
-                            dPkt.Pack8(20);                                   // AC
-                            dPkt.Pack8(1);                                    // SubCode
-                            dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);     // session padding
-                            dPkt.Pack8((byte)op.subsubIndex);                 // step
-                            dPkt.Pack8(1);                                    // fixed
-                            dPkt.Pack8(portrait);                             // portrait (3=NPC, 7=Player)
-                            dPkt.Pack8((byte)clickId);                        // npc click id
-                            dPkt.Pack8(0);                                    // padding
-                            dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // flags
-                            dPkt.Pack8(0);                                    // padding
-                            dPkt.Pack8((byte)(talkId24 & 0xFF));             // TalkID LSB
-                            dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));      // TalkID MID
-                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));     // TalkID MSB
+                            dPkt.Pack8(20);
+                            dPkt.Pack8(1);
+                            dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
+                            dPkt.Pack8((byte)op.subsubIndex);
+                            dPkt.Pack8(1);
+                            dPkt.Pack8(portrait);
+                            dPkt.Pack8((byte)clickId);
+                            dPkt.Pack8(0);
+                            dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
+                            dPkt.Pack8(0);
+                            dPkt.Pack8((byte)(talkId24 & 0xFF));
+                            dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
+                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));
 
                             player.OnInteractionComplete = () =>
                             {
@@ -548,7 +717,27 @@ namespace Game.Maps
 
                             if (talkId24 < 10000) return true; // Not a real text dialogue, avoid sending blank dialogs!
 
-                            byte portrait = (byte)(op.dialog1 > 0 ? op.dialog1 : 3);
+                            if ((talkId24 == 11087 || talkId24 == 50062 || talkId24 == 30025) && GetPlayerFreeSlots(player) >= 1)
+                            {
+                                return true; // Suppress false-positive inventory full dialog
+                            }
+
+                            byte portrait = 3;
+                            byte speakerClickId = (byte)clickId;
+                            if (op.dialog2 == 2)
+                            {
+                                portrait = 7;
+                                speakerClickId = 0;
+                            }
+                            else
+                            {
+                                portrait = 3;
+                                if (op.dialog1 > 0)
+                                {
+                                    speakerClickId = (byte)op.dialog1;
+                                }
+                            }
+
                             SendPacket dPkt = new SendPacket();
                             dPkt.Pack8(20);
                             dPkt.Pack8(1);
@@ -556,7 +745,7 @@ namespace Game.Maps
                             dPkt.Pack8((byte)op.subsubIndex);                 // step
                             dPkt.Pack8(1);
                             dPkt.Pack8(portrait);
-                            dPkt.Pack8((byte)clickId);
+                            dPkt.Pack8(speakerClickId);
                             dPkt.Pack8(0);
                             dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
                             dPkt.Pack8(0);
@@ -588,13 +777,62 @@ namespace Game.Maps
                         }
                         break;
 
-                    // Opcode 5: Set Quest Step / Flag / Completed State
+                    // Opcode 5: Item Grant / Item Consume & Quest State
                     case 5:
                         if (op.dialog1 > 0)
                         {
+                            ushort itemId = op.dialog1;
+                            byte count = (byte)Math.Max(1, (int)op.dialog3);
+
+                            if (op.dialog2 == 2) // Item Consume
+                            {
+                                if (player.Inv != null && player.Inv.ContainsItem(itemId))
+                                {
+                                    player.Inv.RemoveItem(itemId, count);
+                                    player.Send(Tools.FromFormat("bbwbbbb", 23, 7, itemId, count, 0, 0, 0));
+                                    player.Send(new SendPacket(player.Inv.GetAC23_5()));
+                                    player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
+                                    DebugSystem.Write($"[EveEventInterpreter] Consumed Item #{itemId} x{count} from {player.CharName}");
+                                }
+                            }
+                            else if (op.dialog2 == 1 && op.dialog4 == 256) // Item Grant with Fanfare
+                            {
+                                ushort giveItemId = (itemId == 12047) ? (ushort)48010 : itemId; // Robinson grants Raft (48010) instead of Broad Spear (12047)
+                                // Quest flag tracking items (12000-12999) are WLO internal markers, NOT real inventory items.
+                                // Their IDs overlap with weapon DB indices causing wrong names (e.g. "War Copper Spear").
+                                // Suppress from inventory but still update quest state tracker below.
+                                if (giveItemId < 12000 || giveItemId >= 13000)
+                                {
+                                    int freeSlots = GetPlayerFreeSlots(player);
+                                    if (freeSlots < 1)
+                                    {
+                                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
+                                        DebugSystem.Write($"[EveEventInterpreter] Inventory full — could not grant Item #{giveItemId} to {player.CharName}");
+                                        return false;
+                                    }
+                                    player.Inv.AddItem(giveItemId, count);
+                                    player.Send(new SendPacket(player.Inv.GetAC23_5()));
+                                    string itemName = Game.Battle.MonsterDropManager.ResolveItemName(giveItemId);
+                                    if (string.IsNullOrEmpty(itemName) || itemName.StartsWith("Item #"))
+                                    {
+                                        itemName = (giveItemId == 48010 || giveItemId == 48016) ? "Raft" : $"Item #{giveItemId}";
+                                    }
+                                    player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
+                                    player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
+                                    DebugSystem.Write($"[EveEventInterpreter] Granted Item {itemName} (#{giveItemId}) x{count} to {player.CharName}");
+                                }
+                                else
+                                {
+                                    DebugSystem.Write($"[EveEventInterpreter] Quest flag item #{giveItemId} (12000-12999) suppressed from inventory — quest state updated only.");
+                                }
+                            }
+
+                            // Update quest / flag tracker
                             uint questId = op.dialog1;
                             byte step = (byte)Math.Max(1, (int)(op.dialog3 > 0 ? op.dialog3 : (op.dialog4 >> 8 > 0 ? op.dialog4 >> 8 : 1)));
-                            QuestState state = (op.dialog2 == 2 || op.dialog2 == 3 || step >= 250) ? QuestState.Completed : QuestState.InProgress;
+                            // Item-grant branches (dialog2==1) mark the chest quest as Completed so it cannot be looted again on re-click.
+                            // Consume/check branches (dialog2==2/3) and step>=250 also mark Completed.
+                            QuestState state = (op.dialog2 == 1 || op.dialog2 == 2 || op.dialog2 == 3 || step >= 250) ? QuestState.Completed : QuestState.InProgress;
 
                             if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
 

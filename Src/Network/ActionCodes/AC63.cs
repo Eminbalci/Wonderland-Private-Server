@@ -78,8 +78,9 @@ namespace Network.ActionCodes
                     p.Send(tmp);
                     cGlobal.gWorld.OnLogin(p);
 
-                    // Automatically send friend list on login
+                    // Automatically send friend list on login and notify online friends
                     AC14.SendFriendList(p);
+                    AC14.NotifyFriendsStatus(p, true);
 
                     //NormalLog(p);
                     #endregion

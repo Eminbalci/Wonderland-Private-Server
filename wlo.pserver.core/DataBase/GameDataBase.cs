@@ -285,7 +285,9 @@ namespace DataBase
                     {
                         byte slot = byte.Parse(row["slot"].ToString());
                         uint petId = uint.Parse(row["petID"].ToString());
-                        string petName = row["petName"] != DBNull.Value ? row["petName"].ToString() : "Companion";
+                        if (petId == 12178) petId = 12032;
+                        string petName = row["petName"] != DBNull.Value ? row["petName"].ToString() : "Robinson";
+                        if (petName.StartsWith("Companion #") || petName == "Companion") petName = "Robinson";
                         byte lvl = byte.Parse(row["level"].ToString());
                         int hp = int.Parse(row["hp"].ToString());
                         int maxHp = int.Parse(row["maxHp"].ToString());

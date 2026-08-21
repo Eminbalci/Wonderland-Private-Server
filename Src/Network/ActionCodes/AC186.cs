@@ -39,12 +39,16 @@ namespace Network.ActionCodes
                 stormSound.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, 2, 0x7B, 0, 0, 0, 0, 0, 0 });
                 p.Send(stormSound);
 
-                // Teleport player directly to Map 10035 (Wrecked Ship / Robinson Beach)
-                p.PendingBeachCutscene = true;
-                var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
-                p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
+                // When storm cutscene ends (Client sends AC 20:6 after movie finishes), teleport player to Map 10035 (Shipwreck Beach)
+                p.OnInteractionComplete = () =>
+                {
+                    p.PendingBeachCutscene = true;
+                    var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
+                    p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
+                    DebugSystem.Write($"[AC186] Cutscene animation completed (AC 20:6). Teleported {p.CharName} to shipwreck beach (Map 10035)");
+                };
 
-                DebugSystem.Write($"[AC186.Recv9] Acknowledged storm cutscene and teleported {p.CharName} to shipwreck beach (Map 10035)");
+                DebugSystem.Write($"[AC186.Recv9] Acknowledged storm cutscene start on ship deck for {p.CharName}. Waiting for animation completion (AC 20:6) before teleport.");
             }
             catch (Exception t)
             {

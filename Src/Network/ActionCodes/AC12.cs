@@ -29,17 +29,6 @@ namespace Wonderland_Private_Server.ActionCodes
                 {
                     p.Flags.Add(PlayerFlag.InMap);
 
-                    // Resend party info upon warp completion
-                    if (p.m_teammembers != null && p.m_teammembers.Count > 0)
-                    {
-                        var leader = p.m_teammembers.FirstOrDefault(x => x.PartyLeader);
-                        if (leader != null)
-                        {
-                            DebugSystem.Write($"[AC12] Resending party info to {p.CharName} after warp");
-                            p.Send(leader._13_6Data);
-                        }
-                    }
-
                     // Resend active vehicle / sailing state on new map
                     if (p.ActiveVehicleID > 0)
                     {

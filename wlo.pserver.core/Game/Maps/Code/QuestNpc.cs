@@ -167,18 +167,35 @@ namespace Game.Maps
 
             string lower = (Name ?? "").ToLower().Trim();
 
-            // Domestic animals in villages / pens
-            if (lower.Contains("pig") || lower.Contains("cow") || lower.Contains("sheep") || 
-                lower.Contains("chicken") || lower.Contains("duck") || lower.Contains("goat") ||
-                lower.Contains("horse") || lower.Contains("dog") || lower.Contains("cat") ||
-                lower.Contains("shiba") || lower.Contains("mary") || lower.Contains("lina") ||
-                lower.Contains("roca") || lower.Contains("niss") || lower.Contains("sam") ||
-                lower.Contains("fred") || lower.Contains("eliza") || lower.Contains("clive"))
+            // 1. Shops, services, keepers, doctors, hotels, signposts are NEVER monsters
+            if (lower.Contains("shop") || lower.Contains("store") || lower.Contains("market") ||
+                lower.Contains("keep") || lower.Contains("storage") || lower.Contains("bank") ||
+                lower.Contains("exchanger") || lower.Contains("doctor") || lower.Contains("witch") ||
+                lower.Contains("clinic") || lower.Contains("hotel") || lower.Contains("inn") ||
+                lower.Contains("guidepost") || lower.Contains("signpost") || lower.Contains("statue") ||
+                lower.Contains("pig") || this.TemplateID == 17400)
             {
                 return false;
             }
 
-            // Friendly human / citizen / town NPC keywords
+            // 2. Non-monster template ID ranges in WLO:
+            // 10000-12999: Story characters, Recruitable companions, Sailors
+            // 13000-13999: Shops (Props Shop, Weapon Shop, Armor Shop)
+            // 14000-14999: Human Villagers, Townspeople, Guards, Elders
+            // 19000-24999: Props, Gathering nodes, Chests, Furniture
+            // 25000+: Story cutscene actors
+            if (TemplateID < 17000 || TemplateID >= 18000)
+            {
+                return false;
+            }
+
+            // 3. Domestic pets or friendly animals in 17000-17999 range
+            if (TemplateID == 17400) // Kelan Village Pigs
+            {
+                return false;
+            }
+
+            // 4. Friendly human / citizen / town NPC keywords
             if (lower.Contains("villager") || lower.Contains("citizen") || lower.Contains("resident") ||
                 lower.Contains("grandma") || lower.Contains("grandmother") || lower.Contains("grandfather") ||
                 lower.Contains("elder") || lower.Contains("mayor") || lower.Contains("chief") ||
@@ -197,44 +214,8 @@ namespace Game.Maps
                 return false;
             }
 
-            // Explicit static prop names, ground items, and gathering nodes
-            if (lower.Contains("chest") || lower.Contains("box") || lower.Contains("crate") ||
-                lower.Contains("barrel") || lower.Contains("pot") || lower.Contains("machine") ||
-                lower.Contains("wood") || lower.Contains("driftwood") || lower.Contains("stone") || 
-                lower.Contains("clay") || lower.Contains("mine") || lower.Contains("herb") || 
-                lower.Contains("tree") || lower.Contains("coconut") || lower.Contains("fruit") ||
-                lower.Contains("ore") || lower.Contains("flower") || lower.Contains("grass") ||
-                lower.Contains("seed") || lower.Contains("leaf") || lower.Contains("sea water") ||
-                lower.Contains("water") || lower.Contains("bamboo") || lower.Contains("vine") ||
-                lower.Contains("kelp") || lower.Contains("mushroom") || lower.Contains("salt") ||
-                lower.Contains("rice") || lower.Contains("meat") || lower.Contains("shell") ||
-                lower.Contains("door") || lower.Contains("switch") || lower.Contains("lever") ||
-                lower.Contains("statue") || lower.Contains("sign") || lower.Contains("well") ||
-                lower.Contains("tent") || lower.Contains("portal") || lower.Contains("warp"))
-            {
-                return false;
-            }
-
-            // Monster templates in WLO (17000 - 17999, e.g. Jellies, Wolves, Beetles, Snails, Boars)
-            if ((TemplateID >= 17000 && TemplateID <= 17999) || 
-                Game.Battle.MonsterDropManager.MonsterLootTables.ContainsKey(TemplateID))
-                return true;
-
-            // Known monster keywords
-            if (lower.Contains("monster") || lower.Contains("wolf") || lower.Contains("snail") ||
-                lower.Contains("spider") || lower.Contains("snake") || lower.Contains("bat") ||
-                lower.Contains("treant") || lower.Contains("tiger") || lower.Contains("bear") ||
-                lower.Contains("beetle") || lower.Contains("eagle") || lower.Contains("shark") ||
-                lower.Contains("crab") || lower.Contains("jellyfish") || lower.Contains("jelly") ||
-                lower.Contains("slime") || lower.Contains("boar") || lower.Contains("golem") ||
-                lower.Contains("spirit") || lower.Contains("ghost") || lower.Contains("scorpion") ||
-                lower.Contains("wasp") || lower.Contains("bee") || lower.Contains("flower monster") ||
-                lower.Contains("plant"))
-            {
-                return true;
-            }
-
-            return false;
+            // 5. Authentic roaming monsters in WLO 17000-17999 range
+            return (TemplateID >= 17000 && TemplateID <= 17999);
         }
 
         public bool IsHumanNpc()
@@ -324,24 +305,26 @@ namespace Game.Maps
                     return;
                 }
 
-                // --- 0.1 PRIMARY: Fully dynamic native eve.dat / eve.emg event resolution ---
-                // Resolves NPC ClickID -> MapObjectEntries.Events -> EventsinMapEntries
-                // Directly pulls all authentic chest drops (e.g. Map 10036 chests #32074, #32075), gathering items (Coconuts #41066),
-                // dialogues, multi-step quests, companions, and warp events directly from eve.dat.
+                // --- 0.1 PRIMARY: Native eve.emg event resolution for all NPCs, Quests, Dialogues & Props ---
+                // Directly dispatches official EveEventInterpreter bytecode engine from Eve.emg
                 if (src.CurMap is GameMap gmap && EveEventInterpreter.TryExecute(src, gmap, (ushort)this.CickID))
                 {
                     return;
                 }
 
-                // --- 0.1 PROPS KEEPER (Character-bound Storage Vault across all maps) ---
-                // Verified from propskeeper.pcapng (Frames 04-10) — Global ID 0x00019898 ensures identical shared items across all maps
-                if (lowerName.Contains("props keep") || lowerName.Contains("keeper") || lowerName.Contains("keep") || 
-                    lowerName.Contains("storage") || lowerName.Contains("bank") || lowerName.Contains("vault") ||
-                    lowerName.Contains("exchanger") || lowerName.Contains("stock") ||
-                    this.TemplateID == 14134 || this.TemplateID == 14181 || this.TemplateID == 14157)
+                // --- 0.1 PROPS KEEPER (Item Storage Vault) ---
+                if (lowerName.Contains("props keep") || lowerName.Contains("storage") || this.TemplateID == 14134)
                 {
                     src.OpenPropsKeeper();
-                    DebugSystem.Write($"[QuestNpc] Opened Character Props Keeper Vault for {src.CharName}");
+                    DebugSystem.Write($"[QuestNpc] Opened Character Props Keeper Item Storage for {src.CharName}");
+                    return;
+                }
+
+                // --- 0.15 STOCK KEEPER / BANK (Money / Gold Bank) ---
+                if (lowerName.Contains("stock keep") || lowerName.Contains("bank") || lowerName.Contains("vault") || lowerName.Contains("exchanger") || this.TemplateID == 14181 || this.TemplateID == 14157)
+                {
+                    src.OpenMoneyBank();
+                    DebugSystem.Write($"[QuestNpc] Opened Character Money Bank for {src.CharName}");
                     return;
                 }
 
@@ -462,8 +445,9 @@ namespace Game.Maps
 
 
 
-                string dialogueText;
+                string dialogueText = string.Empty;
 
+                /*
                 // Ship Captain (Map 10024-10028 or TemplateID 10002 or Name contains Captain)
                 // Triggers official storm animation cutscene (ilkgorevinanimasyonlukisimlari.pcapng Frames 1834-1941)
                 if (lowerName.Contains("captain") || lowerName.Contains("kaptan") || this.TemplateID == 10002 ||
@@ -493,6 +477,7 @@ namespace Game.Maps
                     src.Send(s1);
                     return;
                 }
+                */
 
                 // Map 10036 (Robinson Beach) Raft Chest (ClickID: 7) - Official PCAP Cutscene & Robinson Recruit (Frames 0919-0960)
                 if (src.CurMap?.MapID == 10036 && this.CickID == 7)
@@ -737,53 +722,6 @@ namespace Game.Maps
                         }
                     }
                 }
-                else if (this.TemplateID == 14091 || (src.CurMap?.MapID == 10001 && this.CickID == 1))
-                {
-                    if (src.Quests == null) src.Quests = new Dictionary<uint, QuestRelated.PlayerQuest>();
-                    if (!src.Quests.ContainsKey(10035))
-                    {
-                        src.Quests[10035] = new QuestRelated.PlayerQuest(10035, QuestRelated.QuestState.InProgress, 1);
-                        QuestRelated.QuestManager.SavePlayerQuest(src, 10035);
-                        QuestRelated.QuestManager.SendQuestUpdate(src, 10035, QuestRelated.QuestState.InProgress, 1);
-                    }
-                    dialogueText = "Greetings, traveler. The stars whisper of a great destiny awaiting you across the world. Step outside into the village square and receive the celestial Space Tent I have prepared for your journeys!";
-                }
-                else if (this.TemplateID == 14161 || this.TemplateID == 14162 || (src.CurMap?.MapID == 10000 && this.CickID == 2))
-                {
-                    dialogueText = "Greetings! I am Roca, daughter of the Chief. Are you ready for an exciting adventure across the islands?";
-                }
-                else if (this.TemplateID == 14049 || (src.CurMap?.MapID == 10000 && this.CickID == 3))
-                {
-                    dialogueText = "Hello there! Isn't this village wonderful? The breeze from the sea feels so refreshing.";
-                }
-                else if (this.TemplateID == 14118 || this.TemplateID == 14119)
-                {
-                    dialogueText = "Halt! Keep peace in the village. If you travel into the wilderness, be well prepared for monsters.";
-                }
-                else if (this.TemplateID == 14013)
-                {
-                    dialogueText = "Welcome to our town! If you need anything, don't hesitate to ask around.";
-                }
-                else if (this.TemplateID == 14005)
-                {
-                    dialogueText = "Hey! Have you seen any strange creatures outside? Stay safe out there!";
-                }
-                else if (this.TemplateID == 14140)
-                {
-                    dialogueText = "The flowers in the village are blooming beautifully today!";
-                }
-                else if (this.TemplateID == 19020 || this.TemplateID == 19021)
-                {
-                    dialogueText = "[Signpost]: East -> Harbor & Beach | West -> Village Square | North -> Chieftain's Manor";
-                }
-                else if (this.TemplateID == 11003)
-                {
-                    dialogueText = "Woof! (The loyal Shiba inu wags its tail happily.)";
-                }
-                else
-                {
-                    dialogueText = "Hello, traveller! Beautiful day, isn't it? Let me know if you need anything.";
-                }
 
                 // Brelliat Swap & Transformation Dialogue (Official PCAP 'brelliatlayerdegistirdim.pcapng')
                 // Validated directly by MapID, ClickID and NPC TemplateID without name string dependency
@@ -881,6 +819,7 @@ namespace Game.Maps
                     return;
                 }
 
+                /*
                 // 2. Captain Prologue Dialogue Sequence (100% Byte-for-Byte from official PCAP Frame 0310-0328)
                 if (src.CurMap?.MapID == 10017 && (this.CickID == 10 || this.CickID == 4 || this.CickID == 11))
                 {
@@ -911,6 +850,7 @@ namespace Game.Maps
                     DebugSystem.Write($"[QuestNpc] Sent exact PCAP Captain prologue dialogue sequence for '{Name}'.");
                     return;
                 }
+                */
                 // Interactive Lootable Map Props (Crate / Chest / Barrel - Official PCAPs 'crateatiklayipstatedegistiripcikolatakazanma.pcapng' & 'digersandiklaritoplama.pcapng')
                 if ((src.CurMap?.MapID == 10036 || src.CurMap?.MapID == 10000) && (this.CickID == 3 || this.CickID == 5 || this.CickID == 6))
                 {
@@ -982,6 +922,7 @@ namespace Game.Maps
                     DebugSystem.Write($"[QuestNpc] Player {src.CharName} opened prop (ClickID: {this.CickID}) and received {itemName}.");
                     return;
                 }
+                /*
                 else if (((src.CurMap?.MapID == 10036 || src.CurMap?.MapID == 10000) && (this.CickID == 1 || this.CickID == 7)) || this.TemplateID == 12178 || this.TemplateID == 14044)
                 {
                     src.QueueData.Clear();
@@ -1093,6 +1034,7 @@ namespace Game.Maps
                         return;
                     }
                 }
+                */
                 else if (((src.CurMap?.MapID == 10036 || src.CurMap?.MapID == 10000) && this.CickID == 1) || this.TemplateID == 10727)
                 {
                     src.QueueData.Clear();
@@ -1138,10 +1080,46 @@ namespace Game.Maps
                     DebugSystem.Write($"[QuestNpc] Sent exact PCAP Monkey recruitment sequence for '{Name}'.");
                     return;
                 }
+                else if (this.IsStaticNpc())
+                {
+                    // Static Chest, Crate, Barrel, Ore Vein, Herb, or Gathering Prop
+                    if (this.IsBroken)
+                    {
+                        src.SendSystemMessage("📦 This node/chest is currently empty and will respawn soon.");
+                        src.Send(Tools.FromFormat("bb", 20, 8));
+                        src.Send(Tools.FromFormat("bb", 5, 4));
+                        return;
+                    }
+
+                    // Play chest open animation (AC 22:1 or AC 22:10)
+                    SendPacket anim = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)1);
+                    src.Send(anim);
+                    src.CurMap?.Broadcast(anim);
+
+                    this.IsBroken = true;
+                    this.RespawnTime = DateTime.Now.AddSeconds(ChestDropManager.DefaultRespawnSeconds);
+
+                    // Roll authentic loot from ChestDropManager
+                    var drop = ChestDropManager.RollDrop((uint)(src.CurMap?.MapID ?? 0), this.Name);
+                    if (drop != null && drop.ItemID > 0)
+                    {
+                        src.Inv?.AddItem(drop.ItemID, drop.Count);
+                        src.Send(new SendPacket(src.Inv?.GetAC23_5()));
+                        string itemName = Game.Battle.MonsterDropManager.ResolveItemName(drop.ItemID) ?? drop.ItemName;
+                        src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
+                        src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
+                        src.SendSystemMessage($"🎁 Opened '{this.Name}' and obtained {drop.Count}x {itemName}!");
+                        DebugSystem.Write($"[QuestNpc] Player {src.CharName} opened static chest/prop '{this.Name}' (ClickID: {this.CickID}) and received {drop.Count}x {itemName} (#{drop.ItemID}).");
+                    }
+
+                    src.Send(Tools.FromFormat("bb", 20, 8));
+                    src.Send(Tools.FromFormat("bb", 5, 4));
+                    return;
+                }
                 else
                 {
-                    // Generic NPC fallback: direct AC 20 Sub 1 dialogue
-                    uint talkId = (this.CickID % 2 == 0) ? (uint)0x0175B9 : (uint)0x0175BA;
+                    // Generic NPC fallback: direct AC 20 Sub 1 dialogue with authentic Talk.dat ID
+                    uint talkId = ResolveTalkIdForNpc(src);
 
                     SendPacket step1 = BuildDialogueStep((byte)this.CickID, talkId, step: 1, portraitType: 3);
                     src.Send(step1);
@@ -1152,6 +1130,11 @@ namespace Game.Maps
                         src.Send(Tools.FromFormat("bb", 5, 4));
                     };
 
+                    if (string.IsNullOrEmpty(dialogueText))
+                    {
+                        dialogueText = ExtractDialogueFromTalkDat(talkId);
+                    }
+
                     src.SendSystemMessage($"💬 {Name}: {dialogueText}");
                     DebugSystem.Write($"[QuestNpc] Sent authentic dialogue window for '{Name}' (ClickID: {this.CickID}, TalkID: 0x{talkId:X}): '{dialogueText}'");
                 }
@@ -1161,6 +1144,101 @@ namespace Game.Maps
                 DebugSystem.Write($"[QuestNpc] Error in Interact: {ex.Message}");
                 src.Send(Tools.FromFormat("bb", 20, 8));
             }
+        }
+
+        private static string ExtractDialogueFromTalkDat(uint talkId)
+        {
+            try
+            {
+                string talkPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                if (!System.IO.File.Exists(talkPath)) talkPath = @"d:\GitHub\Wonderland-Private-Server\Data\Talk.dat";
+                if (System.IO.File.Exists(talkPath) && talkId > 0)
+                {
+                    byte[] data = System.IO.File.ReadAllBytes(talkPath);
+                    if (talkId < data.Length)
+                    {
+                        int end = (int)talkId;
+                        while (end < data.Length && data[end] != 0) end++;
+                        int len = end - (int)talkId;
+                        if (len > 0 && len < 500)
+                        {
+                            byte[] slice = new byte[len];
+                            Array.Copy(data, (int)talkId, slice, 0, len);
+                            Array.Reverse(slice);
+                            string decoded = Encoding.GetEncoding(950).GetString(slice).Trim();
+                            if (decoded.StartsWith("fffff")) decoded = decoded.Substring(5).Trim();
+                            return decoded;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return "Hello!";
+        }
+
+        private uint ResolveTalkIdForNpc(Player src)
+        {
+            // 1. Dynamic extraction from authentic Eve.emg binary data
+            try
+            {
+                if (src?.CurMap != null)
+                {
+                    var mapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)src.CurMap.MapID);
+                    if (mapData != null)
+                    {
+                        var npcEntry = mapData.Npclist?.FirstOrDefault(n => n.clickId == this.CickID);
+                        if (npcEntry != null && npcEntry.Events != null && npcEntry.Events.Count > 0 && mapData.Events != null)
+                        {
+                            foreach (var evId in npcEntry.Events)
+                            {
+                                var ev = mapData.Events.FirstOrDefault(e => e.clickID == evId);
+                                if (ev?.SubEntry != null)
+                                {
+                                    foreach (var sub in ev.SubEntry)
+                                    {
+                                        if (sub?.SubEntry == null) continue;
+                                        foreach (var op in sub.SubEntry)
+                                        {
+                                            if (op.DialogPtr == 2 && op.dialog2 == 1 && op.dialog3 > 0)
+                                            {
+                                                return ((uint)op.dialog1 << 16) | (uint)op.dialog3;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Also check direct clickID event in mapData.Events
+                        if (mapData.Events != null)
+                        {
+                            var ev = mapData.Events.FirstOrDefault(e => e.clickID == this.CickID);
+                            if (ev?.SubEntry != null)
+                            {
+                                foreach (var sub in ev.SubEntry)
+                                {
+                                    if (sub?.SubEntry == null) continue;
+                                    foreach (var op in sub.SubEntry)
+                                    {
+                                        if (op.DialogPtr == 2 && op.dialog2 == 1 && op.dialog3 > 0)
+                                        {
+                                            return ((uint)op.dialog1 << 16) | (uint)op.dialog3;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            // 2. Default Authentic Kelan Village Greeting
+            return 0x21284C; // "Welcome to Kelan Village."
         }
 
         private static SendPacket BuildDialogueStep(byte clickId, uint talkId, byte step, byte portraitType)

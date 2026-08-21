@@ -80,6 +80,12 @@ namespace Game.QuestRelated
         public uint NpcTemplateID { get; set; }
         public string NpcNamePattern { get; set; }
 
+        public string Category { get; set; } = "🏝️ Storyline & Area";
+        public string AreaName { get; set; } = "Unknown";
+        public uint InProgressMarkID { get; set; }
+        public uint CompletedMarkID { get; set; }
+        public List<uint> AllLinkedMarkIDs { get; set; } = new List<uint>();
+
         public List<QuestRequirementItem> RequiredItems { get; set; } = new List<QuestRequirementItem>();
         public QuestReward Reward { get; set; } = new QuestReward();
 

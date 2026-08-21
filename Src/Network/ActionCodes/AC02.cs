@@ -28,8 +28,11 @@ namespace Network.ActionCodes {
                     switch (words[0]) {
                         #region Heal / HP / SP Command
                         case ":heal":
+                        case "/heal":
                         case ":hp":
-                        case ":full": {
+                        case "/hp":
+                        case ":full":
+                        case "/full": {
                                 try {
                                     if (words.Length >= 3 && int.TryParse(words[1], out int customHp) && int.TryParse(words[2], out int customSp)) {
                                         p.Eqs.CurHP = Math.Min(p.Eqs.FullHP, customHp);
@@ -41,8 +44,8 @@ namespace Network.ActionCodes {
                                         p.Eqs.CurHP = p.Eqs.FullHP;
                                         p.Eqs.CurSP = p.Eqs.FullSP;
                                     }
-                                    p.Eqs.SendStat(25, p.Eqs.CurHP);
-                                    p.Eqs.SendStat(26, p.Eqs.CurSP);
+                                    p.Eqs.Send8_1(false);
+                                    p.Send_5_3();
                                     p.SendSystemMessage($"[GM] HP/SP Restored! HP: {p.Eqs.CurHP}/{p.Eqs.FullHP}, SP: {p.Eqs.CurSP}/{p.Eqs.FullSP}");
                                 } catch { }
                             }
@@ -86,12 +89,30 @@ namespace Network.ActionCodes {
 
                         #region Gold Command
                         case ":gold":
-                        case ":money": {
+                        case "/gold":
+                        case ":money":
+                        case "/money": {
                                 try {
                                     if (words.Length >= 2 && int.TryParse(words[1], out int amount)) {
-                                        p.Eqs.Gold = (uint)Math.Max(0, amount);
-                                        p.Eqs.SendStat(39, (int)p.Eqs.Gold);
-                                        p.SendSystemMessage($"[GM] Gold set to {p.Eqs.Gold}!");
+                                        p.SetGold(Math.Max(0, amount));
+                                        p.Send(Tools.FromFormat("bbd", 26, 4, (uint)p.Gold));
+                                        DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                        p.SendSystemMessage($"[GM] Gold set to {p.Gold}!");
+                                    }
+                                } catch { }
+                            }
+                            break;
+                        #endregion
+
+                        #region EXP Command
+                        case ":exp":
+                        case "/exp": {
+                                try {
+                                    if (words.Length >= 2 && long.TryParse(words[1], out long expAmt)) {
+                                        p.Eqs.TotalExp = Math.Max(0, expAmt);
+                                        p.Eqs.Send8_1(false);
+                                        DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                        p.SendSystemMessage($"[GM] Total EXP set to {p.Eqs.TotalExp}!");
                                     }
                                 } catch { }
                             }

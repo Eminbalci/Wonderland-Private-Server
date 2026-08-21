@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {}
+    "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {}
   },
   "projects": {
-    "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {
+    "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+        "projectUniqueName": "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
         "projectName": "RCLibrary",
-        "projectPath": "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+        "projectPath": "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
         "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
-        "outputPath": "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
+        "outputPath": "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",

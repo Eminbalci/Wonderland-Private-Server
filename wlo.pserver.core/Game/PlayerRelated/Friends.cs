@@ -9,6 +9,8 @@ namespace Game.PlayerRelated
 {
     public class Friendlist
     {
+        public static Func<uint, bool> IsPlayerOnlineHandler { get; set; }
+
         private readonly Character[] m_friendlist;
         private readonly Action<SendPacket> _sendPacket;
         private readonly Player _owner;
@@ -33,7 +35,9 @@ namespace Game.PlayerRelated
 
             foreach (Character h in m_friendlist)
             {
-                if (h == null) continue;
+                if (h == null || h is Cupid) continue;
+                bool isOnline = (IsPlayerOnlineHandler != null && IsPlayerOnlineHandler(h.CharID));
+
                 y.Pack32(h.CharID);
                 y.PackString(h.CharName ?? $"Player #{h.CharID}");
                 y.Pack8((byte)h.Level);
@@ -47,7 +51,8 @@ namespace Game.PlayerRelated
                 y.Pack16(h.ClothingColor);
                 y.Pack16(h.EyeColor);
                 y.PackString(h.NickName ?? "");
-                y.Pack8(0);
+                y.PackString(""); // GuildName string
+                y.Pack8((byte)(isOnline ? 1 : 0));
             }
             _sendPacket(y);
         }

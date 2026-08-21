@@ -331,6 +331,8 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
+                    if (m_curhp <= 0 && FullHP > 0)
+                        m_curhp = FullHP;
                     return m_curhp;
                 }
             }
@@ -351,6 +353,8 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
+                    if (m_cursp <= 0 && FullSP > 0)
+                        m_cursp = FullSP;
                     return m_cursp;
                 }
             }
@@ -719,7 +723,7 @@ namespace Game.Code
         /// <summary>
         /// Total Equipped MAXHP
         /// </summary>
-        protected Int32 EquippedMaxHP
+        public Int32 EquippedMaxHP
         {
             get
             {
@@ -735,7 +739,7 @@ namespace Game.Code
         /// <summary>
         /// Total Equipped MAXSP
         /// </summary>
-        protected Int32 EquippedMaxSP
+        public Int32 EquippedMaxSP
         {
             get
             {
@@ -1183,52 +1187,41 @@ namespace Game.Code
         {
             lock (m_Lock)
             {
-                if (levelup)
+                if (levelup || m_curhp <= 0)
                 {
                     CurHP = FullHP;
+                }
+                if (levelup || m_cursp <= 0)
+                {
                     CurSP = FullSP;
                 }
 
-                // Level, Exp & Points
-                SendStat64(36, TotalExp);
-                SendStat(35, Level);
-                SendStat(37, Math.Max(0, Level - 1));
+                // Equipment & Status Bonuses followed by Derived Combat Stats:
+                SendStat(0xCF, EquippedMaxHP);
+                SendStat(0x19, FullHP);
+                SendStat(0xD0, EquippedMaxSP);
+                SendStat(0x1A, FullSP);
+                SendStat(0x29, Str * 2 + EquippedATK);
+                SendStat(0x2A, Con * 2 + EquippedDEF);
+                SendStat(0x2B, Int * 2 + EquippedMAT);
+                SendStat(0x2C, Wis * 2 + EquippedMDF);
+                SendStat(0x2D, Agi * 2 + EquippedSPD);
+
+                // Base Stats (Right column in Status Window):
+                SendStat(0x1C, Str); // Row 1: STR (0x1f8c)
+                SendStat(0x1D, Con); // Row 2: CON (0x1f8e)
+                SendStat(0x1B, Int); // Row 3: INT (0x1f8a)
+                SendStat(0x21, Wis); // Row 4: WIS (0x1f92)
+                SendStat(0x1E, Agi); // Row 5: AGI (0x1f90)
+
+                // Available Stat Points (POINT Stat 38) and Potential (Stat 37):
                 SendStat(38, SkillPoints);
+                SendStat(37, Potential);
+            }
 
-                // Max HP & Max SP
-                SendStat(205, FullHP);
-                SendStat(206, FullSP);
-
-                // Cur HP & Cur SP
-                SendStat(207, 0);
-                SendStat(25, (CurHP > FullHP) ? FullHP : CurHP);
-                SendStat(208, 0);
-                SendStat(26, (CurSP > FullSP) ? FullSP : CurSP);
-
-                // STR / ATK
-                SendStat(28, Str);
-                SendStat(210, 0);
-                SendStat(41, FullAtk);
-
-                // CON / DEF
-                SendStat(29, Con);
-                SendStat(211, 0);
-                SendStat(42, FullDef);
-
-                // AGI / SPD
-                SendStat(30, Agi);
-                SendStat(214, 0);
-                SendStat(45, FullSpd);
-
-                // INT / MATK
-                SendStat(27, Int);
-                SendStat(215, 0);
-                SendStat(43, FullMatk);
-
-                // WIS / MDF
-                SendStat(33, Wis);
-                SendStat(216, 0);
-                SendStat(44, FullMdef);
+            if (this is Player player && player.hasParty)
+            {
+                player.BroadcastPartyUpdate();
             }
         }
 

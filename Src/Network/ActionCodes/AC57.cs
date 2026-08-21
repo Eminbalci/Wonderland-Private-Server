@@ -44,8 +44,7 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte result = 0;
-                try { result = r.Unpack8(); } catch { result = 0; }
+                byte result = (r != null && r.Buffer.Length > 6) ? r[6] : (byte)0;
                 bool isWin = (result == 1);
 
                 DebugSystem.Write($"[AC57.Recv1] Player {p.CharName} finished minigame. Result: {(isWin ? "WON (1)" : "LOST (0)")}");

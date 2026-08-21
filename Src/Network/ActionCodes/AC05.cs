@@ -91,14 +91,29 @@ namespace Network.ActionCodes
 
         private void Recv7(Player c, RecievePacket p)
         {
-            // S->C AC 5:8 [5, 8, CharID(4B), 0]
+            if (c == null) return;
+
+            // 1. Send AC 3 (Character Entity on Map)
+            var ac3 = c.ToAC3Packet();
+            if (ac3 != null) c.Send(ac3);
+
+            // 2. Send AC 5:0 (Equipment visuals)
+            SendPacket eq = new SendPacket();
+            eq.Pack8(5);
+            eq.Pack8(0);
+            eq.Pack32(c.CharID);
+            eq.PackArray(c.Worn_Equips);
+            c.Send(eq);
+
+            // 3. S->C AC 5:8 [5, 8, CharID(4B), 0]
             SendPacket s = new SendPacket();
             s.Pack8(5);
             s.Pack8(8);
             s.Pack32(c.CharID);
             s.Pack8(0);
             c.Send(s);
-            DebugSystem.Write($"[AC5.Recv7] Sent AC 5:8 to {c.CharName}");
+
+            DebugSystem.Write($"[AC5.Recv7] Dispatched AC 3, AC 5:0, AC 5:8 spawn sequence to {c.CharName}");
         }
 
         private void Recv4(Player c, RecievePacket p)

@@ -863,7 +863,7 @@ namespace DataBase
             try { ExecuteNonQuery("DELETE FROM character_skills WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
-            try { ExecuteNonQuery("DELETE FROM Friends WHERE charID = '" + ID + "' OR friendID = '" + ID + "';"); }
+            try { ExecuteNonQuery("DELETE FROM Friends WHERE CharID1 = '" + ID + "' OR CharID2 = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
             if (Cache.ContainsKey((int)ID))
@@ -1206,7 +1206,7 @@ namespace DataBase
                 ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM stats WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM charactersExtData WHERE charID = '" + charID + "';");
-                ExecuteNonQuery("DELETE FROM Friends WHERE charID = '" + charID + "' OR friendID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM Friends WHERE CharID1 = '" + charID + "' OR CharID2 = '" + charID + "';");
             }
             catch (Exception ex)
             {
@@ -1513,8 +1513,10 @@ namespace DataBase
                     {
                         if (pet.PetID > 0)
                         {
+                            uint pId = (pet.PetID == 12178) ? 12032 : pet.PetID;
+                            string pName = (pet.PetName == "Companion #12178" || pet.PetName == "Companion") ? "Robinson" : (pet.PetName ?? "");
                             petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','0')",
-                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0));
+                                charID, pet.Slot, pId, pName.Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0));
                         }
                     }
                 }
@@ -1550,18 +1552,16 @@ namespace DataBase
                 ExecuteNonQuery("DELETE FROM character_skills WHERE charID = '" + charID + "';");
                 if (player.PlayerSkills != null && player.PlayerSkills.Count > 0)
                 {
+                    var distinctSkills = player.PlayerSkills.Where(s => s.SkillID > 0).GroupBy(s => s.SkillID).Select(g => g.First()).ToList();
                     List<string> skillRows = new List<string>();
-                    foreach (var sk in player.PlayerSkills)
+                    foreach (var sk in distinctSkills)
                     {
-                        if (sk.SkillID > 0)
-                        {
-                            skillRows.Add(string.Format("('{0}','{1}','{2}','{3}')",
-                                charID, sk.SkillID, sk.Grade, sk.Exp));
-                        }
+                        skillRows.Add(string.Format("('{0}','{1}','{2}','{3}')",
+                            charID, sk.SkillID, sk.Grade, sk.Exp));
                     }
                     if (skillRows.Count > 0)
                     {
-                        ExecuteNonQuery(string.Format("INSERT INTO character_skills (charID,skillID,grade,exp) VALUES {0};", string.Join(",", skillRows)));
+                        ExecuteNonQuery(string.Format("INSERT OR REPLACE INTO character_skills (charID,skillID,grade,exp) VALUES {0};", string.Join(",", skillRows)));
                     }
                 }
             }
@@ -1742,6 +1742,37 @@ namespace DataBase
                             DebugSystem.Write($"[BroadcastNewPlayer] Sending {newPlayer.CharName} to player {player.CharName} (CharID={player.CharID})");
                             player.Send(broadcastPacket);
                             broadcastCount++;
+
+                            // Also synchronize newPlayer's active companion pet to player
+                            if (newPlayer.PlayerPets != null && newPlayer.PlayerPets.Count > 0)
+                            {
+                                var activePet = newPlayer.PlayerPets.Values.FirstOrDefault(pet => pet.IsBattle || pet.PetID == newPlayer.ActivePetID);
+                                if (activePet != null)
+                                {
+                                    SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(newPlayer, activePet.PetID, activePet.Slot, activePet.HP, activePet.MaxHP, activePet.SP, activePet.MaxSP, activePet.Amity, activePet.Level);
+                                    player.Send(petPkt);
+
+                                    SendPacket petFollow = new SendPacket();
+                                    petFollow.PackArray(new byte[] { 13, 5 });
+                                    petFollow.Pack32(newPlayer.CharID);
+                                    petFollow.Pack32(activePet.PetID);
+                                    player.Send(petFollow);
+
+                                    SendPacket followPkt = new SendPacket();
+                                    followPkt.Pack8(19);
+                                    followPkt.Pack8(4);
+                                    followPkt.Pack32(newPlayer.CharID);
+                                    followPkt.Pack32(activePet.PetID);
+                                    player.Send(followPkt);
+
+                                    SendPacket petRefresh = new SendPacket();
+                                    petRefresh.PackArray(new byte[] { 5, 8 });
+                                    petRefresh.Pack32(newPlayer.CharID);
+                                    petRefresh.Pack8(0);
+                                    player.Send(petRefresh);
+                                }
+                            }
+
                             DebugSystem.Write($"[BroadcastNewPlayer] Successfully sent to {player.CharName}");
                         }
                         catch (Exception ex)

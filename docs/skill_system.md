@@ -86,18 +86,22 @@ The Wonderland Online Skill System manages character stunt skills, elemental tre
   3. **Character Save / Logout (`CharacterDataBase.WritePlayer`)**: Atomically flushes all entries in `player.PlayerSkills` into `character_skills`.
 ### 4. Skill Evolution Tree & Grade Leveling (`Attack` -> `Hit` -> `Beating`)
 * **Grade Leveling (1–10)**:
-  * Her beceri savaşta kullanıldıkça veya eğitim aldıkça EXP kazanır. `Grade * 100` EXP barajı aşıldığında becerinin `Grade` seviyesi artar (`AC 5:11` ve `AC 8:1 Stat 110` paketleri ile istemciye bildirilir).
-* **Grade 10 Evrim Tetikleyicisi (`GetQualifiedEvolutionSkills`)**:
-  * Bir beceri **Grade 10** seviyesine ulaştığında (veya karakter stat gereksinimini sağladığında), ağaçtaki bir sonraki daha güçlü varyantı (`Hit` ve `Beating`) otomatik olarak açılır:
-    * **Ateş (Fire):**
-      * `Flame Attack` (#11016, Grade 10) ➔ `Flame Hit` (#11029) ➔ `Flame Beating` (#11025) ➔ `Fire Ball Attack` (#11034)
-      * `Blast Attack` (#11166, Grade 10) ➔ `Sword Awn Attack` (#15101) & `Blast Hit` (#15104) ➔ `Turning Fire Attack` (#11114) ➔ `Fire Wave Attack` (#12039) ➔ `Five Star Hit` (#15015) ➔ `Hagendis Attack` (#15044)
-      * `Slowdown` (#11056, Grade 10) ➔ `Poison Spell` (#11002) ➔ `Fiery Attack` (#11072) ➔ `Mess Spell` (#11003)
-    * **Toprak (Earth):**
-      * `Rock Attack` (#15085, Grade 10) ➔ `Rock Hit` (#11085) ➔ `Rock Beating` (#15074) ➔ `Rock Ball Attack` (#11031)
-      * `Earth Attack` (#11017, Grade 10) ➔ `Rockfall Attack` (#15056) ➔ `Rock Blast Attack` (#11019) ➔ `Jump Attack` (#15049)
-      * `Shield Defence` (#11057, Grade 10) ➔ `Tree Bind` (#15070) ➔ `Wake Spell` (#12043)
-    * **Su (Water):**
+  * Her yetenek savaşta kullanıldıkça EXP kazanır (`SkillManager.AddSkillExp`). `Grade * 100` EXP barajı aşıldığında yeteneğin `Grade` seviyesi artar (`AC 5:11`, `AC 5:12`, `AC 8:2 Stat 110` paketleri ile istemciye bildirilir).
+* **Stat Kilitleri vs. Grade 10 Evrim Kuralı**:
+  1. **Temel Ağaç Kök Yetenekleri (Stat Şartları)**: Stat puanları (STR, INT, WIS, CON, AGI) yeterli seviyeye ulaştığında yalnızca 1. Aşama (`Attack` varyantı, örn: `Five Star Attack`, `Fire Wave Attack`, `Sword Awn Attack`) açılır.
+  2. **İleri Aşama Evrimler (`Hit` ve `Beating` - Grade 10 Şartı)**:
+     * `Five Star Attack` (Grade 10) ➔ `Five Star Hit` açılır.
+     * `Five Star Hit` (Grade 10) ➔ `Five Star Beating` açılır.
+     * `Fire Wave Attack` (Grade 10) ➔ `Fire Wave Hit` ➔ `Fire Wave Beating` açılır.
+     * `Sword Awn Attack` (Grade 10) ➔ `Sword Awn Hit` ➔ `Sword Awn Beating` açılır.
+     * `Blast Attack` (Grade 10) ➔ `Blast Hit` ➔ `Blast Beating` açılır.
+     * `Flame Attack` (Grade 10) ➔ `Flame Hit` ➔ `Flame Beating` açılır.
+     * `Fire Ball Attack` (Grade 10) ➔ `Fire Ball Hit` ➔ `Fire Ball Beating` açılır.
+     * `Blaze Attack` (Grade 10) ➔ `Blaze Hit` ➔ `Blaze Beating` açılır.
+     * `Fire Combo Attack` (Grade 10) ➔ `Fire Combo Hit` ➔ `Fire Combo Beating` açılır.
+     * `Fire Stone Attack` (Grade 10) ➔ `Fire Stone Hit` ➔ `Fire Stone Bead` açılır.
+     * `Fire Attack` (Grade 10) ➔ `Magma Attack` ➔ `Fire Dance` açılır.
+  * Tüm elementlerde (Toprak, Su, Ateş, Rüzgar) aynı 3 aşamalı hiyerarşik yapı eksiksiz çalışmaktadır.
       * `Ice Attack` (#15091, Grade 10) ➔ `Ice Hit` (#15092) ➔ `Ice Beating` (#15093) ➔ `Ice Ball Attack` (#11110)
       * `Icicle Attack` (#11001, Grade 10) ➔ `Icicle Hit` (#15062) ➔ `Turning Ice Attack` (#15019)
       * `Detoxification` (#15100, Grade 10) ➔ `Cure Spell` (#11042) ➔ `Ice-out` (#12048)

@@ -56,6 +56,7 @@ namespace Server
             QueuedPlayerLogin = new Queue<Player>();
             MapList = new ConcurrentDictionary<ushort, GameMap>();
             new MapManager(); // Initialize Singleton
+            Game.PlayerRelated.Friendlist.IsPlayerOnlineHandler = (charId) => cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.Any(pl => pl.CharID == charId) == true;
         }
 
         public void OnLogin(Player client)
@@ -534,6 +535,10 @@ namespace Server
         {
             DebugSystem.Write("[WorldServer] CommenceLogin started.");
 
+            cGlobal.gCharacterDataBase.OnCharacterJoin(src);
+            src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
+            src.Disconnected += (s) => Network.ActionCodes.AC14.NotifyFriendsStatus(s, false);
+
             src.Flags.Add(PlayerFlag.Logging_into_Map);
 
             src.Send(Tools.FromFormat("bb", 20, 8));
@@ -552,8 +557,7 @@ namespace Server
             DebugSystem.Write("[WorldServer] Loading Final Data...");
             cGlobal.gGameDataBase.LoadFinalData(src);
             src.SendCharacterData();
-            cGlobal.gCharacterDataBase.OnCharacterJoin(src);
-            src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
+            Network.ActionCodes.AC14.NotifyFriendsStatus(src, true);
 
             // Populate PlayerSkills list in memory (no packets yet — must precede SendAllSkills below)
             Game.SkillRelated.SkillManager.InitializePlayerSkillsNoSend(src);
@@ -587,7 +591,6 @@ namespace Server
             Game.QuestRelated.QuestManager.SendQuestJournal(src);
 
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
-            src.Send(Tools.FromFormat("bbb", 5, 16, 0));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));
             src.Send(Tools.FromFormat("bbbl", 25, 44, 2, DateTime.Now.ToOADate()));
             src.Send(Tools.FromFormat("bbb", 23, 160, 3));
@@ -625,19 +628,21 @@ namespace Server
 
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
 
-            // AC 5:3 Base Stats
+            // 1. Populate all qualified starter and progression skills before packing Send_5_3
+            Game.SkillRelated.SkillManager.CheckAndUnlockProgressionSkillsNoSend(src);
+
+            // 2. AC 5:3 Base Stats and Learned Skills
             src.Send_5_3();
             src.Send8_1(false);
 
-            // Send all learned skills (AC 5:11, AC 8:1 stat 110, AC 5:4)
+            // 3. Send all learned skills and skill tree status
             Game.SkillRelated.SkillManager.SendAllSkills(src);
 
             src.Flags.Add(PlayerFlag.InMap);
 
-            DebugSystem.Write("[WorldServer] Sending Online Characters (after spawn)...");
-            cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
-            DebugSystem.Write($"[WorldServer] Broadcasting new player {src.CharName} to all online players...");
-            cGlobal.gCharacterDataBase.BroadcastNewPlayer(src);
+            // Map-level player presence and visual synchronization is handled cleanly by Map.Warp_In with authentic AC 3 packet
+            // cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
+            // cGlobal.gCharacterDataBase.BroadcastNewPlayer(src);
         }
 
 

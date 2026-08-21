@@ -72,6 +72,8 @@ namespace Network.ActionCodes
                             Game.Battle.PvEBattleManager.CheckAndTriggerRandomEncounter(p);
                         }
                     }
+
+                    // Floor step triggers handled natively or through dedicated map portals
                 }
             }
         }

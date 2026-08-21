@@ -96,88 +96,7 @@ namespace Network.ActionCodes
                 {
                     // CharID = 0 means Friend List Request
                     DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend List Request from {p.CharName}");
-
-                    // Query database for friends
-                    try
-                    {
-                        var friendsTable = cGlobal.gGameDataBase.GetDataTable(
-                            $"SELECT CharID1, CharID2 FROM Friends WHERE CharID1 = {p.CharID} OR CharID2 = {p.CharID}");
-
-                        List<uint> friendIDs = new List<uint>();
-
-                        if (friendsTable != null && friendsTable.Rows.Count > 0)
-                        {
-                            for (int i = 0; i < friendsTable.Rows.Count; i++)
-                            {
-                                uint charID1 = uint.Parse(friendsTable.Rows[i]["CharID1"].ToString());
-                                uint charID2 = uint.Parse(friendsTable.Rows[i]["CharID2"].ToString());
-
-                                // Add the friend's ID (not the player's own ID)
-                                if (charID1 == p.CharID)
-                                    friendIDs.Add(charID2);
-                                else
-                                    friendIDs.Add(charID1);
-                            }
-                        }
-
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Found {friendIDs.Count} friends for {p.CharName}");
-
-                        // Send friend list with complete character data (SubCmd 5)
-                        SendPacket s = new SendPacket();
-                        s.PackArray(new byte[] { 14, 5 }); // SubCmd 5 for friend list with full data
-
-                        // Pack each friend's complete character data
-                        foreach (uint friendID in friendIDs)
-                        {
-                            try
-                            {
-                                // Get full character data from database
-                                Character friendChar = cGlobal.gCharacterDataBase.GetCharacterData(friendID);
-
-                                if (friendChar != null)
-                                {
-                                    // TODO: Online status - currently disabled due to timing issues
-                                    // The player might not be in GetAllPlayers() yet when SendFriendList is called during login
-                                    bool isOnline = false; // Always offline for now
-                                    s.Pack32(friendChar.CharID);
-                                    s.PackString(friendChar.CharName ?? "");
-                                    s.Pack8((byte)friendChar.Level);
-                                    s.Pack8((byte)(friendChar.Reborn ? 1 : 0));
-                                    s.Pack8((byte)friendChar.Job);
-                                    s.Pack8((byte)friendChar.Element);
-                                    s.Pack8((byte)friendChar.Body);
-                                    s.Pack8(friendChar.Head);
-                                    s.Pack16(friendChar.HairColor);
-                                    s.Pack16(friendChar.SkinColor);
-                                    s.Pack16(friendChar.ClothingColor);
-                                    s.Pack16(friendChar.EyeColor);
-                                    s.PackString(friendChar.NickName ?? "");
-                                    s.Pack8((byte)(isOnline ? 1 : 0)); // Online status
-
-                                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Added friend {friendChar.CharName} (ID:{friendID}) - Online: {isOnline}");
-                                }
-                                else
-                                {
-                                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Could not load character data for friend ID {friendID}");
-                                }
-                            }
-                            catch (Exception charEx)
-                            {
-                                DebugSystem.Write(DebugItemType.Error, $"[AC14] Error loading friend {friendID}: {charEx.Message}");
-                            }
-                        }
-
-                        p.Send(s);
-
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Sent friend list ({friendIDs.Count} friends) to {p.CharName}");
-                    }
-                    catch (Exception dbEx)
-                    {
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Database error retrieving friends: {dbEx.Message}");
-                        SendPacket s = new SendPacket();
-                        s.PackArray(new byte[] { 14, 5 });
-                        p.Send(s);
-                    }
+                    SendFriendList(p);
                 }
                 else
                 {
@@ -314,20 +233,15 @@ namespace Network.ActionCodes
                 try
                 {
                     // Packet structure: [Header 4 bytes] [AC 1 byte] [SubCmd 1 byte] [CharID 4 bytes]
-                    // After SetPtr(4), we're at position 4 (AC byte)
-                    // AC is at index 4, SubCmd at 5, CharID starts at 6
-                    if (r.Buffer.Length >= 10) // Header(4) + AC(1) + SubCmd(1) + CharID(4) = 10
+                    if (r.Buffer.Length >= 10)
                     {
-                        // Read CharID as little-endian from bytes 6-9
                         friendCharID = BitConverter.ToUInt32(r.Buffer.ToArray(), 6);
                         hasFriendID = true;
-
                         DebugSystem.Write(DebugItemType.Error, $"[AC14] Parsed CharID: {friendCharID}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    // No CharID in packet - it's a friend list request
                     DebugSystem.Write(DebugItemType.Error, $"[AC14] Failed to parse CharID: {ex.Message}");
                     hasFriendID = false;
                 }
@@ -335,7 +249,6 @@ namespace Network.ActionCodes
                 if (hasFriendID)
                 {
                     // Friend Remove
-                    // Debug: Show packet bytes
                     string hexBytes = BitConverter.ToString(r.Buffer.ToArray()).Replace("-", " ");
                     DebugSystem.Write(DebugItemType.Error, $"[AC14] Packet bytes: {hexBytes}");
                     DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend Remove Request from {p.CharName} for CharID {friendCharID}");
@@ -364,87 +277,7 @@ namespace Network.ActionCodes
                 {
                     // Friend List Request
                     DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend List Request (SubCmd 4) from {p.CharName}");
-
-                    // Query database for friends
-                    try
-                    {
-                        var friendsTable = cGlobal.gGameDataBase.GetDataTable(
-                            $"SELECT CharID1, CharID2 FROM Friends WHERE CharID1 = {p.CharID} OR CharID2 = {p.CharID}");
-
-                        List<uint> friendIDs = new List<uint>();
-
-                        if (friendsTable != null && friendsTable.Rows.Count > 0)
-                        {
-                            for (int i = 0; i < friendsTable.Rows.Count; i++)
-                            {
-                                uint charID1 = uint.Parse(friendsTable.Rows[i]["CharID1"].ToString());
-                                uint charID2 = uint.Parse(friendsTable.Rows[i]["CharID2"].ToString());
-
-                                // Add the friend's ID (not the player's own ID)
-                                if (charID1 == p.CharID)
-                                    friendIDs.Add(charID2);
-                                else
-                                    friendIDs.Add(charID1);
-                            }
-                        }
-
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Found {friendIDs.Count} friends for {p.CharName}");
-
-                        // Send friend list with complete character data (SubCmd 5)
-                        SendPacket s = new SendPacket();
-                        s.PackArray(new byte[] { 14, 5 }); // SubCmd 5 for friend list with full data
-
-                        // Pack each friend's complete character data
-                        foreach (uint friendID in friendIDs)
-                        {
-                            try
-                            {
-                                // Get full character data from database
-                                Character friendChar = cGlobal.gCharacterDataBase.GetCharacterData(friendID);
-
-                                if (friendChar != null)
-                                {
-                                    s.Pack32(friendChar.CharID);
-                                    s.PackString(friendChar.CharName ?? "");
-                                    s.Pack8((byte)friendChar.Level);
-                                    s.Pack8((byte)(friendChar.Reborn ? 1 : 0));
-                                    s.Pack8((byte)friendChar.Job);
-                                    s.Pack8((byte)friendChar.Element);
-                                    s.Pack8((byte)friendChar.Body);
-                                    s.Pack8(friendChar.Head);
-                                    s.Pack16(friendChar.HairColor);
-                                    s.Pack16(friendChar.SkinColor);
-                                    s.Pack16(friendChar.ClothingColor);
-                                    s.Pack16(friendChar.EyeColor);
-                                    s.PackString(friendChar.NickName ?? "");
-                                    s.Pack8(0); // Unknown byte
-
-                                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Added friend {friendChar.CharName} (ID:{friendID}) to list");
-                                }
-                                else
-                                {
-                                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Could not load character data for friend ID {friendID}");
-                                }
-                            }
-                            catch (Exception charEx)
-                            {
-                                DebugSystem.Write(DebugItemType.Error, $"[AC14] Error loading friend {friendID}: {charEx.Message}");
-                            }
-                        }
-
-                        p.Send(s);
-
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Sent friend list ({friendIDs.Count} friends) to {p.CharName}");
-                    }
-                    catch (Exception dbEx)
-                    {
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Database error retrieving friends: {dbEx.Message}");
-
-                        // Send empty list on error
-                        SendPacket s = new SendPacket();
-                        s.PackArray(new byte[] { 14, 5 });
-                        p.Send(s);
-                    }
+                    SendFriendList(p);
                 }
             }
             catch (Exception ex)
@@ -455,16 +288,16 @@ namespace Network.ActionCodes
 
         /// <summary>
         /// Public static helper to send friend list to a player
-        /// Can be called from other action codes (e.g., AC63 on login)
         /// </summary>
         public static void SendFriendList(Player p)
         {
+            if (p == null) return;
             try
             {
                 DebugSystem.Write(DebugItemType.Error, $"[AC14] SendFriendList called for {p.CharName}");
 
                 // Query database for friends
-                var friendsTable = cGlobal.gGameDataBase.GetDataTable(
+                var friendsTable = cGlobal.gGameDataBase?.GetDataTable(
                     $"SELECT CharID1, CharID2 FROM Friends WHERE CharID1 = {p.CharID} OR CharID2 = {p.CharID}");
 
                 List<uint> friendIDs = new List<uint>();
@@ -476,7 +309,6 @@ namespace Network.ActionCodes
                         uint charID1 = uint.Parse(friendsTable.Rows[i]["CharID1"].ToString());
                         uint charID2 = uint.Parse(friendsTable.Rows[i]["CharID2"].ToString());
 
-                        // Add the friend's ID (not the player's own ID)
                         if (charID1 == p.CharID)
                             friendIDs.Add(charID2);
                         else
@@ -488,53 +320,129 @@ namespace Network.ActionCodes
 
                 // Send friend list with complete character data (SubCmd 5)
                 SendPacket s = new SendPacket();
-                s.PackArray(new byte[] { 14, 5 }); // SubCmd 5 for friend list with full data
+                s.PackArray(new byte[] { 14, 5 });
 
-                // Pack each friend's complete character data
                 foreach (uint friendID in friendIDs)
                 {
-                    try
-                    {
-                        // Get full character data from database
-                        Character friendChar = cGlobal.gCharacterDataBase.GetCharacterData(friendID);
-
-                        if (friendChar != null)
-                        {
-                            s.Pack32(friendChar.CharID);
-                            s.PackString(friendChar.CharName ?? "");
-                            s.Pack8((byte)friendChar.Level);
-                            s.Pack8((byte)(friendChar.Reborn ? 1 : 0));
-                            s.Pack8((byte)friendChar.Job);
-                            s.Pack8((byte)friendChar.Element);
-                            s.Pack8((byte)friendChar.Body);
-                            s.Pack8(friendChar.Head);
-                            s.Pack16(friendChar.HairColor);
-                            s.Pack16(friendChar.SkinColor);
-                            s.Pack16(friendChar.ClothingColor);
-                            s.Pack16(friendChar.EyeColor);
-                            s.PackString(friendChar.NickName ?? "");
-                            s.Pack8(0); // Unknown byte
-
-                            DebugSystem.Write(DebugItemType.Error, $"[AC14] Added friend {friendChar.CharName} (ID:{friendID}) to list");
-                        }
-                        else
-                        {
-                            DebugSystem.Write(DebugItemType.Error, $"[AC14] Could not load character data for friend ID {friendID}");
-                        }
-                    }
-                    catch (Exception charEx)
-                    {
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Error loading friend {friendID}: {charEx.Message}");
-                    }
+                    PackFriendEntry(s, friendID);
                 }
 
                 p.Send(s);
-
                 DebugSystem.Write(DebugItemType.Error, $"[AC14] Sent friend list ({friendIDs.Count} friends) to {p.CharName}");
             }
             catch (Exception ex)
             {
                 DebugSystem.Write(DebugItemType.Error, $"[AC14] SendFriendList Exception: {ex.Message}");
+            }
+        }
+
+        public static bool IsPlayerOnline(uint charId)
+        {
+            return cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.Any(pl => pl.CharID == charId) == true;
+        }
+
+        /// <summary>
+        /// Helper to pack a friend entry with live online detection
+        /// </summary>
+        private static void PackFriendEntry(SendPacket s, uint friendID)
+        {
+            try
+            {
+                bool isOnline = IsPlayerOnline(friendID);
+                Player onlinePlayer = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(pl => pl.CharID == friendID);
+                Character friendChar = (Character)onlinePlayer ?? cGlobal.gCharacterDataBase?.GetCharacterData(friendID);
+
+                if (friendChar != null)
+                {
+                    s.Pack32(friendChar.CharID);
+                    s.PackString(friendChar.CharName ?? $"Player #{friendID}");
+                    s.Pack8((byte)friendChar.Level);
+                    s.Pack8((byte)(friendChar.Reborn ? 1 : 0));
+                    s.Pack8((byte)friendChar.Job);
+                    s.Pack8((byte)friendChar.Element);
+                    s.Pack8((byte)friendChar.Body);
+                    s.Pack8(friendChar.Head);
+                    s.Pack16(friendChar.HairColor);
+                    s.Pack16(friendChar.SkinColor);
+                    s.Pack16(friendChar.ClothingColor);
+                    s.Pack16(friendChar.EyeColor);
+                    s.PackString(friendChar.NickName ?? "");
+                    s.PackString(""); // GuildName string
+                    s.Pack8((byte)(isOnline ? 1 : 0)); // Online status: 1 = Online (Green), 0 = Offline (Grey)
+
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Added friend {friendChar.CharName} (ID:{friendID}) - Online: {isOnline}");
+                }
+                else
+                {
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Could not load character data for friend ID {friendID}");
+                }
+            }
+            catch (Exception charEx)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[AC14] Error loading friend {friendID}: {charEx.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Notifies all online friends of player p when their online status changes
+        /// </summary>
+        public static void NotifyFriendsStatus(Player p, bool isOnline)
+        {
+            try
+            {
+                if (p == null || cGlobal.gGameDataBase == null) return;
+                var friendsTable = cGlobal.gGameDataBase.GetDataTable(
+                    $"SELECT CharID1, CharID2 FROM Friends WHERE CharID1 = {p.CharID} OR CharID2 = {p.CharID}");
+
+                if (friendsTable == null || friendsTable.Rows.Count == 0) return;
+
+                List<uint> friendIDs = new List<uint>();
+                for (int i = 0; i < friendsTable.Rows.Count; i++)
+                {
+                    uint charID1 = uint.Parse(friendsTable.Rows[i]["CharID1"].ToString());
+                    uint charID2 = uint.Parse(friendsTable.Rows[i]["CharID2"].ToString());
+                    friendIDs.Add(charID1 == p.CharID ? charID2 : charID1);
+                }
+
+                var onlinePlayers = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                if (onlinePlayers == null) return;
+
+                foreach (uint fid in friendIDs)
+                {
+                    var friend = onlinePlayers.FirstOrDefault(pl => pl.CharID == fid);
+                    if (friend != null && friend.CharID != p.CharID)
+                    {
+                        if (isOnline)
+                        {
+                            // AC 14:7 Friend Online Notification
+                            SendPacket sInfo = new SendPacket();
+                            sInfo.PackArray(new byte[] { 14, 7 });
+                            sInfo.Pack32(p.CharID);
+                            sInfo.PackString(p.CharName ?? string.Empty);
+                            friend.Send(sInfo);
+                        }
+                        else
+                        {
+                            // AC 14:8 Friend Offline Notification
+                            SendPacket sOffline = new SendPacket();
+                            sOffline.PackArray(new byte[] { 14, 8 });
+                            sOffline.Pack32(p.CharID);
+                            friend.Send(sOffline);
+                        }
+
+                        SendFriendList(friend);
+                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Refreshed friend list for {friend.CharName} due to {p.CharName} status change (Online: {isOnline})");
+                    }
+                }
+
+                if (isOnline)
+                {
+                    SendFriendList(p);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[AC14] NotifyFriendsStatus Exception: {ex.Message}");
             }
         }
     }

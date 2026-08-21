@@ -27,6 +27,7 @@ namespace DataBase
                         name VARCHAR(100) NOT NULL,
                         npc_name_pattern VARCHAR(100),
                         npc_template_id INT DEFAULT 0,
+                        map_id INT DEFAULT 0,
                         type INT DEFAULT 0,
                         description TEXT,
                         intro_dialogue TEXT,
@@ -45,8 +46,9 @@ namespace DataBase
                         steps_json TEXT
                     )";
                 db.ExecuteNonQuery(createQuestsTable);
+                try { db.ExecuteNonQuery("ALTER TABLE game_quests ADD COLUMN map_id INT DEFAULT 0;"); } catch { }
 
-                // 2. Check if table is empty or has old dummy Mark.dat dumps; if so, populate from Data/quests.json
+                // 2. Check if table is empty or has old dummy Mark.dat dumps; if so, populate from Data/Mark.dat
                 var dt = db.GetDataTable("SELECT COUNT(*) as cnt FROM game_quests");
                 long count = 0;
                 if (dt != null && dt.Rows.Count > 0)
@@ -54,9 +56,9 @@ namespace DataBase
                     count = Convert.ToInt64(dt.Rows[0]["cnt"]);
                 }
 
-                if (count != 1077)
+                if (count == 0)
                 {
-                    DebugSystem.Write("[QuestDataBase] Importing clean authentic quests from Data/quests.json...");
+                    DebugSystem.Write("[QuestDataBase] Importing clean authentic quests from Data/Mark.dat...");
                     ReimportCleanQuests(db);
                 }
 
@@ -75,11 +77,61 @@ namespace DataBase
             try
             {
                 db.ExecuteNonQuery("DELETE FROM game_quests");
-                ImportQuestsFromJson(db);
+
+                string markDatPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Mark.dat");
+                if (!File.Exists(markDatPath))
+                {
+                    markDatPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "Mark.dat");
+                }
+
+                if (File.Exists(markDatPath))
+                {
+                    QuestManager.LoadAuthenticQuestsFromMarkDat(markDatPath);
+                    try { db.ExecuteNonQuery("BEGIN TRANSACTION;"); } catch { }
+                    foreach (var q in QuestManager.MasterQuests.Values)
+                    {
+                        string stepsJson = "";
+                        if (q.Steps != null && q.Steps.Count > 0)
+                        {
+                            var sList = new List<string>();
+                            foreach (var st in q.Steps)
+                            {
+                                string pDia = (st.PromptDialogue ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
+                                string inDia = (st.InProgressDialogue ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
+                                string compDia = (st.CompleteDialogue ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
+                                sList.Add($"{{\"StepIndex\":{st.StepIndex},\"StepType\":\"{st.StepType}\",\"TargetNpcPattern\":\"{st.TargetNpcPattern}\",\"TargetNpcTemplateID\":{st.TargetNpcTemplateID},\"PromptDialogue\":\"{pDia}\",\"InProgressDialogue\":\"{inDia}\",\"CompleteDialogue\":\"{compDia}\"}}");
+                            }
+                            stepsJson = "[" + string.Join(",", sList) + "]";
+                        }
+
+                        string query = $@"
+                            INSERT OR REPLACE INTO game_quests (
+                                quest_id, name, npc_name_pattern, npc_template_id, map_id, type, description,
+                                intro_dialogue, in_progress_dialogue, complete_dialogue, already_completed_dialogue,
+                                battle_monster_id, battle_monster_name, reward_gold, reward_exp,
+                                reward_companion_id, reward_companion_name, reward_items, required_items,
+                                prerequisite_quests, steps_json
+                            ) VALUES (
+                                {q.QuestID}, '{EscapeSql(q.Title)}', '{EscapeSql(q.NpcNamePattern)}', {q.NpcTemplateID}, {q.MapID}, {(int)q.Type}, '{EscapeSql(q.Description)}',
+                                '{EscapeSql(q.IntroDialogue)}', '{EscapeSql(q.InProgressDialogue)}', '{EscapeSql(q.CompleteDialogue)}', '{EscapeSql(q.AlreadyCompletedDialogue)}',
+                                {q.BattleMonsterID}, '{EscapeSql(q.BattleMonsterName)}', {q.Reward?.Gold ?? 0}, {(int)(q.Reward?.Exp ?? 0)},
+                                {q.Reward?.CompanionPetID ?? 0}, '{EscapeSql(q.Reward?.CompanionName)}', '', '',
+                                '', '{EscapeSql(stepsJson)}'
+                            )";
+                        db.ExecuteNonQuery(query);
+                    }
+                    try { db.ExecuteNonQuery("COMMIT;"); } catch { }
+                }
+                else
+                {
+                    ImportQuestsFromJson(db);
+                }
+
                 LoadAllQuests(db);
             }
             catch (Exception ex)
             {
+                try { db.ExecuteNonQuery("ROLLBACK;"); } catch { }
                 DebugSystem.Write($"[QuestDataBase] Error reimporting clean quests: {ex.Message}");
             }
         }
@@ -128,13 +180,13 @@ namespace DataBase
 
                     string query = $@"
                         INSERT OR REPLACE INTO game_quests (
-                            quest_id, name, npc_name_pattern, npc_template_id, type, description,
+                            quest_id, name, npc_name_pattern, npc_template_id, map_id, type, description,
                             intro_dialogue, in_progress_dialogue, complete_dialogue, already_completed_dialogue,
                             battle_monster_id, battle_monster_name, reward_gold, reward_exp,
                             reward_companion_id, reward_companion_name, reward_items, required_items,
                             prerequisite_quests, steps_json
                         ) VALUES (
-                            {questId}, '{EscapeSql(name)}', '{EscapeSql(npcPattern)}', {npcTid}, {type}, '{EscapeSql(desc)}',
+                            {questId}, '{EscapeSql(name)}', '{EscapeSql(npcPattern)}', {npcTid}, 0, {type}, '{EscapeSql(desc)}',
                             '{EscapeSql(intro)}', '{EscapeSql(inProgress)}', '{EscapeSql(complete)}', '{EscapeSql(alreadyDone)}',
                             {battleMonsterId}, '{EscapeSql(battleMonsterName)}', {rewardGold}, {rewardExp},
                             {rewardCompanionId}, '{EscapeSql(rewardCompanionName)}', '{EscapeSql(rewardItems)}', '{EscapeSql(requiredItems)}',
@@ -168,11 +220,13 @@ namespace DataBase
                     string name = row["name"].ToString();
                     string npcPattern = row["npc_name_pattern"].ToString();
                     uint npcTid = Convert.ToUInt32(row["npc_template_id"]);
+                    ushort mapId = dt.Columns.Contains("map_id") && row["map_id"] != DBNull.Value ? Convert.ToUInt16(row["map_id"]) : (ushort)0;
                     QuestType type = (QuestType)Convert.ToInt32(row["type"]);
 
                     var quest = new QuestDefinition(questId, name, npcPattern, type)
                     {
                         NpcTemplateID = npcTid,
+                        MapID = mapId,
                         Description = row["description"].ToString(),
                         IntroDialogue = row["intro_dialogue"].ToString(),
                         InProgressDialogue = row["in_progress_dialogue"].ToString(),
@@ -269,7 +323,7 @@ namespace DataBase
             if (db == null) return new DataTable();
             try
             {
-                string query = "SELECT quest_id, name, type, npc_name_pattern, npc_template_id, reward_gold, reward_exp, reward_companion_name, reward_items, required_items, prerequisite_quests, description, intro_dialogue, in_progress_dialogue, complete_dialogue, already_completed_dialogue, battle_monster_id, battle_monster_name, reward_companion_id, steps_json FROM game_quests";
+                string query = "SELECT quest_id, name, type, npc_name_pattern, npc_template_id, map_id, reward_gold, reward_exp, reward_companion_name, reward_items, required_items, prerequisite_quests, description, intro_dialogue, in_progress_dialogue, complete_dialogue, already_completed_dialogue, battle_monster_id, battle_monster_name, reward_companion_id, steps_json FROM game_quests";
                 if (!string.IsNullOrWhiteSpace(filter))
                 {
                     string safeFilter = EscapeSql(filter.Trim());
@@ -285,7 +339,7 @@ namespace DataBase
             }
         }
 
-        public static bool SaveQuest(GameDataBase db, uint questId, string name, string npcPattern, int npcTid, int type,
+        public static bool SaveQuest(GameDataBase db, uint questId, string name, string npcPattern, int npcTid, int mapId, int type,
             string desc, string intro, string inProgress, string complete, string alreadyDone,
             int battleMonsterId, string battleMonsterName, int rewardGold, int rewardExp,
             int rewardCompanionId, string rewardCompanionName, string rewardItems, string requiredItems,
@@ -296,13 +350,13 @@ namespace DataBase
             {
                 string query = $@"
                     INSERT OR REPLACE INTO game_quests (
-                        quest_id, name, npc_name_pattern, npc_template_id, type, description,
+                        quest_id, name, npc_name_pattern, npc_template_id, map_id, type, description,
                         intro_dialogue, in_progress_dialogue, complete_dialogue, already_completed_dialogue,
                         battle_monster_id, battle_monster_name, reward_gold, reward_exp,
                         reward_companion_id, reward_companion_name, reward_items, required_items,
                         prerequisite_quests, steps_json
                     ) VALUES (
-                        {questId}, '{EscapeSql(name)}', '{EscapeSql(npcPattern)}', {npcTid}, {type}, '{EscapeSql(desc)}',
+                        {questId}, '{EscapeSql(name)}', '{EscapeSql(npcPattern)}', {npcTid}, {mapId}, {type}, '{EscapeSql(desc)}',
                         '{EscapeSql(intro)}', '{EscapeSql(inProgress)}', '{EscapeSql(complete)}', '{EscapeSql(alreadyDone)}',
                         {battleMonsterId}, '{EscapeSql(battleMonsterName)}', {rewardGold}, {rewardExp},
                         {rewardCompanionId}, '{EscapeSql(rewardCompanionName)}', '{EscapeSql(rewardItems)}', '{EscapeSql(requiredItems)}',
@@ -319,6 +373,17 @@ namespace DataBase
                 DebugSystem.Write($"[QuestDataBase] Error saving quest {questId}: {ex.Message}");
                 return false;
             }
+        }
+
+        public static bool SaveQuest(GameDataBase db, uint questId, string name, string npcPattern, int npcTid, int type,
+            string desc, string intro, string inProgress, string complete, string alreadyDone,
+            int battleMonsterId, string battleMonsterName, int rewardGold, int rewardExp,
+            int rewardCompanionId, string rewardCompanionName, string rewardItems, string requiredItems,
+            string prereqs, string stepsJson)
+        {
+            return SaveQuest(db, questId, name, npcPattern, npcTid, 0, type, desc, intro, inProgress, complete, alreadyDone,
+                battleMonsterId, battleMonsterName, rewardGold, rewardExp, rewardCompanionId, rewardCompanionName,
+                rewardItems, requiredItems, prereqs, stepsJson);
         }
 
         public static bool DeleteQuest(GameDataBase db, uint questId)

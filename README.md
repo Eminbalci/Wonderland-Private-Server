@@ -14,6 +14,7 @@ Running steps:
    - Note: The large 1.42 GB sprite archive `odd.dat` can be downloaded directly from [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
 4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
 5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
+
 Tips:
 In the private server exe, click "Cheat" tab:
 - Double click the item in list:
@@ -42,6 +43,9 @@ In the private server exe, click "Cheat" tab:
     > `:skill <id> [grade]` : Unlocks or upgrades a skill.
     > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
     > `:help` : Shows command help in chat.
+- `Src/`: Server architecture, networking handlers, action codes (AC00-AC92), database access, and GUI management.
+- `dev_scripts/`: Development and reverse-engineering diagnostic scripts and tools.
+- `docs/`: Technical specifications, reverse engineering documentation, and protocol guides.
 - Technical documentation and reverse engineering analysis of the client launcher available in [docs/alogin_decompiled_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/alogin_decompiled_analysis.md).
 - Detailed technical overview of the NPC and Quest systems available in [docs/npc_and_quest_systems_overview.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_and_quest_systems_overview.md).
 - Reverse engineering analysis of decompiled NPC and quest routines in [docs/decompiled_npc_and_quest_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_npc_and_quest_analysis.md).
@@ -79,10 +83,9 @@ In the private server exe, click "Cheat" tab:
 - Character & Companion Stat Point Allocation Protocol (AC 8 / Stat 38) in [docs/stat_point_allocation_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/stat_point_allocation_protocol.md).
 - Companion & Pet Combat System (AC 11:5, AC 50:1, AC 51:1) in [docs/companion_battle_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/companion_battle_system.md).
 - Multi-Member Team & PvP Battle System in [docs/multi_member_team_and_pvp_battle_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/multi_member_team_and_pvp_battle_system.md).
-
-
-
-
-
-
-
+- Party Member Portal Following Protocol in [docs/party_portal_teleport_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/party_portal_teleport_protocol.md).
+- Party HP/SP Synchronization and AC 13 Protocol in [docs/party_stat_sync_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/party_stat_sync_protocol.md).
+- Friend List Online Status, Party Formation & Companion Following Synchronization Fix in [docs/friend_list_status_and_party_following_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/friend_list_status_and_party_following_fix.md).
+- PvE Battle Monster Spawning Fix in [docs/pve_battle_monster_spawning_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pve_battle_monster_spawning_fix.md).
+- Player Disconnect, Logout & World Despawn Protocol in [docs/player_logout_and_despawn_handling.md](file:///d:/GitHub/Wonderland-Private-Server/docs/player_logout_and_despawn_handling.md).
+- Player Map Spawn & Visual Appearance Protocol (AC 3 vs AC 4) in [docs/player_spawn_and_visual_sync.md](file:///d:/GitHub/Wonderland-Private-Server/docs/player_spawn_and_visual_sync.md).

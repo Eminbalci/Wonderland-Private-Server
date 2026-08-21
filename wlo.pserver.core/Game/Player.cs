@@ -348,12 +348,23 @@ namespace Game
 
         public void OpenPropsKeeper()
         {
+            // Official sequence from propskeeper.pcapng (Frames 4-8):
+            // 1. AC 29 Sub 6 (Storage window session init)
             Send(Tools.FromFormat("bb", 29, 6));
-            Send(Tools.FromFormat("bb", 30, 6));
+
+            // 2. AC 20 Sub 9 (Dialogue ack)
+            Send(Tools.FromFormat("bb", 20, 9));
+
+            // 3. AC 35 Sub 12 (Catalog/UI ID 0x00019898: F4 44 07 00 23 0C 98 98 01 00 00)
+            SendPacket uiPkt = new SendPacket();
+            uiPkt.PackArray(new byte[] { 35, 12, 0x98, 0x98, 0x01, 0x00, 0x00 });
+            Send(uiPkt);
+
+            // 4. AC 20 Sub 8 (Close dialogue prompt) & AC 5:4 (Player animation reset)
             Send(Tools.FromFormat("bb", 20, 8));
             Send(Tools.FromFormat("bb", 5, 4));
 
-            // 1. Sync all bag items so "items held" pane on the right is populated
+            // 5. Sync all bag items so "items held" pane on the right is populated
             if (m_inv != null)
             {
                 Send(new SendPacket(m_inv.GetAC23_5()));
@@ -364,8 +375,6 @@ namespace Game
             {
                 Send(new SendPacket(m_storage.GetAC30_5(30, 5)));
                 Send(new SendPacket(m_storage.GetAC30_5(30, 1)));
-                Send(new SendPacket(m_storage.GetAC30_5(29, 1)));
-                Send(new SendPacket(m_storage.GetAC30_5(29, 5)));
 
                 for (byte slot = 1; slot <= 50; slot++)
                 {
@@ -382,15 +391,6 @@ namespace Game
                         sp30_2.PackArray(new byte[24]);
                         Send(sp30_2);
 
-                        SendPacket sp30_2s = new SendPacket();
-                        sp30_2s.Pack8(30);
-                        sp30_2s.Pack8(2);
-                        sp30_2s.Pack8(slot);
-                        sp30_2s.Pack16(item.ItemID);
-                        sp30_2s.Pack8(item.Ammt);
-                        sp30_2s.Pack8(item.Damage);
-                        Send(sp30_2s);
-
                         SendPacket sp30_1 = new SendPacket();
                         sp30_1.Pack8(30);
                         sp30_1.Pack8(1);
@@ -400,19 +400,16 @@ namespace Game
                         sp30_1.Pack8(item.Damage);
                         sp30_1.PackArray(new byte[24]);
                         Send(sp30_1);
-
-                        SendPacket sp29_1 = new SendPacket();
-                        sp29_1.Pack8(29);
-                        sp29_1.Pack8(1);
-                        sp29_1.Pack8(slot);
-                        sp29_1.Pack16(item.ItemID);
-                        sp29_1.Pack8(item.Ammt);
-                        sp29_1.Pack8(item.Damage);
-                        sp29_1.PackArray(new byte[24]);
-                        Send(sp29_1);
                     }
                 }
             }
+        }
+
+        public void OpenMoneyBank()
+        {
+            Send(Tools.FromFormat("bb", 29, 6));
+            Send(Tools.FromFormat("bb", 20, 8));
+            Send(Tools.FromFormat("bb", 5, 4));
         }
 
         public void OpenPetHotel()
@@ -611,21 +608,21 @@ namespace Game
             {
                 SendPacket f = new SendPacket();
                 f.PackArray(new byte[] { 13, 6 });
-                f.Pack32(CharID);
-                if (m_teammembers != null)
+
+                uint leaderId = (m_teammembers != null && m_teammembers.Count > 0) ? m_teammembers[0].CharID : CharID;
+                var otherMembers = (m_teammembers != null && m_teammembers.Count > 1)
+                    ? m_teammembers.Where(m => m != null && m.CharID != leaderId).ToList()
+                    : new List<Player>();
+
+                f.Pack32(leaderId);
+                f.Pack8((byte)otherMembers.Count);
+                foreach (Player m in otherMembers)
                 {
-                    f.Pack8((byte)m_teammembers.Count(c => c.CharID != CharID));
-                    foreach (Player y in m_teammembers.Where(c => c.CharID != CharID))
-                        f.Pack32(y.CharID);
-                }
-                else
-                {
-                    f.Pack8(0);
+                    f.Pack32(m.CharID);
                 }
                 return f;
             }
         }
-        //}
         #endregion
 
         #endregion
@@ -1095,6 +1092,7 @@ namespace Game
         {
             if (!isDisconnected())
                 m_socket.Disconnect();
+            OnConnectionLost();
         }
 
         //public void Send(SendPacket pkt, bool queue = false)//TODO finished for multi packs
@@ -1250,36 +1248,49 @@ namespace Game
             p.Begin();
             p.Add((byte)5);
             p.Add((byte)3);
-            p.Add((byte)Element);
-            p.Add(CurHP);
-            p.Add((ushort)CurSP);
-            p.Add(Str); //base str
-            p.Add(Con); //base con
-            p.Add(Int); //base int
-            p.Add(Wis); //base wis
-            p.Add(Agi); //base agi
-            p.Add(Level); //lvl
-            p.Add(TotalExp); //exp
-            p.Add(FullHP); //max hp
-            p.Add((ushort)FullSP); //max sp
+            p.Add((byte)Element);                       // Offset 2: Element (byte)
+            p.Add((uint)FullHP);                        // Offset 3..6: FullHP (uint, 4B)
+            p.Add((ushort)FullSP);                      // Offset 7..8: FullSP (ushort, 2B)
+            p.Add((ushort)Str);                         // Offset 9..10: STR (0x1f8c, ushort, 2B)
+            p.Add((ushort)Con);                         // Offset 11..12: CON (0x1f8e, ushort, 2B)
+            p.Add((ushort)Int);                         // Offset 13..14: INT (0x1f8a, ushort, 2B)
+            p.Add((ushort)Wis);                         // Offset 15..16: WIS (0x1f92, ushort, 2B)
+            p.Add((ushort)Agi);                         // Offset 17..18: AGI (0x1f90, ushort, 2B)
+            p.Add((byte)(Level > 0 ? Level : 1));       // Offset 19: Level (byte, 1B)
+            p.Add((uint)TotalExp);                      // Offset 20..23: TotalExp (uint, 4B)
+            p.Add((ushort)0);                           // Offset 24..25: (ushort, 2B)
+            p.Add((ushort)Eqs.Potential);               // Offset 26..27: Potential (ushort, 2B)
+            p.Add((uint)CurHP);                         // Offset 28..31: CurHP (uint, 4B)
+            p.Add((ushort)CurSP);                       // Offset 32..33: CurSP (ushort, 2B)
+            p.Add((uint)Eqs.SkillPoints);               // Offset 34..37: POINT / SkillPoints (0x1fa8, uint, 4B)
+            p.Add((uint)Gold);                          // Offset 38..41: Gold (0x1fb8, uint, 4B)
+            p.Add((uint)0);                             // Offset 42..45: (0x1fc8, uint, 4B)
+            p.Add((uint)0);                             // Offset 46..49: (0x1fc0, uint, 4B)
+            p.Add((uint)0);                             // Offset 50..53: (0x1fd8, uint, 4B)
+            p.Add((uint)0);                             // Offset 54..57: (0x1fdc, uint, 4B)
+            p.Add((uint)0);                             // Offset 58..61: (0x2268, uint, 4B)
 
-            //-------------- 7 DWords
-            p.Add(417);
-            p.Add(0);
-            p.Add(0);
-            p.Add(240);
-            p.Add(0);
-            p.Add(0);
-            p.Add(0);
+            // Offset 62..63 (0x3E..0x3F): SkillCount (ushort)
+            if (PlayerSkills != null && PlayerSkills.Count > 0)
+            {
+                p.Add((ushort)PlayerSkills.Count);
+                foreach (var sk in PlayerSkills)
+                {
+                    var skillData = Game.SkillRelated.SkillManager.GetSkill((ushort)sk.SkillID);
+                    ushort tableOrder = (skillData != null) ? skillData.SkillTableOrder : (ushort)0;
+                    p.Add((ushort)tableOrder);    // 2 bytes: TableOrder
+                    p.Add((byte)sk.Grade);        // 1 byte: Grade
+                    p.Add((uint)sk.Exp);          // 4 bytes: Exp
+                }
+            }
+            else
+            {
+                p.Add((ushort)0);
+            }
 
-            //--------------- Skills
-            p.Add((ushort)0);
+            // Trailing 11 bytes
+            p.Add(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
 
-            //--------------- table with rebirth and job
-            p.Add(0);
-            p.Add(Reborn);
-            p.Add((byte)Job);
-            p.Add((byte)Potential);
             SendPacket pkt = new SendPacket(p.End());
             Send(pkt);
         }
@@ -1292,7 +1303,7 @@ namespace Game
             Slot = data.Slot;
             Head = data.Head;
             Body = data.Body;
-            TotalExp = 95000478;//data.TotalEXP
+            TotalExp = data.TotalExp;
             CharName = data.CharName;
             NickName = data.NickName;
             LoginMap = data.LoginMap;
@@ -1613,7 +1624,16 @@ namespace Game
                 DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Added {CharName} to {leader.CharName}'s team. New size: {leader.m_teammembers.Count}");
                 this.m_teammembers = leader.m_teammembers; // Share the list reference
 
-                // Broadcast update
+                // 1. Broadcast authentic AC 13:5 (Join & Follow in formation) to map
+                SendPacket followPkt = new SendPacket();
+                followPkt.PackArray(new byte[] { 13, 5 });
+                followPkt.Pack32(leader.CharID);
+                followPkt.Pack32(this.CharID);
+                leader.CurMap?.Broadcast(followPkt);
+
+                // 2. Synchronize member stats and update party HUD
+                leader.Eqs?.Send8_1();
+                this.Eqs?.Send8_1();
                 leader.BroadcastPartyUpdate();
             }
         }
@@ -1622,37 +1642,29 @@ namespace Game
         {
             if (m_teammembers == null || m_teammembers.Count == 0) return;
 
-            // If leader leaves, disband or pass leadership?
-            // Simple logic: remove self, update others
-
             if (m_teammembers.Contains(this))
             {
-
-                List<Player> oldParty = m_teammembers;
+                List<Player> oldParty = m_teammembers.ToList();
                 oldParty.Remove(this);
 
                 // Reset self
                 m_teammembers = new List<Player>();
+                this.Send(_13_6Data); // Reset party HUD on client
 
-                // Notify others
-                BroadcastToParty(oldParty, _13_6Data); // Update old party list
-
-                // Notify self (empty list) is implicit by not sending anything or sending empty
-                SendPacket p = new SendPacket();
-                p.PackArray(new byte[] { 13, 4 });
-                p.Pack32(CharID);
-                Send(p);
+                // 1. Broadcast AC 13:4 (Leave Party & detach follower) to map
+                SendPacket leavePkt = new SendPacket();
+                leavePkt.PackArray(new byte[] { 13, 4 });
+                leavePkt.Pack32(CharID);
+                CurMap?.Broadcast(leavePkt);
 
                 if (oldParty.Count > 0)
                 {
-                    // Update old party members
-                    SendPacket update = new SendPacket();
-                    update.PackArray(new byte[] { 13, 6 });
-                    update.Pack32(oldParty[0].CharID); // Leader ID
-                    update.Pack8((byte)(oldParty.Count - 1));
-                    foreach (var m in oldParty.Skip(1)) update.Pack32(m.CharID);
-
-                    foreach (var m in oldParty) m.Send(update);
+                    // Update remaining members list reference and broadcast
+                    foreach (var m in oldParty)
+                    {
+                        m.m_teammembers = oldParty;
+                    }
+                    oldParty[0].BroadcastPartyUpdate();
                 }
             }
         }
@@ -1696,15 +1708,49 @@ namespace Game
 
         public void BroadcastPartyUpdate()
         {
-            if (m_teammembers == null) return;
-
+            if (m_teammembers == null || m_teammembers.Count == 0) return;
             DebugSystem.Write(DebugItemType.Error, $"[DEBUG] BroadcastPartyUpdate from {CharName}. Team size: {m_teammembers.Count}");
-            SendPacket p = _13_6Data;
+
+            SendPacket p13_6 = _13_6Data;
             foreach (var m in m_teammembers)
             {
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Sending party packet to {m.CharName}...");
-                m.Send(p);
+                if (m == null) continue;
+                m.Send(p13_6);
+
+                // Send stats of all other team members to m
+                foreach (var other in m_teammembers)
+                {
+                    if (other != null && other != m)
+                    {
+                        SendTeammateStats(m, other);
+                    }
+                }
             }
+        }
+
+        public static void SendTeammateStat(Player recipient, uint teammateCharId, ushort statId, long val)
+        {
+            if (recipient == null) return;
+            SendPacket p = new SendPacket();
+            p.Pack8(8);
+            p.Pack8(3);
+            p.Pack32(teammateCharId);
+            p.Pack16(statId);
+            p.Pack64((ulong)val);
+            recipient.Send(p);
+        }
+
+        public static void SendTeammateStats(Player recipient, Player teammate)
+        {
+            if (recipient == null || teammate == null || teammate.Eqs == null) return;
+            uint tId = teammate.CharID;
+            SendTeammateStat(recipient, tId, 0x011D, teammate.Eqs.Level); // Level (285)
+            SendTeammateStat(recipient, tId, 0x0119, teammate.Eqs.FullHP); // MaxHP (281)
+            SendTeammateStat(recipient, tId, 0x011A, teammate.Eqs.FullSP); // MaxSP (282)
+            SendTeammateStat(recipient, tId, 0x0123, teammate.Eqs.CurHP);  // CurHP (291)
+            SendTeammateStat(recipient, tId, 0x0124, teammate.Eqs.CurSP);  // CurSP (292)
+            SendTeammateStat(recipient, tId, 0x01CF, teammate.Eqs.EquippedMaxHP); // Equip MaxHP (463)
+            SendTeammateStat(recipient, tId, 0x01D0, teammate.Eqs.EquippedMaxSP); // Equip MaxSP (464)
         }
 
         public void BroadcastToParty(List<Player> party, SendPacket p)
@@ -1733,10 +1779,54 @@ namespace Game
         #endregion
 
         #region Internal Events
+        public void OnConnectionLost()
+        {
+            try
+            {
+                DebugSystem.Write($"[Player.OnConnectionLost] Processing disconnect for {CharName} (ID: {CharID})");
+
+                // 1. Leave party if in party
+                LeaveParty();
+
+                // 2. Remove from current map and notify peers to despawn player & pet
+                if (CurMap != null)
+                {
+                    // Despawn active companion/pet if any
+                    if (ActivePetID > 0)
+                    {
+                        SendPacket petLeave = new SendPacket();
+                        petLeave.PackArray(new byte[] { 13, 4 });
+                        petLeave.Pack32(ActivePetID);
+                        CurMap.Broadcast(petLeave, "Ex", CharID);
+                    }
+
+                    // Despawn player character from map peers using AC 12 (warp/despawn)
+                    SendPacket despawnPkt = new SendPacket();
+                    despawnPkt.Pack8(12);
+                    despawnPkt.Pack32(CharID);
+                    despawnPkt.Pack16(0);
+                    despawnPkt.Pack16(0);
+                    despawnPkt.Pack16(0);
+                    despawnPkt.Pack16(0);
+                    despawnPkt.Pack8(0);
+                    CurMap.Broadcast(despawnPkt, "Ex", CharID);
+
+                    // Remove from map player list
+                    CurMap.RemovePlayer(this);
+                }
+
+                // 3. Fire Disconnected event (executes OnCharacterLeave, saves DB data, notifies friends list)
+                Disconnected?.Invoke(this);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[Player.OnConnectionLost] Exception during disconnect for {CharName}: {ex.Message}");
+            }
+        }
+
         void m_socket_onConnectionLost()
         {
-            if (net != null && net.IsAlive) net.Abort();
-            if (Disconnected != null) Disconnected(this);
+            OnConnectionLost();
         }
         public void onTick_Tick()
         {

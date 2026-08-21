@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Game;
@@ -9,6 +11,95 @@ using Network;
 
 namespace Game.SkillRelated
 {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+    public struct SkillInfoRaw
+    {
+        public byte SkillNameLength;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
+        public byte[] SkillName;
+        public byte Type;
+        public ushort SkillID;
+        public ushort SP;
+        public byte ElementType;
+        public ushort Attack;
+        public byte EffectLayer;
+        public byte UnknownByte1;
+        public byte UnknownByte2;
+        public double Decimal1;
+        public double Decimal2;
+        public byte UnknownByte3;
+        public ushort AdditinalHarm;
+        public byte NumberOfTurns;
+        public byte Effect;
+        public byte UnknownByte6;
+        public ushort SkillID2;
+        public ushort UnknownWord1;
+        public ushort UnknownWord2;
+        public ushort UnknownWord3;
+        public ushort UnknownWord4;
+        public ushort UnknownWord5;
+        public byte DescriptionLength;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 30)]
+        public byte[] Description;
+        public ushort SkillTableOrder;
+        public byte Target;
+        public ushort ImageNumSmall;
+        public ushort UnknownWord6;
+        public byte UnknownByte7;
+        public byte MaxSkillLevel;
+        public byte AdditionalEffect;
+        public ushort UnknownWord7;
+        public byte SkillPattern1;
+        public byte SkillPattern2;
+        public byte SkillPattern3;
+        public byte SkillPattern4;
+        public byte TypeOfInjury;
+        public byte UnknownByte8;
+        public byte UnknownByte9;
+        public byte UnknownByte10;
+        public byte UnknownByte11;
+        public ushort VoiceWav;
+        public ushort UnknownWord8;
+        public ushort UnknownWord9;
+        public ushort UnknownWord10;
+        public ushort UnknownWord11;
+        public uint UnknownDword1;
+        public uint UnknownDword2;
+        public uint UnknownDword3;
+        public uint UnknownDword4;
+        public uint UnknownDword5;
+    }
+
+    public class SkillData
+    {
+        public ushort SkillId { get; set; }
+        public string Name { get; set; }
+        public byte Type { get; set; }
+        public ushort SP { get; set; }
+        public byte ElementType { get; set; }
+        public ushort Attack { get; set; }
+        public byte Effect { get; set; }
+        public byte Target { get; set; }
+        public byte AdditionalEffect { get; set; }
+        public byte NumberOfTurns { get; set; }
+        public byte TypeOfInjury { get; set; }
+        public ushort SkillTableOrder { get; set; }
+
+        public bool IsHeal => Target == 1 || Target == 3 || Target == 5 || (Name != null && (Name.Contains("Heal") || Name.Contains("Recover") || Name.Contains("Blessing") || Name.Contains("Cure") || Name.Contains("Rest")));
+        public bool IsRevive => Name != null && (Name.Contains("Reviv") || Name.Contains("Restoration"));
+        public bool IsShield => Effect == 62 || Effect == 103 || Effect == 107 || (Name != null && (Name.Contains("Shield") || Name.Contains("Barrier") || Name.Contains("Guard")));
+        public bool IsHotBlooded => Effect == 73 || (Name != null && (Name.Contains("Hot-blooded") || Name.Contains("War Cry") || Name.Contains("Fiery")));
+        public bool IsSpeedUp => Effect == 51 || (Name != null && Name.Contains("Speed"));
+        public bool IsVanish => Effect == 53 || (Name != null && Name.Contains("Vanish"));
+
+        public bool IsFreeze => Effect == 1 || Effect == 177 || AdditionalEffect == 3 || (Name != null && (Name.Contains("Freeze") || Name.Contains("Ice Seal") || Name.Contains("Curdle")));
+        public bool IsSleep => Effect == 6 || (Name != null && (Name.Contains("Sleep") || Name.Contains("Dream")));
+        public bool IsSeal => Effect == 4 || Effect == 178 || AdditionalEffect == 7 || (Name != null && (Name.Contains("Stone") || Name.Contains("Tree") || Name.Contains("Seal") || Name.Contains("Stun") || Name.Contains("Landification")));
+        public bool IsConfuse => Effect == 173 || AdditionalEffect == 1 || (Name != null && (Name.Contains("Mess") || Name.Contains("Chaos") || Name.Contains("Confusion") || Name.Contains("Enchantment")));
+        public bool IsPoison => Effect == 171 || (Name != null && (Name.Contains("Poison") || Name.Contains("Pollen") || Name.Contains("Miasma")));
+        public bool IsParalyze => Effect == 8 || AdditionalEffect == 5 || (Name != null && (Name.Contains("Cord") || Name.Contains("Curse") || Name.Contains("Trap") || Name.Contains("Coma")));
+    }
+
     public class PlayerSkill
     {
         public uint SkillID { get; set; }
@@ -26,6 +117,75 @@ namespace Game.SkillRelated
 
     public static class SkillManager
     {
+        private static readonly Dictionary<ushort, SkillData> _skillCatalog = new Dictionary<ushort, SkillData>();
+
+        static SkillManager()
+        {
+            LoadSkillDatabase();
+        }
+
+        public static void LoadSkillDatabase()
+        {
+            if (_skillCatalog.Count > 0) return;
+            try
+            {
+                string[] searchPaths = new string[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Skill.dat"),
+                    @"Data\Skill.dat",
+                    @"..\Data\Skill.dat"
+                };
+
+                string path = searchPaths.FirstOrDefault(File.Exists);
+                if (string.IsNullOrEmpty(path)) return;
+
+                byte[] data = File.ReadAllBytes(path);
+                int recordSize = 148;
+                int total = data.Length / recordSize;
+
+                for (int r = 0; r < total; r++)
+                {
+                    int offset = r * recordSize;
+                    byte nameLen = data[offset];
+                    byte[] nameBytes = new byte[20];
+                    for (int i = 0; i < 20; i++) nameBytes[i] = data[offset + 1 + 19 - i];
+                    string name = Encoding.ASCII.GetString(nameBytes).Trim('\0', ' ');
+
+                    byte type = (byte)((data[offset + 21] ^ 0xFD) - 4);
+                    ushort skillId = (ushort)((BitConverter.ToUInt16(data, offset + 22) ^ 0x6EA0) - 4);
+                    ushort sp = (ushort)((BitConverter.ToUInt16(data, offset + 24) ^ 0x6EA0) - 4);
+                    byte elem = (byte)((data[offset + 26] ^ 0xFD) - 4);
+                    ushort attack = (ushort)((BitConverter.ToUInt16(data, offset + 27) ^ 0x6EA0) - 4);
+                    ushort tableOrder = (ushort)((BitConverter.ToUInt16(data, offset + 97) ^ 0x6EA0) - 4);
+
+                    if (skillId > 0 && !string.IsNullOrEmpty(name))
+                    {
+                        _skillCatalog[skillId] = new SkillData
+                        {
+                            SkillId = skillId,
+                            Name = name,
+                            Type = type,
+                            SP = sp,
+                            ElementType = elem,
+                            Attack = attack,
+                            SkillTableOrder = tableOrder
+                        };
+                    }
+                }
+                DebugSystem.Write($"[SkillManager] Loaded {_skillCatalog.Count} authentic skills from Skill.dat");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[SkillManager] Error loading Skill.dat: {ex.Message}");
+            }
+        }
+
+        public static SkillData GetSkill(ushort skillId)
+        {
+            if (_skillCatalog.Count == 0) LoadSkillDatabase();
+            if (_skillCatalog.TryGetValue(skillId, out var skill)) return skill;
+            return null;
+        }
         /// <summary>
         /// Gets the starter stunt skill ID based on character Body and Head selection.
         /// Replicates Python server gameserver.py get_starter_skill_id
@@ -45,30 +205,30 @@ namespace Game.SkillRelated
                         case 5: return 12049; // Konno Tsuruko: Fire Dance
                         case 6: return 11077; // Maria: Cure 2 Players
                         case 7: return 15040; // Karin: Palm
+                        default: return 15003;
                     }
-                    break;
                 case 3: // Big Male
                     switch (head)
                     {
-                        case 0: return 11076; // Combo x3 Attack
-                        case 1: return 11076; // Combo x3 Attack
+                        case 0: return 11076; // Daniel: Combo x3 Attack
+                        case 1: return 11076; // Sid: Combo x3 Attack
                         case 2: return 11183; // More: Deacon Attack
                         case 3: return 11182; // Kurogane: Ghost Hammer
+                        default: return 11076;
                     }
-                    break;
                 case 2: // Small Female
                     switch (head)
                     {
                         case 0: return 15039; // Nina: Wine Flame
                         case 1: return 12036; // Betty: Leap
+                        default: return 15039;
                     }
-                    break;
                 case 1: // Small Male
                     switch (head)
                     {
                         case 0: return 11075; // Rocco: Summon Dogs Groups
+                        default: return 11075;
                     }
-                    break;
             }
             return 15003; // Default fallback: Newbie's Stunt
         }
@@ -145,33 +305,30 @@ namespace Game.SkillRelated
                 DebugSystem.Write($"[SkillManager] Error persisting skill {skillId} for {player.CharName}: {dbEx.Message}");
             }
 
-            // 1. AC 5:11 (Unlock / Set Skill EXP)
-            player.Send(Tools.FromFormat("bbdd", 5, 11, skillId, exp));
+            // 1. AC 5:16 (Intro Tree Node Unlock: [5, 16, 0, (ushort)skillId, (byte)grade])
+            SendPacket treePkt = new SendPacket();
+            treePkt.Pack8(5);
+            treePkt.Pack8(16);
+            treePkt.Pack8(0);
+            treePkt.Pack16((ushort)skillId);
+            treePkt.Pack8(grade);
+            player.Send(treePkt);
 
-            // 2. AC 8:1 stat 110 (Skill Grade Update)
-            player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)grade, skillId));
+            // 2. Authentic AC 8:2 Skill Tree Unlock: [8, 2, 4, 2, 0, 0x6F, 0x01, (uint)grade, (uint)skillId]
+            SendPacket ac8_2 = new SendPacket();
+            ac8_2.Pack8(8);
+            ac8_2.Pack8(2);
+            ac8_2.Pack8(4);
+            ac8_2.Pack16(2);
+            ac8_2.Pack16(0x016F);
+            ac8_2.Pack32((uint)grade);
+            ac8_2.Pack32((uint)skillId);
+            player.Send(ac8_2);
 
-            // 3. Dispatch skill slots and finalize packet
-            SendSkillSlots(player);
+            // 3. AC 8:1 Stat 367 fallback
+            player.Send(Tools.FromFormat("bbwdd", 8, 1, 0x016F, (uint)grade, (uint)skillId));
 
             DebugSystem.Write($"[SkillManager] Unlocked/Updated skill {skillId} (Grade {grade}, EXP {exp}) for {player.CharName}");
-        }
-
-        /// <summary>
-        /// Sends AC 5:13 skill slot mappings and AC 5:4 finalize packet.
-        /// </summary>
-        public static void SendSkillSlots(Player player)
-        {
-            if (player == null || player.PlayerSkills == null) return;
-
-            byte slot = 1;
-            foreach (var sk in player.PlayerSkills)
-            {
-                player.Send(Tools.FromFormat("bbbw", 5, 13, slot++, (ushort)sk.SkillID));
-            }
-
-            // AC 5:4 (Skill finalize packet)
-            player.Send(Tools.FromFormat("bb", 5, 4));
         }
 
         /// <summary>
@@ -283,76 +440,98 @@ namespace Game.SkillRelated
             switch (player.Eqs.Element)
             {
                 case Affinity.Fire: // 3
-                    // Physical (STR)
+                    toUnlock.Add(11016); // Flame Attack (Starter)
                     if (player.Eqs.Str >= 16) toUnlock.Add(15101); // Sword Awn Attack (STR 16)
-                    if (player.Eqs.Str >= 26) toUnlock.Add(11114); // Turning Fire Attack (STR 26)
-                    if (player.Eqs.Str >= 38) toUnlock.Add(12039); // Fire Wave Attack (STR 38)
-                    if (player.Eqs.Str >= 51) toUnlock.Add(15015); // Five Star Hit (STR 51)
-                    if (player.Eqs.Str >= 66) toUnlock.Add(15044); // Hagendis Attack (STR 66)
-                    // Magical (INT)
-                    if (player.Eqs.Int >= 16) toUnlock.Add(11029); // Flame Hit / Fireball (INT 16)
-                    if (player.Eqs.Int >= 26) toUnlock.Add(11025); // Flame Beating (INT 26)
-                    if (player.Eqs.Int >= 38) toUnlock.Add(11034); // Fire Ball Attack (INT 38)
-                    // Assistant (WIS / CON)
-                    if (player.Eqs.Wis >= 16) toUnlock.Add(11002); // Poison Spell (WIS 16)
-                    if (player.Eqs.Wis >= 26) toUnlock.Add(11072); // Fiery Attack (WIS 26)
-                    if (player.Eqs.Wis >= 38) toUnlock.Add(11003); // Mess Spell (WIS 38)
+                    if (player.Eqs.Str >= 28) toUnlock.Add(11114); // Turning Fire Attack (STR 28)
+                    if (player.Eqs.Str >= 46) toUnlock.Add(12039); // Fire Wave Attack (STR 46)
+                    if (player.Eqs.Str >= 65 && player.Eqs.Wis >= 2) toUnlock.Add(15102); // Five Star Attack (STR 65, WIS 2)
+                    if (player.Eqs.Str >= 85 && player.Eqs.Agi >= 4) toUnlock.Add(15044); // Hagendis Attack (STR 85, AGI 4)
+                    toUnlock.Add(11166); // Blast Attack (Starter)
+                    if (player.Eqs.Int >= 15 && player.Eqs.Wis >= 2) toUnlock.Add(11005); // Fire Blast Attack (INT 15, WIS 2)
+                    if (player.Eqs.Int >= 27) toUnlock.Add(11034); // Fire Ball Attack (INT 27)
+                    if (player.Eqs.Int >= 45) toUnlock.Add(15109); // Blaze Attack (INT 45)
+                    if (player.Eqs.Int >= 66) toUnlock.Add(15111); // Fire Combo Attack (INT 66)
+                    if (player.Eqs.Int >= 86 && player.Eqs.Wis >= 6) toUnlock.Add(11035); // Fire Stone Attack (INT 86, WIS 6)
+                    toUnlock.Add(11056); // Slowdown (Starter)
+                    if (player.Eqs.Wis >= 11) toUnlock.Add(11002); // Poison Spell (WIS 11)
+                    if (player.Eqs.Wis >= 18) toUnlock.Add(11072); // Fiery Attack (WIS 18)
+                    if (player.Eqs.Wis >= 29) toUnlock.Add(12045); // Free From Coma (WIS 29)
+                    if (player.Eqs.Wis >= 42) toUnlock.Add(11003); // Mess Spell (WIS 42)
+                    if (player.Eqs.Int >= 1 && player.Eqs.Wis >= 55) toUnlock.Add(15171); // Fire Attack (INT 1, WIS 55)
                     break;
 
                 case Affinity.Earth: // 1
-                    // Physical (STR)
-                    if (player.Eqs.Str >= 16) toUnlock.Add(15056); // Rockfall Attack (STR 16)
-                    if (player.Eqs.Str >= 26) toUnlock.Add(11019); // Rock Blast Attack (STR 26)
-                    if (player.Eqs.Str >= 38) toUnlock.Add(15049); // Jump Attack (STR 38)
-                    // Magical (INT)
-                    if (player.Eqs.Int >= 16) toUnlock.Add(11085); // Rock Hit (INT 16)
-                    if (player.Eqs.Int >= 26) toUnlock.Add(15074); // Rock Beating (INT 26)
-                    if (player.Eqs.Int >= 38) toUnlock.Add(11031); // Rock Ball Attack (INT 38)
-                    // Assistant (WIS / CON)
-                    if (player.Eqs.Wis >= 16) toUnlock.Add(15070); // Tree Bind (WIS 16)
-                    if (player.Eqs.Wis >= 26) toUnlock.Add(12043); // Wake Spell (WIS 26)
+                    toUnlock.Add(15085); // Rock Attack (Starter)
+                    if (player.Eqs.Str >= 16) toUnlock.Add(11017); // Earth Attack (STR 16)
+                    if (player.Eqs.Str >= 28) toUnlock.Add(11087); // Rupture Attack (STR 28)
+                    if (player.Eqs.Str >= 44 && player.Eqs.Wis >= 2) toUnlock.Add(15083); // Jump Attack (STR 44, WIS 2)
+                    if (player.Eqs.Str >= 60 && player.Eqs.Con >= 5) toUnlock.Add(15049); // Earthquake Attack (STR 60, CON 5)
+                    if (player.Eqs.Str >= 80 && player.Eqs.Agi >= 4) toUnlock.Add(15146); // Gold Attack (STR 80, AGI 4)
+                    toUnlock.Add(12006); // Earth Shield (Starter)
+                    if (player.Eqs.Int >= 16) toUnlock.Add(15056); // Rockfall Attack (INT 16)
+                    if (player.Eqs.Int >= 28) toUnlock.Add(11019); // Rock Blast Attack (INT 28)
+                    if (player.Eqs.Int >= 46) toUnlock.Add(11031); // Rock Ball Attack (INT 46)
+                    if (player.Eqs.Int >= 67) toUnlock.Add(15086); // Stone Wall (INT 67)
+                    if (player.Eqs.Int >= 90 && player.Eqs.Wis >= 3) toUnlock.Add(11107); // Meteorite (INT 90, WIS 3)
+                    toUnlock.Add(11057); // Shield Defence (Starter)
+                    if (player.Eqs.Wis >= 11) toUnlock.Add(12043); // Wake Spell (WIS 11)
+                    if (player.Eqs.Wis >= 18) toUnlock.Add(12048); // Shield (WIS 18)
+                    if (player.Eqs.Wis >= 29) toUnlock.Add(11055); // Rope Spell (WIS 29)
+                    if (player.Eqs.Con >= 4 && player.Eqs.Wis >= 38) toUnlock.Add(15070); // Tree Bind (CON 4, WIS 38)
+                    if (player.Eqs.Int >= 4 && player.Eqs.Wis >= 48) toUnlock.Add(15035); // Earth Dance (INT 4, WIS 48)
                     break;
 
                 case Affinity.Water: // 2
-                    // Physical (STR)
-                    if (player.Eqs.Str >= 16) toUnlock.Add(15062); // Icicle Hit (STR 16)
-                    if (player.Eqs.Str >= 26) toUnlock.Add(15019); // Turning Ice Attack (STR 26)
-                    // Magical (INT)
-                    if (player.Eqs.Int >= 16) toUnlock.Add(15092); // Ice Hit (INT 16)
-                    if (player.Eqs.Int >= 26) toUnlock.Add(15093); // Ice Beating (INT 26)
-                    if (player.Eqs.Int >= 38) toUnlock.Add(11110); // Ice Ball Attack (INT 38)
-                    // Healing / Assistant (WIS)
-                    if (player.Eqs.Wis >= 16) toUnlock.Add(11042); // Cure Spell (WIS 16)
-                    if (player.Eqs.Wis >= 26) toUnlock.Add(12048); // Ice-out (WIS 26)
+                    toUnlock.Add(15091); // Ice Attack (Starter)
+                    if (player.Eqs.Str >= 13) toUnlock.Add(11001); // Icicle Attack (STR 13)
+                    if (player.Eqs.Str >= 19 && player.Eqs.Int >= 1) toUnlock.Add(11044); // Water Wave Attack (STR 19, INT 1)
+                    if (player.Eqs.Str >= 27 && player.Eqs.Int >= 2) toUnlock.Add(15019); // Turning Ice Attack (STR 27, INT 2)
+                    if (player.Eqs.Str >= 35 && player.Eqs.Int >= 3) toUnlock.Add(12007); // Ice Spike Attack (STR 35, INT 3)
+                    if (player.Eqs.Str >= 58 && player.Eqs.Int >= 4) toUnlock.Add(15156); // Water Bomb (STR 58, INT 4)
+                    toUnlock.Add(15097); // Ice Wall (Starter)
+                    if (player.Eqs.Int >= 16) toUnlock.Add(11040); // Ice Ball Attack (INT 16)
+                    if (player.Eqs.Int >= 28) toUnlock.Add(11110); // Ice Sword (INT 28)
+                    if (player.Eqs.Int >= 46) toUnlock.Add(11113); // Freezing Attack (INT 46)
+                    if (player.Eqs.Int >= 65 && player.Eqs.Wis >= 2) toUnlock.Add(11024); // Ice Shield (INT 65, WIS 2)
+                    if (player.Eqs.Int >= 85 && player.Eqs.Wis >= 6) toUnlock.Add(15158); // Ice Dragon (INT 85, WIS 6)
+                    toUnlock.Add(15100); // Detoxification (Starter)
+                    if (player.Eqs.Wis >= 13) toUnlock.Add(11042); // Cure Spell (WIS 13)
+                    if (player.Eqs.Wis >= 19) toUnlock.Add(15075); // Ice-out (WIS 19)
+                    if (player.Eqs.Wis >= 25) toUnlock.Add(11080); // Healing Spell (WIS 25)
+                    if (player.Eqs.Int >= 1 && player.Eqs.Wis >= 30) toUnlock.Add(11051); // Revival (INT 1, WIS 30)
+                    if (player.Eqs.Wis >= 36) toUnlock.Add(11043); // Water Dance (WIS 36)
                     break;
 
                 case Affinity.Wind: // 4
-                    // Physical / Speed (AGI / STR)
-                    if (player.Eqs.Agi >= 16 || player.Eqs.Str >= 16) toUnlock.Add(15009); // Wind Cut Hit (AGI 16)
-                    if (player.Eqs.Agi >= 26) toUnlock.Add(15002); // Instant Attack (AGI 26)
-                    if (player.Eqs.Agi >= 38) toUnlock.Add(15114); // Dead Wind Attack (AGI 38)
-                    // Magical (INT)
-                    if (player.Eqs.Int >= 16) toUnlock.Add(11014); // Wind Hit (INT 16)
-                    if (player.Eqs.Int >= 26) toUnlock.Add(15113); // Wind Bead (INT 26)
-                    if (player.Eqs.Int >= 38) toUnlock.Add(15123); // Whirlwind Attack (INT 38)
-                    // Assistant (WIS / CON)
-                    if (player.Eqs.Wis >= 16) toUnlock.Add(11073); // Shield Smash (WIS 16)
-                    if (player.Eqs.Wis >= 26) toUnlock.Add(12046); // Unload Wall (WIS 26)
-                    if (player.Eqs.Wis >= 38) toUnlock.Add(15032); // Cord Spell (WIS 38)
+                    toUnlock.Add(11007); // Wind Attack (Starter)
+                    if (player.Eqs.Str >= 5 && player.Eqs.Agi >= 10) toUnlock.Add(15079); // Wind Cut Attack (STR 5, AGI 10)
+                    if (player.Eqs.Str >= 10 && player.Eqs.Agi >= 17) toUnlock.Add(15117); // Shadow Attack (STR 10, AGI 17)
+                    if (player.Eqs.Agi >= 35) toUnlock.Add(15002); // Instant Attack (AGI 35)
+                    if (player.Eqs.Str >= 20 && player.Eqs.Agi >= 46) toUnlock.Add(11046); // Dead Wind Attack (STR 20, AGI 46)
+                    if (player.Eqs.Str >= 35 && player.Eqs.Agi >= 55) toUnlock.Add(15114); // Furious Wind (STR 35, AGI 55)
+                    toUnlock.Add(30002); // Wind Shield (Starter)
+                    if (player.Eqs.Int >= 15) toUnlock.Add(11015); // Whirlwind Attack (INT 15)
+                    if (player.Eqs.Int >= 23 && player.Eqs.Wis >= 5) toUnlock.Add(15123); // Gale Attack (INT 23, WIS 5)
+                    if (player.Eqs.Int >= 41) toUnlock.Add(15125); // Wind Storm Attack (INT 41)
+                    if (player.Eqs.Int >= 62) toUnlock.Add(15048); // Tornado (INT 62)
+                    if (player.Eqs.Int >= 86) toUnlock.Add(15161); // Hurricane (INT 86)
+                    toUnlock.Add(11052); // Speed Spell (Starter)
+                    if (player.Eqs.Wis >= 11) toUnlock.Add(11073); // Shield Smash (WIS 11)
+                    if (player.Eqs.Wis >= 18) toUnlock.Add(12046); // Unload Wall (WIS 18)
+                    if (player.Eqs.Int >= 4 && player.Eqs.Wis >= 25) toUnlock.Add(15032); // Cord Spell (INT 4, WIS 25)
+                    if (player.Eqs.Wis >= 38) toUnlock.Add(15036); // Dispel (WIS 38)
+                    if (player.Eqs.Int >= 7 && player.Eqs.Wis >= 49) toUnlock.Add(11026); // Wind Dance (INT 7, WIS 49)
                     break;
 
                 case Affinity.Dark: // 5
                 case Affinity.Undefined: // 7
-                    // Physical (STR / AGI)
                     if (player.Eqs.Str >= 16) toUnlock.Add(25165); // Crack Beating (STR 16)
                     if (player.Eqs.Str >= 26) toUnlock.Add(25169); // Super Crack Beating (STR 26)
                     if (player.Eqs.Str >= 38) toUnlock.Add(25175); // Furious Cyclone (STR 38)
                     if (player.Eqs.Str >= 51) toUnlock.Add(25185); // Entangled Wind (STR 51)
-                    // Magical (INT)
                     if (player.Eqs.Int >= 16) toUnlock.Add(25246); // Hellfire (INT 16)
                     if (player.Eqs.Int >= 26) toUnlock.Add(25248); // Polar Demonitis (INT 26)
                     if (player.Eqs.Int >= 38) toUnlock.Add(25275); // Icefall Explosion (INT 38)
-                    // Assistant (WIS)
                     if (player.Eqs.Wis >= 16) toUnlock.Add(25167); // Chaos Curse (WIS 16)
                     if (player.Eqs.Wis >= 26) toUnlock.Add(25168); // Entangled Curse (WIS 26)
                     if (player.Eqs.Wis >= 38) toUnlock.Add(25470); // Summon Death (WIS 38)
@@ -375,57 +554,93 @@ namespace Game.SkillRelated
                 {
                     switch (sk.SkillID)
                     {
-                        // --- Fire ---
-                        case 11016: evolutions.Add(11029); break; // Flame Attack (Grade 10) -> Flame Hit
-                        case 11029: evolutions.Add(11025); break; // Flame Hit (Grade 10) -> Flame Beating
-                        case 11025: evolutions.Add(11034); break; // Flame Beating (Grade 10) -> Fire Ball Attack
-                        case 11166: evolutions.Add(15101); evolutions.Add(15104); break; // Blast Attack (Grade 10) -> Sword Awn Attack & Blast Hit
-                        case 15101: evolutions.Add(11114); break; // Sword Awn Attack (Grade 10) -> Turning Fire Attack
-                        case 11114: evolutions.Add(12039); break; // Turning Fire Attack (Grade 10) -> Fire Wave Attack
-                        case 12039: evolutions.Add(15015); break; // Fire Wave Attack (Grade 10) -> Five Star Hit
-                        case 15015: evolutions.Add(15044); break; // Five Star Hit (Grade 10) -> Hagendis Attack
-                        case 11056: evolutions.Add(11002); break; // Slowdown (Grade 10) -> Poison Spell
-                        case 11002: evolutions.Add(11072); break; // Poison Spell (Grade 10) -> Fiery Attack
-                        case 11072: evolutions.Add(11003); break; // Fiery Attack (Grade 10) -> Mess Spell
+                        // --- Fire Physical ---
+                        case 11166: evolutions.Add(15104); break; // Blast Attack -> Blast Hit
+                        case 15104: evolutions.Add(15105); break; // Blast Hit -> Blast Beating
+                        case 15101: evolutions.Add(20003); break; // Sword Awn Attack -> Sword Awn Hit
+                        case 20003: evolutions.Add(15089); break; // Sword Awn Hit -> Sword Awn Beating
+                        case 11114: evolutions.Add(11115); break; // Turning Fire Attack -> Turning Fire Hit
+                        case 11115: evolutions.Add(12022); break; // Turning Fire Hit -> Turning Fire Beating
+                        case 12039: evolutions.Add(12034); break; // Fire Wave Attack -> Fire Wave Hit
+                        case 12034: evolutions.Add(12038); break; // Fire Wave Hit -> Fire Wave Beating
+                        case 15102: evolutions.Add(15015); break; // Five Star Attack -> Five Star Hit
+                        case 15015: evolutions.Add(15103); break; // Five Star Hit -> Five Star Beating
+                        case 15044: evolutions.Add(15017); break; // Hagendis Attack -> Hagendis Hit
+                        case 15017: evolutions.Add(15045); break; // Hagendis Hit -> Hagendis Beating
+
+                        // --- Fire Magical & Assistant ---
+                        case 11016: evolutions.Add(11029); break; // Flame Attack -> Flame Hit
+                        case 11029: evolutions.Add(11025); break; // Flame Hit -> Flame Beating
+                        case 11005: evolutions.Add(30000); break; // Fire Blast Attack -> Fire Blast Hit
+                        case 30000: evolutions.Add(15110); break; // Fire Blast Hit -> Fire Blast Beating
+                        case 11034: evolutions.Add(11117); break; // Fire Ball Attack -> Fire Ball Hit
+                        case 11117: evolutions.Add(15106); break; // Fire Ball Hit -> Fire Ball Beating
+                        case 15109: evolutions.Add(15107); break; // Blaze Attack -> Blaze Hit
+                        case 15107: evolutions.Add(15108); break; // Blaze Hit -> Blaze Beating
+                        case 15111: evolutions.Add(12021); break; // Fire Combo Attack -> Fire Combo Hit
+                        case 12021: evolutions.Add(12024); break; // Fire Combo Hit -> Fire Combo Beating
+                        case 11035: evolutions.Add(15112); break; // Fire Stone Attack -> Fire Stone Hit
+                        case 15112: evolutions.Add(11059); break; // Fire Stone Hit -> Fire Stone Bead
+                        case 15171: evolutions.Add(11008); break; // Fire Attack -> Magma Attack
+                        case 11008: evolutions.Add(12049); break; // Magma Attack -> Fire Dance
 
                         // --- Earth ---
-                        case 15085: evolutions.Add(11085); break; // Rock Attack (Grade 10) -> Rock Hit
-                        case 11085: evolutions.Add(15074); break; // Rock Hit (Grade 10) -> Rock Beating
-                        case 15074: evolutions.Add(11031); break; // Rock Beating (Grade 10) -> Rock Ball Attack
-                        case 11017: evolutions.Add(15056); break; // Earth Attack (Grade 10) -> Rockfall Attack
-                        case 15056: evolutions.Add(11019); break; // Rockfall Attack (Grade 10) -> Rock Blast Attack
-                        case 11019: evolutions.Add(15049); break; // Rock Blast Attack (Grade 10) -> Jump Attack
-                        case 11057: evolutions.Add(15070); break; // Shield Defence (Grade 10) -> Tree Bind
-                        case 15070: evolutions.Add(12043); break; // Tree Bind (Grade 10) -> Wake Spell
+                        case 11017: evolutions.Add(11086); break; // Earth Attack -> Earth Hit
+                        case 11086: evolutions.Add(11065); break; // Earth Hit -> Earth Beating
+                        case 11087: evolutions.Add(11071); break; // Rupture Attack -> Rupture Hit
+                        case 11071: evolutions.Add(11088); break; // Rupture Hit -> Rupture Beating
+                        case 15083: evolutions.Add(12025); break; // Jump Attack -> Jump Hit
+                        case 12025: evolutions.Add(15084); break; // Jump Hit -> Jump Beating
+                        case 15049: evolutions.Add(15020); break; // Earthquake Attack -> Earthquake Hit
+                        case 15020: evolutions.Add(15043); break; // Earthquake Hit -> Earthquake Beating
+                        case 15146: evolutions.Add(15147); break; // Gold Attack -> Gold Hit
+                        case 15085: evolutions.Add(11085); break; // Rock Attack -> Rock Hit
+                        case 11085: evolutions.Add(15074); break; // Rock Hit -> Rock Beating
+                        case 15056: evolutions.Add(11091); break; // Rockfall Attack -> Rockfall Hit
+                        case 11091: evolutions.Add(11093); break; // Rockfall Hit -> Rockfall Beating
+                        case 11107: evolutions.Add(15152); break; // Meteorite -> Meteorite Hit
+                        case 15152: evolutions.Add(15153); break; // Meteorite Hit -> Meteorite Beating
 
                         // --- Water ---
-                        case 15091: evolutions.Add(15092); break; // Ice Attack (Grade 10) -> Ice Hit
-                        case 15092: evolutions.Add(15093); break; // Ice Hit (Grade 10) -> Ice Beating
-                        case 15093: evolutions.Add(11110); break; // Ice Beating (Grade 10) -> Ice Ball Attack
-                        case 11001: evolutions.Add(15062); break; // Icicle Attack (Grade 10) -> Icicle Hit
-                        case 15062: evolutions.Add(15019); break; // Icicle Hit (Grade 10) -> Turning Ice Attack
-                        case 15100: evolutions.Add(11042); break; // Detoxification (Grade 10) -> Cure Spell
-                        case 11042: evolutions.Add(12048); break; // Cure Spell (Grade 10) -> Ice-out
+                        case 11001: evolutions.Add(15062); break; // Icicle Attack -> Icicle Hit
+                        case 15062: evolutions.Add(15063); break; // Icicle Hit -> Icicle Beating
+                        case 11044: evolutions.Add(11004); break; // Water Wave Attack -> Water Wave Hit
+                        case 11004: evolutions.Add(11096); break; // Water Wave Hit -> Water Wave Beating
+                        case 15019: evolutions.Add(15059); break; // Turning Ice Attack -> Turning Ice Hit
+                        case 15059: evolutions.Add(15073); break; // Turning Ice Hit -> Turning Ice Beating
+                        case 12007: evolutions.Add(11010); break; // Ice Spike Attack -> Ice Spike Hit
+                        case 11010: evolutions.Add(21201); break; // Ice Spike Hit -> Ice Spike Beating
+                        case 15156: evolutions.Add(15157); break; // Water Bomb -> Water Bomb Hit
+                        case 15091: evolutions.Add(15092); break; // Ice Attack -> Ice Hit
+                        case 15092: evolutions.Add(15093); break; // Ice Hit -> Ice Beating
+                        case 11040: evolutions.Add(15096); break; // Ice Ball Attack -> Ice Ball Hit
+                        case 15096: evolutions.Add(15095); break; // Ice Ball Hit -> Ice Ball Beating
+                        case 11113: evolutions.Add(11100); break; // Freezing Attack -> Freezing Hit
+                        case 11100: evolutions.Add(15098); break; // Freezing Hit -> Freezing Beating
+                        case 15158: evolutions.Add(15159); break; // Ice Dragon -> Ice Dragon Hit
+                        case 15159: evolutions.Add(15160); break; // Ice Dragon Hit -> Ice Dragon Beating
 
                         // --- Wind ---
-                        case 11007: evolutions.Add(11014); break; // Wind Attack (Grade 10) -> Wind Hit
-                        case 11014: evolutions.Add(15113); break; // Wind Hit (Grade 10) -> Wind Bead
-                        case 15113: evolutions.Add(15123); break; // Wind Bead (Grade 10) -> Whirlwind Attack
-                        case 15079: evolutions.Add(15009); break; // Air Attack (Grade 10) -> Wind Cut Hit
-                        case 15009: evolutions.Add(15002); break; // Wind Cut Hit (Grade 10) -> Instant Attack
-                        case 15002: evolutions.Add(15114); break; // Instant Attack (Grade 10) -> Dead Wind Attack
-                        case 11052: evolutions.Add(11073); break; // Speed Up (Grade 10) -> Shield Smash
-                        case 11073: evolutions.Add(12046); break; // Shield Smash (Grade 10) -> Unload Wall
-                        case 12046: evolutions.Add(15032); break; // Unload Wall (Grade 10) -> Cord Spell
-
-                        // --- Dark / Undefined ---
-                        case 25110: evolutions.Add(25113); break; // Poisonous Chill (Grade 10) -> Poisonous Wave
-                        case 25115: evolutions.Add(25246); break; // Fiery Wave / Dark Wave (Grade 10) -> Hellfire
-                        case 25246: evolutions.Add(25248); break; // Hellfire (Grade 10) -> Polar Demonitis
-                        case 25116: evolutions.Add(25165); break; // Deadly Wind (Grade 10) -> Crack Beating
-                        case 25165: evolutions.Add(25169); break; // Crack Beating (Grade 10) -> Super Crack Beating
-                        case 25167: evolutions.Add(25168); break; // Chaos Curse (Grade 10) -> Entangled Curse
-                        case 25168: evolutions.Add(25470); break; // Entangled Curse (Grade 10) -> Summon Death
+                        case 15079: evolutions.Add(15009); break; // Wind Cut Attack -> Wind Cut Hit
+                        case 15009: evolutions.Add(15010); break; // Wind Cut Hit -> Wind Cut Beating
+                        case 15117: evolutions.Add(15118); break; // Shadow Attack -> Shadow Hit
+                        case 15118: evolutions.Add(15119); break; // Shadow Hit -> Shadow Beating
+                        case 15002: evolutions.Add(12028); break; // Instant Attack -> Instant Hit
+                        case 12028: evolutions.Add(15004); break; // Instant Hit -> Instant Beating
+                        case 11046: evolutions.Add(15024); break; // Dead Wind Attack -> Dead Wind Hit
+                        case 15024: evolutions.Add(15025); break; // Dead Wind Hit -> Dead Wind Beating
+                        case 15114: evolutions.Add(15115); break; // Furious Wind -> Furious Wind Hit
+                        case 15115: evolutions.Add(15116); break; // Furious Wind Hit -> Furious Wind Beating
+                        case 11007: evolutions.Add(11014); break; // Wind Attack -> Wind Hit
+                        case 11014: evolutions.Add(15113); break; // Wind Hit -> Wind Bead
+                        case 15123: evolutions.Add(15124); break; // Gale Attack -> Gale Hit
+                        case 15124: evolutions.Add(15082); break; // Gale Hit -> Gale Beating
+                        case 15125: evolutions.Add(15126); break; // Wind Storm Attack -> Wind Storm Hit
+                        case 15126: evolutions.Add(15081); break; // Wind Storm Hit -> Wind Storm Beating
+                        case 15048: evolutions.Add(15026); break; // Tornado -> Tornado Hit
+                        case 15026: evolutions.Add(15027); break; // Tornado Hit -> Tornado Beating
+                        case 15161: evolutions.Add(15162); break; // Hurricane -> Hurricane Hit
+                        case 15162: evolutions.Add(15163); break; // Hurricane Hit -> Hurricane Beating
                     }
                 }
             }
@@ -478,13 +693,13 @@ namespace Game.SkillRelated
                 DebugSystem.Write($"[SkillManager] Error updating skill EXP: {ex.Message}");
             }
 
-            // 1. AC 5:11 (EXP update)
-            player.Send(Tools.FromFormat("bbdd", 5, 11, sk.SkillID, sk.Exp));
+            // 1. AC 5:12 (Skill ID & Grade Update)
+            player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)sk.SkillID, (byte)sk.Grade));
 
-            // 2. AC 8:1 stat 110 (Grade update if leveled up)
+            // 2. AC 8:1 stat 367 / 0x016F (Skill Grade & Unlock Update)
             if (gradeUp)
             {
-                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)sk.Grade, sk.SkillID));
+                player.Send(Tools.FromFormat("bbwdd", 8, 1, 0x016F, (uint)sk.Grade, sk.SkillID));
                 DebugSystem.Write($"[SkillManager] {player.CharName}'s skill {sk.SkillID} reached Grade {sk.Grade}!");
 
                 // Check for new evolution skill unlocks
@@ -494,7 +709,7 @@ namespace Game.SkillRelated
 
         /// <summary>
         /// Checks player stats and Grade 10 evolutions and unlocks any newly qualified skills in real-time.
-        /// Dispatches AC 5:11 and AC 8:1 packets immediately.
+        /// Dispatches authentic AC 5:12 and AC 8:1 packets immediately.
         /// </summary>
         public static void CheckAndUnlockProgressionSkills(Player player)
         {
@@ -515,11 +730,30 @@ namespace Game.SkillRelated
                 {
                     player.PlayerSkills.Add(new PlayerSkill(skId, 1, 0));
 
-                    // 1. AC 5:11 (Unlock Skill + EXP)
-                    player.Send(Tools.FromFormat("bbdd", 5, 11, skId, 0));
+                    // 1. Authentic AC 8:2 Stat 110 (Skill Learned Notification & Buffer Update): [8, 2, 4, 1, 0, 110, 0, (uint)grade, (uint)skillId]
+                    SendPacket learnPkt = new SendPacket();
+                    learnPkt.Pack8(8);
+                    learnPkt.Pack8(2);
+                    learnPkt.Pack8(4);
+                    learnPkt.Pack16(1);
+                    learnPkt.Pack16(110);
+                    learnPkt.Pack32((uint)1);
+                    learnPkt.Pack32((uint)skId);
+                    player.Send(learnPkt);
 
-                    // 2. AC 8:1 stat 110 (Skill Grade Update)
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, 1, skId));
+                    // 2. Authentic AC 8:2 Stat 367 (Skill Tree Node Unlock): [8, 2, 4, 1, 0, 0x6F, 0x01, (uint)grade, (uint)skillId]
+                    SendPacket ac8_2 = new SendPacket();
+                    ac8_2.Pack8(8);
+                    ac8_2.Pack8(2);
+                    ac8_2.Pack8(4);
+                    ac8_2.Pack16(1);
+                    ac8_2.Pack16(0x016F);
+                    ac8_2.Pack32((uint)1);
+                    ac8_2.Pack32((uint)skId);
+                    player.Send(ac8_2);
+
+                    // 3. AC 5:12 (Skill ID & Grade Update in Skill Book)
+                    player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)skId, (byte)1));
 
                     newlyUnlocked = true;
                     DebugSystem.Write($"[SkillManager] Auto-unlocked progression skill {skId} for {player.CharName}");
@@ -528,6 +762,9 @@ namespace Game.SkillRelated
 
             if (newlyUnlocked)
             {
+                // Refresh full base stats and skill book in client
+                player.Send_5_3();
+
                 // Clear quickbar and refresh skill book
                 for (byte a = 1; a < 11; a++)
                 {
@@ -538,35 +775,56 @@ namespace Game.SkillRelated
         }
 
         /// <summary>
-        /// Dispatches AC 5:11 (Unlock Skill) and AC 8:1 stat 110 (Skill Grade) for all skills.
+        /// Dispatches AC 8:2 stat 110 (Learned), stat 367 (Tree Unlock), AC 5:12 (Skill Grade) for all skills.
         /// Clears quickbar slots 1-10 (AC 5:13) and finalizes with AC 5:4.
         /// </summary>
         public static void SendAllSkills(Player player)
         {
-            if (player == null || player.PlayerSkills == null || player.PlayerSkills.Count == 0)
+            if (player == null) return;
+
+            // Automatically unlock any skills qualified by player stats/level/element upon login or refresh
+            CheckAndUnlockProgressionSkillsNoSend(player);
+
+            if (player.PlayerSkills == null || player.PlayerSkills.Count == 0)
             {
-                DebugSystem.Write($"[SkillManager] SendAllSkills: no skills to send for {player?.CharName}");
+                DebugSystem.Write($"[SkillManager] SendAllSkills: no skills to send for {player.CharName}");
                 return;
             }
 
             DebugSystem.Write($"[SkillManager] Sending {player.PlayerSkills.Count} skills to {player.CharName}");
             foreach (var sk in player.PlayerSkills)
             {
-                // 1. AC 5:11 (Unlock Skill + EXP)
-                player.Send(Tools.FromFormat("bbdd", 5, 11, sk.SkillID, sk.Exp));
+                // 1. Authentic AC 8:2 Stat 110 (Skill Learned Notification & Buffer Update)
+                SendPacket learnPkt = new SendPacket();
+                learnPkt.Pack8(8);
+                learnPkt.Pack8(2);
+                learnPkt.Pack8(4);
+                learnPkt.Pack16(1);
+                learnPkt.Pack16(110);
+                learnPkt.Pack32((uint)sk.Grade);
+                learnPkt.Pack32((uint)sk.SkillID);
+                player.Send(learnPkt);
 
-                // 2. AC 8:1 stat 110 (Skill Grade Update)
-                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)sk.Grade, sk.SkillID));
+                // 2. Authentic AC 8:2 Stat 367 (Skill Tree Node Unlock)
+                SendPacket ac8_2 = new SendPacket();
+                ac8_2.Pack8(8);
+                ac8_2.Pack8(2);
+                ac8_2.Pack8(4);
+                ac8_2.Pack16(1);
+                ac8_2.Pack16(0x016F);
+                ac8_2.Pack32((uint)sk.Grade);
+                ac8_2.Pack32((uint)sk.SkillID);
+                player.Send(ac8_2);
+
+                // 3. AC 5:12 (Skill ID & Grade Update in Skill Book)
+                player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)sk.SkillID, (byte)sk.Grade));
             }
 
-            // 3. Clear quickbar slots 1-10 to prevent duplicate ghost pins
-            for (byte a = 1; a < 11; a++)
-            {
-                player.Send(Tools.FromFormat("bbbw", 5, 13, a, 0));
-            }
-
-            // 4. AC 5:4 (Skill finalize / refresh packet)
-            player.Send(Tools.FromFormat("bb", 5, 4));
+            // 4. Finalize Skill Table Load with AC 5:4
+            SendPacket fin = new SendPacket();
+            fin.Pack8(5);
+            fin.Pack8(4);
+            player.Send(fin);
         }
     }
 }

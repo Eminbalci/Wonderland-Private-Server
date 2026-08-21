@@ -96,11 +96,31 @@ namespace Network.ActionCodes
                     }
                 }
 
-                // 1. Send authentic AC 19:1 Set Battle Pet packet to player and map
+                // 1. Send authentic AC 19:1 Set Battle Pet packet to player
                 player.Send(Tools.FromFormat("bbd", 19, 1, petId));
                 if (player.CurMap != null)
                 {
-                    player.CurMap.Broadcast(Tools.FromFormat("bbd", 19, 1, petId));
+                    // AC 19:4 Broadcast battle companion following player to all other players on map
+                    SendPacket followPkt = new SendPacket();
+                    followPkt.Pack8(19);
+                    followPkt.Pack8(4);
+                    followPkt.Pack32(player.CharID);
+                    followPkt.Pack32(petId);
+                    player.CurMap.Broadcast(followPkt, "Ex", player.CharID);
+
+                    // AC 13:5 Broadcast companion follow formation to peers
+                    SendPacket petFollow = new SendPacket();
+                    petFollow.PackArray(new byte[] { 13, 5 });
+                    petFollow.Pack32(player.CharID);
+                    petFollow.Pack32(petId);
+                    player.CurMap.Broadcast(petFollow, "Ex", player.CharID);
+
+                    // AC 5:8 Appearance refresh
+                    SendPacket petRefresh = new SendPacket();
+                    petRefresh.PackArray(new byte[] { 5, 8 });
+                    petRefresh.Pack32(player.CharID);
+                    petRefresh.Pack8(0);
+                    player.CurMap.Broadcast(petRefresh, "Ex", player.CharID);
                 }
 
                 // 2. Synchronize Pet Level & Stats so Party UI and Status Window show authentic Level and HP/SP

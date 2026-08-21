@@ -208,6 +208,7 @@ namespace Network.ActionCodes
                     if (appliedAny)
                     {
                         // Sync full updated stats and points to client
+                        r.Send_5_3();
                         r.Send8_1(true);
 
                         // Unlock element & progression skills if thresholds are met

@@ -24,6 +24,7 @@ namespace Game
         void Broadcast(SendPacket pkt, string parameter, params object[] To);
         bool Teleport(TeleportType teletype, Player sender, ushort portalID = 0, WarpData warp = null);
         bool ProcessInteraction(byte clickID, Player player);
+        void RemovePlayer(Player p);
         Game.DataFiles.MapData mapData { get; }
     }
 
@@ -443,6 +444,15 @@ namespace Game
 
         #region Warping
 
+        public void RemovePlayer(Player p)
+        {
+            if (p != null && m_playerlist.Contains(p))
+            {
+                m_playerlist.Remove(p);
+                DebugSystem.Write($"[Map.RemovePlayer] Removed {p.CharName} from map {MapID}. Remaining players: {m_playerlist.Count}");
+            }
+        }
+
         protected virtual void Warp_In(TeleportType teletype, Player src, WarpData from = null, byte portalID = 0)
         {
             DebugSystem.Write(DebugItemType.Info_Heavy, "{0} warping into {1}", src.CharName, MapName);
@@ -461,18 +471,50 @@ namespace Game
                 DebugSystem.Write($"[Map.Warp_In] Player {src.CharName} already in m_playerlist. Total players: {m_playerlist.Count}");
             }
 
-            if (teletype != TeleportType.Login)
-            {
-                SendAc12(src, portalID, from);
-            }
+            // 1. Send AC 3 (Character Entity Spawn) to self
+            src.Send(src.ToAC3Packet());
+
+            // 2. Send AC 12 (Map Warp / Coordinate Initialization) to self and peers
+            SendAc12(src, portalID, from ?? new WarpData { DstMap = (ushort)MapID, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
+
+            // 3. Send AC 7 (Position sync) to player
+            SendPacket sp7 = new SendPacket();
+            sp7.Pack8(7);
+            sp7.Pack32(src.CharID);
+            sp7.Pack16((ushort)MapID);
+            sp7.Pack16(src.CurX);
+            sp7.Pack16(src.CurY);
+            src.Send(sp7);
+
+            // 4. Send AC 5:0 (Equips / Appearance) to player
+            SendPacket selfEq = new SendPacket();
+            selfEq.Pack8((byte)5);
+            selfEq.Pack8((byte)0);
+            selfEq.Pack32(src.CharID);
+            selfEq.PackArray(src.Worn_Equips);
+            src.Send(selfEq);
+
+            // 5. Send AC 5:8 (Sprite Render Refresh) to player
+            SendPacket selfSpr = new SendPacket();
+            selfSpr.Pack8((byte)5);
+            selfSpr.Pack8((byte)8);
+            selfSpr.Pack32(src.CharID);
+            selfSpr.Pack8((byte)0);
+            src.Send(selfSpr);
+
+            // 6. Send AC 5:4 (Finalize Scene Load) to player
+            SendPacket selfFin = new SendPacket();
+            selfFin.Pack8(5);
+            selfFin.Pack8(4);
+            src.Send(selfFin);
 
             foreach (var r in m_playerlist)
             {
                 if (r != src)
                 {
-                    //send to them - broadcast for ALL teleport types so players see each other
+                    //send to them - send new arrival's spawn to existing player
                     DebugSystem.Write($"[Map.Warp_In] Sending {src.CharName} spawn to {r.CharName}");
-                    Broadcast(src.ToAC3Packet(), "Ex", src.CharID);
+                    r.Send(src.ToAC4Packet());
 
                     SendPacket p = new SendPacket();
                     p.Pack8((byte)5);
@@ -493,12 +535,12 @@ namespace Game
                         p.Pack8((byte)8);
                         p.Pack32(src.CharID);
                         p.Pack8((byte)0);
-                        Broadcast(p);
+                        r.Send(p);
                     }
 
                     //send to me - send existing player's FULL spawn data to new arrival
                     DebugSystem.Write($"[Map.Warp_In] Sending {r.CharName} full spawn to {src.CharName}");
-                    src.Send(r.ToAC3Packet());
+                    src.Send(r.ToAC4Packet());
 
                     // Send existing player's equipment to new arrival
                     p = new SendPacket();
@@ -534,17 +576,43 @@ namespace Game
                         DebugSystem.Write($"[Map.Warp_In] Sent mount {r.ActiveMountID} of {r.CharName} to {src.CharName}");
                     }
 
-                    // Send existing player's battle pet if they have one
+                    // Send existing player's battle pet to new arrival (AC 15:1 Pet Info + AC 19:4 Following + AC 13:2 Formation + AC 5:8 Sprite Refresh)
                     if (r.ActivePetID > 0)
                     {
+                        var rPet = r.PlayerPets?.Values?.FirstOrDefault(x => x.PetID == r.ActivePetID);
+                        if (rPet != null)
+                        {
+                            SendPacket rPetPkt = QuestRelated.QuestManager.CreatePetPacket(r, rPet.PetID, rPet.Slot, rPet.HP, rPet.MaxHP, rPet.SP, rPet.MaxSP, rPet.Amity, rPet.Level);
+                            src.Send(rPetPkt);
+                        }
+                        else
+                        {
+                            SendPacket rPetPkt = QuestRelated.QuestManager.CreatePetPacket(r, r.ActivePetID, 1);
+                            src.Send(rPetPkt);
+                        }
+
                         p = new SendPacket();
                         p.Pack8((byte)19);
-                        p.Pack8((byte)4); // Pet battle
-                        p.Pack32(r.CharID); // Owner CharID - same format as PutPetToRide
+                        p.Pack8((byte)4); // Pet battle following
+                        p.Pack32(r.CharID); // Owner CharID
                         p.Pack32(r.ActivePetID); // Pet ID
-                                                 // Broadcast to everyone so pet is visible to all players
-                        Broadcast(p);
-                        DebugSystem.Write($"[Map.Warp_In] Broadcast battle pet {r.ActivePetID} (owner: {r.CharName}) to all players");
+                        src.Send(p);
+
+                        // Send AC 13:5 to attach pet as follower to r
+                        SendPacket petFollow = new SendPacket();
+                        petFollow.PackArray(new byte[] { 13, 5 });
+                        petFollow.Pack32(r.CharID);
+                        petFollow.Pack32(r.ActivePetID);
+                        src.Send(petFollow);
+
+                        // Send AC 5:8 appearance refresh
+                        SendPacket petRefresh = new SendPacket();
+                        petRefresh.PackArray(new byte[] { 5, 8 });
+                        petRefresh.Pack32(r.CharID);
+                        petRefresh.Pack8(0);
+                        src.Send(petRefresh);
+
+                        DebugSystem.Write($"[Map.Warp_In] Sent battle pet {r.ActivePetID} (owner: {r.CharName}) to {src.CharName}");
                     }
 
                     p = new SendPacket();
@@ -567,9 +635,11 @@ namespace Game
                     var pet = kvp.Value;
                     if (pet != null && pet.PetID > 0)
                     {
-                        // Send authentic AC 15:1 pet recruit data to client
+                        // Send authentic AC 15:1 pet recruit data to owner and map peers
                         SendPacket petPkt = QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level);
                         src.Send(petPkt);
+                        Broadcast(petPkt, "Ex", src.CharID);
+                        QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
 
                         if (pet.IsBattle || src.ActivePetID == pet.PetID || src.ActivePetID == 0)
                         {
@@ -586,22 +656,63 @@ namespace Game
                             followPkt.Pack32(src.CharID);
                             followPkt.Pack32(pet.PetID);
                             src.Send(followPkt);
-                            Broadcast(followPkt);
-                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {pet.PetID}) to {src.CharName} and broadcast following state");
+                            Broadcast(followPkt, "Ex", src.CharID);
+
+                            // AC 13:5 Broadcast companion follow formation to peers
+                            SendPacket petFollow = new SendPacket();
+                            petFollow.PackArray(new byte[] { 13, 5 });
+                            petFollow.Pack32(src.CharID);
+                            petFollow.Pack32(pet.PetID);
+                            src.Send(petFollow);
+                            Broadcast(petFollow, "Ex", src.CharID);
+
+                            // AC 5:8 Appearance refresh
+                            SendPacket petRefresh = new SendPacket();
+                            petRefresh.PackArray(new byte[] { 5, 8 });
+                            petRefresh.Pack32(src.CharID);
+                            petRefresh.Pack8(0);
+                            src.Send(petRefresh);
+                            Broadcast(petRefresh, "Ex", src.CharID);
+
+                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {pet.PetID}) to {src.CharName} and broadcast following state to peers");
                         }
                     }
                 }
             }
 
-            // Resend party info if player is in a party
-            // Client might clear party state on map change, so we need to refresh it
+            // Synchronize party following formation on map entry
             if (src.m_teammembers != null && src.m_teammembers.Count > 0)
             {
                 var leader = src.m_teammembers.FirstOrDefault(x => x.PartyLeader);
                 if (leader != null)
                 {
-                    DebugSystem.Write($"[Map.Warp_In] Resending party info to {src.CharName} (Leader: {leader.CharName})");
-                    src.Send(leader._13_6Data);
+                    if (src == leader)
+                    {
+                        foreach (var m in src.m_teammembers)
+                        {
+                            if (m != null && m != leader && m.CurMap == src.CurMap)
+                            {
+                                SendPacket partyFollow = new SendPacket();
+                                partyFollow.PackArray(new byte[] { 13, 5 });
+                                partyFollow.Pack32(leader.CharID);
+                                partyFollow.Pack32(m.CharID);
+                                m.Send(partyFollow);
+                                Broadcast(partyFollow, "Ex", leader.CharID);
+                            }
+                        }
+                    }
+                    else if (leader.CurMap == src.CurMap)
+                    {
+                        SendPacket partyFollow = new SendPacket();
+                        partyFollow.PackArray(new byte[] { 13, 5 });
+                        partyFollow.Pack32(leader.CharID);
+                        partyFollow.Pack32(src.CharID);
+                        src.Send(partyFollow);
+                        Broadcast(partyFollow, "Ex", leader.CharID);
+                    }
+
+                    // Refresh party list & stats on map transition
+                    leader.BroadcastPartyUpdate();
                 }
             }
 
@@ -941,7 +1052,7 @@ namespace Game
                                 }
                                 catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
                             }
-                            return true;
+                            break;
                         }
                         else
                         {
@@ -958,7 +1069,7 @@ namespace Game
                                     map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, (byte)(portalID & 0xFF));
                                 }
                                 catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
-                                return true;
+                                break;
                             }
                             else
                             {
@@ -1051,24 +1162,27 @@ namespace Game
                 // Create warp data from sender's new position
                 WarpData teamWarp = new WarpData()
                 {
-                    DstMap = (ushort)sender.CurMap.MapID,
+                    DstMap = (ushort)(sender.CurMap != null ? sender.CurMap.MapID : 0),
                     DstX_Axis = sender.CurX,
                     DstY_Axis = sender.CurY
                 };
 
-                foreach (var member in sender.m_teammembers.ToList())
+                if (teamWarp.DstMap > 0)
                 {
-                    if (member.CharID != sender.CharID && member.CurMap != null)
+                    foreach (var member in sender.m_teammembers.ToList())
                     {
-                        try
+                        if (member != null && member.CharID != sender.CharID && member.CurMap != null)
                         {
-                            DebugSystem.Write($"[Teleport] Teleporting team member {member.CharName} to follow leader to map {teamWarp.DstMap}");
-                            // Teleport member to same destination using CmD type to avoid recursion
-                            member.CurMap.Teleport(TeleportType.CmD, member, portalID, teamWarp);
-                        }
-                        catch (Exception ex)
-                        {
-                            DebugSystem.Write($"[Teleport] Error teleporting team member: {ex.Message}");
+                            try
+                            {
+                                DebugSystem.Write($"[Teleport] Teleporting team member {member.CharName} to follow leader to map {teamWarp.DstMap} ({teamWarp.DstX_Axis},{teamWarp.DstY_Axis})");
+                                // Teleport member to same destination using CmD type to avoid recursion
+                                member.CurMap.Teleport(TeleportType.CmD, member, portalID, teamWarp);
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[Teleport] Error teleporting team member {member.CharName}: {ex.Message}");
+                            }
                         }
                     }
                 }
@@ -1414,7 +1528,8 @@ namespace Game
                 sp.Pack8(1);
                 sp.Pack8(1);
             }
-            Broadcast(sp);
+            target.Send(sp);
+            Broadcast(sp, "Ex", target.CharID);
         }
 
         public bool ProcessInteraction(byte clickID, Player player)

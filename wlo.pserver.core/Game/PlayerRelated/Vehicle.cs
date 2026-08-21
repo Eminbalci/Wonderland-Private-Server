@@ -138,24 +138,40 @@ namespace Game.PlayerRelated
             ushort vid = (ushort)player.ActiveVehicleID;
             player.ActiveVehicleID = 0;
 
-            // 1. Vehicle wreck packet (AC 15:15)
+            byte vehicleType = 0x10; // 0x10 = Wooden Raft
+
+            // 1. Send AC 15 Sub 14: Final state
+            SendPacket statePkt = new SendPacket();
+            statePkt.PackArray(new byte[] { 15, 14, vehicleType });
+            statePkt.Pack32(player.CharID);
+            statePkt.PackArray(new byte[] { 0xD6, 0x01, 0, 0, 0, 0 });
+            player.Send(statePkt);
+            player.CurMap?.Broadcast(statePkt);
+
+            // 2. Send AC 23 Sub 9: Raft Break Notice
+            SendPacket breakNotice = new SendPacket();
+            breakNotice.PackArray(new byte[] { 23, 9, vehicleType, 1 });
+            player.Send(breakNotice);
+
+            // 3. Vehicle wreck packet (AC 15:15)
             SendPacket wreckPkt = new SendPacket();
             wreckPkt.Pack8(15);
             wreckPkt.Pack8(15);
             wreckPkt.Pack32(player.CharID);
             wreckPkt.Pack16(vid);
             player.Send(wreckPkt);
-            player.CurMap?.Broadcast(wreckPkt, "Ex", player.CharID);
+            player.CurMap?.Broadcast(wreckPkt);
 
-            // 2. Unmount packet (AC 15:11)
+            // 4. Unmount packet (AC 15:11)
             SendPacket unmountPkt = new SendPacket();
-            unmountPkt.Pack8(15);
-            unmountPkt.Pack8(11);
+            unmountPkt.PackArray(new byte[] { 15, 11, vehicleType });
             unmountPkt.Pack32(player.CharID);
             player.Send(unmountPkt);
-            player.CurMap?.Broadcast(unmountPkt, "Ex", player.CharID);
+            player.CurMap?.Broadcast(unmountPkt);
 
-            // 3. Remove 1 vehicle item from inventory
+            player.RideVehicle("");
+
+            // 5. Remove 1 vehicle item from inventory
             if (player.Inv != null)
             {
                 for (byte s = 1; s <= 50; s++)
@@ -169,7 +185,7 @@ namespace Game.PlayerRelated
                 }
             }
 
-            // 4. Movement refresh
+            // 6. Movement refresh
             player.Send(Tools.FromFormat("bb", 5, 4));
             DebugSystem.Write($"[VehicleManager] Player {player.CharName}'s vehicle #{vid} wrecked upon reaching shore.");
         }

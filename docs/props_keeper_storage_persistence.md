@@ -53,9 +53,16 @@ CREATE TABLE inventory (
 ## 3. Network Protocol (`AC 30`, `AC 29` & `AC 23`)
 
 ### 3.1 Opening Props Keeper (`Player.OpenPropsKeeper`)
-- Client GUI window `bank` is opened via `AC 29:6` and `AC 30:6`.
-- **Right Pane ("items held") Sync**: Dispatches `p.Inv.GetAC23_5()` (ActionCode 23:5) with the full 29-byte inventory slot layout so the player's held bag items render immediately.
-- **Left Pane ("store items") Sync**: Dispatches `p.Storage.GetAC30_5()` (ActionCodes 30:5, 30:1, 29:1, 29:5) and per-slot `AC 30:2` / `AC 29:1` packets with authentic 29-byte item data (`slot`, `itemID`, `ammt`, `damage`, and 24 attribute bytes).
+- Official sequence from `propskeeper.pcapng` (Frames 4-8):
+  1. `AC 29 Sub 6` (Bank / Storage session initialization).
+  2. `AC 20 Sub 9` (Dialogue acknowledgment).
+  3. `AC 35 Sub 12` with Catalog / UI ID `0x00019898` (Opens the Props Storage Vault UI window).
+  4. `AC 20 Sub 8` (Close dialogue prompt) & `AC 5 Sub 4` (Player state reset).
+  5. **Right Pane ("items held") Sync**: Dispatches `p.Inv.GetAC23_5()` (ActionCode 23:5) with the full 29-byte inventory slot layout so the player's held bag items render immediately.
+  6. **Left Pane ("store items") Sync**: Dispatches `p.Storage.GetAC30_5()` (ActionCodes 30:5, 30:1) and per-slot `AC 30:2` / `AC 30:1` packets with authentic 29-byte item data (`slot`, `itemID`, `ammt`, `damage`, and 24 attribute bytes).
+
+### 3.1.1 Opening Money Bank (`Player.OpenMoneyBank`)
+- Client GUI window `bank` (Gold / Currency Deposit & Withdraw) is opened separately via `AC 29:6` (Stock Keeper NPC TID 14181 / Exchanger TID 14157).
 
 ### 3.2 Deposit Item (`AC 30 Sub 2` / `AC 29 Sub 1`)
 - **Client Request**: `F4 44 03 00 1E 02 [bagSlot]` (Len=7)

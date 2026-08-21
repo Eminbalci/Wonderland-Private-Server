@@ -25,10 +25,11 @@ Replicates official Wonderland Online client-server dialogue exchanges captured 
 ### 3. NPC Dialogue Bubble Box (`AC 20 Sub 1`)
 - **Hex**: `F4 44 12 00 14 01 00 00 00 01 01 03 [ClickID (1B)] 00 01 00 00 00 00 [TalkID (3B LE)]`
   - Portrait `0x03` = NPC Avatar
-  - TalkIDs:
-    - Generic Citizen/Villager: `0x0175B9` / `0x0175BA`
-    - Village Chief / Mayor: `0x0175AD`
-    - Animals / Companions: `0x050E5D`
+    - Mary Lou (Kelan Village Pig Girl): `0x212977` ("These are my pigs.")
+    - Kelan Villagers: `0x21284C` ("Welcome to Kelan Village.") / `0x2124C2` ("This is Kelan Village...") / `0x21303F`
+    - Village Guards: `0x212A75` ("There are many fierce beasts. Careful not to be injured.")
+    - Guideposts / Signs: `0x212CB8` ("There is a larger village named Welling Village at the south.")
+    - Ship Deck Passengers (Map 10017): `0x0175B9` (Boy) / `0x0175BA` (Girl)
 
 ### 4. Dialog Close & Unlock (`AC 20 Sub 6` -> `AC 20 Sub 8`)
 - Client sends `14 06`.
