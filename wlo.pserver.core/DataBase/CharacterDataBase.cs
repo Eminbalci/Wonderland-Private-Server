@@ -46,8 +46,11 @@ namespace DataBase
 
         Dictionary<string, uint> CharNames = new Dictionary<string, uint>();
 
+        public static CharacterDataBase GlobalInstance { get; set; }
+
         public CharacterDataBase()
         {
+            GlobalInstance = this;
             //DBAssist = new DBConnector.DBOAuth();
             Characters_Online = new ConcurrentDictionary<int, Character>();
             CacheCharacters = new List<CharacterDataRequest>();
@@ -833,15 +836,35 @@ namespace DataBase
 
         public void DeleteCharacter(UInt32 ID)
         {
-
             try { Delete("characters", "charID = '" + ID + "';"); }
-            catch (MySqlException ex) { DebugSystem.Write(new ExceptionData(ex)); throw; }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { Delete("charactersExtData", "charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
             try { Delete("stats", "charID = '" + ID + "';"); }
-            catch (MySqlException ex) { DebugSystem.Write(new ExceptionData(ex)); throw; }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
             try { Delete("inventory", "charID = '" + ID + "';"); }
-            catch (MySqlException ex) { DebugSystem.Write(new ExceptionData(ex)); throw; }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { ExecuteNonQuery("DELETE FROM charquest WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { ExecuteNonQuery("DELETE FROM chartent WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { ExecuteNonQuery("DELETE FROM charunlocks WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { ExecuteNonQuery("DELETE FROM character_skills WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
+            try { ExecuteNonQuery("DELETE FROM Friends WHERE charID = '" + ID + "' OR friendID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
             if (Cache.ContainsKey((int)ID))
             {
@@ -951,7 +974,11 @@ namespace DataBase
                     id = ushort.Parse(rows[i]["itemID"].ToString());
                     if (id != 0)
                     {
-                        var baseItem = ItemDat?.GetItemByID(id) ?? new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                        var baseItem = ItemDat?.GetItemByID(id);
+                        if (baseItem == null || baseItem.ItemID == 0)
+                        {
+                            baseItem = new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                        }
                         byte pos = byte.Parse(rows[i]["pos"].ToString());
                         if (pos >= 1 && pos <= 6)
                         {
@@ -961,6 +988,10 @@ namespace DataBase
                         }
                     }
                 }
+            }
+            else
+            {
+                t.SetBeginnerOutfit();
             }
             #endregion
 
@@ -1081,7 +1112,11 @@ namespace DataBase
                     id = ushort.Parse(rows[i]["itemID"].ToString());
                     if (id != 0)
                     {
-                        var baseItem = ItemDat?.GetItemByID(id) ?? new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                        var baseItem = ItemDat?.GetItemByID(id);
+                        if (baseItem == null || baseItem.ItemID == 0)
+                        {
+                            baseItem = new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                        }
                         byte pos = byte.Parse(rows[i]["pos"].ToString());
                         if (pos >= 1 && pos <= 6)
                         {
@@ -1092,6 +1127,47 @@ namespace DataBase
                     }
                 }
             }
+            else
+            {
+                t.SetBeginnerOutfit();
+            }
+
+            #region load storage (Props Keeper vault)
+            try
+            {
+                src = GetDataTable("SELECT * FROM inventory where charID = '" + charID + "' AND storID = 2");
+                if (src != null && src.Rows.Count > 0)
+                {
+                    rows = new DataRow[src.Rows.Count];
+                    src.Rows.CopyTo(rows, 0);
+                    for (int i = 0; i < rows.Length; i++)
+                    {
+                        ushort id = ushort.Parse(rows[i]["itemID"].ToString());
+                        if (id != 0)
+                        {
+                            var baseItem = ItemDat?.GetItemByID(id);
+                            if (baseItem == null || baseItem.ItemID == 0)
+                            {
+                                baseItem = new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                            }
+                            byte pos = byte.Parse(rows[i]["pos"].ToString());
+                            byte qty = byte.Parse(rows[i]["qty"].ToString());
+                            byte dmg = byte.Parse(rows[i]["dmg"].ToString());
+                            if (pos >= 1 && pos <= 50 && t.Storage != null)
+                            {
+                                t.Storage[pos].CopyFrom(baseItem);
+                                t.Storage[pos].Ammt = qty;
+                                t.Storage[pos].Damage = dmg;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error loading storage for charID {charID}: {ex.Message}");
+            }
+            #endregion
 
             #region load settings from ExtData
             try
@@ -1119,6 +1195,23 @@ namespace DataBase
         public bool WriteNewPlayer(uint charID, Player player)
         {
             if (charID == 0) return false;
+
+            // Wipe any residual stale data for this charID (e.g. from previously deleted characters)
+            try
+            {
+                ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM charquest WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM chartent WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM charunlocks WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM stats WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM charactersExtData WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM Friends WHERE charID = '" + charID + "' OR friendID = '" + charID + "';");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error wiping stale data for new charID {charID}: {ex.Message}");
+            }
 
             DataTable src = null;
             DataRow[] rows = new DataRow[0];
@@ -1372,8 +1465,32 @@ namespace DataBase
                 DebugSystem.Write($"[CharacterDataBase] Error saving equips for charID {charID}: {ex.Message}");
             }
 
-            if (Cache.ContainsKey((int)charID))
-                Cache[(int)charID] = player;
+            #region write storage (Props Keeper vault)
+            try
+            {
+                ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "' AND storID = '2';");
+                if (player.Storage != null && player.Storage.InventoryDBData != null)
+                {
+                    List<string> storRows = new List<string>();
+                    foreach (var u in player.Storage.InventoryDBData)
+                    {
+                        if (u.Value[0] > 0) // itemID > 0
+                        {
+                            storRows.Add(string.Format("('{0}','{1}','2','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}')",
+                                 u.Key, charID, u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]));
+                        }
+                    }
+                    if (storRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO inventory (invIdx,charID,storID,itemID,dmg,qty,pos,socketID,bombID,sewID,forge) VALUES {0};", string.Join(",", storRows)));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving storage for charID {charID}: {ex.Message}");
+            }
+            #endregion
 
             #endregion
 
@@ -1384,28 +1501,73 @@ namespace DataBase
             #region write pets
             try
             {
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0);");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0);");
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
                 ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
+                List<string> petRows = new List<string>();
+
+                // 1. Active Player Pets (isHotel = 0)
                 if (player.PlayerPets != null && player.PlayerPets.Count > 0)
                 {
-                    List<string> petRows = new List<string>();
                     foreach (var pet in player.PlayerPets.Values)
                     {
                         if (pet.PetID > 0)
                         {
-                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}')",
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','0')",
                                 charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0));
                         }
                     }
-                    if (petRows.Count > 0)
+                }
+
+                // 2. Pet Hotel Pets (isHotel = 1)
+                if (player.HotelPets != null && player.HotelPets.Count > 0)
+                {
+                    foreach (var pet in player.HotelPets.Values)
                     {
-                        ExecuteNonQuery(string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,hp,maxHp,sp,maxSp,amity,isBattle,isRide) VALUES {0};", string.Join(",", petRows)));
+                        if (pet.PetID > 0)
+                        {
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','1')",
+                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, 0, 0));
+                        }
                     }
+                }
+
+                if (petRows.Count > 0)
+                {
+                    ExecuteNonQuery(string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,hp,maxHp,sp,maxSp,amity,isBattle,isRide,isHotel) VALUES {0};", string.Join(",", petRows)));
                 }
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[CharacterDataBase] Error saving pets for charID {charID}: {ex.Message}");
+            }
+            #endregion
+
+            #region write skills
+            try
+            {
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, skillID INT NOT NULL, grade TINYINT DEFAULT 1, exp INT DEFAULT 0, UNIQUE(charID, skillID));");
+                ExecuteNonQuery("DELETE FROM character_skills WHERE charID = '" + charID + "';");
+                if (player.PlayerSkills != null && player.PlayerSkills.Count > 0)
+                {
+                    List<string> skillRows = new List<string>();
+                    foreach (var sk in player.PlayerSkills)
+                    {
+                        if (sk.SkillID > 0)
+                        {
+                            skillRows.Add(string.Format("('{0}','{1}','{2}','{3}')",
+                                charID, sk.SkillID, sk.Grade, sk.Exp));
+                        }
+                    }
+                    if (skillRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO character_skills (charID,skillID,grade,exp) VALUES {0};", string.Join(",", skillRows)));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving skills for charID {charID}: {ex.Message}");
             }
             #endregion
 

@@ -841,7 +841,7 @@ namespace Game.Code
             {
                 try
                 {
-                    if (equippedItems[clothesSlot - 1].ItemID > 0)
+                    if (clothesSlot >= 1 && clothesSlot <= equippedItems.Length && equippedItems[clothesSlot - 1].ItemID > 0)
                     {
                         Item i = new Item(equippedItems[clothesSlot - 1]);
                         equippedItems[clothesSlot - 1].Clear();
@@ -860,7 +860,9 @@ namespace Game.Code
         /// <returns>the InvItem object to be placed in Inv</returns>
         public Item Wear(Item eq)
         {
-            return Wear((byte)eq.Wear_At, eq);
+            if (eq == null) return null;
+            byte slot = (byte)eq.Wear_At;
+            return Wear(slot, eq);
         }
         /// <summary>
         /// Wears a Characters Item
@@ -875,9 +877,16 @@ namespace Game.Code
                 Item i = null;
                 try
                 {
-                    if (equippedItems[clothesSlot - 1].ItemID != 0)
-                        i = unWear(clothesSlot);
-                    equippedItems[clothesSlot - 1].CopyFrom(eq);
+                    if (eq != null && clothesSlot >= 1 && clothesSlot <= equippedItems.Length)
+                    {
+                        if (equippedItems[clothesSlot - 1].ItemID != 0)
+                            i = unWear(clothesSlot);
+                        equippedItems[clothesSlot - 1].CopyFrom(eq);
+                    }
+                    else if (eq != null)
+                    {
+                        DebugSystem.Write($"[EquipManager.Wear] Invalid clothesSlot {clothesSlot} for item #{eq.ItemID}");
+                    }
                 }
                 catch (Exception e) { DebugSystem.Write(new ExceptionData(e)); i = null; }
                 return i;
@@ -948,7 +957,7 @@ namespace Game.Code
                             {
                                 tmp.Add(this[n].ItemID);
                                 tmp.Add(this[n].Damage);
-                                tmp.Add(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                                tmp.Add(new byte[18]); // Official WLO Protocol: 18 zero padding bytes per item (21 bytes total per item)
                             }
                         }
                     }
@@ -1367,6 +1376,42 @@ namespace Game.Code
         public void ApplyCharacterBaseStats()
         {
             // BonusStr, BonusCon, BonusInt, BonusWis, BonusAgi dynamically provide inherent character bonuses.
+        }
+
+        public void SetBreillatOutfit()
+        {
+            lock (m_Lock)
+            {
+                // Clear all initial worn slots
+                for (byte s = 1; s <= 6; s++)
+                {
+                    if (equippedItems[s - 1].ItemID > 0)
+                    {
+                        equippedItems[s - 1].Clear();
+                        Send(Tools.FromFormat("bbb", 23, 19, s));
+                    }
+                }
+
+                // Equip Breillat Maid Dress (#21991) at Slot 2 (Body)
+                var dressInfo = _ItemManager != null ? (PhxItemInfo)_ItemManager.GetObject(21991) : null;
+                if (dressInfo != null)
+                {
+                    Wear(2, new Item(dressInfo));
+                }
+
+                // Equip Breillat Maid Shoes (#21009) at Slot 5 (Feet)
+                var shoesInfo = _ItemManager != null ? (PhxItemInfo)_ItemManager.GetObject(21009) : null;
+                if (shoesInfo != null)
+                {
+                    Wear(5, new Item(shoesInfo));
+                }
+
+                // Send AC 23:11 full equipment grid sync
+                Send(new SendPacket(_23_11Data));
+
+                // Send AC 8:1 updated stats
+                Send8_1();
+            }
         }
 
         #region Gold Methods

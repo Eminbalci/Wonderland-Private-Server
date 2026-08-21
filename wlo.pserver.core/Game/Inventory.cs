@@ -238,17 +238,45 @@ namespace Game.Code
                 return null;
             }
         }
+        public bool RemoveItem(ushort itemId, byte count = 1)
+        {
+            lock (mylock)
+            {
+                byte needed = count;
+                for (byte a = 1; a < 51; a++)
+                {
+                    if (this[a].ItemID == itemId)
+                    {
+                        byte toTake = Math.Min(this[a].Ammt, needed);
+                        RemoveItem(a, toTake);
+                        needed -= toTake;
+                        if (needed == 0) break;
+                    }
+                }
+                owner?.Send(new SendPacket(GetAC23_5()));
+                return needed == 0;
+            }
+        }
         public void AddItem(ushort ID, byte amt)
         {
-            var baseItem = ItemDat.GetItemByID(ID);
+            PhxItemInfo baseItem = null;
+            try
+            {
+                if (ItemDat != null)
+                {
+                    baseItem = ItemDat.GetItemByID(ID);
+                }
+            }
+            catch { }
+
             if (baseItem == null)
             {
-                baseItem = new PhxItemInfo() { ItemID = ID, ItemName = Encoding.ASCII.GetBytes("Item " + ID) };
+                baseItem = new PhxItemInfo() { ItemID = ID, ItemName = Encoding.ASCII.GetBytes("Item " + ID), cellwidth = 1, cellheight = 1 };
             }
             InvItem i = new InvItem();
             i.CopyFrom(baseItem);
             i.Ammt = amt;
-            AddItem(i);
+            AddItem(i, 0, true);
         }
         /// <summary>
         /// Adds an item to the Inventory
@@ -309,18 +337,14 @@ namespace Game.Code
                             goto end;
 
                         end:
-                    if (ammt > 0 && sendData)
+                    if (ammt > 0 && sendData && owner != null)
                     {
                         addammt -= ammt;
                         tmp.Pack8(ammt);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack16(0);
+                        tmp.PackArray(new byte[28]);
                         owner.Send(tmp);
+                        owner.Send(new SendPacket(GetAC23_5()));
+                        DebugSystem.Write($"[Inventory.AddItem] Sent AC 23:6 + AC 23:5 item #{item.ItemID} x{ammt} to slot {a} for {owner.CharName}");
                     }
                     if (totalammt == item.Ammt || at != 0)
                         return ammt;
@@ -448,6 +472,29 @@ namespace Game.Code
                 SendPacket tmp = new SendPacket();
                 tmp.Pack8(23);
                 tmp.Pack8(5);
+                if (FilledCount > 0)
+                {
+                    for (byte a = 1; a < 51; a++)
+                        if (this[a].ItemID != 0)
+                        {
+                            tmp.Pack8(a);
+                            tmp.Pack16(this[a].ItemID);
+                            tmp.Pack8(this[a].Ammt);
+                            tmp.Pack8(this[a].Damage);
+                            tmp.PackArray(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                        }
+                }
+                return tmp.Buffer;
+            }
+        }
+
+        public byte[] GetAC30_5(byte actionCode = 30, byte subCode = 5)
+        {
+            lock (mylock)
+            {
+                SendPacket tmp = new SendPacket();
+                tmp.Pack8(actionCode);
+                tmp.Pack8(subCode);
                 if (FilledCount > 0)
                 {
                     for (byte a = 1; a < 51; a++)

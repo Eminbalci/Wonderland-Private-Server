@@ -88,6 +88,8 @@ namespace Game
         public WarpData CarnieReturnMap { get; set; } = null; // Return destination when exiting Carnie (Map 11094)
         public int StepsSinceLastBattle { get; set; } = 0;
         public int NextBattleSteps { get; set; } = 25;
+        public DateTime LastTeleportTime { get; set; } = DateTime.MinValue;
+        public int BreillatTalkCount { get; set; } = 0;
 
         // FIX: Added properties for ActionCodes compatibility
         public Game.Battle.BattleScene BattleScene { get { return m_battle; } }
@@ -120,6 +122,7 @@ namespace Game
         public List<Game.SkillRelated.PlayerSkill> PlayerSkills { get; set; } = new List<Game.SkillRelated.PlayerSkill>();
         public Dictionary<uint, Game.QuestRelated.PlayerQuest> Quests { get; set; } = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
         public Dictionary<byte, PlayerPetData> PlayerPets { get; set; } = new Dictionary<byte, PlayerPetData>();
+        public Dictionary<byte, PlayerPetData> HotelPets { get; set; } = new Dictionary<byte, PlayerPetData>();
         #endregion
 
         public class PlayerPetData
@@ -137,6 +140,61 @@ namespace Game
             public bool IsRide { get; set; } = false;
         }
 
+        public bool HasRecruitedCompanion(string npcName, ushort templateId)
+        {
+            string cleanNpcName = (npcName ?? "").Trim();
+
+            // 1. Check PlayerPets dictionary
+            if (PlayerPets != null && PlayerPets.Count > 0)
+            {
+                foreach (var pet in PlayerPets.Values)
+                {
+                    if (pet == null) continue;
+                    if (pet.Amity < 20) continue; // Runaway / abandoned companion
+
+                    if (templateId > 0 && pet.PetID == templateId) return true;
+
+                    // Companion template ID mappings:
+                    // Robinson: 12032 (NPC TID) <-> 12178 (Pet TID)
+                    if ((templateId == 12032 || templateId == 12178) && (pet.PetID == 12032 || pet.PetID == 12178)) return true;
+                    // S.Monkey: 17162 (NPC TID) <-> 10727 (Pet TID)
+                    if ((templateId == 17162 || templateId == 10727) && (pet.PetID == 17162 || pet.PetID == 10727)) return true;
+                    // Roca: 14161 <-> 14001
+                    if ((templateId == 14161 || templateId == 14001) && (pet.PetID == 14161 || pet.PetID == 14001)) return true;
+                    // Niss: 14162 <-> 14002
+                    if ((templateId == 14162 || templateId == 14002) && (pet.PetID == 14162 || pet.PetID == 14002)) return true;
+                    // Clive: 14163 <-> 14003
+                    if ((templateId == 14163 || templateId == 14003) && (pet.PetID == 14163 || pet.PetID == 14003)) return true;
+                    // Fred: 14164 <-> 14004
+                    if ((templateId == 14164 || templateId == 14004) && (pet.PetID == 14164 || pet.PetID == 14004)) return true;
+                    // Elin: 14165 <-> 14005
+                    if ((templateId == 14165 || templateId == 14005) && (pet.PetID == 14165 || pet.PetID == 14005)) return true;
+                    // Sam: 14166 <-> 14006
+                    if ((templateId == 14166 || templateId == 14006) && (pet.PetID == 14166 || pet.PetID == 14006)) return true;
+                    // Shizune: 14167 <-> 14007
+                    if ((templateId == 14167 || templateId == 14007) && (pet.PetID == 14167 || pet.PetID == 14007)) return true;
+                    // Suzan: 14168 <-> 14008
+                    if ((templateId == 14168 || templateId == 14008) && (pet.PetID == 14168 || pet.PetID == 14008)) return true;
+
+                    // Match by companion Name
+                    if (!string.IsNullOrEmpty(cleanNpcName) && !string.IsNullOrEmpty(pet.PetName))
+                    {
+                        if (cleanNpcName.Equals(pet.PetName.Trim(), StringComparison.OrdinalIgnoreCase)) return true;
+                        if (cleanNpcName.StartsWith(pet.PetName.Trim(), StringComparison.OrdinalIgnoreCase) || pet.PetName.Trim().StartsWith(cleanNpcName, StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                }
+            }
+
+            // 2. Check ActivePetID
+            if (ActivePetID > 0)
+            {
+                if (ActivePetID == templateId) return true;
+                if ((templateId == 12032 || templateId == 12178) && (ActivePetID == 12032 || ActivePetID == 12178)) return true;
+                if ((templateId == 17162 || templateId == 10727) && (ActivePetID == 17162 || ActivePetID == 10727)) return true;
+            }
+
+            return false;
+        }
 
         public Action<Player> OnDisconnect { get; set; }
 
@@ -150,6 +208,7 @@ namespace Game
 
 
             m_inv = new Inventory(this, itemdat);
+            m_storage = new Inventory(this, itemdat);
             onWearEquip = m_inv.onWearEquip;
             onEquip_Remove = m_inv.onUnEquip;
 
@@ -278,6 +337,110 @@ namespace Game
         //    }
         //}
         public Inventory Inv { get { return m_inv ?? null; } }
+        private Inventory m_storage;
+        public Inventory Storage { get { return m_storage ?? null; } }
+
+        public void OpenPropsKeeper()
+        {
+            Send(Tools.FromFormat("bb", 29, 6));
+            Send(Tools.FromFormat("bb", 30, 6));
+            Send(Tools.FromFormat("bb", 20, 8));
+            Send(Tools.FromFormat("bb", 5, 4));
+
+            // 1. Sync all bag items so "items held" pane on the right is populated
+            if (m_inv != null)
+            {
+                Send(new SendPacket(m_inv.GetAC23_5()));
+            }
+
+            // 2. Sync all stored items for this character (storID = 2) so "store items" on left is populated
+            if (m_storage != null)
+            {
+                Send(new SendPacket(m_storage.GetAC30_5(30, 5)));
+                Send(new SendPacket(m_storage.GetAC30_5(30, 1)));
+                Send(new SendPacket(m_storage.GetAC30_5(29, 1)));
+                Send(new SendPacket(m_storage.GetAC30_5(29, 5)));
+
+                for (byte slot = 1; slot <= 50; slot++)
+                {
+                    var item = m_storage[slot];
+                    if (item != null && item.ItemID > 0)
+                    {
+                        SendPacket sp30_2 = new SendPacket();
+                        sp30_2.Pack8(30);
+                        sp30_2.Pack8(2);
+                        sp30_2.Pack8(slot);
+                        sp30_2.Pack16(item.ItemID);
+                        sp30_2.Pack8(item.Ammt);
+                        sp30_2.Pack8(item.Damage);
+                        sp30_2.PackArray(new byte[24]);
+                        Send(sp30_2);
+
+                        SendPacket sp30_2s = new SendPacket();
+                        sp30_2s.Pack8(30);
+                        sp30_2s.Pack8(2);
+                        sp30_2s.Pack8(slot);
+                        sp30_2s.Pack16(item.ItemID);
+                        sp30_2s.Pack8(item.Ammt);
+                        sp30_2s.Pack8(item.Damage);
+                        Send(sp30_2s);
+
+                        SendPacket sp30_1 = new SendPacket();
+                        sp30_1.Pack8(30);
+                        sp30_1.Pack8(1);
+                        sp30_1.Pack8(slot);
+                        sp30_1.Pack16(item.ItemID);
+                        sp30_1.Pack8(item.Ammt);
+                        sp30_1.Pack8(item.Damage);
+                        sp30_1.PackArray(new byte[24]);
+                        Send(sp30_1);
+
+                        SendPacket sp29_1 = new SendPacket();
+                        sp29_1.Pack8(29);
+                        sp29_1.Pack8(1);
+                        sp29_1.Pack8(slot);
+                        sp29_1.Pack16(item.ItemID);
+                        sp29_1.Pack8(item.Ammt);
+                        sp29_1.Pack8(item.Damage);
+                        sp29_1.PackArray(new byte[24]);
+                        Send(sp29_1);
+                    }
+                }
+            }
+        }
+
+        public void OpenPetHotel()
+        {
+            Send(Tools.FromFormat("bb", 31, 1));
+            Send(Tools.FromFormat("bb", 20, 9));
+            Send(Tools.FromFormat("bb", 20, 8));
+            Send(Tools.FromFormat("bb", 5, 4));
+
+            // Sync all hotel pets for this character
+            if (HotelPets != null && HotelPets.Count > 0)
+            {
+                foreach (var kvp in HotelPets)
+                {
+                    var pet = kvp.Value;
+                    if (pet != null && pet.PetID > 0)
+                    {
+                        SendPacket hPkt = new SendPacket();
+                        hPkt.Pack8(31);
+                        hPkt.Pack8(3);
+                        hPkt.Pack8(pet.Slot);
+                        hPkt.Pack16((ushort)pet.PetID);
+                        hPkt.Pack8(pet.Level);
+                        hPkt.Pack32((uint)pet.HP);
+                        hPkt.Pack32((uint)pet.MaxHP);
+                        hPkt.Pack16((ushort)pet.SP);
+                        hPkt.Pack16((ushort)pet.MaxSP);
+                        hPkt.Pack8(pet.Amity);
+                        hPkt.PackString(pet.PetName ?? "");
+                        Send(hPkt);
+                    }
+                }
+            }
+        }
         public EquipManager Eqs { get { return ((EquipManager)this) ?? null; } }
         public byte Emote { get { lock (mlock) return emote; } set { lock (mlock) emote = value; } }
         public PetList Pets { get { return m_petlist; } }
@@ -481,7 +644,10 @@ namespace Game
         }
         public void Send(byte[] src)
         {
-
+            if (src != null && src.Length > 0)
+            {
+                Send(new SendPacket(src));
+            }
         }
         public void Send(byte[] src, RCLibrary.Core.Networking.PacketFlags pFlags)
         {
@@ -793,7 +959,15 @@ namespace Game
             CurMap.Teleport(TeleportType.CmD, this, (byte)0, tmp);
         }
 
-        public void AddItemToInventory(string itemID) { Inv.AddItem(UInt16.Parse(itemID), (byte)1); }
+        public void AddItemToInventory(string itemID)
+        {
+            if (ushort.TryParse(itemID, out ushort id))
+            {
+                DebugSystem.Write($"[Player.AddItemToInventory] Adding Item #{id} to {CharName}");
+                Inv?.AddItem(id, (byte)1);
+                SendSystemMessage($"[Cheat] Added Item {id} to inventory!");
+            }
+        }
 
         public void RideVehicle(string vehicleID)
         {
@@ -1064,44 +1238,45 @@ namespace Game
         //    p.Pack8(255);
         //    return p;
         //}
-        //public void Send_5_3() //logging in player info
-        //{
-        //    SendPacket p = new SendPacket();
-        //    p.PackArray(new byte[] { 5, 3 });
-        //    p.Pack8((byte)Eqs.Element);
-        //    p.Pack32((uint)CurHP);
-        //    p.Pack16((ushort)CurSP);
-        //    p.Pack16(Eqs.Str); //base str
-        //    p.Pack16(Eqs.Con); //base con
-        //    p.Pack16(Eqs.Int); //base int
-        //    p.Pack16(Eqs.Wis); //base wis
-        //    p.Pack16(Eqs.Agi); //base agi
-        //    p.Pack8((byte)Eqs.Level); //lvl
-        //    p.Pack64((ulong)Eqs.TotalExp); //exp ???
-        //    p.Pack32((uint)Eqs.FullHP); //max hp
-        //    p.Pack16((ushort)Eqs.FullSP); //max sp
+        public override void Send_5_3() //logging in player info
+        {
+            PacketBuilder p = new PacketBuilder();
+            p.Begin();
+            p.Add((byte)5);
+            p.Add((byte)3);
+            p.Add((byte)Element);
+            p.Add(CurHP);
+            p.Add((ushort)CurSP);
+            p.Add(Str); //base str
+            p.Add(Con); //base con
+            p.Add(Int); //base int
+            p.Add(Wis); //base wis
+            p.Add(Agi); //base agi
+            p.Add(Level); //lvl
+            p.Add(TotalExp); //exp
+            p.Add(FullHP); //max hp
+            p.Add((ushort)FullSP); //max sp
 
-        //    //-------------- 7 DWords
-        //    p.Pack32(0);
-        //    p.Pack32(0);
-        //    p.Pack32(0);
-        //    p.Pack32(0);
-        //    p.Pack32(0);
-        //    p.Pack32(0);
-        //    p.Pack32(0);
+            //-------------- 7 DWords
+            p.Add(417);
+            p.Add(0);
+            p.Add(0);
+            p.Add(240);
+            p.Add(0);
+            p.Add(0);
+            p.Add(0);
 
-        //    //--------------- Skills
-        //    p.Pack16(0/*(ushort)MySkills.Count*/);
-        //    //if (MySkills.Count > 0)
-        //    //    p.PackArray(MySkills.GetSkillData());
-        //    //p.Pack16(1); //ammt of skills
-        //    //p.Pack16(188); p.Pack16(1); p.Pack16(0); p.Pack8(0); //skill data
-        //    //--------------- table with rebirth and job
-        //    p.Pack16(0); p.Pack16(0);
-        //    p.Pack8(BitConverter.GetBytes(Eqs.Reborn)[0]); p.Pack8((byte)Eqs.Job); p.Pack8((byte)Eqs.Potential);
+            //--------------- Skills
+            p.Add((ushort)0);
 
-        //    Send(p);
-        //}
+            //--------------- table with rebirth and job
+            p.Add(0);
+            p.Add(Reborn);
+            p.Add((byte)Job);
+            p.Add((byte)Potential);
+            SendPacket pkt = new SendPacket(p.End());
+            Send(pkt);
+        }
 
         public bool Load_CharacterInfo(Character data)
         {
@@ -1140,10 +1315,22 @@ namespace Game
             return true;
         }
         public Action OnInteractionComplete;
+        public Action<byte> OnDialogueChoice;
+        public Action OnMinigameWon;
+        public Action OnMinigameLost;
+        public ushort TransformedModelID { get; set; } = 0;
         public bool PendingBeachCutscene { get; set; }
+        public bool BeachCutsceneActive { get; set; }
+        public Queue<Action> StepQueue { get; set; } = new Queue<Action>();
 
         public bool ContinueInteraction()
         {
+            if (StepQueue != null && StepQueue.Count > 0)
+            {
+                var stepAction = StepQueue.Dequeue();
+                stepAction?.Invoke();
+                return true;
+            }
             if (QueueData != null && QueueData.Count > 0)
             {
                 m_socket.SendPacket(QueueData.Dequeue());
@@ -1154,6 +1341,12 @@ namespace Game
                 var action = OnInteractionComplete;
                 OnInteractionComplete = null;
                 action.Invoke();
+                if (StepQueue != null && StepQueue.Count > 0)
+                {
+                    var stepAction = StepQueue.Dequeue();
+                    stepAction?.Invoke();
+                    return true;
+                }
                 if (QueueData != null && QueueData.Count > 0)
                 {
                     m_socket.SendPacket(QueueData.Dequeue());

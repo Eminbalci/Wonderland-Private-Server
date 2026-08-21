@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -510,11 +510,26 @@ namespace Game.Battle
                             case Affinity.Earth: return 1.3;
                             case Affinity.Water: return 1.3;
                             case Affinity.Wind: return 1.3;
+                            default: return 1.0;
+                        }
+                    }
+                    break;
+                case Affinity.Dark:
+                case Affinity.Undefined:
+                    {
+                        switch (target)
+                        {
+                            case Affinity.Normal: return 1.0;
+                            case Affinity.Fire: return 1.35;
+                            case Affinity.Earth: return 1.35;
+                            case Affinity.Water: return 1.35;
+                            case Affinity.Wind: return 1.35;
+                            default: return 1.0;
                         }
                     }
                     break;
             }
-            return 0;
+            return 1.0;
         }
         bool CanFlee(byte srclvel, byte dstlevl)
         {

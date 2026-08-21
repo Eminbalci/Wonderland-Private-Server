@@ -34,6 +34,13 @@ namespace Network.ActionCodes
                 if (p.ActiveVehicleID != 0 && p.Inv != null)
                 {
                     p.Inv.ApplyVehicleWear((ushort)p.ActiveVehicleID, 1);
+
+                    // Check if sailing in a raft on Map 11016 and stepping onto the beach/sand
+                    if (p.CurMap != null && p.CurMap.MapID == 11016 && p.CurX >= 280 && p.CurY >= 950)
+                    {
+                        DebugSystem.Write($"[AC06] Player {p.CharName} reached the beach shore on Map 11016 at ({p.CurX},{p.CurY}). Wrecking raft and disembarking.");
+                        Game.PlayerRelated.VehicleManager.WreckVehicle(p);
+                    }
                 }
 
                 // Proximity and Random Encounter Step Progression

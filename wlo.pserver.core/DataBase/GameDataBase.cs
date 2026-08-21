@@ -103,6 +103,9 @@ namespace DataBase
 
             // Create NPC Templates table
             VerifyNpcDataSetup();
+
+            // Initialize and synchronize Quests database table
+            QuestDataBase.Initialize(this);
         }
 
         public void LoadSpawnsFromCsv(string path)
@@ -270,10 +273,12 @@ namespace DataBase
             try
             {
                 // Ensure character_pets table exists
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INT AUTO_INCREMENT PRIMARY KEY, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName VARCHAR(50), level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, KEY(charID));");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0);");
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
 
                 var petTable = GetDataTable("SELECT * FROM character_pets WHERE charID = '" + c.CharID + "'");
                 c.PlayerPets.Clear();
+                c.HotelPets.Clear();
                 if (petTable != null && petTable.Rows.Count > 0)
                 {
                     foreach (DataRow row in petTable.Rows)
@@ -289,6 +294,7 @@ namespace DataBase
                         byte amity = byte.Parse(row["amity"].ToString());
                         bool isBattle = row["isBattle"].ToString() == "1";
                         bool isRide = row["isRide"].ToString() == "1";
+                        bool isHotel = row.Table.Columns.Contains("isHotel") && row["isHotel"].ToString() == "1";
 
                         var petData = new Player.PlayerPetData()
                         {
@@ -304,15 +310,24 @@ namespace DataBase
                             IsBattle = isBattle,
                             IsRide = isRide
                         };
-                        c.PlayerPets[slot] = petData;
 
-                        // Send recruited companion to client upon spawn
-                        Game.QuestRelated.QuestManager.SendCompanionReward(c, petId, petName, setBattle: isBattle);
-                        if (isRide)
+                        if (isHotel)
                         {
-                            c.PutPetToRide(petId.ToString());
+                            c.HotelPets[slot] = petData;
+                            DebugSystem.Write($"[GameDataBase] Loaded Hotel pet '{petName}' (ID: {petId}, Hotel Slot: {slot}) for {c.CharName}");
                         }
-                        DebugSystem.Write($"[GameDataBase] Loaded companion '{petName}' (ID: {petId}, Slot: {slot}) for {c.CharName}");
+                        else
+                        {
+                            c.PlayerPets[slot] = petData;
+
+                            // Send recruited companion to client upon spawn
+                            Game.QuestRelated.QuestManager.SendCompanionReward(c, petId, petName, setBattle: isBattle);
+                            if (isRide)
+                            {
+                                c.PutPetToRide(petId.ToString());
+                            }
+                            DebugSystem.Write($"[GameDataBase] Loaded companion '{petName}' (ID: {petId}, Slot: {slot}) for {c.CharName}");
+                        }
                     }
                 }
             }

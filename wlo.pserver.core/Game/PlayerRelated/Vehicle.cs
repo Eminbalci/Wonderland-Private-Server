@@ -131,6 +131,49 @@ namespace Game.PlayerRelated
             DebugSystem.Write($"[VehicleManager] Player {player.CharName} dismounted vehicle #{prevVid}.");
         }
 
+        public static void WreckVehicle(Player player)
+        {
+            if (player == null || player.ActiveVehicleID == 0) return;
+
+            ushort vid = (ushort)player.ActiveVehicleID;
+            player.ActiveVehicleID = 0;
+
+            // 1. Vehicle wreck packet (AC 15:15)
+            SendPacket wreckPkt = new SendPacket();
+            wreckPkt.Pack8(15);
+            wreckPkt.Pack8(15);
+            wreckPkt.Pack32(player.CharID);
+            wreckPkt.Pack16(vid);
+            player.Send(wreckPkt);
+            player.CurMap?.Broadcast(wreckPkt, "Ex", player.CharID);
+
+            // 2. Unmount packet (AC 15:11)
+            SendPacket unmountPkt = new SendPacket();
+            unmountPkt.Pack8(15);
+            unmountPkt.Pack8(11);
+            unmountPkt.Pack32(player.CharID);
+            player.Send(unmountPkt);
+            player.CurMap?.Broadcast(unmountPkt, "Ex", player.CharID);
+
+            // 3. Remove 1 vehicle item from inventory
+            if (player.Inv != null)
+            {
+                for (byte s = 1; s <= 50; s++)
+                {
+                    var it = player.Inv[s];
+                    if (it != null && it.ItemID == vid)
+                    {
+                        player.Inv.RemoveItem(s, 1);
+                        break;
+                    }
+                }
+            }
+
+            // 4. Movement refresh
+            player.Send(Tools.FromFormat("bb", 5, 4));
+            DebugSystem.Write($"[VehicleManager] Player {player.CharName}'s vehicle #{vid} wrecked upon reaching shore.");
+        }
+
         public static void ConsumeFuel(Player player, ushort amount = 1)
         {
             if (player == null || player.ActiveVehicleID == 0) return;

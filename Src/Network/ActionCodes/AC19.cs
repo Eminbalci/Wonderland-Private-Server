@@ -63,9 +63,9 @@ namespace Network.ActionCodes
                 }
 
                 // If petId is a slot number (1..4) rather than actual TemplateID
-                if (petId <= 4 && player.PlayerPets != null && player.PlayerPets.TryGetValue((byte)petId, out var petData))
+                if (petId <= 4 && player.PlayerPets != null && player.PlayerPets.TryGetValue((byte)petId, out var slotPet))
                 {
-                    petId = petData.PetID;
+                    petId = slotPet.PetID;
                 }
 
                 // If still 0, fallback to first pet in player's bag
@@ -79,34 +79,53 @@ namespace Network.ActionCodes
                 player.UnridePet();
                 player.ActivePetID = petId;
 
+                Player.PlayerPetData activePet = null;
                 if (player.PlayerPets != null)
                 {
                     foreach (var kvp in player.PlayerPets)
                     {
-                        kvp.Value.IsBattle = (kvp.Value.PetID == petId);
+                        if (kvp.Value.PetID == petId)
+                        {
+                            kvp.Value.IsBattle = true;
+                            activePet = kvp.Value;
+                        }
+                        else
+                        {
+                            kvp.Value.IsBattle = false;
+                        }
                     }
                 }
 
-                // 1. Send active battle pet packets to player
+                // 1. Send authentic AC 19:1 Set Battle Pet packet to player and map
                 player.Send(Tools.FromFormat("bbd", 19, 1, petId));
-                player.Send(Tools.FromFormat("bbdd", 19, 4, player.CharID, petId));
-
-                // 2. Broadcast companion follower to map
                 if (player.CurMap != null)
                 {
-                    player.CurMap.Broadcast(Tools.FromFormat("bbdd", 19, 1, player.CharID, petId));
-                    player.CurMap.Broadcast(Tools.FromFormat("bbdd", 19, 4, player.CharID, petId));
+                    player.CurMap.Broadcast(Tools.FromFormat("bbd", 19, 1, petId));
+                }
 
-                    // Force refresh player appearance to spawn companion on ground
-                    SendPacket refresh = new SendPacket();
-                    refresh.PackArray(new byte[] { 5, 8 });
-                    refresh.Pack32(player.CharID);
-                    refresh.Pack8(0);
-                    player.CurMap.Broadcast(refresh);
+                // 2. Synchronize Pet Level & Stats so Party UI and Status Window show authentic Level and HP/SP
+                if (activePet != null)
+                {
+                    byte slot = activePet.Slot;
+                    uint petLv = (uint)Math.Max(1, (int)activePet.Level);
+                    uint petHp = (uint)Math.Max(1, (int)activePet.HP);
+                    uint petMaxHp = (uint)Math.Max(1, (int)activePet.MaxHP);
+                    uint petSp = (uint)Math.Max(0, (int)activePet.SP);
+                    uint petMaxSp = (uint)Math.Max(0, (int)activePet.MaxSP);
+
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 35, slot, petLv, 0)); // Level
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 37, slot, (uint)Math.Max(0, (int)petLv - 1), 0)); // Level offset
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, slot, 0, 0)); // Potential points
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 207, slot, petMaxHp, 0)); // MaxHP
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 25, slot, petHp, 0)); // CurHP
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 208, slot, petMaxSp, 0)); // MaxSP
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 26, slot, petSp, 0)); // CurSP
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 205, slot, petMaxHp, 0)); // FullHP
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 206, slot, petMaxSp, 0)); // FullSP
                 }
 
                 player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Pet is now in Battle Mode!"));
-                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet ID {petId}");
+                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet ID {petId} (Lv.{activePet?.Level ?? 1})");
             }
             catch (Exception ex)
             {
@@ -130,24 +149,12 @@ namespace Network.ActionCodes
                     }
                 }
 
-                SendPacket restPkt = Tools.FromFormat("bbd", 15, 17, player.CharID);
-                player.Send(restPkt);
                 player.Send(Tools.FromFormat("bbd", 19, 5, player.CharID));
-
                 if (player.CurMap != null)
                 {
-                    player.CurMap.Broadcast(restPkt);
                     player.CurMap.Broadcast(Tools.FromFormat("bbd", 19, 5, player.CharID));
-
-                    SendPacket refresh = new SendPacket();
-                    refresh.PackArray(new byte[] { 5, 8 });
-                    refresh.Pack32(player.CharID);
-                    refresh.Pack8(0);
-                    player.CurMap.Broadcast(refresh);
                 }
-
-                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Pet is now resting."));
-                DebugSystem.Write($"[AC19] Player {player.CharName} rested active battle companion.");
+                DebugSystem.Write($"[AC19] Player {player.CharName} rested active battle companion");
             }
             catch (Exception ex)
             {

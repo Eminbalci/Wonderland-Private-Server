@@ -31,6 +31,7 @@ namespace System
         public static LoginServer gLoginServer;
         public static ItemMallServer gItemMallServer;
         public static WorldServer gWorld;
+        public static Server.API.RegistrationServer gRegistrationServer;
 
         #region Systems
 #pragma warning disable CS0649

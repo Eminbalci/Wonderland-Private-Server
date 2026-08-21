@@ -23,9 +23,13 @@ namespace Wonderland_Private_Server
             InitializeComponent();
             this.KeyPreview = true;
             LoadAllLists();
+            this.Size = new System.Drawing.Size(1200, 780);
+            this.MinimumSize = new System.Drawing.Size(1000, 680);
             SetupGmTab();
             SetupItemMallTab();
             SetupMonsterDropsTab();
+            SetupQuestManagerTab();
+            SetupServerStatusControl();
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -103,17 +107,37 @@ namespace Wonderland_Private_Server
             MainThread.IsBackground = true;
             MainThread.Init();
 
-            // Load character filters and NPCs
+            // Auto refresh tabs and filters after server boot
+            this.tabControl3.SelectedIndexChanged += (s, ev) =>
+            {
+                try
+                {
+                    if (this.tabControl3.SelectedTab != null)
+                    {
+                        if (this.tabControl3.SelectedTab.Text.Contains("Monster Drops"))
+                        {
+                            RefreshMonsterListGrid();
+                        }
+                        else if (this.tabControl3.SelectedTab.Text.Contains("Item Mall"))
+                        {
+                            RefreshMallGrid();
+                        }
+                    }
+                }
+                catch { }
+            };
+
             Task.Run(() =>
             {
-                Thread.Sleep(2500); // Wait for server initialization
+                Thread.Sleep(2000); // Wait for server initialization
                 try
                 {
                     this.Invoke(new Action(() =>
                     {
                         LoadCharacterFilters();
                         LoadChestDropTargets();
-                        // NPC tabs removed, so no refresh needed
+                        RefreshMonsterListGrid();
+                        RefreshMallGrid();
                     }));
                 }
                 catch { }
@@ -181,8 +205,28 @@ namespace Wonderland_Private_Server
             DebugSystem.Write("[Init] - Initializing DataFile Objects");
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
+            cGlobal.ItemDatManager.onDebug = (obj) => { };
             string itemDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "itemDat.wpdat");
-            cGlobal.ItemDatManager.Load(itemDatPath).Wait();
+            if (System.IO.File.Exists(itemDatPath))
+            {
+                cGlobal.ItemDatManager.Load(itemDatPath).Wait();
+                DebugSystem.Write($"[Init] - Loaded {cGlobal.ItemDatManager.GetItemList().Count} items from itemDat.wpdat");
+            }
+
+            Game.Battle.MonsterDropManager.ItemNameResolver = (iid) =>
+            {
+                try
+                {
+                    var item = cGlobal.ItemDatManager?.GetItemByID(iid);
+                    if (item != null && item.ItemName != null && item.ItemName.Length > 0)
+                    {
+                        string n = System.Text.Encoding.Default.GetString(item.ItemName).Trim('\0', ' ');
+                        if (!string.IsNullOrEmpty(n)) return n;
+                    }
+                }
+                catch { }
+                return null;
+            };
 
             string talkDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
             cGlobal.TalkDatManager = new DataFiles.PhxTalkDat(talkDatPath);
@@ -190,8 +234,8 @@ namespace Wonderland_Private_Server
 
             string markDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Mark.dat");
             cGlobal.MarkDatManager = new DataFiles.PhxMarkDat(markDatPath);
-            DebugSystem.Write($"[Init] - Loaded {cGlobal.MarkDatManager.Count} quest marks from Mark.dat");
             Game.QuestRelated.QuestManager.LoadAuthenticQuestsFromMarkDat(markDatPath);
+            DebugSystem.Write($"[Init] - Loaded {cGlobal.MarkDatManager.Count} quest marks directly from Mark.dat (Total Quests: {Game.QuestRelated.QuestManager.AllQuests.Count})");
 
             string npcDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Npc.dat");
             Game.Battle.MonsterDropManager.LoadFromNpcDat(npcDatPath);
@@ -203,6 +247,8 @@ namespace Wonderland_Private_Server
             Game.PlayerRelated.ItemMallManager.Initialize();
             Game.Crafting.GatheringManager.Initialize();
             Game.Crafting.AlchemyManager.InitializeRecipes();
+            Server.ServerStatusManager.OnlinePlayerCountProvider = () => cGlobal.gLoginServer?.GetAllPlayers().Count ?? 0;
+            Server.ServerStatusManager.Initialize(6416);
 
             DebugSystem.Write("[Init] - Initializing DataBase Objects");
             cGlobal.gUserDataBase = new DataBase.UserDataBase();
@@ -379,8 +425,8 @@ namespace Wonderland_Private_Server
             cGlobal.gItemMallServer.Start();
 
             // Start Registration Web Server
-            var registrationServer = new Server.API.RegistrationServer(8080, cGlobal.gUserDataBase);
-            registrationServer.Start();
+            cGlobal.gRegistrationServer = new Server.API.RegistrationServer(8080, cGlobal.gUserDataBase);
+            cGlobal.gRegistrationServer.Start();
             DebugSystem.Write("[Init] - Registration page available at: http://localhost:8080/");
 
             //cGlobal.WLO_World.Initialize();
@@ -391,60 +437,149 @@ namespace Wonderland_Private_Server
 
             do
             {
-                #region Thread Management
-                //try
-                //{
-                //    Thread r;
-                //    foreach (var t in ThreadManager. cGlobal.ThreadManager)
-                //        if (!t.Value.IsAlive)
-                //            if (cGlobal.ThreadManager.TryRemove(t.Key, out r))
-                //                DebugSystem.Write(t.Value.Name + " has been Terminated", Utilities.LogType.THRD);
-                //}
-                //catch { }
-                #endregion
                 #region TaskManager
-                cGlobal.ApplicationTasks.onUpdateTick();
+                cGlobal.ApplicationTasks?.onUpdateTick();
                 #endregion
                 Thread.Sleep(10);
             }
             while (cGlobal.Run);
 
-            ShutDown();
-
-
-
+            PerformSafeShutdown();
         }
 
+        private static int _isShuttingDown = 0;
 
-        public void ShutDown()
+        public void PerformSafeShutdown()
         {
-            this.Invoke(new Action(() => { this.Enabled = false; }));
+            if (System.Threading.Interlocked.Exchange(ref _isShuttingDown, 1) != 0)
+                return;
 
-            UI.ShutDown_Dialog tmp = new UI.ShutDown_Dialog();
-            tmp.Location = this.Location;
-            tmp.Left = this.Left + 100;
-            tmp.Top = this.Top + 250;
-
-            tmp.ShowDialog();
-            tmp.Dispose();
-
-            cGlobal.Run = false;
-            blockclose = false;
-
-
-            this.Invoke(new Action(() => { Close(); }));
-            foreach (var process in Process.GetProcessesByName("Wonderland Private Server"))
+            try
             {
-                process.Kill();
+                cGlobal.Run = false;
+                blockclose = false;
+
+                try
+                {
+                    if (this.IsHandleCreated && !this.IsDisposed)
+                    {
+                        this.BeginInvoke(new Action(() => { this.Enabled = false; }));
+                    }
+                }
+                catch { }
+
+                DebugSystem.Write("[SafeShutdown] Initiating safe server shutdown sequence...");
+
+                // 1. Broadcast warning to online players
+                try
+                {
+                    var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                    if (online != null && online.Count > 0)
+                    {
+                        foreach (var p in online)
+                        {
+                            try
+                            {
+                                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Server is performing a safe shutdown. Saving all character data..."));
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                catch { }
+
+                // 2. Save all online players & flush IM points
+                int savedPlayers = 0;
+                try
+                {
+                    var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                    if (online != null && online.Count > 0)
+                    {
+                        foreach (var p in online)
+                        {
+                            try
+                            {
+                                cGlobal.gCharacterDataBase.WritePlayer(p.CharID, p);
+                                if (p.UserAccount != null && p.UserAccount.DataBaseID != 0)
+                                {
+                                    cGlobal.gUserDataBase?.SetIMPoints(p.UserAccount.DataBaseID, p.UserAccount.IM);
+                                }
+                                savedPlayers++;
+                                DebugSystem.Write($"[SafeShutdown] Saved character {p.CharName} (CharID: {p.CharID})");
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[SafeShutdown] Error saving player {p.CharName}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[SafeShutdown] Exception saving players: {ex.Message}");
+                }
+
+                // 3. Save chest drops and server settings
+                try
+                {
+                    Game.Maps.ChestDropManager.SaveToFile();
+                    cGlobal.SrvSettings?.SaveSettings(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo");
+                    DebugSystem.Write("[SafeShutdown] Saved server configuration and drop catalogs.");
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[SafeShutdown] Error saving settings: {ex.Message}");
+                }
+
+                // 4. Disconnect all players
+                try
+                {
+                    var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                    if (online != null && online.Count > 0)
+                    {
+                        foreach (var p in online)
+                        {
+                            try { p.Disconnect(); } catch { }
+                        }
+                    }
+                }
+                catch { }
+
+                // 5. Terminate all network listeners cleanly
+                try
+                {
+                    cGlobal.gRegistrationServer?.Stop();
+                    cGlobal.gLoginServer?.Kill();
+                    cGlobal.gItemMallServer?.Stop();
+                    cGlobal.gWorld?.Kill();
+                    DebugSystem.Write("[SafeShutdown] Network listeners and world threads stopped.");
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[SafeShutdown] Exception stopping network listeners: {ex.Message}");
+                }
+
+                DebugSystem.Write($"[SafeShutdown] Safe server shutdown completed successfully ({savedPlayers} players saved).");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[SafeShutdown] Critical shutdown error: {ex.Message}");
+            }
+            finally
+            {
+                // Force exit process cleanly without hanging or ghost background threads
+                Environment.Exit(0);
             }
         }
 
         #region Form Events
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (cGlobal.Run || blockclose)
+            if (_isShuttingDown == 0)
+            {
                 e.Cancel = true;
-            cGlobal.Run = false;
+                ThreadPool.QueueUserWorkItem(_ => PerformSafeShutdown());
+            }
         }
 
         #endregion
@@ -503,7 +638,16 @@ namespace Wonderland_Private_Server
             {
                 string selectedItem = listBox_Items.Items[selectedIndex].ToString();
                 string selectedItemID = selectedItem.Split(' ')[0];
-                GetPrivatePlayer().AddItemToInventory(selectedItemID);
+                Player targetPlayer = GetPrivatePlayer();
+                if (targetPlayer != null)
+                {
+                    targetPlayer.AddItemToInventory(selectedItemID);
+                    DebugSystem.Write($"[Cheat] Gave item {selectedItemID} ({selectedItem}) to player {targetPlayer.CharName}");
+                }
+                else
+                {
+                    DebugSystem.Write($"[Cheat] Failed to give item: No online player found!");
+                }
             }
         }
         private void ListBoxNpc_MouseDoubleClick(object sender, MouseEventArgs e)
@@ -543,22 +687,25 @@ namespace Wonderland_Private_Server
 
         private Player GetPrivatePlayer()
         {
-            // If a player is selected in the cheat tab combobox, use that player
-            if (comboBox_OnlinePlayers.InvokeRequired)
+            try
             {
-                return (Player)comboBox_OnlinePlayers.Invoke(new Func<Player>(() =>
+                if (comboBox_OnlinePlayers.InvokeRequired)
                 {
-                    if (comboBox_OnlinePlayers.SelectedItem != null && comboBox_OnlinePlayers.SelectedItem is Player)
-                        return (Player)comboBox_OnlinePlayers.SelectedItem;
-                    return cGlobal.gLoginServer.privatePlayer;
-                }));
+                    return (Player)comboBox_OnlinePlayers.Invoke(new Func<Player>(() => GetPrivatePlayer()));
+                }
+
+                if (comboBox_OnlinePlayers.SelectedItem is Player sp && sp != null)
+                    return sp;
+
+                var all = cGlobal.gLoginServer?.GetAllPlayers();
+                if (all != null && all.Count > 0)
+                {
+                    comboBox_OnlinePlayers.SelectedItem = all[0];
+                    return all[0];
+                }
             }
-            else
-            {
-                if (comboBox_OnlinePlayers.SelectedItem != null && comboBox_OnlinePlayers.SelectedItem is Player)
-                    return (Player)comboBox_OnlinePlayers.SelectedItem;
-                return cGlobal.gLoginServer.privatePlayer;
-            }
+            catch { }
+            return cGlobal.gLoginServer?.privatePlayer;
         }
 
         private void RefreshOnlinePlayers()
@@ -957,6 +1104,45 @@ namespace Wonderland_Private_Server
             else
             {
                 MessageBox.Show("Please select a character/row to delete.");
+            }
+        }
+
+        private void btnEditCharacterData_Click(object sender, EventArgs e)
+        {
+            OpenCharacterEditor();
+        }
+
+        private void dgvCharacters_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0)
+            {
+                OpenCharacterEditor();
+            }
+        }
+
+        private void OpenCharacterEditor()
+        {
+            if (dgvCharacters.SelectedRows.Count > 0)
+            {
+                try
+                {
+                    uint id = Convert.ToUInt32(dgvCharacters.SelectedRows[0].Cells["charID"].Value);
+                    string charName = dgvCharacters.SelectedRows[0].Cells["name"].Value?.ToString() ?? "Unknown";
+
+                    using (var editor = new CharacterDataEditorForm(id, charName))
+                    {
+                        editor.ShowDialog(this);
+                    }
+                    btnRefreshCharacters_Click(null, null);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error opening character editor: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Please select a character to edit.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -1547,80 +1733,9 @@ namespace Wonderland_Private_Server
 
             if (res != DialogResult.Yes) return;
 
-            try
-            {
-                btnSafeShutdown.Enabled = false;
-                btnSaveAllNow.Enabled = false;
-
-                // 1. Notify players in-game
-                try
-                {
-                    var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
-                    if (online != null)
-                    {
-                        foreach (var p in online)
-                        {
-                            p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Server is performing a safe shutdown. Saving all data..."));
-                        }
-                    }
-                }
-                catch { }
-
-                // 2. Save all online player data
-                int savedCount = 0;
-                try
-                {
-                    var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
-                    if (online != null)
-                    {
-                        foreach (var p in online)
-                        {
-                            try
-                            {
-                                cGlobal.gCharacterDataBase.WritePlayer(p.CharID, p);
-                                savedCount++;
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugSystem.Write($"[SafeShutdown] Error saving player {p.CharName}: {ex.Message}");
-                            }
-                        }
-                    }
-                    DebugSystem.Write(DebugItemType.Info_Heavy, $"[SafeShutdown] Saved {savedCount} online players.");
-                }
-                catch (Exception ex)
-                {
-                    DebugSystem.Write(DebugItemType.Error, $"[SafeShutdown] Exception saving players: {ex.Message}");
-                }
-
-                // 3. Save drop configs and server settings
-                try
-                {
-                    Game.Maps.ChestDropManager.SaveToFile();
-                    cGlobal.SrvSettings?.SaveSettings(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo");
-                }
-                catch { }
-
-                // 4. Terminate network listeners
-                try
-                {
-                    cGlobal.gLoginServer?.Kill();
-                    cGlobal.gItemMallServer?.Stop();
-                    cGlobal.gWorld?.Kill();
-                }
-                catch { }
-
-                // 5. Exit application cleanly
-                blockclose = false;
-                cGlobal.Run = false;
-                Application.Exit();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error during safe shutdown: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                btnSafeShutdown.Enabled = true;
-                btnSaveAllNow.Enabled = true;
-            }
+            btnSafeShutdown.Enabled = false;
+            btnSaveAllNow.Enabled = false;
+            ThreadPool.QueueUserWorkItem(_ => PerformSafeShutdown());
         }
         #endregion
 
@@ -1648,7 +1763,8 @@ namespace Wonderland_Private_Server
                 lstGmList = new ListBox
                 {
                     Location = new System.Drawing.Point(20, 55),
-                    Size = new System.Drawing.Size(300, 320),
+                    Size = new System.Drawing.Size(300, 380),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left,
                     Font = new System.Drawing.Font("Segoe UI", 10f)
                 };
 
@@ -1766,22 +1882,108 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabMall = new TabPage("🛍️ Item Mall");
-                tabMall.BackColor = System.Drawing.Color.White;
+                TabPage tabMall = new TabPage("🛍️ Item Mall")
+                {
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Padding = new Padding(6)
+                };
+
+                SplitContainer splitMall = new SplitContainer
+                {
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical,
+                    SplitterDistance = 640,
+                    SplitterWidth = 6
+                };
+
+                // === LEFT PANEL: Catalog DataGridView + Header + Buttons ===
+                Panel pnlLeftTop = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 32,
+                    BackColor = System.Drawing.Color.Transparent
+                };
 
                 Label lblHeader = new Label
                 {
-                    Text = "Item Mall Catalog & Player Points Management",
-                    Location = new System.Drawing.Point(15, 10),
-                    Size = new System.Drawing.Size(400, 20),
-                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold)
+                    Text = "🛍️ Item Mall Catalog (Active in-game items)",
+                    Location = new System.Drawing.Point(4, 6),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue
+                };
+                pnlLeftTop.Controls.Add(lblHeader);
+
+                Panel pnlLeftBottom = new Panel
+                {
+                    Dock = DockStyle.Bottom,
+                    Height = 44,
+                    BackColor = System.Drawing.Color.Transparent
                 };
 
-                // DataGridView for Catalog
+                Button btnMoveUp = new Button
+                {
+                    Text = "⬆️ Move Up",
+                    Location = new System.Drawing.Point(4, 6),
+                    Size = new System.Drawing.Size(100, 32),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnMoveUp.Click += (s, e) =>
+                {
+                    if (dgvMallCatalog.SelectedRows.Count > 0)
+                    {
+                        int idx = dgvMallCatalog.SelectedRows[0].Index;
+                        if (Game.PlayerRelated.ItemMallManager.MoveItem(idx, true))
+                        {
+                            RefreshMallGrid();
+                            if (idx > 0 && idx - 1 < dgvMallCatalog.Rows.Count)
+                                dgvMallCatalog.Rows[idx - 1].Selected = true;
+                        }
+                    }
+                };
+
+                Button btnMoveDown = new Button
+                {
+                    Text = "⬇️ Move Down",
+                    Location = new System.Drawing.Point(110, 6),
+                    Size = new System.Drawing.Size(100, 32),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnMoveDown.Click += (s, e) =>
+                {
+                    if (dgvMallCatalog.SelectedRows.Count > 0)
+                    {
+                        int idx = dgvMallCatalog.SelectedRows[0].Index;
+                        if (Game.PlayerRelated.ItemMallManager.MoveItem(idx, false))
+                        {
+                            RefreshMallGrid();
+                            if (idx + 1 < dgvMallCatalog.Rows.Count)
+                                dgvMallCatalog.Rows[idx + 1].Selected = true;
+                        }
+                    }
+                };
+
+                Button btnReload = new Button
+                {
+                    Text = "🔄 Reload from File",
+                    Location = new System.Drawing.Point(216, 6),
+                    Size = new System.Drawing.Size(140, 32),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnReload.Click += (s, e) =>
+                {
+                    Game.PlayerRelated.ItemMallManager.LoadFromFile();
+                    RefreshMallGrid();
+                    MessageBox.Show("Item Mall reloaded from Data/item_mall.txt!", "Reloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                pnlLeftBottom.Controls.Add(btnMoveUp);
+                pnlLeftBottom.Controls.Add(btnMoveDown);
+                pnlLeftBottom.Controls.Add(btnReload);
+
                 dgvMallCatalog = new DataGridView
                 {
-                    Location = new System.Drawing.Point(15, 35),
-                    Size = new System.Drawing.Size(460, 335),
+                    Dock = DockStyle.Fill,
                     AllowUserToAddRows = false,
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                     MultiSelect = false,
@@ -1806,73 +2008,23 @@ namespace Wonderland_Private_Server
                     }
                 };
 
-                // Move Up / Move Down / Reload buttons under grid
-                Button btnMoveUp = new Button
-                {
-                    Text = "⬆️ Move Up",
-                    Location = new System.Drawing.Point(15, 375),
-                    Size = new System.Drawing.Size(100, 30),
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnMoveUp.Click += (s, e) =>
-                {
-                    if (dgvMallCatalog.SelectedRows.Count > 0)
-                    {
-                        int idx = dgvMallCatalog.SelectedRows[0].Index;
-                        if (Game.PlayerRelated.ItemMallManager.MoveItem(idx, true))
-                        {
-                            RefreshMallGrid();
-                            if (idx > 0 && idx - 1 < dgvMallCatalog.Rows.Count)
-                                dgvMallCatalog.Rows[idx - 1].Selected = true;
-                        }
-                    }
-                };
+                splitMall.Panel1.Controls.Add(pnlLeftTop);
+                splitMall.Panel1.Controls.Add(pnlLeftBottom);
+                splitMall.Panel1.Controls.Add(dgvMallCatalog);
+                dgvMallCatalog.BringToFront();
 
-                Button btnMoveDown = new Button
-                {
-                    Text = "⬇️ Move Down",
-                    Location = new System.Drawing.Point(125, 375),
-                    Size = new System.Drawing.Size(100, 30),
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnMoveDown.Click += (s, e) =>
-                {
-                    if (dgvMallCatalog.SelectedRows.Count > 0)
-                    {
-                        int idx = dgvMallCatalog.SelectedRows[0].Index;
-                        if (Game.PlayerRelated.ItemMallManager.MoveItem(idx, false))
-                        {
-                            RefreshMallGrid();
-                            if (idx + 1 < dgvMallCatalog.Rows.Count)
-                                dgvMallCatalog.Rows[idx + 1].Selected = true;
-                        }
-                    }
-                };
-
-                Button btnReload = new Button
-                {
-                    Text = "🔄 Reload",
-                    Location = new System.Drawing.Point(235, 375),
-                    Size = new System.Drawing.Size(85, 30),
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnReload.Click += (s, e) =>
-                {
-                    Game.PlayerRelated.ItemMallManager.LoadFromFile();
-                    RefreshMallGrid();
-                    MessageBox.Show("Item Mall reloaded from Data/item_mall.txt!", "Reloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                };
-
-                // GroupBox: Add/Edit Item
+                // === RIGHT PANEL: GroupBox Add/Edit Item & Player IM Points ===
                 GroupBox grpEditItem = new GroupBox
                 {
-                    Text = "Item Details",
-                    Location = new System.Drawing.Point(490, 30),
-                    Size = new System.Drawing.Size(260, 240)
+                    Text = "Add / Edit Item Details",
+                    Location = new System.Drawing.Point(8, 8),
+                    Size = new System.Drawing.Size(340, 245),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
 
-                Label lId = new Label { Text = "Item ID:", Location = new System.Drawing.Point(15, 25), Size = new System.Drawing.Size(65, 20) };
-                txtMallItemId = new TextBox { Location = new System.Drawing.Point(85, 22), Size = new System.Drawing.Size(160, 22) };
+                Label lId = new Label { Text = "Item ID:", Location = new System.Drawing.Point(15, 25), Size = new System.Drawing.Size(70, 20) };
+                txtMallItemId = new TextBox { Location = new System.Drawing.Point(90, 22), Size = new System.Drawing.Size(180, 23), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
                 txtMallItemId.TextChanged += (s, e) =>
                 {
                     try
@@ -1893,25 +2045,25 @@ namespace Wonderland_Private_Server
                     catch { }
                 };
 
-                Label lName = new Label { Text = "Name:", Location = new System.Drawing.Point(15, 55), Size = new System.Drawing.Size(65, 20) };
-                txtMallItemName = new TextBox { Location = new System.Drawing.Point(85, 52), Size = new System.Drawing.Size(160, 22) };
+                Label lName = new Label { Text = "Name:", Location = new System.Drawing.Point(15, 55), Size = new System.Drawing.Size(70, 20) };
+                txtMallItemName = new TextBox { Location = new System.Drawing.Point(90, 52), Size = new System.Drawing.Size(180, 23), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
 
-                Label lCat = new Label { Text = "Category:", Location = new System.Drawing.Point(15, 85), Size = new System.Drawing.Size(65, 20) };
-                cmbMallCategory = new ComboBox { Location = new System.Drawing.Point(85, 82), Size = new System.Drawing.Size(160, 22), DropDownStyle = ComboBoxStyle.DropDownList };
+                Label lCat = new Label { Text = "Category:", Location = new System.Drawing.Point(15, 85), Size = new System.Drawing.Size(70, 20) };
+                cmbMallCategory = new ComboBox { Location = new System.Drawing.Point(90, 82), Size = new System.Drawing.Size(180, 23), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDownList };
                 cmbMallCategory.Items.AddRange(new string[] { "Hot", "Grocery", "Furniture", "Armory", "Weaponry" });
                 cmbMallCategory.SelectedIndex = 0;
 
-                Label lCost = new Label { Text = "IM Points:", Location = new System.Drawing.Point(15, 115), Size = new System.Drawing.Size(65, 20) };
-                numMallCost = new NumericUpDown { Location = new System.Drawing.Point(85, 112), Size = new System.Drawing.Size(160, 22), Minimum = 1, Maximum = 999999, Value = 100 };
+                Label lCost = new Label { Text = "IM Points:", Location = new System.Drawing.Point(15, 115), Size = new System.Drawing.Size(70, 20) };
+                numMallCost = new NumericUpDown { Location = new System.Drawing.Point(90, 112), Size = new System.Drawing.Size(180, 23), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Minimum = 1, Maximum = 999999, Value = 100 };
 
-                Label lCount = new Label { Text = "Quantity:", Location = new System.Drawing.Point(15, 145), Size = new System.Drawing.Size(65, 20) };
-                numMallCount = new NumericUpDown { Location = new System.Drawing.Point(85, 142), Size = new System.Drawing.Size(160, 22), Minimum = 1, Maximum = 255, Value = 1 };
+                Label lCount = new Label { Text = "Quantity:", Location = new System.Drawing.Point(15, 145), Size = new System.Drawing.Size(70, 20) };
+                numMallCount = new NumericUpDown { Location = new System.Drawing.Point(90, 142), Size = new System.Drawing.Size(180, 23), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Minimum = 1, Maximum = 255, Value = 1 };
 
                 btnAddMallItem = new Button
                 {
                     Text = "➕ Add / Update",
                     Location = new System.Drawing.Point(15, 185),
-                    Size = new System.Drawing.Size(110, 35),
+                    Size = new System.Drawing.Size(130, 36),
                     BackColor = System.Drawing.Color.LightGreen,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
                 };
@@ -1932,8 +2084,8 @@ namespace Wonderland_Private_Server
                 btnDeleteMallItem = new Button
                 {
                     Text = "🗑️ Delete",
-                    Location = new System.Drawing.Point(135, 185),
-                    Size = new System.Drawing.Size(110, 35),
+                    Location = new System.Drawing.Point(155, 185),
+                    Size = new System.Drawing.Size(115, 36),
                     BackColor = System.Drawing.Color.LightCoral,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
                 };
@@ -1963,24 +2115,23 @@ namespace Wonderland_Private_Server
                 grpEditItem.Controls.Add(btnAddMallItem);
                 grpEditItem.Controls.Add(btnDeleteMallItem);
 
-                tabMall.Controls.Add(btnMoveUp);
-                tabMall.Controls.Add(btnMoveDown);
-                tabMall.Controls.Add(btnReload);
-
                 // GroupBox: Player IM Points
                 GroupBox grpPoints = new GroupBox
                 {
                     Text = "Player IM Points (Nakit Puan)",
-                    Location = new System.Drawing.Point(490, 275),
-                    Size = new System.Drawing.Size(260, 140)
+                    Location = new System.Drawing.Point(8, 265),
+                    Size = new System.Drawing.Size(340, 155),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
 
-                Label lblTarget = new Label { Text = "Target Player / User / ID:", Location = new System.Drawing.Point(10, 18), Size = new System.Drawing.Size(150, 15), Font = new System.Drawing.Font("Segoe UI", 7.5f) };
+                Label lblTarget = new Label { Text = "Target Player / User:", Location = new System.Drawing.Point(15, 24), Size = new System.Drawing.Size(130, 18) };
 
                 cmbMallPlayers = new ComboBox
                 {
-                    Location = new System.Drawing.Point(10, 35),
-                    Size = new System.Drawing.Size(240, 22),
+                    Location = new System.Drawing.Point(15, 44),
+                    Size = new System.Drawing.Size(255, 23),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                     DropDownStyle = ComboBoxStyle.DropDown
                 };
                 cmbMallPlayers.DropDown += (s, e) => RefreshOnlineMallPlayers();
@@ -1992,11 +2143,12 @@ namespace Wonderland_Private_Server
                     }
                 };
 
-                Label lblPts = new Label { Text = "Amount:", Location = new System.Drawing.Point(10, 62), Size = new System.Drawing.Size(55, 20) };
+                Label lblPts = new Label { Text = "Points:", Location = new System.Drawing.Point(15, 78), Size = new System.Drawing.Size(55, 20) };
                 numPlayerPoints = new NumericUpDown
                 {
-                    Location = new System.Drawing.Point(65, 60),
-                    Size = new System.Drawing.Size(185, 22),
+                    Location = new System.Drawing.Point(75, 76),
+                    Size = new System.Drawing.Size(195, 23),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                     Minimum = 0,
                     Maximum = 99999999,
                     Value = 1000
@@ -2005,53 +2157,37 @@ namespace Wonderland_Private_Server
                 btnAddPoints = new Button
                 {
                     Text = "➕ Give Points",
-                    Location = new System.Drawing.Point(10, 92),
-                    Size = new System.Drawing.Size(115, 36),
+                    Location = new System.Drawing.Point(15, 110),
+                    Size = new System.Drawing.Size(120, 34),
                     BackColor = System.Drawing.Color.LightSkyBlue,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
                 btnAddPoints.Click += (s, e) =>
                 {
                     string target = cmbMallPlayers.Text.Trim();
-                    if (cmbMallPlayers.SelectedItem is Player p)
-                    {
-                        target = p.CharName;
-                    }
-
+                    if (cmbMallPlayers.SelectedItem is Player p) target = p.CharName;
                     if (GivePointsToAccountOrPlayer(target, (int)numPlayerPoints.Value, true, out string msg))
-                    {
                         MessageBox.Show(msg, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
                     else
-                    {
                         MessageBox.Show(msg, "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
                 };
 
                 btnSetPoints = new Button
                 {
                     Text = "💾 Set Exact",
-                    Location = new System.Drawing.Point(135, 92),
-                    Size = new System.Drawing.Size(115, 36),
+                    Location = new System.Drawing.Point(145, 110),
+                    Size = new System.Drawing.Size(125, 34),
                     BackColor = System.Drawing.Color.LightGoldenrodYellow,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
                 btnSetPoints.Click += (s, e) =>
                 {
                     string target = cmbMallPlayers.Text.Trim();
-                    if (cmbMallPlayers.SelectedItem is Player p)
-                    {
-                        target = p.CharName;
-                    }
-
+                    if (cmbMallPlayers.SelectedItem is Player p) target = p.CharName;
                     if (GivePointsToAccountOrPlayer(target, (int)numPlayerPoints.Value, false, out string msg))
-                    {
                         MessageBox.Show(msg, "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
                     else
-                    {
                         MessageBox.Show(msg, "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
                 };
 
                 grpPoints.Controls.Add(lblTarget);
@@ -2061,10 +2197,10 @@ namespace Wonderland_Private_Server
                 grpPoints.Controls.Add(btnAddPoints);
                 grpPoints.Controls.Add(btnSetPoints);
 
-                tabMall.Controls.Add(lblHeader);
-                tabMall.Controls.Add(dgvMallCatalog);
-                tabMall.Controls.Add(grpEditItem);
-                tabMall.Controls.Add(grpPoints);
+                splitMall.Panel2.Controls.Add(grpEditItem);
+                splitMall.Panel2.Controls.Add(grpPoints);
+
+                tabMall.Controls.Add(splitMall);
 
                 if (this.tabControl3 != null)
                 {
@@ -2076,7 +2212,7 @@ namespace Wonderland_Private_Server
                 {
                     if (this.IsHandleCreated)
                     {
-                        this.BeginInvoke(new Action(RefreshMallGrid));
+                        this.BeginInvoke(new Action(() => RefreshMallGrid()));
                     }
                 };
             }
@@ -2220,38 +2356,51 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabDrops = new TabPage("🐲 Monster Drops");
-                tabDrops.BackColor = System.Drawing.Color.White;
-
-                Label lblHeader = new Label
+                TabPage tabDrops = new TabPage("🐲 Monster Drops")
                 {
-                    Text = "Monster Loot Drop Tables Management",
-                    Location = new System.Drawing.Point(15, 10),
-                    Size = new System.Drawing.Size(400, 20),
-                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold)
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Padding = new Padding(6)
                 };
 
-                // Left Panel: Search & Monster List
+                SplitContainer splitDrops = new SplitContainer
+                {
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical,
+                    SplitterDistance = 350,
+                    SplitterWidth = 6
+                };
+
+                // === LEFT PANEL: Search + Monster List ===
+                Panel pnlSearch = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 55,
+                    BackColor = System.Drawing.Color.Transparent
+                };
+
                 Label lblSearch = new Label
                 {
                     Text = "Search Monster (ID / Name):",
-                    Location = new System.Drawing.Point(15, 35),
-                    Size = new System.Drawing.Size(180, 18),
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                    Location = new System.Drawing.Point(4, 4),
+                    Size = new System.Drawing.Size(200, 18),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
 
                 txtMonsterSearch = new TextBox
                 {
-                    Location = new System.Drawing.Point(15, 55),
-                    Size = new System.Drawing.Size(220, 22),
+                    Location = new System.Drawing.Point(4, 24),
+                    Size = new System.Drawing.Size(330, 23),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                     Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
                 txtMonsterSearch.TextChanged += (s, e) => RefreshMonsterListGrid();
 
+                pnlSearch.Controls.Add(lblSearch);
+                pnlSearch.Controls.Add(txtMonsterSearch);
+
                 dgvMonsterList = new DataGridView
                 {
-                    Location = new System.Drawing.Point(15, 85),
-                    Size = new System.Drawing.Size(300, 360),
+                    Dock = DockStyle.Fill,
                     AllowUserToAddRows = false,
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                     MultiSelect = false,
@@ -2269,26 +2418,37 @@ namespace Wonderland_Private_Server
                         {
                             selectedMonsterTid = tid;
                             string mName = row.Cells["MonsterName"]?.Value?.ToString() ?? $"Monster #{tid}";
-                            lblSelectedMonster.Text = $"Selected: {mName} (TID: {tid})";
+                            lblSelectedMonster.Text = $"🐲 Selected Monster: {mName} (TID: {tid})";
                             RefreshMonsterDropsGrid(tid);
                         }
                     }
                 };
 
-                // Right Panel: Drop Items DataGridView
+                splitDrops.Panel1.Controls.Add(pnlSearch);
+                splitDrops.Panel1.Controls.Add(dgvMonsterList);
+                dgvMonsterList.BringToFront();
+
+                // === RIGHT PANEL: Drops Grid + Add/Edit GroupBox ===
+                Panel pnlSelectedTop = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 28,
+                    BackColor = System.Drawing.Color.Transparent
+                };
+
                 lblSelectedMonster = new Label
                 {
-                    Text = "Selected: (Select a monster)",
-                    Location = new System.Drawing.Point(330, 35),
-                    Size = new System.Drawing.Size(420, 20),
-                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    Text = "🐲 Selected Monster: (Please select a monster from the list)",
+                    Location = new System.Drawing.Point(4, 4),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkBlue
                 };
+                pnlSelectedTop.Controls.Add(lblSelectedMonster);
 
                 dgvMonsterDrops = new DataGridView
                 {
-                    Location = new System.Drawing.Point(330, 60),
-                    Size = new System.Drawing.Size(425, 200),
+                    Dock = DockStyle.Fill,
                     AllowUserToAddRows = false,
                     SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                     MultiSelect = false,
@@ -2317,8 +2477,8 @@ namespace Wonderland_Private_Server
                 GroupBox grpDropEdit = new GroupBox
                 {
                     Text = "Add / Edit Drop Item",
-                    Location = new System.Drawing.Point(330, 270),
-                    Size = new System.Drawing.Size(425, 175),
+                    Dock = DockStyle.Bottom,
+                    Height = 200,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f)
                 };
 
@@ -2360,7 +2520,7 @@ namespace Wonderland_Private_Server
                 {
                     Text = "➕ Add / Update Drop",
                     Location = new System.Drawing.Point(10, 85),
-                    Size = new System.Drawing.Size(195, 35),
+                    Size = new System.Drawing.Size(195, 32),
                     BackColor = System.Drawing.Color.LightGreen,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
                 };
@@ -2393,7 +2553,7 @@ namespace Wonderland_Private_Server
                 {
                     Text = "🗑️ Delete Drop",
                     Location = new System.Drawing.Point(215, 85),
-                    Size = new System.Drawing.Size(195, 35),
+                    Size = new System.Drawing.Size(195, 32),
                     BackColor = System.Drawing.Color.LightCoral,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
                 };
@@ -2413,26 +2573,10 @@ namespace Wonderland_Private_Server
                     }
                 };
 
-                btnDeleteDrop.Click += (s, e) =>
-                {
-                    if (selectedMonsterTid == 0 || !ushort.TryParse(txtDropItemId.Text.Trim(), out ushort iid))
-                    {
-                        MessageBox.Show("Please select a drop to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-
-                    if (Game.Battle.MonsterDropManager.RemoveDrop(selectedMonsterTid, iid))
-                    {
-                        RefreshMonsterDropsGrid(selectedMonsterTid);
-                        RefreshMonsterListGrid();
-                        MessageBox.Show($"Removed Item #{iid} from monster drops.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                };
-
                 Button btnClearMonster = new Button
                 {
                     Text = "🧹 Clear Monster's Drops",
-                    Location = new System.Drawing.Point(10, 125),
+                    Location = new System.Drawing.Point(10, 122),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.SandyBrown,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2457,7 +2601,7 @@ namespace Wonderland_Private_Server
                 btnSaveDrops = new Button
                 {
                     Text = "💾 Save All Drops to File",
-                    Location = new System.Drawing.Point(215, 125),
+                    Location = new System.Drawing.Point(215, 122),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.LightSkyBlue,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2471,7 +2615,7 @@ namespace Wonderland_Private_Server
                 btnReloadDrops = new Button
                 {
                     Text = "🔄 Reload from Npc.dat",
-                    Location = new System.Drawing.Point(10, 160),
+                    Location = new System.Drawing.Point(10, 156),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.LightYellow,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2488,7 +2632,7 @@ namespace Wonderland_Private_Server
                 Button btnClearAllDrops = new Button
                 {
                     Text = "❌ Clear ALL Drop Tables",
-                    Location = new System.Drawing.Point(215, 160),
+                    Location = new System.Drawing.Point(215, 156),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.Crimson,
                     ForeColor = System.Drawing.Color.White,
@@ -2505,8 +2649,6 @@ namespace Wonderland_Private_Server
                         MessageBox.Show("All monster drop tables have been successfully cleared!", "All Drops Cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 };
-
-                grpDropEdit.Size = new System.Drawing.Size(425, 200);
 
                 grpDropEdit.Controls.Add(lblItemId);
                 grpDropEdit.Controls.Add(txtDropItemId);
@@ -2525,13 +2667,12 @@ namespace Wonderland_Private_Server
                 grpDropEdit.Controls.Add(btnReloadDrops);
                 grpDropEdit.Controls.Add(btnClearAllDrops);
 
-                tabDrops.Controls.Add(lblHeader);
-                tabDrops.Controls.Add(lblSearch);
-                tabDrops.Controls.Add(txtMonsterSearch);
-                tabDrops.Controls.Add(dgvMonsterList);
-                tabDrops.Controls.Add(lblSelectedMonster);
-                tabDrops.Controls.Add(dgvMonsterDrops);
-                tabDrops.Controls.Add(grpDropEdit);
+                splitDrops.Panel2.Controls.Add(pnlSelectedTop);
+                splitDrops.Panel2.Controls.Add(grpDropEdit);
+                splitDrops.Panel2.Controls.Add(dgvMonsterDrops);
+                dgvMonsterDrops.BringToFront();
+
+                tabDrops.Controls.Add(splitDrops);
 
                 if (this.tabControl3 != null)
                 {
@@ -2611,6 +2752,19 @@ namespace Wonderland_Private_Server
             }
 
             dgvMonsterList.DataSource = dt;
+
+            // Auto select first monster if available and none selected yet
+            if (dgvMonsterList.Rows.Count > 0 && selectedMonsterTid == 0)
+            {
+                var firstRow = dgvMonsterList.Rows[0];
+                if (firstRow?.Cells["TID"]?.Value != null && uint.TryParse(firstRow.Cells["TID"].Value.ToString(), out uint tid))
+                {
+                    selectedMonsterTid = tid;
+                    string mName = firstRow.Cells["MonsterName"]?.Value?.ToString() ?? $"Monster #{tid}";
+                    if (lblSelectedMonster != null) lblSelectedMonster.Text = $"🐲 Selected Monster: {mName} (TID: {tid})";
+                    RefreshMonsterDropsGrid(tid);
+                }
+            }
         }
 
         private void RefreshMonsterDropsGrid(uint monsterTid)
@@ -2631,6 +2785,688 @@ namespace Wonderland_Private_Server
             }
 
             dgvMonsterDrops.DataSource = dt;
+        }
+        #endregion
+
+        #region Quest Manager GUI Tab
+        private TabPage tabQuests;
+        private DataGridView dgvQuests;
+        private TextBox txtQuestSearch;
+        private Label lblQuestCount;
+
+        // Editor inputs
+        private TextBox txtQId, txtQName, txtQNpcPattern, txtQDesc, txtQIntro, txtQInProgress, txtQComplete, txtQAlreadyDone;
+        private TextBox txtQBattleMonsterName, txtQRewardCompanionName, txtQRewardItems, txtQRequiredItems, txtQPrereqs, txtQStepsJson;
+        private ComboBox cmbQType;
+        private NumericUpDown numQNpcTid, numQBattleMonsterId, numQRewardGold, numQRewardExp, numQRewardCompanionId;
+        private Button btnSaveQuest, btnNewQuest, btnDeleteQuest, btnReloadQuests;
+
+        private void SetupQuestManagerTab()
+        {
+            try
+            {
+                tabQuests = new TabPage("📜 Quest DB Manager")
+                {
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Padding = new Padding(6)
+                };
+
+                SplitContainer split = new SplitContainer
+                {
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical,
+                    SplitterDistance = 420,
+                    SplitterWidth = 6
+                };
+
+                // === LEFT PANEL: Search, Counter, Quest Grid ===
+                Panel pnlLeftTop = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 70,
+                    BackColor = System.Drawing.Color.Transparent
+                };
+
+                Label lblHeader = new Label
+                {
+                    Text = "📜 Quests DB Manager (Live SQLite)",
+                    Font = new System.Drawing.Font("Segoe UI", 10.5f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue,
+                    Location = new System.Drawing.Point(4, 4),
+                    AutoSize = true
+                };
+
+                lblQuestCount = new Label
+                {
+                    Text = "Total Quests: 0",
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DimGray,
+                    Location = new System.Drawing.Point(4, 26),
+                    AutoSize = true
+                };
+
+                Label lblSearch = new Label
+                {
+                    Text = "🔍 Search:",
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    Location = new System.Drawing.Point(4, 46),
+                    AutoSize = true
+                };
+
+                txtQuestSearch = new TextBox
+                {
+                    Location = new System.Drawing.Point(68, 44),
+                    Size = new System.Drawing.Size(250, 22),
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                txtQuestSearch.TextChanged += (s, e) => RefreshQuestGrid(txtQuestSearch.Text);
+
+                btnReloadQuests = new Button
+                {
+                    Text = "🔄 Refresh",
+                    Location = new System.Drawing.Point(325, 42),
+                    Size = new System.Drawing.Size(85, 26),
+                    BackColor = System.Drawing.Color.LightSkyBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnReloadQuests.Click += (s, e) => RefreshQuestGrid(txtQuestSearch.Text);
+
+                pnlLeftTop.Controls.AddRange(new Control[] { lblHeader, lblQuestCount, lblSearch, txtQuestSearch, btnReloadQuests });
+
+                // Quest Grid
+                dgvQuests = new DataGridView
+                {
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = false,
+                    BackgroundColor = System.Drawing.Color.White,
+                    RowHeadersVisible = false,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                };
+                dgvQuests.SelectionChanged += (s, e) => OnQuestGridSelectionChanged();
+
+                split.Panel1.Controls.Add(dgvQuests);
+                split.Panel1.Controls.Add(pnlLeftTop);
+
+                // === RIGHT PANEL: Editor & Form Controls ===
+                GroupBox grpQuestEdit = new GroupBox
+                {
+                    Text = "✏️ Quest Editor & Details",
+                    Dock = DockStyle.Fill,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                // Top Toolbar for Actions
+                Panel pnlActions = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 42,
+                    BackColor = System.Drawing.Color.Transparent
+                };
+
+                btnSaveQuest = new Button
+                {
+                    Text = "💾 Save / Update Quest",
+                    Location = new System.Drawing.Point(8, 6),
+                    Size = new System.Drawing.Size(160, 30),
+                    BackColor = System.Drawing.Color.LightGreen,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnSaveQuest.Click += (s, e) => SaveCurrentQuest();
+
+                btnNewQuest = new Button
+                {
+                    Text = "➕ New Quest",
+                    Location = new System.Drawing.Point(176, 6),
+                    Size = new System.Drawing.Size(110, 30),
+                    BackColor = System.Drawing.Color.LightYellow,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnNewQuest.Click += (s, e) => ClearQuestInputs();
+
+                btnDeleteQuest = new Button
+                {
+                    Text = "🗑️ Delete Quest",
+                    Location = new System.Drawing.Point(294, 6),
+                    Size = new System.Drawing.Size(110, 30),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    ForeColor = System.Drawing.Color.DarkRed,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnDeleteQuest.Click += (s, e) => DeleteCurrentQuest();
+
+                Button btnReimportQuests = new Button
+                {
+                    Text = "🔄 Reset & Import quests.json",
+                    Location = new System.Drawing.Point(412, 6),
+                    Size = new System.Drawing.Size(190, 30),
+                    BackColor = System.Drawing.Color.LightCyan,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnReimportQuests.Click += (s, e) =>
+                {
+                    if (MessageBox.Show("Tüm görevleri sıfırlayıp Data/quests.json dosyasındaki 2.154 resmi görevi yüklemek istiyor musunuz?", "Görevleri Yenile", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    {
+                        var db = cGlobal.gGameDataBase ?? DataBase.GameDataBase.GlobalInstance;
+                        DataBase.QuestDataBase.ReimportCleanQuests(db);
+                        RefreshQuestGrid(txtQuestSearch?.Text);
+                        MessageBox.Show("2.154 resmi sistem görevi başarıyla yüklendi ve güncellendi!", "Başarılı", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                pnlActions.Controls.AddRange(new Control[] { btnSaveQuest, btnNewQuest, btnDeleteQuest, btnReimportQuests });
+
+                Panel pnlScroll = new Panel
+                {
+                    Dock = DockStyle.Fill,
+                    AutoScroll = true
+                };
+
+                int py = 8;
+                int lblW = 125;
+                int inputW = 500;
+
+                // Row 1: QuestID, Type, NPC Pattern, TID
+                Label l1 = new Label { Text = "Quest ID:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQId = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(75, 22), Font = new System.Drawing.Font("Segoe UI", 9f) };
+                
+                Label l3 = new Label { Text = "Type:", Location = new System.Drawing.Point(210, py), AutoSize = true };
+                cmbQType = new ComboBox { Location = new System.Drawing.Point(250, py), Size = new System.Drawing.Size(120, 22), DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                cmbQType.Items.AddRange(new object[] { "0 - Dialogue", "1 - ItemCollection", "2 - MonsterBattle", "3 - CompanionRecruit" });
+                cmbQType.SelectedIndex = 0;
+
+                Label l4 = new Label { Text = "NPC Pattern:", Location = new System.Drawing.Point(380, py), AutoSize = true };
+                txtQNpcPattern = new TextBox { Location = new System.Drawing.Point(460, py), Size = new System.Drawing.Size(80, 22), Font = new System.Drawing.Font("Segoe UI", 9f) };
+
+                Label l5 = new Label { Text = "TID:", Location = new System.Drawing.Point(550, py), AutoSize = true };
+                numQNpcTid = new NumericUpDown { Location = new System.Drawing.Point(580, py), Size = new System.Drawing.Size(60, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 9f) };
+
+                pnlScroll.Controls.AddRange(new Control[] { l1, txtQId, l3, cmbQType, l4, txtQNpcPattern, l5, numQNpcTid });
+                py += 30;
+
+                // Row 2: Title / Name
+                Label l2 = new Label { Text = "Title / Name:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQName = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 22), Font = new System.Drawing.Font("Segoe UI", 9f) };
+                pnlScroll.Controls.AddRange(new Control[] { l2, txtQName });
+                py += 28;
+
+                // Row 3: Description
+                Label l6 = new Label { Text = "Description:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQDesc = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 40), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical };
+                pnlScroll.Controls.AddRange(new Control[] { l6, txtQDesc });
+                py += 46;
+
+                // Row 4: Dialogues
+                Label l7 = new Label { Text = "Intro Dialogue:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQIntro = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 35), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical };
+                pnlScroll.Controls.AddRange(new Control[] { l7, txtQIntro });
+                py += 40;
+
+                Label l8 = new Label { Text = "In Progress:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQInProgress = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 30), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical };
+                pnlScroll.Controls.AddRange(new Control[] { l8, txtQInProgress });
+                py += 35;
+
+                Label l9 = new Label { Text = "Complete Dialog:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQComplete = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 30), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical };
+                pnlScroll.Controls.AddRange(new Control[] { l9, txtQComplete });
+                py += 35;
+
+                Label l10 = new Label { Text = "Already Done:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQAlreadyDone = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 23), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                pnlScroll.Controls.AddRange(new Control[] { l10, txtQAlreadyDone });
+                py += 28;
+
+                // Row 5: Battle Monster
+                Label l11 = new Label { Text = "Battle Monster:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                numQBattleMonsterId = new NumericUpDown { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(90, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 9f) };
+                Label l12 = new Label { Text = "Monster Name:", Location = new System.Drawing.Point(230, py), AutoSize = true };
+                txtQBattleMonsterName = new TextBox { Location = new System.Drawing.Point(330, py), Size = new System.Drawing.Size(295, 22), Font = new System.Drawing.Font("Segoe UI", 9f) };
+                pnlScroll.Controls.AddRange(new Control[] { l11, numQBattleMonsterId, l12, txtQBattleMonsterName });
+                py += 28;
+
+                // Row 6: Rewards
+                Label l13 = new Label { Text = "Gold / EXP:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                numQRewardGold = new NumericUpDown { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(85, 22), Maximum = 999999, Font = new System.Drawing.Font("Segoe UI", 9f) };
+                numQRewardExp = new NumericUpDown { Location = new System.Drawing.Point(lblW + 92, py), Size = new System.Drawing.Size(85, 22), Maximum = 999999, Font = new System.Drawing.Font("Segoe UI", 9f) };
+                
+                Label l14 = new Label { Text = "Companion ID/Name:", Location = new System.Drawing.Point(315, py), AutoSize = true };
+                numQRewardCompanionId = new NumericUpDown { Location = new System.Drawing.Point(450, py), Size = new System.Drawing.Size(65, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 9f) };
+                txtQRewardCompanionName = new TextBox { Location = new System.Drawing.Point(520, py), Size = new System.Drawing.Size(105, 22), Font = new System.Drawing.Font("Segoe UI", 9f) };
+                pnlScroll.Controls.AddRange(new Control[] { l13, numQRewardGold, numQRewardExp, l14, numQRewardCompanionId, txtQRewardCompanionName });
+                py += 28;
+
+                // Row 7: Items & Prerequisites
+                Label l17 = new Label { Text = "Required Items:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQRequiredItems = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                pnlScroll.Controls.AddRange(new Control[] { l17, txtQRequiredItems });
+                py += 28;
+
+                Label l18 = new Label { Text = "Reward Items:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQRewardItems = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                pnlScroll.Controls.AddRange(new Control[] { l18, txtQRewardItems });
+                py += 28;
+
+                Label l16 = new Label { Text = "Prerequisites:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQPrereqs = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                pnlScroll.Controls.AddRange(new Control[] { l16, txtQPrereqs });
+                py += 28;
+
+                Label l19 = new Label { Text = "Steps JSON:", Location = new System.Drawing.Point(8, py), AutoSize = true };
+                txtQStepsJson = new TextBox { Location = new System.Drawing.Point(lblW, py), Size = new System.Drawing.Size(inputW, 55), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical };
+                pnlScroll.Controls.AddRange(new Control[] { l19, txtQStepsJson });
+                py += 65;
+
+                grpQuestEdit.Controls.Add(pnlScroll);
+                grpQuestEdit.Controls.Add(pnlActions);
+
+                split.Panel2.Controls.Add(grpQuestEdit);
+
+                tabQuests.Controls.Add(split);
+
+                if (this.tabControl3 != null)
+                {
+                    this.tabControl3.TabPages.Add(tabQuests);
+                }
+
+                tabQuests.Enter += (s, e) => RefreshQuestGrid(txtQuestSearch?.Text);
+
+                RefreshQuestGrid();
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error setting up Quest Manager Tab: {ex.Message}");
+            }
+        }
+
+        private void RefreshQuestGrid(string filter = "")
+        {
+            try
+            {
+                if (dgvQuests == null) return;
+
+                var db = cGlobal.gGameDataBase ?? DataBase.GameDataBase.GlobalInstance;
+                if (db == null)
+                {
+                    db = new DataBase.GameDataBase();
+                    cGlobal.gGameDataBase = db;
+                }
+
+                var dt = DataBase.QuestDataBase.GetQuestsDataTable(db, filter);
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    DataBase.QuestDataBase.Initialize(db);
+                    dt = DataBase.QuestDataBase.GetQuestsDataTable(db, filter);
+                }
+
+                // Fallback: Populate directly from QuestManager.AllQuests in memory if DB table is still reading 0
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    dt = new System.Data.DataTable();
+                    dt.Columns.Add("quest_id", typeof(uint));
+                    dt.Columns.Add("name", typeof(string));
+                    dt.Columns.Add("type", typeof(int));
+                    dt.Columns.Add("npc_name_pattern", typeof(string));
+                    dt.Columns.Add("npc_template_id", typeof(int));
+                    dt.Columns.Add("reward_gold", typeof(int));
+                    dt.Columns.Add("reward_exp", typeof(int));
+                    dt.Columns.Add("reward_companion_name", typeof(string));
+                    dt.Columns.Add("reward_items", typeof(string));
+                    dt.Columns.Add("required_items", typeof(string));
+                    dt.Columns.Add("prerequisite_quests", typeof(string));
+                    dt.Columns.Add("description", typeof(string));
+                    dt.Columns.Add("intro_dialogue", typeof(string));
+                    dt.Columns.Add("in_progress_dialogue", typeof(string));
+                    dt.Columns.Add("complete_dialogue", typeof(string));
+                    dt.Columns.Add("already_completed_dialogue", typeof(string));
+                    dt.Columns.Add("battle_monster_id", typeof(int));
+                    dt.Columns.Add("battle_monster_name", typeof(string));
+                    dt.Columns.Add("reward_companion_id", typeof(int));
+                    dt.Columns.Add("steps_json", typeof(string));
+
+                    var quests = Game.QuestRelated.QuestManager.AllQuests.Values;
+                    string filterLower = (filter ?? "").Trim().ToLower();
+                    foreach (var q in quests)
+                    {
+                        if (!string.IsNullOrWhiteSpace(filterLower))
+                        {
+                            if (!q.QuestID.ToString().Contains(filterLower) &&
+                                !(q.Title ?? "").ToLower().Contains(filterLower) &&
+                                !(q.NpcNamePattern ?? "").ToLower().Contains(filterLower))
+                                continue;
+                        }
+                        string reqItemsStr = q.RequiredItems != null ? string.Join(", ", q.RequiredItems.Select(i => $"{i.ItemID}x{i.Amount}")) : "";
+                        string rewItemsStr = q.Reward?.Items != null ? string.Join(", ", q.Reward.Items.Select(i => $"{i.Item1}x{i.Item2}")) : "";
+                        string prereqsStr = q.PrerequisiteQuestIDs != null ? string.Join(", ", q.PrerequisiteQuestIDs) : "";
+
+                        dt.Rows.Add(q.QuestID, q.Title ?? $"Quest #{q.QuestID}", (int)q.Type, q.NpcNamePattern ?? "", (int)q.NpcTemplateID,
+                            q.Reward?.Gold ?? 0, (int)(q.Reward?.Exp ?? 0), q.Reward?.CompanionName ?? "",
+                            rewItemsStr, reqItemsStr, prereqsStr,
+                            q.Description ?? "", q.IntroDialogue ?? "", q.InProgressDialogue ?? "",
+                            q.CompleteDialogue ?? "", q.AlreadyCompletedDialogue ?? "",
+                            (int)q.BattleMonsterID, q.BattleMonsterName ?? "", (int)(q.Reward?.CompanionPetID ?? 0), "");
+                    }
+                }
+
+                dgvQuests.DataSource = dt;
+
+                // Format visible columns clearly
+                if (dgvQuests.Columns.Contains("quest_id")) { dgvQuests.Columns["quest_id"].HeaderText = "ID"; dgvQuests.Columns["quest_id"].Width = 55; }
+                if (dgvQuests.Columns.Contains("name")) { dgvQuests.Columns["name"].HeaderText = "Title / Quest Name"; dgvQuests.Columns["name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill; }
+                if (dgvQuests.Columns.Contains("type")) { dgvQuests.Columns["type"].HeaderText = "Type"; dgvQuests.Columns["type"].Width = 55; }
+                if (dgvQuests.Columns.Contains("npc_name_pattern")) { dgvQuests.Columns["npc_name_pattern"].HeaderText = "NPC"; dgvQuests.Columns["npc_name_pattern"].Width = 80; }
+                if (dgvQuests.Columns.Contains("reward_gold")) { dgvQuests.Columns["reward_gold"].HeaderText = "Gold"; dgvQuests.Columns["reward_gold"].Width = 55; }
+                if (dgvQuests.Columns.Contains("reward_exp")) { dgvQuests.Columns["reward_exp"].HeaderText = "Exp"; dgvQuests.Columns["reward_exp"].Width = 55; }
+
+                // Hide detailed non-grid columns so the grid is clean and readable
+                string[] hiddenCols = new string[] {
+                    "npc_template_id", "reward_companion_name", "reward_items", "required_items",
+                    "prerequisite_quests", "description", "intro_dialogue", "in_progress_dialogue",
+                    "complete_dialogue", "already_completed_dialogue", "battle_monster_id",
+                    "battle_monster_name", "reward_companion_id", "steps_json"
+                };
+                foreach (var c in hiddenCols)
+                {
+                    if (dgvQuests.Columns.Contains(c)) dgvQuests.Columns[c].Visible = false;
+                }
+
+                if (lblQuestCount != null && dt != null)
+                {
+                    lblQuestCount.Text = $"Total Quests: {dt.Rows.Count}";
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error refreshing Quest Grid: {ex.Message}");
+            }
+        }
+
+        private void OnQuestGridSelectionChanged()
+        {
+            try
+            {
+                if (dgvQuests == null || dgvQuests.SelectedRows.Count == 0) return;
+                var row = dgvQuests.SelectedRows[0];
+
+                txtQId.Text = row.Cells["quest_id"].Value?.ToString() ?? "";
+                txtQName.Text = row.Cells["name"].Value?.ToString() ?? "";
+
+                int typeVal = Convert.ToInt32(row.Cells["type"].Value ?? 0);
+                if (typeVal >= 0 && typeVal < cmbQType.Items.Count) cmbQType.SelectedIndex = typeVal;
+
+                txtQNpcPattern.Text = row.Cells["npc_name_pattern"].Value?.ToString() ?? "";
+                numQNpcTid.Value = Convert.ToDecimal(row.Cells["npc_template_id"].Value ?? 0);
+                txtQDesc.Text = row.Cells["description"].Value?.ToString() ?? "";
+                txtQIntro.Text = row.Cells["intro_dialogue"].Value?.ToString() ?? "";
+                txtQInProgress.Text = row.Cells["in_progress_dialogue"].Value?.ToString() ?? "";
+                txtQComplete.Text = row.Cells["complete_dialogue"].Value?.ToString() ?? "";
+                txtQAlreadyDone.Text = row.Cells["already_completed_dialogue"].Value?.ToString() ?? "";
+
+                numQBattleMonsterId.Value = Convert.ToDecimal(row.Cells["battle_monster_id"].Value ?? 0);
+                txtQBattleMonsterName.Text = row.Cells["battle_monster_name"].Value?.ToString() ?? "";
+
+                numQRewardGold.Value = Convert.ToDecimal(row.Cells["reward_gold"].Value ?? 0);
+                numQRewardExp.Value = Convert.ToDecimal(row.Cells["reward_exp"].Value ?? 0);
+                numQRewardCompanionId.Value = Convert.ToDecimal(row.Cells["reward_companion_id"].Value ?? 0);
+                txtQRewardCompanionName.Text = row.Cells["reward_companion_name"].Value?.ToString() ?? "";
+
+                txtQRewardItems.Text = row.Cells["reward_items"].Value?.ToString() ?? "";
+                txtQRequiredItems.Text = row.Cells["required_items"].Value?.ToString() ?? "";
+                txtQPrereqs.Text = row.Cells["prerequisite_quests"].Value?.ToString() ?? "";
+                txtQStepsJson.Text = row.Cells["steps_json"].Value?.ToString() ?? "";
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error in OnQuestGridSelectionChanged: {ex.Message}");
+            }
+        }
+
+        private void SaveCurrentQuest()
+        {
+            try
+            {
+                if (!uint.TryParse(txtQId.Text.Trim(), out uint qId) || qId == 0)
+                {
+                    MessageBox.Show("Please enter a valid Quest ID (greater than 0).", "Invalid ID", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string name = txtQName.Text.Trim();
+                if (string.IsNullOrEmpty(name))
+                {
+                    MessageBox.Show("Please enter a Quest Title / Name.", "Invalid Name", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                int type = cmbQType.SelectedIndex;
+                string npcPattern = txtQNpcPattern.Text.Trim();
+                int npcTid = (int)numQNpcTid.Value;
+                string desc = txtQDesc.Text.Trim();
+                string intro = txtQIntro.Text.Trim();
+                string inProgress = txtQInProgress.Text.Trim();
+                string complete = txtQComplete.Text.Trim();
+                string alreadyDone = txtQAlreadyDone.Text.Trim();
+
+                int battleMonsterId = (int)numQBattleMonsterId.Value;
+                string battleMonsterName = txtQBattleMonsterName.Text.Trim();
+
+                int rewardGold = (int)numQRewardGold.Value;
+                int rewardExp = (int)numQRewardExp.Value;
+                int rewardCompId = (int)numQRewardCompanionId.Value;
+                string rewardCompName = txtQRewardCompanionName.Text.Trim();
+
+                string rewardItems = txtQRewardItems.Text.Trim();
+                string requiredItems = txtQRequiredItems.Text.Trim();
+                string prereqs = txtQPrereqs.Text.Trim();
+                string stepsJson = txtQStepsJson.Text.Trim();
+
+                if (DataBase.QuestDataBase.SaveQuest(DataBase.GameDataBase.GlobalInstance, qId, name, npcPattern, npcTid, type,
+                    desc, intro, inProgress, complete, alreadyDone, battleMonsterId, battleMonsterName,
+                    rewardGold, rewardExp, rewardCompId, rewardCompName, rewardItems, requiredItems, prereqs, stepsJson))
+                {
+                    RefreshQuestGrid(txtQuestSearch.Text);
+                    MessageBox.Show($"Quest #{qId} ('{name}') saved and updated in database successfully!", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Failed to save quest to database. Check server logs.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving quest: {ex.Message}", "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void DeleteCurrentQuest()
+        {
+            try
+            {
+                if (!uint.TryParse(txtQId.Text.Trim(), out uint qId) || qId == 0)
+                {
+                    MessageBox.Show("Please select a quest to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (MessageBox.Show($"Are you sure you want to delete Quest #{qId} ('{txtQName.Text}') from the database?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    if (DataBase.QuestDataBase.DeleteQuest(DataBase.GameDataBase.GlobalInstance, qId))
+                    {
+                        RefreshQuestGrid(txtQuestSearch.Text);
+                        ClearQuestInputs();
+                        MessageBox.Show($"Quest #{qId} deleted successfully from database.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error deleting quest: {ex.Message}", "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ClearQuestInputs()
+        {
+            txtQId.Text = "";
+            txtQName.Text = "";
+            cmbQType.SelectedIndex = 0;
+            txtQNpcPattern.Text = "";
+            numQNpcTid.Value = 0;
+            txtQDesc.Text = "";
+            txtQIntro.Text = "";
+            txtQInProgress.Text = "";
+            txtQComplete.Text = "";
+            txtQAlreadyDone.Text = "";
+            numQBattleMonsterId.Value = 0;
+            txtQBattleMonsterName.Text = "";
+            numQRewardGold.Value = 0;
+            numQRewardExp.Value = 0;
+            numQRewardCompanionId.Value = 0;
+            txtQRewardCompanionName.Text = "";
+            txtQRewardItems.Text = "";
+            txtQRequiredItems.Text = "";
+            txtQPrereqs.Text = "";
+            txtQStepsJson.Text = "";
+        }
+        #endregion
+
+        #region Server Status Manager (Port 6416)
+        private ComboBox cmbServerStatus;
+        private bool _isUpdatingServerStatusUi = false;
+
+        private void SetupServerStatusControl()
+        {
+            try
+            {
+                if (this.tabPage7 == null) return;
+
+                GroupBox grpServerStatus = new GroupBox
+                {
+                    Text = "🌐 Sunucu Listesi Trafik Işığı / Doluluk Rengi (Port 6416)",
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue,
+                    Location = new System.Drawing.Point(6, 42),
+                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 65),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+
+                Label lblStatus = new Label
+                {
+                    Text = "Sunucu Durumu:",
+                    Location = new System.Drawing.Point(10, 26),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.Black
+                };
+
+                cmbServerStatus = new ComboBox
+                {
+                    Location = new System.Drawing.Point(125, 23),
+                    Size = new System.Drawing.Size(220, 24),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                cmbServerStatus.Items.AddRange(new object[] {
+                    "🟢 Yeşil (Boş / Akıcı)",
+                    "🟡 Sarı (Kalabalık)",
+                    "🔴 Kırmızı (Dolu)",
+                    "⚫ Kapalı / Bakım",
+                    "⚡ Otomatik (Canlı Oyuncu)"
+                });
+                cmbServerStatus.SelectedIndexChanged += (s, e) =>
+                {
+                    if (_isUpdatingServerStatusUi) return;
+                    Server.ServerLoadColor color;
+                    switch (cmbServerStatus.SelectedIndex)
+                    {
+                        case 0: color = Server.ServerLoadColor.Green; break;
+                        case 1: color = Server.ServerLoadColor.Yellow; break;
+                        case 2: color = Server.ServerLoadColor.Red; break;
+                        case 3: color = Server.ServerLoadColor.Offline; break;
+                        case 4: color = Server.ServerLoadColor.Auto; break;
+                        default: color = Server.ServerLoadColor.Green; break;
+                    }
+                    Server.ServerStatusManager.SetMode(color);
+                };
+
+                Button btnSetGreen = new Button
+                {
+                    Text = "🟢 Yeşil",
+                    Location = new System.Drawing.Point(355, 22),
+                    Size = new System.Drawing.Size(90, 26),
+                    BackColor = System.Drawing.Color.LightGreen,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnSetGreen.Click += (s, e) => { Server.ServerStatusManager.SetMode(Server.ServerLoadColor.Green); RefreshServerStatusUi(); };
+
+                Button btnSetYellow = new Button
+                {
+                    Text = "🟡 Sarı",
+                    Location = new System.Drawing.Point(450, 22),
+                    Size = new System.Drawing.Size(90, 26),
+                    BackColor = System.Drawing.Color.Khaki,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnSetYellow.Click += (s, e) => { Server.ServerStatusManager.SetMode(Server.ServerLoadColor.Yellow); RefreshServerStatusUi(); };
+
+                Button btnSetRed = new Button
+                {
+                    Text = "🔴 Kırmızı",
+                    Location = new System.Drawing.Point(545, 22),
+                    Size = new System.Drawing.Size(95, 26),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    ForeColor = System.Drawing.Color.DarkRed,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnSetRed.Click += (s, e) => { Server.ServerStatusManager.SetMode(Server.ServerLoadColor.Red); RefreshServerStatusUi(); };
+
+                Button btnSetAuto = new Button
+                {
+                    Text = "⚡ Otomatik",
+                    Location = new System.Drawing.Point(645, 22),
+                    Size = new System.Drawing.Size(105, 26),
+                    BackColor = System.Drawing.Color.LightCyan,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnSetAuto.Click += (s, e) => { Server.ServerStatusManager.SetMode(Server.ServerLoadColor.Auto); RefreshServerStatusUi(); };
+
+                grpServerStatus.Controls.AddRange(new Control[] {
+                    lblStatus, cmbServerStatus, btnSetGreen, btnSetYellow, btnSetRed, btnSetAuto
+                });
+
+                this.tabPage7.Controls.Add(grpServerStatus);
+
+                // Adjust MainOutput position
+                this.MainOutput.Location = new System.Drawing.Point(6, 112);
+                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 118);
+
+                RefreshServerStatusUi();
+            }
+            catch { }
+        }
+
+        private void RefreshServerStatusUi()
+        {
+            try
+            {
+                _isUpdatingServerStatusUi = true;
+                if (cmbServerStatus == null) return;
+                switch (Server.ServerStatusManager.CurrentMode)
+                {
+                    case Server.ServerLoadColor.Green: cmbServerStatus.SelectedIndex = 0; break;
+                    case Server.ServerLoadColor.Yellow: cmbServerStatus.SelectedIndex = 1; break;
+                    case Server.ServerLoadColor.Red: cmbServerStatus.SelectedIndex = 2; break;
+                    case Server.ServerLoadColor.Offline: cmbServerStatus.SelectedIndex = 3; break;
+                    case Server.ServerLoadColor.Auto: cmbServerStatus.SelectedIndex = 4; break;
+                    default: cmbServerStatus.SelectedIndex = 0; break;
+                }
+            }
+            finally
+            {
+                _isUpdatingServerStatusUi = false;
+            }
         }
         #endregion
     }

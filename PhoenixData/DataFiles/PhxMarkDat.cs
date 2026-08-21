@@ -32,18 +32,15 @@ namespace DataFiles
                 byte[] data = File.ReadAllBytes(filePath);
                 if (data.Length < 256) return;
 
-                int maxSlots = Math.Min(data.Length / 4, 30000);
+                int numRecords = data.Length / 553;
 
-                for (uint markId = 1; markId < maxSlots; markId++)
+                for (uint markId = 1; markId <= numRecords; markId++)
                 {
-                    int offset = BitConverter.ToInt32(data, (int)(markId * 4));
-                    if (offset > 0 && offset < data.Length - 4)
+                    int offset = (int)((markId - 1) * 553);
+                    var entry = ParseEntry(data, offset, markId);
+                    if (entry != null && !string.IsNullOrWhiteSpace(entry.Title))
                     {
-                        var entry = ParseEntry(data, offset, markId);
-                        if (entry != null && !string.IsNullOrWhiteSpace(entry.Title))
-                        {
-                            _marks[markId] = entry;
-                        }
+                        _marks[markId] = entry;
                     }
                 }
             }

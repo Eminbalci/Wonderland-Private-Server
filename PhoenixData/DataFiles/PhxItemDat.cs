@@ -52,7 +52,7 @@ public class PhxItemDat : IDataManager
 
 	public PhxItemInfo GetItemByID(ushort ItemID)
 	{
-		PhxItemInfo result = new PhxItemInfo();
+		PhxItemInfo result = null;
 		bool flag = false;
 		lock (m_Lock)
 		{
@@ -68,7 +68,8 @@ public class PhxItemDat : IDataManager
 		}
 		if (!flag)
 		{
-			onDebug(new ItemNotFoundException("Item => " + ItemID + " could not be found."));
+			onDebug?.Invoke(new ItemNotFoundException("Item => " + ItemID + " could not be found."));
+			return null;
 		}
 		return result;
 	}

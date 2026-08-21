@@ -82,7 +82,7 @@ namespace Game
             p.Add((byte)3);
             p.Add(CharID);
             p.Add((byte)Body);
-            p.Add((ushort)LoginMap);
+            p.Add((ushort)(CurMap != null ? CurMap.MapID : LoginMap));
             p.Add((ushort)CurX);
             p.Add((ushort)CurY);
             p.Add((byte)0);
@@ -91,15 +91,15 @@ namespace Game
             p.Add((ushort)SkinColor);
             p.Add((ushort)ClothingColor);
             p.Add((ushort)EyeColor);
-            p.Add((byte)WornCount);//clothesAmmt); // ammt of clothes
+            p.Add((byte)WornCount);
             p.Add(Worn_Equips);
             p.Add(0);
             p.Add(CharName ?? "");
             p.Add(NickName ?? "");
             p.Add(0);
-            Send( new SendPacket(p.End()));
+            Send(new SendPacket(p.End()));
         }
-        public void Send_5_3() //logging in player info
+        public virtual void Send_5_3() //logging in player info
         {
             PacketBuilder p = new PacketBuilder();
             p.Begin();
@@ -198,7 +198,7 @@ namespace Game
             p.Add((byte)src.Body);
             p.Add((byte)src.Element);
             p.Add((byte)src.Level);
-            p.Add((ushort)src.CurMap.MapID);
+            p.Add((ushort)(src.CurMap != null ? src.CurMap.MapID : src.LoginMap));
             p.Add((ushort)src.CurX);
             p.Add((ushort)src.CurY);
             p.Add((byte)0);

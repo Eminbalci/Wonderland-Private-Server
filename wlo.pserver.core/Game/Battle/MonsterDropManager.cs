@@ -485,6 +485,7 @@ namespace Game.Battle
                         }
                     }
                 }
+                OnLootTablesChanged?.Invoke();
             }
             catch (Exception ex)
             {
@@ -588,6 +589,7 @@ namespace Game.Battle
                 }
 
                 DebugSystem.Write($"[MonsterDropManager] Loaded {loaded} authentic monster drop tables directly from Npc.dat (Total monster loot tables: {MonsterLootTables.Count}).");
+                OnLootTablesChanged?.Invoke();
             }
             catch (Exception ex)
             {
@@ -595,9 +597,22 @@ namespace Game.Battle
             }
         }
 
-        private static string GetItemName(ushort itemId)
+        public static Func<ushort, string> ItemNameResolver { get; set; }
+
+        public static string ResolveItemName(ushort itemId)
         {
+            try
+            {
+                if (ItemNameResolver != null)
+                {
+                    string res = ItemNameResolver(itemId);
+                    if (!string.IsNullOrEmpty(res)) return res;
+                }
+            }
+            catch { }
             return $"Item #{itemId}";
         }
+
+        private static string GetItemName(ushort itemId) => ResolveItemName(itemId);
     }
 }

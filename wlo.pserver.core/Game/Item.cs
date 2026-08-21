@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -198,8 +198,8 @@ namespace Game.Code
         protected PhxItemInfo Data { get { return data ?? new PhxItemInfo(); } }
         public string Name { get { return ASCIIEncoding.ASCII.GetString(Data.ItemName); } }
         public UInt16 ItemID { get { return (Data != null) ? Data.ItemID : (ushort)0; } }
-        public int Height { get { return (Data != null) ? Data.cellheight : (ushort)0; } }
-        public int Width { get { return (Data != null) ? Data.cellwidth : (ushort)0; } }
+        public int Height { get { return (Data != null && Data.cellheight > 0) ? Data.cellheight : 1; } }
+        public int Width { get { return (Data != null && Data.cellwidth > 0) ? Data.cellwidth : 1; } }
         //public ushort Control { get { return Data.Control; } }
         public eWearSlot Wear_At { get { return (eWearSlot)Data.Equippos; } }
         public byte Level { get { return (byte)Data.level; } }

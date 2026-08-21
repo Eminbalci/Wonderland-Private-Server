@@ -24,6 +24,16 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv8(Player p, RecievePacket r)
         {
+            if (p == null || p.CurMap == null) return;
+
+            // 1-second debounce guard to prevent double/rapid portal teleports
+            if ((DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds < 1000)
+            {
+                DebugSystem.Write($"[AC20.Recv8] Portal cooldown active (1s) for {p.CharName}. Ignoring request.");
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
+
             ushort portalID = r.Unpack16();
             DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} stepped on portal {portalID} on Map {p.CurMap?.MapID} at pos({p.CurX},{p.CurY})");
 
@@ -42,30 +52,7 @@ namespace Wonderland_Private_Server.ActionCodes
                 // If sailing on Map 11016 (Open Ocean) and stepping into a land portal
                 if (p.CurMap.MapID == 11016 && p.ActiveVehicleID > 0)
                 {
-                    // Wreck the raft upon reaching mainland shore/portal
-                    SendPacket wreckPkt = new SendPacket();
-                    wreckPkt.PackArray(new byte[] { 15, 15 });
-                    wreckPkt.Pack32(p.CharID);
-                    wreckPkt.Pack16((ushort)p.ActiveVehicleID);
-                    p.Send(wreckPkt);
-                    p.CurMap.Broadcast(wreckPkt);
-
-                    SendPacket resetPkt = new SendPacket();
-                    resetPkt.PackArray(new byte[] { 15, 11, 0x15 });
-                    resetPkt.Pack32(p.CharID);
-                    p.Send(resetPkt);
-                    p.CurMap.Broadcast(resetPkt);
-
-                    for (byte s = 1; s <= 50; s++)
-                    {
-                        var it = p.Inv[s];
-                        if (it != null && it.ItemID == p.ActiveVehicleID)
-                        {
-                            p.Inv.RemoveItem(s, 1);
-                            break;
-                        }
-                    }
-                    p.ActiveVehicleID = 0;
+                    Game.PlayerRelated.VehicleManager.WreckVehicle(p);
                 }
 
                 if (p.CurMap.Teleport(TeleportType.Regular, p, portalID))
@@ -84,14 +71,19 @@ namespace Wonderland_Private_Server.ActionCodes
                 return;
             }
 
-            // NPC click - get click ID from packet (handle 3-byte padding if present)
+            // NPC click - unpack 16-bit or 8-bit click ID
             ushort clickID = 0;
-            if (r.Buffer.Count() - r.GetPtr() >= 4)
+            int rem = r.Buffer.Count() - r.GetPtr();
+            if (rem >= 4)
             {
-                r.Unpack8(); r.Unpack8(); r.Unpack8();
-                clickID = r.Unpack8();
+                r.Unpack8(); r.Unpack8();
+                clickID = r.Unpack16();
             }
-            else
+            else if (rem >= 2)
+            {
+                clickID = r.Unpack16();
+            }
+            else if (rem == 1)
             {
                 clickID = r.Unpack8();
             }
@@ -135,7 +127,21 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv9(Player p, RecievePacket r)
         {
-
+            try
+            {
+                byte choice = r.Unpack8();
+                DebugSystem.Write($"[AC20.Recv9] Player {p.CharName} selected dialogue choice 0x{choice:X} ({choice})");
+                if (p.OnDialogueChoice != null)
+                {
+                    var callback = p.OnDialogueChoice;
+                    p.OnDialogueChoice = null;
+                    callback.Invoke(choice);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC20.Recv9] Error: {ex.Message}");
+            }
         }
     }
 }

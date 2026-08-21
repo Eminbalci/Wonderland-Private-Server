@@ -256,7 +256,7 @@ namespace Game.DataFiles
                         tmp.walksteps.Add(r);
                     }
 
-                    if (ptr + 10 > d.Length) break;
+                    if (ptr + 13 > d.Length) break;
                     tmp.unknownbyte6 = d[ptr]; ptr++;
                     tmp.unknownbyte7 = d[ptr]; ptr++;
                     tmp.unknowndword1 = GetDWord(d, ptr); ptr += 4;

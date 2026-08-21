@@ -187,6 +187,7 @@ namespace Game
                                 continue;
 
                             Game.Maps.QuestNpc newNpc = new Game.Maps.QuestNpc();
+                            newNpc.MapID = (ushort)this.MapID;
                             newNpc.CickID = entry.clickId;
                             newNpc.TemplateID = entry.npcId;
                             newNpc.X = (ushort)entry.x;
@@ -558,6 +559,40 @@ namespace Game
 
             SendMapInfo(src);
 
+            // Synchronize player's own companion pets to themselves and the map
+            if (src.PlayerPets != null && src.PlayerPets.Count > 0)
+            {
+                foreach (var kvp in src.PlayerPets)
+                {
+                    var pet = kvp.Value;
+                    if (pet != null && pet.PetID > 0)
+                    {
+                        // Send authentic AC 15:1 pet recruit data to client
+                        SendPacket petPkt = QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level);
+                        src.Send(petPkt);
+
+                        if (pet.IsBattle || src.ActivePetID == pet.PetID || src.ActivePetID == 0)
+                        {
+                            src.ActivePetID = pet.PetID;
+                            pet.IsBattle = true;
+
+                            // AC 19:1 Set battle companion state to owner
+                            src.Send(Tools.FromFormat("bbd", 19, 1, pet.PetID));
+
+                            // AC 19:4 Broadcast battle companion following player to all players on map
+                            SendPacket followPkt = new SendPacket();
+                            followPkt.Pack8(19);
+                            followPkt.Pack8(4);
+                            followPkt.Pack32(src.CharID);
+                            followPkt.Pack32(pet.PetID);
+                            src.Send(followPkt);
+                            Broadcast(followPkt);
+                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {pet.PetID}) to {src.CharName} and broadcast following state");
+                        }
+                    }
+                }
+            }
+
             // Resend party info if player is in a party
             // Client might clear party state on map change, so we need to refresh it
             if (src.m_teammembers != null && src.m_teammembers.Count > 0)
@@ -574,6 +609,39 @@ namespace Game
             if (teletype != TeleportType.Login)
             {
                 Game.PlayerRelated.ItemMallManager.SendCatalog(src);
+            }
+
+            // Synchronize active and completed quest flags for client PreEvent NPC rendering
+            Game.QuestRelated.QuestManager.SendAllQuestFlags(src);
+
+            // Astrologer Laura Exit Cutscene & Space Tent Gift (Map 10001 -> Map 10000)
+            if (MapID == 10000 && src.PrevMap?.DstMap == 10001)
+            {
+                bool hasTent = src.Inv != null && (src.Inv.ContainsItem(32000, out _) || src.Inv.ContainsItem(32001, out _));
+                if (!hasTent)
+                {
+                    // 1. Play Tent acquisition cutscene frame
+                    src.Send(Tools.FromFormat("bbbbwb", 20, 1, 0, 1, (ushort)30126, (byte)0));
+
+                    // 2. Add Space Tent (32000) and Space Remote (32075) to inventory
+                    if (src.Inv != null)
+                    {
+                        src.Inv.AddItem(32000, 1);
+                        src.Inv.AddItem(32075, 1);
+                    }
+
+                    // 3. Mark Astrologer Tent Quest (10035) Completed
+                    if (src.Quests == null) src.Quests = new Dictionary<uint, QuestRelated.PlayerQuest>();
+                    src.Quests[10035] = new QuestRelated.PlayerQuest(10035, QuestRelated.QuestState.Completed, 1)
+                    {
+                        CompletedAt = DateTime.UtcNow
+                    };
+                    QuestRelated.QuestManager.SavePlayerQuest(src, 10035);
+                    QuestRelated.QuestManager.SendQuestUpdate(src, 10035, QuestRelated.QuestState.Completed);
+
+                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "✨ Astrologer Laura gifted you the Space Tent & Remote Control!"));
+                    DebugSystem.Write($"[Map.Warp_In] Astrologer Laura cutscene executed: Granted Space Tent (32000) and Remote (32075) to {src.CharName}");
+                }
             }
         }
 
@@ -597,7 +665,7 @@ namespace Game
         {
             dstMap = 0; dstX = 0; dstY = 0;
 
-            // 1. Check local Portals and Destinations dictionaries
+            // 1. Check local Portals and Destinations dictionaries (legacy overrides)
             if (portalID <= byte.MaxValue && Portals.ContainsKey((byte)portalID) && Destinations.ContainsKey((byte)Portals[(byte)portalID].DstID))
             {
                 byte destId = (byte)Portals[(byte)portalID].DstID;
@@ -642,65 +710,79 @@ namespace Game
                 catch { }
             }
 
-            // 3. Geometric matching based on reverse-portal destinations (if px, py provided)
             var currentWarpLoc = mapData?.WarpLoc;
-            if (currentWarpLoc != null && px > 0 && py > 0)
+            if (currentWarpLoc != null && currentWarpLoc.Count > 0)
             {
-                DataFiles.WarpInfo bestWarp = null;
-                double bestDist = 999999;
-
-                foreach (var w in currentWarpLoc)
+                // 3. Priority A: Geometric reverse matching based on player stepping position (px, py)
+                if (px > 0 && py > 0)
                 {
-                    var dstMapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(w.mapID);
-                    if (dstMapData != null && dstMapData.WarpLoc != null)
+                    DataFiles.WarpInfo bestWarp = null;
+                    double bestDist = 999999;
+
+                    foreach (var w in currentWarpLoc)
                     {
-                        foreach (var revW in dstMapData.WarpLoc)
+                        var dstMapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(w.mapID);
+                        if (dstMapData != null && dstMapData.WarpLoc != null)
                         {
-                            if (revW.mapID == MapID)
+                            foreach (var revW in dstMapData.WarpLoc)
                             {
-                                double dist = Math.Sqrt(Math.Pow(px - (int)revW.x, 2) + Math.Pow(py - (int)revW.y, 2));
-                                if (dist < bestDist)
+                                if (revW.mapID == MapID)
                                 {
-                                    bestDist = dist;
-                                    bestWarp = w;
+                                    double dist = Math.Sqrt(Math.Pow(px - (int)revW.x, 2) + Math.Pow(py - (int)revW.y, 2));
+                                    if (dist < bestDist)
+                                    {
+                                        bestDist = dist;
+                                        bestWarp = w;
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                if (bestWarp != null && bestDist < 400)
-                {
-                    dstMap = bestWarp.mapID;
-                    dstX = (ushort)bestWarp.x;
-                    dstY = (ushort)bestWarp.y;
-                    DebugSystem.Write($"[Portal] Geometric match: Map {MapID} pos({px},{py}) -> Map {dstMap} ({dstX},{dstY}) dist={bestDist:F1}");
-                    return true;
-                }
-            }
-
-            // 4. Direct match in eve.Emg WarpLoc by clickID == portalID
-            if (currentWarpLoc != null)
-            {
-                foreach (var w in currentWarpLoc)
-                {
-                    if (w.clickID == portalID)
+                    if (bestWarp != null && bestDist < 600 && bestWarp.mapID > 0)
                     {
-                        dstMap = w.mapID;
-                        dstX = (ushort)w.x;
-                        dstY = (ushort)w.y;
-                        DebugSystem.Write($"[Portal] eve.Emg match: Map {MapID} portal {portalID} -> Map {dstMap} ({dstX},{dstY})");
+                        dstMap = bestWarp.mapID;
+                        dstX = (ushort)bestWarp.x;
+                        dstY = (ushort)bestWarp.y;
+                        DebugSystem.Write($"[Portal] Geometric reverse match: Map {MapID} pos({px},{py}) -> Map {dstMap} ({dstX},{dstY}) dist={bestDist:F1}");
                         return true;
                     }
                 }
 
-                // 5. Try Gray-decoded portalID
+                // 4. Priority B: Direct match on clickID == portalID (Authentic Eve.emg Portal Click ID)
+                foreach (var w in currentWarpLoc)
+                {
+                    if (w.clickID == portalID && w.mapID > 0)
+                    {
+                        dstMap = w.mapID;
+                        dstX = (ushort)w.x;
+                        dstY = (ushort)w.y;
+                        DebugSystem.Write($"[Portal] Eve.emg 'clickID' match: Map {MapID} portal {portalID} -> Map {dstMap} ({dstX},{dstY})");
+                        return true;
+                    }
+                }
+
+                // 5. Priority C: 1-based index match (portalID <= Count)
+                if (portalID >= 1 && portalID <= currentWarpLoc.Count)
+                {
+                    var w = currentWarpLoc[portalID - 1];
+                    if (w.mapID > 0)
+                    {
+                        dstMap = w.mapID;
+                        dstX = (ushort)w.x;
+                        dstY = (ushort)w.y;
+                        DebugSystem.Write($"[Portal] Eve.emg index match: Map {MapID} portal #{portalID} -> Map {dstMap} ({dstX},{dstY})");
+                        return true;
+                    }
+                }
+
+                // 6. Priority D: Gray-decoded portalID match
                 ushort grayID = GrayDecode(portalID);
                 if (grayID != portalID)
                 {
                     foreach (var w in currentWarpLoc)
                     {
-                        if (w.clickID == grayID)
+                        if (w.clickID == grayID && w.mapID > 0)
                         {
                             dstMap = w.mapID;
                             dstX = (ushort)w.x;
@@ -711,16 +793,27 @@ namespace Game
                     }
                 }
 
-                // 6. Single-exit fallback: if this map has exactly one warp, use it!
-                if (currentWarpLoc.Count == 1)
+                // 7. Priority E: Single-exit fallback (if map has exactly one valid warp destination)
+                var validWarps = currentWarpLoc.Where(w => w.mapID > 0).ToList();
+                if (validWarps.Count == 1)
                 {
-                    var singleWarp = currentWarpLoc[0];
+                    var singleWarp = validWarps[0];
                     dstMap = singleWarp.mapID;
                     dstX = (ushort)singleWarp.x;
                     dstY = (ushort)singleWarp.y;
                     DebugSystem.Write($"[Portal] Single-exit fallback: Map {MapID} -> Map {dstMap} ({dstX},{dstY})");
                     return true;
                 }
+            }
+
+            // 9. Emergency Fallback for invalid/test maps (e.g. Map < 1000)
+            if (MapID < 1000)
+            {
+                dstMap = 12000;
+                dstX = 892;
+                dstY = 734;
+                DebugSystem.Write($"[Portal] Invalid Map #{MapID} Emergency Recovery -> Map 12000 (892, 734)");
+                return true;
             }
 
             return false;
@@ -739,8 +832,16 @@ namespace Game
 
         public bool Teleport(TeleportType teletype, Player sender, ushort portalID = 0, WarpData warp = null)
         {
+            if (sender == null) return false;
+
             if (teletype == TeleportType.Regular)
             {
+                if ((DateTime.UtcNow - sender.LastTeleportTime).TotalMilliseconds < 1000)
+                {
+                    DebugSystem.Write($"[Teleport] Portal cooldown active (1s) for {sender.CharName}. Request ignored.");
+                    sender.Send(Tools.FromFormat("bb", 20, 8));
+                    return false;
+                }
                 DebugSystem.Write($"[Teleport] Req: {teletype}, PortalID: {portalID}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
             }
 
@@ -986,7 +1087,73 @@ namespace Game
              p.Pack(1);
              p.SetSize();
              g.SendPacket(t, p);*/
-            #region Send Npc
+            #region Send Npc (AC 22:4)
+            if (this.NPCs != null && this.NPCs.Count > 0)
+            {
+                SendPacket npcListPkt = new SendPacket();
+                npcListPkt.Pack8(22);
+                npcListPkt.Pack8(4);
+
+                var eveData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)this.MapID);
+
+                foreach (var npc in this.NPCs.OrderBy(n => n.CickID))
+                {
+                    npcListPkt.Pack16(npc.CickID);
+                    QuestNpc qn = npc as QuestNpc;
+                    ushort state = 0x0000;
+
+                    if (qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID))
+                    {
+                        state = 0xFFFF; // Hidden / Recruited Companion
+                    }
+                    else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
+                    {
+                        bool isOpened = qn.IsBroken;
+                        if (!isOpened && t.Quests != null && eveData != null)
+                        {
+                            var ev = eveData.Events?.FirstOrDefault(e => e.clickID == qn.CickID);
+                            if (ev != null && ev.SubEntry != null)
+                            {
+                                foreach (var s in ev.SubEntry)
+                                {
+                                    if (s.unknownword1 > 0 && t.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == Game.QuestRelated.QuestState.Completed)
+                                    {
+                                        isOpened = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
+                    }
+                    else
+                    {
+                        state = (ushort)0x00FF;
+                    }
+
+                    npcListPkt.Pack16(state);
+                    npcListPkt.Pack16(npc.X);
+                    npcListPkt.Pack16(npc.Y);
+                    npcListPkt.Pack8(1);
+                    npcListPkt.Pack8(0);
+                    npcListPkt.Pack32(0);
+                }
+                tmp.Add(npcListPkt);
+
+                // Hide already recruited companion NPCs from player's map view (AC 22:10)
+                foreach (var npc in this.NPCs)
+                {
+                    QuestNpc qn = npc as QuestNpc;
+                    if (qn != null)
+                    {
+                        bool isRecruited = t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                        if (isRecruited || (qn.IsBroken && qn.RespawnTime == DateTime.MaxValue))
+                        {
+                            tmp.Add(Tools.FromFormat("bbwbb", 22, 10, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
+                        }
+                    }
+                }
+            }
             #endregion
             #region Send Item
             //if (Items_Dropped.Count > 0)
@@ -1124,6 +1291,7 @@ namespace Game
             }*/
             tmp.Add(Tools.FromFormat("bb", 23, 102));
             tmp.Add(Tools.FromFormat("bb", 20, 8));
+            t.LastTeleportTime = DateTime.UtcNow;
             t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
             t.Send(new SendPacket(tmp.End()));
 

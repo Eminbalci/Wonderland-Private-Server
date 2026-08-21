@@ -163,6 +163,12 @@
     <Compile Include="Src\Gui\MainForm1.Designer.cs">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Src\Gui\CharacterDataEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Src\Gui\CharacterDataEditorForm.Designer.cs">
+      <DependentUpon>CharacterDataEditorForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Src\DataFiles\Compound2Dat.cs" />
     <Compile Include="Src\Gui\ShutDown Dialog.cs">
       <SubType>Form</SubType>
@@ -199,12 +205,16 @@
     <Compile Include="Src\Network\ActionCodes\AC20.cs" />
     <Compile Include="Src\Network\ActionCodes\AC21.cs" />
     <Compile Include="Src\Network\ActionCodes\AC23.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC29.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC30.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC31.cs" />
     <Compile Include="Src\Network\ActionCodes\AC32.cs" />
     <Compile Include="Src\Network\ActionCodes\AC33.cs" />
     <Compile Include="Src\Network\ActionCodes\AC34.cs" />
     <Compile Include="Src\Network\ActionCodes\AC35.cs" />
     <Compile Include="Src\Network\ActionCodes\AC39.cs" />
     <Compile Include="Src\Network\ActionCodes\AC50.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC57.cs" />
     <Compile Include="Src\Network\ActionCodes\AC62.cs" />
     <Compile Include="Src\Network\ActionCodes\AC63.cs" />
     <Compile Include="Src\Network\ActionCodes\AC64.cs" />
@@ -213,6 +223,7 @@
     <Compile Include="Src\Network\ActionCodes\AC82.cs" />
     <Compile Include="Src\Network\ActionCodes\AC85.cs" />
     <Compile Include="Src\Network\ActionCodes\AC89.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC91.cs" />
     <Compile Include="Src\Network\ActionCodes\AC92.cs" />
     <Compile Include="Src\Network\ActionCodes\AC104.cs" />
     <Compile Include="Src\Network\ActionCodes\AC183.cs" />
@@ -340,6 +351,20 @@
       <Project>{d549af04-f847-4474-819f-64bb1c09d90d}</Project>
       <Name>wlo.pserver.core</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="x64\SQLite.Interop.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>x64\SQLite.Interop.dll</Link>
+    </Content>
+    <Content Include="x86\SQLite.Interop.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>x86\SQLite.Interop.dll</Link>
+    </Content>
+    <Content Include="Data\quests.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Data\quests.json</Link>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

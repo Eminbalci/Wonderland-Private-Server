@@ -13,6 +13,9 @@ namespace Game.QuestRelated
         private static readonly Dictionary<uint, QuestDefinition> _registeredQuests = new Dictionary<uint, QuestDefinition>();
         private static readonly object _lock = new object();
 
+        public static IReadOnlyDictionary<uint, QuestDefinition> AllQuests => _registeredQuests;
+        public static int Count => _registeredQuests.Count;
+
         static QuestManager()
         {
             InitializeQuests();
@@ -24,142 +27,13 @@ namespace Game.QuestRelated
             {
                 _registeredQuests.Clear();
 
-                // 0. Newbie Beach Arrival & Wakeup
-                var introQuest = new QuestDefinition(97, "Stranded on Newbie Beach", "robinson", QuestType.Dialogue)
+                // Load all quests directly from SQLite/MySQL database
+                if (DataBase.GameDataBase.GlobalInstance != null)
                 {
-                    Description = "Wake up on the beach after the shipwreck and talk to Robinson.",
-                    IntroDialogue = "Ugh... my head hurts... Where am I? (Robinson looks down at you with concern)",
-                    InProgressDialogue = "Take it easy friend. You washed ashore from the shipwreck.",
-                    CompleteDialogue = "Glad you're awake! The shipwreck was disastrous, but we survived.",
-                    AlreadyCompletedDialogue = "Glad to see you on your feet! Look around the beach for supplies.",
-                    Reward = null // Pure narrative cutscene intro — no reward
-                };
-                _registeredQuests[introQuest.QuestID] = introQuest;
+                    DataBase.QuestDataBase.LoadAllQuests(DataBase.GameDataBase.GlobalInstance);
+                }
 
-                // 1. Robinson's Supplies / Raft Creation (South Island Beach)
-                var robinsonQuest = new QuestDefinition(1001, "Robinson's Supplies", "robinson", QuestType.ItemCollection)
-                {
-                    Description = "Bring a fresh Coconut to stranded Robinson on the beach to receive the Raft.",
-                    IntroDialogue = "Hey there! I've been stranded on this deserted island. Could you fetch me a Coconut to quench my thirst?",
-                    InProgressDialogue = "Still waiting for that Coconut... The sun is scorching! Please find one from the palm trees.",
-                    CompleteDialogue = "Ah, fresh coconut water! You saved my life! Here is your Raft so you can sail to the mainland.",
-                    AlreadyCompletedDialogue = "Thanks again friend! Take care on your sea journey with the raft.",
-                    Reward = new QuestReward(gold: 250, exp: 150).AddItem(48010, 1) // 48010 = Raft
-                };
-                robinsonQuest.RequiredItems.Add(new QuestRequirementItem(41066, 1, "Coconut"));
-                robinsonQuest.AddPrerequisiteQuest(97); // Must wake up on beach first
-                _registeredQuests[robinsonQuest.QuestID] = robinsonQuest;
-
-                // 2. The Little Monkey Companion (Kelan Woods / South Island)
-                var monkeyQuest = new QuestDefinition(1002, "The Little Monkey", "monkey", QuestType.Dialogue)
-                {
-                    Description = "Interact with the friendly monkey on the tree to recruit him as a companion.",
-                    IntroDialogue = "Oh? It's a Monkey! (The cheerful monkey jumps down and joins your party!)",
-                    InProgressDialogue = "Ooh ooh aah aah!",
-                    CompleteDialogue = "Oh? It's a Monkey! (The cheerful monkey jumps down and happily joins your party!)",
-                    AlreadyCompletedDialogue = "Ooh ooh! (The little monkey happily follows you!)",
-                    Reward = new QuestReward(gold: 200, exp: 150, companionId: 10727, companionName: "Monkey")
-                };
-                monkeyQuest.AddPrerequisiteQuest(97);
-                _registeredQuests[monkeyQuest.QuestID] = monkeyQuest;
-
-                // 3. Ill Grandma (Kelan Village - Multi-Stage Quest: Grandma -> Bick -> Grandma)
-                var grandmaQuest = new QuestDefinition(1003, "Ill Grandma", "grandma", QuestType.ItemCollection)
-                {
-                    Description = "Grandma in Kelan Village is ill. Visit Bick's house to get Black Medicine, then deliver it back to Grandma.",
-                    AlreadyCompletedDialogue = "Thank you again child, I am feeling much better now!",
-                    Reward = new QuestReward(gold: 500, exp: 200).AddItem(30264, 1)
-                };
-                grandmaQuest.AddStep(new QuestStep(1, "grandma", QuestType.Dialogue)
-                {
-                    PromptDialogue = "Ah... I feel so weak and ill. Bick has the Black Medicine in his house in Kelan Village. Please ask him for it.",
-                    InProgressDialogue = "Please go to Bick's house in Kelan Village and ask for the Black Medicine.",
-                    CompleteDialogue = "Thank you for agreeing to help me, child."
-                });
-                var bickStep = new QuestStep(2, "bick", QuestType.Dialogue)
-                {
-                    PromptDialogue = "Grandma is ill? Here, take this Black Medicine (#30259) to her right away!",
-                    InProgressDialogue = "Take the Black Medicine to Grandma quickly!",
-                    CompleteDialogue = "Hurry back to Grandma with the Black Medicine!"
-                };
-                bickStep.GrantItemsOnStep.Add(new Tuple<ushort, int>(30259, 1)); // Grants Black Medicine
-                grandmaQuest.AddStep(bickStep);
-
-                var grandmaDeliverStep = new QuestStep(3, "grandma", QuestType.ItemCollection)
-                {
-                    PromptDialogue = "Did you manage to get the Black Medicine from Bick?",
-                    InProgressDialogue = "I still need the Black Medicine from Bick...",
-                    CompleteDialogue = "Ah, thank you so much! This medicine was just what I needed!"
-                };
-                grandmaDeliverStep.RequiredItems.Add(new QuestRequirementItem(30259, 1, "Black Medicine"));
-                grandmaQuest.AddStep(grandmaDeliverStep);
-                _registeredQuests[grandmaQuest.QuestID] = grandmaQuest;
-
-                // 4. Mary Lou's Lost Headband (Kelan Village - Multi-Stage: Mary Lou -> Woods Search -> Mary Lou)
-                var maryQuest = new QuestDefinition(1004, "Mary Lou's Headband", "mary", QuestType.ItemCollection)
-                {
-                    Description = "Find Mary Lou's lost Headband in the woods and return it to her.",
-                    AlreadyCompletedDialogue = "Thanks again for finding my headband!",
-                    Reward = new QuestReward(gold: 200, exp: 100).AddItem(46015, 1)
-                };
-                maryQuest.AddStep(new QuestStep(1, "mary", QuestType.Dialogue)
-                {
-                    PromptDialogue = "Hello! I lost my favorite Headband in the woods. Could you please help me find it?",
-                    InProgressDialogue = "Please search the woods for my lost Headband.",
-                    CompleteDialogue = "Thank you for helping me look for it!"
-                });
-                var maryDeliverStep = new QuestStep(2, "mary", QuestType.ItemCollection)
-                {
-                    PromptDialogue = "Did you find my Headband in the woods?",
-                    InProgressDialogue = "Please return my Headband if you find it in the woods...",
-                    CompleteDialogue = "You found my headband! Thank you so much!"
-                };
-                maryDeliverStep.RequiredItems.Add(new QuestRequirementItem(22061, 1, "Headband"));
-                maryQuest.AddStep(maryDeliverStep);
-                _registeredQuests[maryQuest.QuestID] = maryQuest;
-
-                // 5. Save Niss (Maka Cave)
-                var nissQuest = new QuestDefinition(1005, "Save Niss", "niss", QuestType.MonsterBattle)
-                {
-                    Description = "Defeat the wild beast guarding the cage and rescue Niss.",
-                    BattleMonsterID = 11066,
-                    BattleMonsterName = "Wolf Guard",
-                    IntroDialogue = "Help! I am locked in this cage by ferocious beasts... Please defeat them and save me!",
-                    InProgressDialogue = "Defeat the beasts and get me out of here!",
-                    CompleteDialogue = "Thank you for saving me! I want to accompany you on your journey.",
-                    AlreadyCompletedDialogue = "I am so happy to travel alongside you!",
-                    Reward = new QuestReward(gold: 300, exp: 300, companionId: 11066, companionName: "Niss")
-                };
-                nissQuest.AddPrerequisiteQuest(1001); // Requires Raft to travel to Maka Cave
-                _registeredQuests[nissQuest.QuestID] = nissQuest;
-
-                // 6. Clive's Navigational Compass (Harbor)
-                var cliveQuest = new QuestDefinition(1006, "Clive's Compass", "clive", QuestType.Dialogue)
-                {
-                    Description = "Receive the navigational compass and sea tips from Captain Clive.",
-                    IntroDialogue = "Ahoy voyager! The vast ocean awaits. Take this compass to guide your nautical voyages.",
-                    InProgressDialogue = "May fair winds guide your sails across the Seven Seas!",
-                    CompleteDialogue = "Here is a Compass. Always check your coordinates when sailing!",
-                    AlreadyCompletedDialogue = "Smooth sailing ahead, captain!",
-                    Reward = new QuestReward(gold: 350, exp: 200).AddItem(46010, 1)
-                };
-                cliveQuest.AddPrerequisiteQuest(1001); // Requires Raft to reach Harbor
-                _registeredQuests[cliveQuest.QuestID] = cliveQuest;
-
-                // 7. Rocca's Initiation (Holy Village)
-                var roccaQuest = new QuestDefinition(1007, "Rocca's Trial", "rocca", QuestType.Dialogue)
-                {
-                    Description = "Speak with Rocca in Holy Village to undertake the Guardian trial.",
-                    IntroDialogue = "Greetings warrior! Are you ready to prove your valor to Holy Village?",
-                    InProgressDialogue = "Sharpen your blade and steel your resolve.",
-                    CompleteDialogue = "You have proven your courage! I shall fight by your side whenever you call upon me.",
-                    AlreadyCompletedDialogue = "May the Sacred Light protect our journey!",
-                    Reward = new QuestReward(gold: 500, exp: 400, companionId: 11001, companionName: "Rocca")
-                };
-                roccaQuest.AddPrerequisiteQuest(1001); // Requires Raft to sail to Holy Village
-                _registeredQuests[roccaQuest.QuestID] = roccaQuest;
-
-                DebugSystem.Write($"[QuestManager] Successfully initialized {_registeredQuests.Count} core storyline quests.");
+                DebugSystem.Write($"[QuestManager] Total {_registeredQuests.Count} active quests registered from database.");
             }
         }
 
@@ -176,19 +50,17 @@ namespace Game.QuestRelated
                 byte[] data = System.IO.File.ReadAllBytes(filePath);
                 if (data.Length < 256) return;
 
-                int maxSlots = Math.Min(data.Length / 4, 30000);
+                int numRecords = data.Length / 553;
                 int loadedCount = 0;
 
                 lock (_lock)
                 {
-                    for (uint markId = 1; markId < maxSlots; markId++)
+                    for (uint markId = 1; markId <= numRecords; markId++)
                     {
-                        int offset = BitConverter.ToInt32(data, (int)(markId * 4));
-                        if (offset > 0 && offset < data.Length - 4)
+                        int offset = (int)((markId - 1) * 553);
+                        var entry = ParseMarkEntry(data, offset, markId);
+                        if (entry != null && !string.IsNullOrWhiteSpace(entry.Title) && !_registeredQuests.ContainsKey(markId))
                         {
-                            var entry = ParseMarkEntry(data, offset, markId);
-                            if (entry != null && !string.IsNullOrWhiteSpace(entry.Title) && !_registeredQuests.ContainsKey(markId))
-                            {
                                 var quest = new QuestDefinition(markId, entry.Title, entry.Location ?? entry.Title, QuestType.Dialogue)
                                 {
                                     Description = entry.Description ?? entry.Title,
@@ -196,7 +68,7 @@ namespace Game.QuestRelated
                                     InProgressDialogue = entry.Description ?? entry.Title,
                                     CompleteDialogue = entry.CompletedSummary ?? entry.Description ?? entry.Title,
                                     AlreadyCompletedDialogue = entry.CompletedSummary ?? entry.Title,
-                                    Reward = new QuestReward(gold: 150, exp: 100)
+                                    Reward = new QuestReward(gold: 0, exp: 0)
                                 };
 
                                 // Extract multi-stage steps if available (#01, #02...)
@@ -219,7 +91,6 @@ namespace Game.QuestRelated
                             }
                         }
                     }
-                }
 
                 DebugSystem.Write($"[QuestManager] Loaded {loadedCount} authentic quests directly from Mark.dat (Total registered: {_registeredQuests.Count}).");
             }
@@ -770,53 +641,27 @@ namespace Game.QuestRelated
 
             try
             {
-                // 1. AC 22:10 Cutscene fanfare
-                player.Send(Tools.FromFormat("bbb", 22, 10, (byte)1));
+                // 1. AC 22:10 Hide Recruited NPC from Map (PCAP Frame 1476: 16 0a 01 00 ff ff)
+                ushort npcClickId = (petId == 12178) ? (ushort)1 : (petId == 10727 ? (ushort)1 : (ushort)1);
+                SendPacket hidePkt = Tools.FromFormat("bbwbb", 22, 10, npcClickId, (byte)0xFF, (byte)0xFF);
+                player.Send(hidePkt);
+                player.CurMap?.Broadcast(hidePkt);
+
+                var mapNpc = (player.CurMap as GameMap)?.NpcList?.FirstOrDefault(n => n.CickID == npcClickId) as Maps.QuestNpc;
+                if (mapNpc != null)
+                {
+                    mapNpc.IsBroken = true;
+                    mapNpc.RespawnTime = DateTime.MaxValue;
+                }
 
                 // 2. AC 15:1 Authentic 54-byte Pet Recruit Packet (Byte-for-byte from PCAP Frame 0958)
-                // Layout: [15, 1, CharID (4B), PetID (4B), Slot (1B), STR (2B), CON (2B), INT (2B), WIS (2B), AGI (2B), Element/Skill (1B), Potential/Level (4B), CurHP (4B), MaxHP (4B), Padding (7B), Amity (1B), Padding (13B)]
-                SendPacket petPkt = new SendPacket();
-                petPkt.PackArray(new byte[] { 15, 1 });
-                petPkt.Pack32(player.CharID);
-                petPkt.Pack32(petId);
-                petPkt.Pack8(1); // Slot 1
-
-                if (petId == 12178) // Robinson (Official baseline stats)
-                {
-                    petPkt.Pack16(7);   // STR: 7
-                    petPkt.Pack16(11);  // CON: 11
-                    petPkt.Pack16(2);   // INT: 2
-                    petPkt.Pack16(4);   // WIS: 4
-                    petPkt.Pack16(6);   // AGI: 6
-                    petPkt.Pack8(1);    // Water Element
-                    petPkt.Pack32(6);   // Potential 6
-                    petPkt.Pack32(250); // CurHP 250
-                    petPkt.Pack32(250); // MaxHP 250
-                    for (int i = 0; i < 7; i++) petPkt.Pack8(0);
-                    petPkt.Pack8(60);   // Amity: 60
-                    for (int i = 0; i < 13; i++) petPkt.Pack8(0);
-                }
-                else // Monkey / other companions
-                {
-                    petPkt.Pack16(5);   // STR: 5
-                    petPkt.Pack16(8);   // CON: 8
-                    petPkt.Pack16(2);   // INT: 2
-                    petPkt.Pack16(3);   // WIS: 3
-                    petPkt.Pack16(5);   // AGI: 5
-                    petPkt.Pack8(0);    // Earth Element
-                    petPkt.Pack32(1);   // Level 1
-                    petPkt.Pack32(180); // CurHP 180
-                    petPkt.Pack32(180); // MaxHP 180
-                    for (int i = 0; i < 7; i++) petPkt.Pack8(0);
-                    petPkt.Pack8(60);   // Amity: 60
-                    for (int i = 0; i < 13; i++) petPkt.Pack8(0);
-                }
-
+                SendPacket petPkt = CreatePetPacket(player, petId, 1);
                 player.Send(petPkt);
 
                 // 3. If battle mode enabled, set active companion on map
                 if (setBattle)
                 {
+                    player.ActivePetID = petId;
                     // AC 19:1 Set battle companion state (Frame 0958)
                     player.Send(Tools.FromFormat("bbd", 19, 1, petId));
                     player.CurMap?.Broadcast(Tools.FromFormat("bbd", 19, 1, petId));
@@ -849,6 +694,47 @@ namespace Game.QuestRelated
             }
         }
 
+        public static SendPacket CreatePetPacket(Player player, uint petId, byte slot = 1, int curHp = 250, int maxHp = 250, int curSp = 100, int maxSp = 100, byte amity = 60, byte level = 1)
+        {
+            SendPacket petPkt = new SendPacket();
+            petPkt.PackArray(new byte[] { 15, 1 });
+            petPkt.Pack32(player.CharID);
+            petPkt.Pack32(petId);
+            petPkt.Pack8(slot);
+
+            if (petId == 12178 || petId == 12032) // Robinson (Official baseline stats)
+            {
+                petPkt.Pack16(7);   // STR: 7
+                petPkt.Pack16(11);  // CON: 11
+                petPkt.Pack16(2);   // INT: 2
+                petPkt.Pack16(4);   // WIS: 4
+                petPkt.Pack16(6);   // AGI: 6
+                petPkt.Pack8(1);    // Water Element
+                petPkt.Pack32(level > 0 ? level : (byte)1);   // Level / Potential
+                petPkt.Pack32((uint)curHp); // CurHP
+                petPkt.Pack32((uint)maxHp); // MaxHP
+                for (int i = 0; i < 7; i++) petPkt.Pack8(0);
+                petPkt.Pack8(amity > 0 ? amity : (byte)60);   // Amity
+                for (int i = 0; i < 13; i++) petPkt.Pack8(0);
+            }
+            else // Monkey / other companions
+            {
+                petPkt.Pack16(5);   // STR: 5
+                petPkt.Pack16(8);   // CON: 8
+                petPkt.Pack16(2);   // INT: 2
+                petPkt.Pack16(3);   // WIS: 3
+                petPkt.Pack16(5);   // AGI: 5
+                petPkt.Pack8(0);    // Earth Element
+                petPkt.Pack32(level > 0 ? level : (byte)1);   // Level
+                petPkt.Pack32((uint)curHp); // CurHP
+                petPkt.Pack32((uint)maxHp); // MaxHP
+                for (int i = 0; i < 7; i++) petPkt.Pack8(0);
+                petPkt.Pack8(amity > 0 ? amity : (byte)60);   // Amity
+                for (int i = 0; i < 13; i++) petPkt.Pack8(0);
+            }
+            return petPkt;
+        }
+
         /// <summary>
         /// Sends the entire quest journal list to the client using authentic AC 24 Sub 4 packet.
         /// </summary>
@@ -879,6 +765,44 @@ namespace Game.QuestRelated
             catch (Exception ex)
             {
                 DebugSystem.Write($"[QuestManager] Error sending quest journal: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes all active quest step flags and completed flags to the client for PreEvent evaluation.
+        /// </summary>
+        public static void SendAllQuestFlags(Player player)
+        {
+            if (player == null) return;
+            try
+            {
+                // 1. Send full quest journal list
+                SendQuestJournal(player);
+
+                // 2. Dispatch AC 24:1 step flags and AC 24:5 completed flags
+                if (player.Quests != null && player.Quests.Count > 0)
+                {
+                    foreach (var kvp in player.Quests)
+                    {
+                        uint qId = kvp.Key;
+                        var pq = kvp.Value;
+                        if (pq.State == QuestState.Completed)
+                        {
+                            player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)qId, (byte)1));
+                        }
+                        else if (pq.State == QuestState.InProgress)
+                        {
+                            byte step = (byte)Math.Max(1, pq.Step);
+                            player.Send(Tools.FromFormat("bbwb", 24, 1, (ushort)qId, step));
+                            player.Send(Tools.FromFormat("bbwb", 24, 2, (ushort)qId, step));
+                        }
+                    }
+                    DebugSystem.Write($"[QuestManager] Synchronized {player.Quests.Count} quest flags to {player.CharName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[QuestManager] Error in SendAllQuestFlags for {player.CharName}: {ex.Message}");
             }
         }
 
@@ -931,9 +855,10 @@ namespace Game.QuestRelated
 
             try
             {
-                if (DataBase.GameDataBase.GlobalInstance != null)
+                var db = (RCLibrary.Core.DataBase)DataBase.CharacterDataBase.GlobalInstance ?? (RCLibrary.Core.DataBase)DataBase.GameDataBase.GlobalInstance;
+                if (db != null)
                 {
-                    var dt = DataBase.GameDataBase.GlobalInstance.GetDataTable($"SELECT quest_started, quest_pos FROM charquest WHERE charID={player.CharID}");
+                    var dt = db.GetDataTable($"SELECT quest_started, quest_pos FROM charquest WHERE charID={player.CharID}");
                     if (dt != null && dt.Rows.Count > 0)
                     {
                         foreach (System.Data.DataRow row in dt.Rows)
@@ -961,16 +886,17 @@ namespace Game.QuestRelated
 
             try
             {
-                if (player.Quests.TryGetValue(questId, out var pq) && DataBase.GameDataBase.GlobalInstance != null)
+                var db = (RCLibrary.Core.DataBase)DataBase.CharacterDataBase.GlobalInstance ?? (RCLibrary.Core.DataBase)DataBase.GameDataBase.GlobalInstance;
+                if (db != null && player.Quests != null && player.Quests.TryGetValue(questId, out var pq))
                 {
-                    var existing = DataBase.GameDataBase.GlobalInstance.GetDataTable($"SELECT pri_key FROM charquest WHERE charID={player.CharID} AND quest_started={questId} LIMIT 1");
+                    var existing = db.GetDataTable($"SELECT pri_key FROM charquest WHERE charID={player.CharID} AND quest_started={questId} LIMIT 1");
                     if (existing != null && existing.Rows.Count > 0)
                     {
-                        DataBase.GameDataBase.GlobalInstance.ExecuteNonQuery($"UPDATE charquest SET quest_pos={(byte)pq.State} WHERE charID={player.CharID} AND quest_started={questId}");
+                        db.ExecuteNonQuery($"UPDATE charquest SET quest_pos={(byte)pq.State} WHERE charID={player.CharID} AND quest_started={questId}");
                     }
                     else
                     {
-                        DataBase.GameDataBase.GlobalInstance.ExecuteNonQuery($"INSERT INTO charquest (charID, quest_started, quest_pos) VALUES ({player.CharID}, {questId}, {(byte)pq.State})");
+                        db.ExecuteNonQuery($"INSERT INTO charquest (charID, quest_started, quest_pos) VALUES ({player.CharID}, {questId}, {(byte)pq.State})");
                     }
                 }
             }

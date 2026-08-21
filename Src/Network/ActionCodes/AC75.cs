@@ -27,9 +27,23 @@ namespace Network.ActionCodes
                 case 3: // Balance request
                     Recv3(r, p);
                     break;
-                case 4: // Purchase from Bonus Mall (AC 75 Sub 4)
+                case 4: // Category Switch or Purchase from Bonus Mall (AC 75 Sub 4)
                 case 5: // Purchase from Points Mall (AC 75 Sub 5)
-                    RecvBuy(r, p, subcode);
+                    int rem = p.Buffer.Count() - p.GetPtr();
+                    if (rem == 1)
+                    {
+                        byte categoryId = p.Unpack8();
+                        // AC 57 Sub 1: Category ACK (Frame 4497 / 4606: 39 01 [catId] 00 00 00)
+                        SendPacket ack = new SendPacket();
+                        ack.PackArray(new byte[] { 57, 1, categoryId, 0, 0, 0 });
+                        r.Send(ack);
+                        ItemMallManager.SendCatalog(r);
+                        DebugSystem.Write($"[AC75.Recv4] Client switched to Item Mall Category {categoryId}");
+                    }
+                    else
+                    {
+                        RecvBuy(r, p, subcode);
+                    }
                     break;
                 default:
                     DebugSystem.Write($"[AC75] Subcode {subcode} received");

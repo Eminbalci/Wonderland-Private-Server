@@ -1115,7 +1115,8 @@ namespace Game.Battle
                     // Check Quest Battle Completion
                     try
                     {
-                        if (battle.Monsters != null && battle.Monsters.Any(m => (m.MonsterName ?? "").ToLower().Contains("wolf") || m.MonsterId == 11066))
+                        // Quest 1005: Save Niss (Wolf Guard battle victory)
+                        if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 11066 || (m.MonsterName ?? "").ToLower().Contains("wolf guard")))
                         {
                             if (player.Quests != null && player.Quests.TryGetValue(1005, out var pq) && pq.State == QuestRelated.QuestState.InProgress)
                             {
@@ -1123,6 +1124,46 @@ namespace Game.Battle
                                 pq.CompletedAt = DateTime.UtcNow;
                                 QuestRelated.QuestManager.SavePlayerQuest(player, 1005);
                                 QuestRelated.QuestManager.SendQuestUpdate(player, 1005, QuestRelated.QuestState.Completed);
+                                QuestRelated.QuestManager.SendCompanionReward(player, 11066, "Niss");
+                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You rescued Niss! She has joined your party."));
+                            }
+                        }
+
+                        // Quest 1010: Rescue Xaolan (Pirate Lea / Hijacker victory)
+                        if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 14155 || m.MonsterId == 12049 || m.MonsterId == 12050 || (m.MonsterName ?? "").ToLower().Contains("pirate lea") || (m.MonsterName ?? "").ToLower().Contains("hijacker")))
+                        {
+                            if (player.Quests != null)
+                            {
+                                if (!player.Quests.ContainsKey(1010))
+                                {
+                                    player.Quests[1010] = new QuestRelated.PlayerQuest(1010, QuestRelated.QuestState.InProgress, 1);
+                                }
+                                var pq = player.Quests[1010];
+                                pq.State = QuestRelated.QuestState.Completed;
+                                pq.CompletedAt = DateTime.UtcNow;
+                                QuestRelated.QuestManager.SavePlayerQuest(player, 1010);
+                                QuestRelated.QuestManager.SendQuestUpdate(player, 1010, QuestRelated.QuestState.Completed);
+                                QuestRelated.QuestManager.SendCompanionReward(player, 14156, "Xaolan");
+                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the pirates and rescued Xaolan! She joined your party."));
+
+                                // Despawn hijackers and Xaolan trapped event for player
+                                player.Send(Tools.FromFormat("bbwb", 24, 1, 1010, 2));
+                                player.Send(Tools.FromFormat("bbwb", 24, 5, 1010, 1));
+                            }
+                        }
+
+                        // Quest 1012: Little Red Riding Hood (Wild Wolf victory)
+                        if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 17437 || (m.MonsterName ?? "").ToLower().Contains("wild wolf")))
+                        {
+                            if (player.Quests != null && player.Quests.TryGetValue(1012, out var pq) && pq.State == QuestRelated.QuestState.InProgress)
+                            {
+                                pq.State = QuestRelated.QuestState.Completed;
+                                pq.CompletedAt = DateTime.UtcNow;
+                                QuestRelated.QuestManager.SavePlayerQuest(player, 1012);
+                                QuestRelated.QuestManager.SendQuestUpdate(player, 1012, QuestRelated.QuestState.Completed);
+                                player.Gold += 400;
+                                player.Send(Tools.FromFormat("bbd", 23, 114, (uint)player.Gold));
+                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the wolf and saved Grandmother! Quest Completed."));
                             }
                         }
                     }

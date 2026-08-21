@@ -583,10 +583,6 @@ namespace Server
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.Send(Tools.FromFormat("bbb", 5, 21, src.Slot));
 
-            // AC 5:11 (Unlock Skill) + AC 8:1 stat 110 (Skill Grade) for each learned skill
-            // These packets populate the skill book window. Sent BEFORE AC 5:3 below.
-            Game.SkillRelated.SkillManager.SendAllSkills(src);
-
             // Send quest journal
             Game.QuestRelated.QuestManager.SendQuestJournal(src);
 
@@ -629,11 +625,12 @@ namespace Server
 
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
 
-            // AC 5:3 sent LAST — matching Python server (send_5_3_login at very end of login).
-            // Sending it early causes the client to reset its skill state, discarding all prior AC 5:11 packets.
+            // AC 5:3 Base Stats
             src.Send_5_3();
-            src.Send(Tools.FromFormat("bb", 5, 4));
             src.Send8_1(false);
+
+            // Send all learned skills (AC 5:11, AC 8:1 stat 110, AC 5:4)
+            Game.SkillRelated.SkillManager.SendAllSkills(src);
 
             src.Flags.Add(PlayerFlag.InMap);
 

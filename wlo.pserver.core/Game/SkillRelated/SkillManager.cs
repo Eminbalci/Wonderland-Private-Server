@@ -74,25 +74,38 @@ namespace Game.SkillRelated
         }
 
         /// <summary>
-        /// Returns the Level 1 starter elemental skill ID for a given affinity.
-        /// (Advanced skills like Sword Awn Attack require STR 16 and must not be unlocked at Level 1).
+        /// Returns the Level 1 starter elemental skill IDs for a given affinity (Physical, Magical, Assistant branches).
         /// </summary>
         public static List<uint> GetStarterElementSkills(Affinity element)
         {
             List<uint> skills = new List<uint>();
             switch (element)
             {
+                case Affinity.Fire: // 3
+                    skills.Add(11016); // Flame Attack (Magical Lv 1)
+                    skills.Add(11166); // Blast Attack (Physical Lv 1)
+                    skills.Add(11056); // Slowdown (Assistant Lv 1)
+                    break;
                 case Affinity.Earth: // 1
-                    skills.Add(15085); // Rock Attack (Lv 1)
+                    skills.Add(15085); // Rock Attack (Magical Lv 1)
+                    skills.Add(11017); // Earth Attack (Physical Lv 1)
+                    skills.Add(11057); // Shield Defence (Assistant Lv 1)
                     break;
                 case Affinity.Water: // 2
-                    skills.Add(15091); // Ice Attack (Lv 1)
-                    break;
-                case Affinity.Fire: // 3
-                    skills.Add(11016); // Flame Attack (Lv 1)
+                    skills.Add(15091); // Ice Attack (Magical Lv 1)
+                    skills.Add(11001); // Icicle Attack (Physical Lv 1)
+                    skills.Add(15100); // Detoxification (Assistant Lv 1)
                     break;
                 case Affinity.Wind: // 4
-                    skills.Add(11007); // Wind Attack (Lv 1)
+                    skills.Add(11007); // Wind Attack (Magical Lv 1)
+                    skills.Add(15079); // Air Attack (Physical Lv 1)
+                    skills.Add(11052); // Speed Up (Assistant Lv 1)
+                    break;
+                case Affinity.Dark: // 5
+                case Affinity.Undefined: // 7
+                    skills.Add(25115); // Fiery Wave / Dark Wave (Magical Lv 1)
+                    skills.Add(25116); // Deadly Wind / Dark Strike (Physical Lv 1)
+                    skills.Add(25110); // Poisonous Chill / Chaos (Assistant Lv 1)
                     break;
             }
             return skills;
@@ -115,6 +128,21 @@ namespace Game.SkillRelated
             {
                 existing.Grade = grade;
                 existing.Exp = exp;
+            }
+
+            // Persist to database
+            try
+            {
+                var db = DataBase.CharacterDataBase.GlobalInstance;
+                if (db != null && player.CharID > 0)
+                {
+                    db.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, skillID INT NOT NULL, grade TINYINT DEFAULT 1, exp INT DEFAULT 0, UNIQUE(charID, skillID));");
+                    db.ExecuteNonQuery($"INSERT INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{grade}', '{exp}') ON CONFLICT(charID, skillID) DO UPDATE SET grade = '{grade}', exp = '{exp}';");
+                }
+            }
+            catch (Exception dbEx)
+            {
+                DebugSystem.Write($"[SkillManager] Error persisting skill {skillId} for {player.CharName}: {dbEx.Message}");
             }
 
             // 1. AC 5:11 (Unlock / Set Skill EXP)
@@ -153,22 +181,7 @@ namespace Game.SkillRelated
         {
             if (player == null) return;
 
-            // Ensure starter stunt skill is unlocked
-            uint stuntId = GetStarterStuntSkill((byte)player.Eqs.Body, player.Eqs.Head);
-            if (!player.PlayerSkills.Any(s => s.SkillID == stuntId))
-            {
-                player.PlayerSkills.Add(new PlayerSkill(stuntId, 1, 0));
-            }
-
-            // Ensure starter elemental skills are unlocked
-            var elemSkills = GetStarterElementSkills(player.Eqs.Element);
-            foreach (var elemSk in elemSkills)
-            {
-                if (!player.PlayerSkills.Any(s => s.SkillID == elemSk))
-                {
-                    player.PlayerSkills.Add(new PlayerSkill(elemSk, 1, 0));
-                }
-            }
+            InitializePlayerSkillsNoSend(player);
 
             // Send all learned skills to client
             SendAllSkills(player);
@@ -184,11 +197,18 @@ namespace Game.SkillRelated
 
             player.PlayerSkills.Clear();
 
-            uint stuntId = GetStarterStuntSkill((byte)player.Eqs.Body, player.Eqs.Head);
+            byte bodyVal = (byte)player.Body;
+            if (bodyVal == 0 && player.Eqs != null) bodyVal = (byte)player.Eqs.Body;
+
+            byte headVal = (byte)player.Head;
+            if (headVal == 0 && player.Eqs != null) headVal = (byte)player.Eqs.Head;
+
+            uint stuntId = GetStarterStuntSkill(bodyVal, headVal);
             if (!player.PlayerSkills.Any(s => s.SkillID == stuntId))
                 player.PlayerSkills.Add(new PlayerSkill(stuntId, 1, 0));
 
-            foreach (var elemSk in GetStarterElementSkills(player.Eqs.Element))
+            var elem = player.Element != Affinity.Normal ? player.Element : (player.Eqs != null ? player.Eqs.Element : Affinity.Fire);
+            foreach (var elemSk in GetStarterElementSkills(elem))
             {
                 if (!player.PlayerSkills.Any(s => s.SkillID == elemSk))
                     player.PlayerSkills.Add(new PlayerSkill(elemSk, 1, 0));
@@ -197,7 +217,42 @@ namespace Game.SkillRelated
             // Check and include any stat progression skills qualified by current stats
             CheckAndUnlockProgressionSkillsNoSend(player);
 
-            DebugSystem.Write($"[SkillManager] Initialized {player.PlayerSkills.Count} starter/progression skills for {player.CharName} (Stunt: {stuntId})");
+            // Load saved skills, grades, and exp from character_skills database table
+            try
+            {
+                var db = DataBase.CharacterDataBase.GlobalInstance;
+                if (db != null && player.CharID > 0)
+                {
+                    db.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, skillID INT NOT NULL, grade TINYINT DEFAULT 1, exp INT DEFAULT 0, UNIQUE(charID, skillID));");
+                    var dbSkills = db.GetDataTable($"SELECT skillID, grade, exp FROM character_skills WHERE charID = '{player.CharID}';");
+                    if (dbSkills != null && dbSkills.Rows.Count > 0)
+                    {
+                        foreach (System.Data.DataRow r in dbSkills.Rows)
+                        {
+                            uint sId = Convert.ToUInt32(r["skillID"]);
+                            byte grade = Convert.ToByte(r["grade"]);
+                            uint exp = Convert.ToUInt32(r["exp"]);
+
+                            var existing = player.PlayerSkills.FirstOrDefault(s => s.SkillID == sId);
+                            if (existing != null)
+                            {
+                                existing.Grade = grade;
+                                existing.Exp = exp;
+                            }
+                            else
+                            {
+                                player.PlayerSkills.Add(new PlayerSkill(sId, grade, exp));
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[SkillManager] Error loading character_skills for {player.CharName}: {ex.Message}");
+            }
+
+            DebugSystem.Write($"[SkillManager] Initialized {player.PlayerSkills.Count} starter/progression skills for {player.CharName} (Body: {bodyVal}, Head: {headVal}, Stunt: {stuntId}, Element: {elem})");
         }
 
         /// <summary>
@@ -239,20 +294,23 @@ namespace Game.SkillRelated
                     if (player.Eqs.Int >= 26) toUnlock.Add(11025); // Flame Beating (INT 26)
                     if (player.Eqs.Int >= 38) toUnlock.Add(11034); // Fire Ball Attack (INT 38)
                     // Assistant (WIS / CON)
-                    if (player.Eqs.Wis >= 16) toUnlock.Add(11056); // Slowdown (WIS 16)
-                    if (player.Eqs.Wis >= 26) toUnlock.Add(11002); // Poison Spell (WIS 26)
+                    if (player.Eqs.Wis >= 16) toUnlock.Add(11002); // Poison Spell (WIS 16)
+                    if (player.Eqs.Wis >= 26) toUnlock.Add(11072); // Fiery Attack (WIS 26)
+                    if (player.Eqs.Wis >= 38) toUnlock.Add(11003); // Mess Spell (WIS 38)
                     break;
 
                 case Affinity.Earth: // 1
                     // Physical (STR)
-                    if (player.Eqs.Str >= 16) toUnlock.Add(11017); // Earth Attack (STR 16)
-                    if (player.Eqs.Str >= 26) toUnlock.Add(15056); // Rockfall Attack (STR 26)
+                    if (player.Eqs.Str >= 16) toUnlock.Add(15056); // Rockfall Attack (STR 16)
+                    if (player.Eqs.Str >= 26) toUnlock.Add(11019); // Rock Blast Attack (STR 26)
                     if (player.Eqs.Str >= 38) toUnlock.Add(15049); // Jump Attack (STR 38)
                     // Magical (INT)
                     if (player.Eqs.Int >= 16) toUnlock.Add(11085); // Rock Hit (INT 16)
                     if (player.Eqs.Int >= 26) toUnlock.Add(15074); // Rock Beating (INT 26)
+                    if (player.Eqs.Int >= 38) toUnlock.Add(11031); // Rock Ball Attack (INT 38)
                     // Assistant (WIS / CON)
                     if (player.Eqs.Wis >= 16) toUnlock.Add(15070); // Tree Bind (WIS 16)
+                    if (player.Eqs.Wis >= 26) toUnlock.Add(12043); // Wake Spell (WIS 26)
                     break;
 
                 case Affinity.Water: // 2
@@ -262,25 +320,180 @@ namespace Game.SkillRelated
                     // Magical (INT)
                     if (player.Eqs.Int >= 16) toUnlock.Add(15092); // Ice Hit (INT 16)
                     if (player.Eqs.Int >= 26) toUnlock.Add(15093); // Ice Beating (INT 26)
+                    if (player.Eqs.Int >= 38) toUnlock.Add(11110); // Ice Ball Attack (INT 38)
                     // Healing / Assistant (WIS)
-                    if (player.Eqs.Wis >= 16) toUnlock.Add(11001); // Icicle Attack / Recovery (WIS 16)
+                    if (player.Eqs.Wis >= 16) toUnlock.Add(11042); // Cure Spell (WIS 16)
+                    if (player.Eqs.Wis >= 26) toUnlock.Add(12048); // Ice-out (WIS 26)
                     break;
 
                 case Affinity.Wind: // 4
                     // Physical / Speed (AGI / STR)
-                    if (player.Eqs.Agi >= 16 || player.Eqs.Str >= 16) toUnlock.Add(15079); // Air Attack (AGI 16)
-                    if (player.Eqs.Agi >= 26) toUnlock.Add(15009); // Wind Cut Hit (AGI 26)
-                    if (player.Eqs.Agi >= 38) toUnlock.Add(15002); // Instant Attack (AGI 38)
+                    if (player.Eqs.Agi >= 16 || player.Eqs.Str >= 16) toUnlock.Add(15009); // Wind Cut Hit (AGI 16)
+                    if (player.Eqs.Agi >= 26) toUnlock.Add(15002); // Instant Attack (AGI 26)
+                    if (player.Eqs.Agi >= 38) toUnlock.Add(15114); // Dead Wind Attack (AGI 38)
                     // Magical (INT)
                     if (player.Eqs.Int >= 16) toUnlock.Add(11014); // Wind Hit (INT 16)
                     if (player.Eqs.Int >= 26) toUnlock.Add(15113); // Wind Bead (INT 26)
+                    if (player.Eqs.Int >= 38) toUnlock.Add(15123); // Whirlwind Attack (INT 38)
+                    // Assistant (WIS / CON)
+                    if (player.Eqs.Wis >= 16) toUnlock.Add(11073); // Shield Smash (WIS 16)
+                    if (player.Eqs.Wis >= 26) toUnlock.Add(12046); // Unload Wall (WIS 26)
+                    if (player.Eqs.Wis >= 38) toUnlock.Add(15032); // Cord Spell (WIS 38)
+                    break;
+
+                case Affinity.Dark: // 5
+                case Affinity.Undefined: // 7
+                    // Physical (STR / AGI)
+                    if (player.Eqs.Str >= 16) toUnlock.Add(25165); // Crack Beating (STR 16)
+                    if (player.Eqs.Str >= 26) toUnlock.Add(25169); // Super Crack Beating (STR 26)
+                    if (player.Eqs.Str >= 38) toUnlock.Add(25175); // Furious Cyclone (STR 38)
+                    if (player.Eqs.Str >= 51) toUnlock.Add(25185); // Entangled Wind (STR 51)
+                    // Magical (INT)
+                    if (player.Eqs.Int >= 16) toUnlock.Add(25246); // Hellfire (INT 16)
+                    if (player.Eqs.Int >= 26) toUnlock.Add(25248); // Polar Demonitis (INT 26)
+                    if (player.Eqs.Int >= 38) toUnlock.Add(25275); // Icefall Explosion (INT 38)
+                    // Assistant (WIS)
+                    if (player.Eqs.Wis >= 16) toUnlock.Add(25167); // Chaos Curse (WIS 16)
+                    if (player.Eqs.Wis >= 26) toUnlock.Add(25168); // Entangled Curse (WIS 26)
+                    if (player.Eqs.Wis >= 38) toUnlock.Add(25470); // Summon Death (WIS 38)
                     break;
             }
             return toUnlock;
         }
 
         /// <summary>
-        /// Checks player stats and unlocks any newly qualified progression skills in real-time.
+        /// Returns skill evolutions (e.g. Attack -> Hit -> Beating) unlocked when a preceding skill reaches Grade 10.
+        /// </summary>
+        public static List<uint> GetQualifiedEvolutionSkills(Player player)
+        {
+            List<uint> evolutions = new List<uint>();
+            if (player == null || player.PlayerSkills == null) return evolutions;
+
+            foreach (var sk in player.PlayerSkills.ToList())
+            {
+                if (sk.Grade >= 10)
+                {
+                    switch (sk.SkillID)
+                    {
+                        // --- Fire ---
+                        case 11016: evolutions.Add(11029); break; // Flame Attack (Grade 10) -> Flame Hit
+                        case 11029: evolutions.Add(11025); break; // Flame Hit (Grade 10) -> Flame Beating
+                        case 11025: evolutions.Add(11034); break; // Flame Beating (Grade 10) -> Fire Ball Attack
+                        case 11166: evolutions.Add(15101); evolutions.Add(15104); break; // Blast Attack (Grade 10) -> Sword Awn Attack & Blast Hit
+                        case 15101: evolutions.Add(11114); break; // Sword Awn Attack (Grade 10) -> Turning Fire Attack
+                        case 11114: evolutions.Add(12039); break; // Turning Fire Attack (Grade 10) -> Fire Wave Attack
+                        case 12039: evolutions.Add(15015); break; // Fire Wave Attack (Grade 10) -> Five Star Hit
+                        case 15015: evolutions.Add(15044); break; // Five Star Hit (Grade 10) -> Hagendis Attack
+                        case 11056: evolutions.Add(11002); break; // Slowdown (Grade 10) -> Poison Spell
+                        case 11002: evolutions.Add(11072); break; // Poison Spell (Grade 10) -> Fiery Attack
+                        case 11072: evolutions.Add(11003); break; // Fiery Attack (Grade 10) -> Mess Spell
+
+                        // --- Earth ---
+                        case 15085: evolutions.Add(11085); break; // Rock Attack (Grade 10) -> Rock Hit
+                        case 11085: evolutions.Add(15074); break; // Rock Hit (Grade 10) -> Rock Beating
+                        case 15074: evolutions.Add(11031); break; // Rock Beating (Grade 10) -> Rock Ball Attack
+                        case 11017: evolutions.Add(15056); break; // Earth Attack (Grade 10) -> Rockfall Attack
+                        case 15056: evolutions.Add(11019); break; // Rockfall Attack (Grade 10) -> Rock Blast Attack
+                        case 11019: evolutions.Add(15049); break; // Rock Blast Attack (Grade 10) -> Jump Attack
+                        case 11057: evolutions.Add(15070); break; // Shield Defence (Grade 10) -> Tree Bind
+                        case 15070: evolutions.Add(12043); break; // Tree Bind (Grade 10) -> Wake Spell
+
+                        // --- Water ---
+                        case 15091: evolutions.Add(15092); break; // Ice Attack (Grade 10) -> Ice Hit
+                        case 15092: evolutions.Add(15093); break; // Ice Hit (Grade 10) -> Ice Beating
+                        case 15093: evolutions.Add(11110); break; // Ice Beating (Grade 10) -> Ice Ball Attack
+                        case 11001: evolutions.Add(15062); break; // Icicle Attack (Grade 10) -> Icicle Hit
+                        case 15062: evolutions.Add(15019); break; // Icicle Hit (Grade 10) -> Turning Ice Attack
+                        case 15100: evolutions.Add(11042); break; // Detoxification (Grade 10) -> Cure Spell
+                        case 11042: evolutions.Add(12048); break; // Cure Spell (Grade 10) -> Ice-out
+
+                        // --- Wind ---
+                        case 11007: evolutions.Add(11014); break; // Wind Attack (Grade 10) -> Wind Hit
+                        case 11014: evolutions.Add(15113); break; // Wind Hit (Grade 10) -> Wind Bead
+                        case 15113: evolutions.Add(15123); break; // Wind Bead (Grade 10) -> Whirlwind Attack
+                        case 15079: evolutions.Add(15009); break; // Air Attack (Grade 10) -> Wind Cut Hit
+                        case 15009: evolutions.Add(15002); break; // Wind Cut Hit (Grade 10) -> Instant Attack
+                        case 15002: evolutions.Add(15114); break; // Instant Attack (Grade 10) -> Dead Wind Attack
+                        case 11052: evolutions.Add(11073); break; // Speed Up (Grade 10) -> Shield Smash
+                        case 11073: evolutions.Add(12046); break; // Shield Smash (Grade 10) -> Unload Wall
+                        case 12046: evolutions.Add(15032); break; // Unload Wall (Grade 10) -> Cord Spell
+
+                        // --- Dark / Undefined ---
+                        case 25110: evolutions.Add(25113); break; // Poisonous Chill (Grade 10) -> Poisonous Wave
+                        case 25115: evolutions.Add(25246); break; // Fiery Wave / Dark Wave (Grade 10) -> Hellfire
+                        case 25246: evolutions.Add(25248); break; // Hellfire (Grade 10) -> Polar Demonitis
+                        case 25116: evolutions.Add(25165); break; // Deadly Wind (Grade 10) -> Crack Beating
+                        case 25165: evolutions.Add(25169); break; // Crack Beating (Grade 10) -> Super Crack Beating
+                        case 25167: evolutions.Add(25168); break; // Chaos Curse (Grade 10) -> Entangled Curse
+                        case 25168: evolutions.Add(25470); break; // Entangled Curse (Grade 10) -> Summon Death
+                    }
+                }
+            }
+
+            return evolutions;
+        }
+
+        /// <summary>
+        /// Adds skill EXP to a learned skill, handles Grade level up (1-10),
+        /// persists changes to database, dispatches AC 5:11 / AC 8:1 packets,
+        /// and unlocks evolved skill versions if Grade 10 is attained.
+        /// </summary>
+        public static void AddSkillExp(Player player, uint skillId, uint expGain)
+        {
+            if (player == null || skillId == 0) return;
+
+            var sk = player.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId);
+            if (sk == null)
+            {
+                sk = new PlayerSkill(skillId, 1, 0);
+                player.PlayerSkills.Add(sk);
+            }
+
+            if (sk.Grade >= 10) return; // Max Grade
+
+            sk.Exp += expGain;
+
+            // Standard WLO Grade Exp Threshold: Grade * 100 EXP
+            uint neededExp = (uint)(sk.Grade * 100);
+            bool gradeUp = false;
+            while (sk.Exp >= neededExp && sk.Grade < 10)
+            {
+                sk.Exp -= neededExp;
+                sk.Grade++;
+                neededExp = (uint)(sk.Grade * 100);
+                gradeUp = true;
+            }
+
+            // Persist to database
+            try
+            {
+                var db = DataBase.CharacterDataBase.GlobalInstance;
+                if (db != null && player.CharID > 0)
+                {
+                    db.ExecuteNonQuery($"INSERT INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{sk.Grade}', '{sk.Exp}') ON CONFLICT(charID, skillID) DO UPDATE SET grade = '{sk.Grade}', exp = '{sk.Exp}';");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[SkillManager] Error updating skill EXP: {ex.Message}");
+            }
+
+            // 1. AC 5:11 (EXP update)
+            player.Send(Tools.FromFormat("bbdd", 5, 11, sk.SkillID, sk.Exp));
+
+            // 2. AC 8:1 stat 110 (Grade update if leveled up)
+            if (gradeUp)
+            {
+                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)sk.Grade, sk.SkillID));
+                DebugSystem.Write($"[SkillManager] {player.CharName}'s skill {sk.SkillID} reached Grade {sk.Grade}!");
+
+                // Check for new evolution skill unlocks
+                CheckAndUnlockProgressionSkills(player);
+            }
+        }
+
+        /// <summary>
+        /// Checks player stats and Grade 10 evolutions and unlocks any newly qualified skills in real-time.
         /// Dispatches AC 5:11 and AC 8:1 packets immediately.
         /// </summary>
         public static void CheckAndUnlockProgressionSkills(Player player)
@@ -288,6 +501,12 @@ namespace Game.SkillRelated
             if (player == null || player.Eqs == null) return;
 
             var qualified = GetQualifiedProgressionSkills(player);
+            var evolutions = GetQualifiedEvolutionSkills(player);
+            foreach (var evo in evolutions)
+            {
+                if (!qualified.Contains(evo)) qualified.Add(evo);
+            }
+
             bool newlyUnlocked = false;
 
             foreach (var skId in qualified)

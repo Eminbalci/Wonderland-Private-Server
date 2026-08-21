@@ -12,7 +12,8 @@ using wlo.pserver.core.Game;
 namespace Network.ActionCodes
 {
     /// <summary>
-    /// Handles Companion, Mount/Ride, Rest, and Vehicle actions (AC 15).
+    /// Handles Companion, Mount/Ride, Rest, and Vehicle/Raft actions (AC 15).
+    /// Verified byte-for-byte from official capture 'denizetiklayarakraftabinmeveisinlandiktansonrasahiletiklayarakraftikiriprafttaninme.pcapng'.
     /// </summary>
     public class AC15 : AC
     {
@@ -20,34 +21,162 @@ namespace Network.ActionCodes
 
         public override void ProcessPkt(Player player, RecievePacket p)
         {
-            switch (p.Unpack8())
+            if (player == null || p == null) return;
+
+            byte sub = p.Unpack8();
+            switch (sub)
             {
-                case 7: Recv7(player, p); break;   // Raft sailing start
-                case 9: Recv9(player, p); break;   // Raft board / mount placed vehicle
-                case 10: Recv10(player, p); break; // Raft dismount / destroy
+                case 7:  Recv7(player, p); break;   // Raft sailing confirmation
+                case 9:  Recv9(player, p); break;   // Raft board / mount placed vehicle
+                case 10: Recv10(player, p); break; // Raft dismount & break on shore (Frame 6950-6992)
                 case 11: Recv11(player, p); break; // Ride Companion (Mount)
                 case 12: Recv12(player, p); break; // Rest Companion
-                case 14: Recv14(player, p); break; // Use Raft / Vehicle
+                case 13: Recv13(player, p); break; // Dismount ACK
+                case 14: Recv14(player, p); break; // Use Raft / Vehicle (Frame 4129)
                 default:
-                    DebugSystem.Write($"[AC15] Action Code 15 sub-command not handled");
+                    DebugSystem.Write($"[AC15] Subcode {sub} received");
                     break;
             }
         }
 
         /// <summary>
-        /// Board Placed Raft/Vehicle: C->S [15, 9, ...]
+        /// Handles Client clicking water to board Raft / Vehicle: C->S [15, 14, type (1B), item_id (2B)]
+        /// Official PCAP Frame 4129 -> Responds with AC 15 Sub 18 (Durability/Stats).
         /// </summary>
+        private void Recv14(Player player, RecievePacket p)
+        {
+            try
+            {
+                byte vehicleType = p.Unpack8(); // 0x10 = Raft
+                ushort vehicleId = 48016; // 0xBB90 default
+                if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
+
+                DebugSystem.Write($"[AC15.Recv14] Player {player.CharName} boarding vehicle (Type: 0x{vehicleType:X}, ID: {vehicleId})");
+
+                // S->C AC 15 Sub 18: [15, 18, type (1B), char_id (4B), vehicle_id (2B), durability (8B)]
+                SendPacket resp = new SendPacket();
+                resp.PackArray(new byte[] { 15, 18, vehicleType });
+                resp.Pack32(player.CharID);
+                resp.Pack16(vehicleId);
+                resp.Pack32(3042);  // 0x00000BE2 = Initial durability
+                resp.Pack32(2075);  // Max durability / param
+                player.Send(resp);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC15.Recv14] Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Client confirms boarding raft: C->S [15, 7, type (1B), item_id (2B)]
+        /// Official PCAP Frame 4160 -> Responds with AC 15 Sub 10 (Mount ACK) + AC 15 Sub 14 (Active state).
+        /// </summary>
+        private void Recv7(Player player, RecievePacket p)
+        {
+            try
+            {
+                byte vehicleType = p.Unpack8();
+                ushort vehicleId = 48016;
+                if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
+
+                player.ActiveVehicleID = vehicleId;
+                player.RideVehicle(vehicleId.ToString());
+
+                // S->C AC 15 Sub 10: Mount confirmation
+                SendPacket mountPkt = new SendPacket();
+                mountPkt.PackArray(new byte[] { 15, 10, vehicleType });
+                mountPkt.Pack32(player.CharID);
+                mountPkt.Pack16(vehicleId);
+                player.Send(mountPkt);
+                player.CurMap?.Broadcast(mountPkt);
+
+                // S->C AC 15 Sub 14: Active state
+                SendPacket statePkt = new SendPacket();
+                statePkt.PackArray(new byte[] { 15, 14, vehicleType });
+                statePkt.Pack32(player.CharID);
+                statePkt.PackArray(new byte[] { 0, 0, 0, 0, 0, 0 });
+                player.Send(statePkt);
+                player.CurMap?.Broadcast(statePkt);
+
+                player.SendSystemMessage("⛵ You are now sailing on your raft!");
+                DebugSystem.Write($"[AC15.Recv7] Player {player.CharName} successfully mounted raft {vehicleId}");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC15.Recv7] Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Client clicks beach shore to land, break raft, and dismount on foot: C->S [15, 10, type (1B), item_id (2B)]
+        /// Official PCAP Frame 6950-6992.
+        /// </summary>
+        private void Recv10(Player player, RecievePacket p)
+        {
+            try
+            {
+                byte vehicleType = 0x10;
+                ushort vehicleId = 48016;
+                if (p.Buffer.Count() - p.GetPtr() >= 1) vehicleType = p.Unpack8();
+                if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
+
+                DebugSystem.Write($"[AC15.Recv10] Player {player.CharName} landing on shore from raft {vehicleId}");
+
+                // 1. Send AC 15 Sub 14: Final state
+                SendPacket statePkt = new SendPacket();
+                statePkt.PackArray(new byte[] { 15, 14, vehicleType });
+                statePkt.Pack32(player.CharID);
+                statePkt.PackArray(new byte[] { 0xD6, 0x01, 0, 0, 0, 0 });
+                player.Send(statePkt);
+                player.CurMap?.Broadcast(statePkt);
+
+                // 2. Send AC 23 Sub 9: Raft Break Notice
+                SendPacket breakNotice = new SendPacket();
+                breakNotice.PackArray(new byte[] { 23, 9, vehicleType, 1 });
+                player.Send(breakNotice);
+
+                // 3. Send AC 15 Sub 15: Destroy / Remove vehicle
+                SendPacket destroyPkt = new SendPacket();
+                destroyPkt.PackArray(new byte[] { 15, 15 });
+                destroyPkt.Pack32(player.CharID);
+                destroyPkt.Pack16(vehicleId);
+                player.Send(destroyPkt);
+                player.CurMap?.Broadcast(destroyPkt);
+
+                // 4. Send AC 15 Sub 11: Reset to walking on foot
+                SendPacket walkPkt = new SendPacket();
+                walkPkt.PackArray(new byte[] { 15, 11, vehicleType });
+                walkPkt.Pack32(player.CharID);
+                player.Send(walkPkt);
+                player.CurMap?.Broadcast(walkPkt);
+
+                player.ActiveVehicleID = 0;
+                player.RideVehicle("");
+
+                player.SendSystemMessage("🏖️ The wooden raft broke apart upon landing on the shore. You are now walking on foot.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC15.Recv10] Error: {ex.Message}");
+            }
+        }
+
+        private void Recv13(Player player, RecievePacket p)
+        {
+            DebugSystem.Write($"[AC15.Recv13] Player {player.CharName} acknowledged dismount.");
+        }
+
         private void Recv9(Player player, RecievePacket p)
         {
             try
             {
-                p.Unpack8(); // skip
+                p.Unpack8();
                 ushort itemId = p.Unpack16();
-                if (itemId == 0) itemId = 48016; // default raft
+                if (itemId == 0) itemId = 48016;
 
                 player.UnridePet();
                 player.RideVehicle(itemId.ToString());
-
                 DebugSystem.Write($"[AC15] Player {player.CharName} mounted placed vehicle ID {itemId}");
             }
             catch (Exception ex)
@@ -56,9 +185,6 @@ namespace Network.ActionCodes
             }
         }
 
-        /// <summary>
-        /// Ride Companion (Mount): C->S [15, 11, slot (1B), pet_id (4B)]
-        /// </summary>
         private void Recv11(Player player, RecievePacket p)
         {
             try
@@ -66,10 +192,8 @@ namespace Network.ActionCodes
                 byte slot = p.Unpack8();
                 uint petId = p.Unpack32();
 
-                // Send mount confirmation: S->C [15, 16, slot (1B), char_id (4B), pet_id (4B), 26 zero bytes]
                 SendPacket ridePkt = new SendPacket();
-                ridePkt.PackArray(new byte[] { 15, 16 });
-                ridePkt.Pack8(slot);
+                ridePkt.PackArray(new byte[] { 15, 16, slot });
                 ridePkt.Pack32(player.CharID);
                 ridePkt.Pack32(petId);
                 for (int i = 0; i < 26; i++) ridePkt.Pack8(0);
@@ -85,9 +209,6 @@ namespace Network.ActionCodes
             }
         }
 
-        /// <summary>
-        /// Rest Companion: C->S [15, 12, slot (1B), pet_id (4B)]
-        /// </summary>
         private void Recv12(Player player, RecievePacket p)
         {
             try
@@ -95,7 +216,6 @@ namespace Network.ActionCodes
                 byte slot = p.Unpack8();
                 uint petId = p.Unpack32();
 
-                // Dismount / Rest broadcast
                 SendPacket restPkt = Tools.FromFormat("bbd", 15, 17, player.CharID);
                 player.Send(restPkt);
                 player.CurMap?.Broadcast(restPkt);
@@ -105,147 +225,6 @@ namespace Network.ActionCodes
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC15.Recv12] Error: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Use Raft / Vehicle from inventory: C->S [15, 14, 0x15 (1B), item_id (2B)]
-        /// Toggles mount / dismount with proximity check to nearest shore.
-        /// </summary>
-        private void Recv14(Player player, RecievePacket p)
-        {
-            try
-            {
-                p.Unpack8(); // skip 0x15
-                ushort itemId = p.Unpack16();
-                if (itemId == 0) itemId = 48016;
-
-                // If player is already riding this vehicle -> Dismount toggle!
-                if (player.ActiveVehicleID == itemId || (player.ActiveVehicleID > 0 && (itemId == 48016 || itemId == 48005 || itemId == 48014 || itemId == 48011 || itemId == 48050 || itemId == 36007 || itemId == 36008)))
-                {
-                    bool isNearShore = false;
-                    WarpData shoreWarp = null;
-
-                    if (player.CurMap != null)
-                    {
-                        if (player.CurMap.MapID == 10036)
-                        {
-                            // Distance to beach (1038, 2235)
-                            int dx = (int)player.CurX - 1038;
-                            int dy = (int)player.CurY - 2235;
-                            double dist = Math.Sqrt(dx * dx + dy * dy);
-                            if (dist <= 800 || (player.CurX >= 600 && player.CurX <= 1600 && player.CurY >= 1800 && player.CurY <= 2850))
-                            {
-                                isNearShore = true;
-                                shoreWarp = new WarpData() { DstMap = 10036, DstX_Axis = 1038, DstY_Axis = 2235 };
-                            }
-                        }
-                        else
-                        {
-                            // On other maps, allow dismount if not on water or near shore
-                            isNearShore = true;
-                        }
-                    }
-
-                    if (isNearShore)
-                    {
-                        player.RideVehicle("");
-                        if (shoreWarp != null)
-                        {
-                            player.CurMap.Teleport(TeleportType.CmD, player, 0, shoreWarp);
-                        }
-                        player.SendSystemMessage("🚶 Dismounted from vehicle.");
-                        DebugSystem.Write($"[AC15] Player {player.CharName} dismounted vehicle {itemId} safely.");
-                    }
-                    else
-                    {
-                        player.SendSystemMessage("⚠️ Can't exit here: You are too far from shore to dismount.");
-                        DebugSystem.Write($"[AC15] Player {player.CharName} tried to dismount vehicle {itemId} but is too far from shore (X:{player.CurX}, Y:{player.CurY}).");
-                    }
-                    return;
-                }
-
-                player.UnridePet();
-                player.RideVehicle(itemId.ToString());
-
-                DebugSystem.Write($"[AC15] Player {player.CharName} mounted raft/vehicle ID {itemId}");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv14] Error: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Raft sailing start: C->S [15, 7, 0x15 (1B), item_id (2B)]
-        /// </summary>
-        private void Recv7(Player player, RecievePacket p)
-        {
-            try
-            {
-                p.Unpack8();
-                ushort itemId = p.Unpack16();
-                if (itemId == 0) itemId = 48016;
-
-                player.ActiveVehicleID = itemId;
-
-                DebugSystem.Write($"[AC15] Player {player.CharName} navigating on raft ID {itemId} on Map {player.CurMap?.MapID}");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv7] Error: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Raft break / wreck / dismount: C->S [15, 10, 0x15, item_id (2B)] (PCAP Frame 1058-1059)
-        /// </summary>
-        private void Recv10(Player player, RecievePacket p)
-        {
-            try
-            {
-                p.Unpack8();
-                ushort itemId = p.Unpack16();
-                if (itemId == 0) itemId = 48016;
-
-                bool isNearShore = false;
-                WarpData shoreWarp = null;
-
-                if (player.CurMap != null && player.CurMap.MapID == 10036)
-                {
-                    int dx = (int)player.CurX - 1038;
-                    int dy = (int)player.CurY - 2235;
-                    double dist = Math.Sqrt(dx * dx + dy * dy);
-                    if (dist <= 800 || (player.CurX >= 600 && player.CurX <= 1600 && player.CurY >= 1800 && player.CurY <= 2850))
-                    {
-                        isNearShore = true;
-                        shoreWarp = new WarpData() { DstMap = 10036, DstX_Axis = 1038, DstY_Axis = 2235 };
-                    }
-                }
-                else
-                {
-                    isNearShore = true;
-                }
-
-                if (!isNearShore)
-                {
-                    player.SendSystemMessage("⚠️ Can't exit here: You are too far from shore.");
-                    return;
-                }
-
-                player.ActiveVehicleID = 0;
-                player.RideVehicle("");
-
-                if (shoreWarp != null)
-                {
-                    player.CurMap.Teleport(TeleportType.CmD, player, 0, shoreWarp);
-                }
-
-                DebugSystem.Write($"[AC15.Recv10] Player {player.CharName} dismounted raft ID {itemId} safely.");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv10] Error: {ex.Message}");
             }
         }
     }
