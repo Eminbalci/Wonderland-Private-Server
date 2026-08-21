@@ -1,19 +1,33 @@
-# Gathering Nodes & Respawn System Protocol
+# Gathering Nodes, Chests & Eve.dat Drop Resolution Protocol
 
 ## Overview
-Handles harvestable interactive resources across Wonderland Online maps (e.g., Coconuts, Wooden Crates, Herbs, Ores). Implements the official despawn and respawn synchronization protocol.
+All interactive treasure chests, crates, gathering props, and ground items across all 1,119 maps in Wonderland Online are parsed and executed directly from the native `eve.dat` / `eve.emg` event bytecode engine (`EveEventInterpreter`).
 
-## Protocol Structure
-1. **Node Interaction & Harvest (`EveEventInterpreter.cs`):**
-   - Harvest detection opcode: `DialogPtr == 2 && dialog2 == 2`
-   - Node Despawn packet: `S->C AC 22:10 [ClickID (ushort), 0xFF, 0xFF]` broadcast to all players in current map.
-   - Resource Grant opcode: `DialogPtr == 1 && op.dialog3 >= 10000 && op.dialog1 == 1`
-   - Awards Item (e.g., Coconut Item `#41066`) to `player.Inv`.
-   - Sends notification `AC 23:57` and fanfare SFX `AC 20:10`.
+---
 
-2. **Respawn Cycle (`QuestNpc.cs`):**
-   - Node marked `IsBroken = true` with `RespawnTime = DateTime.Now.AddSeconds(60)`.
-   - Upon timer expiry (`now >= RespawnTime` in `QuestNpc.Update()`):
-     - Sets `IsBroken = false`.
-     - Broadcasts un-hide packet: `S->C AC 22:10 [ClickID (ushort), 0x00, 0x00]`.
-     - Re-enables gathering interaction in `EveEventInterpreter.SelectMatchingBranch()` for all players on the map.
+## 1. Native `eve.dat` Item Drops & Interaction Protocol
+- **Direct Event Resolution**:
+  - `QuestNpc.Interact` invokes `EveEventInterpreter.TryExecute(src, gmap, (ushort)this.CickID)` at top priority.
+  - Matches NPC `ClickID` against `mapData.Npclist` and `mapData.Events` to load the exact subentry.
+- **Opcodes Executed**:
+  1. **`Opcode 1` (Item Grant)**:
+     - Awards authentic item ID (e.g. Map 10036 Chests `#32074`, `#32075`, Crate `#32032`, Coconut `#41066`, Raft `#48016`) and exact count.
+     - Synchronizes player backpack inventory: `AC 23:5`.
+     - Displays authentic obtain notification: `AC 23:57 [0, "Obtain {ItemName}"]`.
+     - Plays fanfare audio effect: `AC 20:10`.
+  2. **`Opcode 2` (Prop Open / Break / Despawn Animation)**:
+     - `dialog2 == 5`: Chest open / prop break animation broadcast to map via `AC 22:1`.
+     - `dialog2 == 2`: Gathering node despawn animation broadcast via `AC 22:10`.
+     - Sets `qn.IsBroken = true` and `qn.RespawnTime = DateTime.Now.AddSeconds(60)`.
+  3. **`Opcode 5` (Quest / Map State Flags)**:
+     - Saves persistent chest/quest state flags in `player.Quests`.
+  4. **Session Release**:
+     - Dispatches `AC 20:8` and `AC 5:4` to release player movement locks.
+
+---
+
+## 2. Empty State & Respawn Mechanics
+- If an opened chest or harvested gathering node is clicked while `IsBroken` is true:
+  - Dispatches `AC 23:57` with remaining respawn duration.
+- When `DateTime.Now >= RespawnTime`:
+  - Resets `IsBroken = false` and broadcasts un-hide packet `AC 22:10 [ClickID, 0, 0]`.

@@ -29,7 +29,7 @@ namespace Game.Maps
                 var mapNpc = map.NpcList?.FirstOrDefault(n => n.CickID == clickId) as QuestNpc;
 
                 // If NPC is a wild/roaming monster, immediately initiate PvE Battle
-                if ((npcEntry != null && npcEntry.npcId >= 17000 && npcEntry.npcId <= 19500) || (mapNpc != null && mapNpc.IsWildMonster()))
+                if ((mapNpc != null && mapNpc.IsWildMonster()) || (npcEntry != null && npcEntry.npcId >= 17000 && npcEntry.npcId <= 17999 && (mapNpc == null || mapNpc.IsWildMonster())))
                 {
                     uint tid = npcEntry != null && npcEntry.npcId > 0 ? (uint)npcEntry.npcId : (mapNpc?.TemplateID ?? 17000);
                     string mName = mapNpc?.Name;
@@ -95,24 +95,24 @@ namespace Game.Maps
                     foreach (var op in sub.SubEntry)
                     {
                         uint talkId24 = 0;
-                        if (op.dialog3 >= 10000 && op.dialog3 <= 65000)
+                        bool isItemOp = (op.DialogPtr == 1 && op.dialog1 == 1 && op.dialog3 >= 10000 && op.dialog3 <= 65000);
+                        bool isAnimOp = (op.DialogPtr == 2 && (op.dialog2 == 5 || op.dialog2 == 2 || op.dialog2 == 3 || op.dialog2 == 4 || op.dialog2 == 8));
+                        bool isChoiceOp = (op.DialogPtr == 2 && op.dialog2 == 6 && sub.unknownbyte1 != 7);
+
+                        if (!isItemOp && !isAnimOp)
                         {
-                            uint highByte = (op.dialog2 > 0 && op.dialog2 < 20) ? (uint)op.dialog2 : (uint)Math.Max(1, sub.subIndex + 1);
-                            talkId24 = (uint)op.dialog3 | (highByte << 16);
-                        }
-                        else if (op.dialog2 >= 10000 && op.dialog2 <= 65000)
-                        {
-                            talkId24 = (uint)op.dialog2 | ((uint)Math.Max(1, (int)op.dialog3) << 16);
-                        }
-                        else if (op.dialog1 > 0 || op.dialog3 > 0)
-                        {
-                            talkId24 = (uint)op.dialog3 | ((uint)op.dialog1 << 8) | ((uint)op.dialog2 << 16);
+                            if (op.dialog3 >= 10000 && op.dialog3 <= 65000)
+                            {
+                                uint highByte = (op.dialog2 > 0 && op.dialog2 < 20) ? (uint)op.dialog2 : (uint)Math.Max(1, sub.subIndex + 1);
+                                talkId24 = (uint)op.dialog3 | (highByte << 16);
+                            }
+                            else if (op.dialog2 >= 10000 && op.dialog2 <= 65000)
+                            {
+                                talkId24 = (uint)op.dialog2 | ((uint)Math.Max(1, (int)op.dialog3) << 16);
+                            }
                         }
 
-                        // A subentry is only a choice prompt when it is the initial prompt (unknownbyte1 != 7) and has branches following it
-                        bool isChoiceOp = (op.DialogPtr == 2 && op.dialog2 == 6 && sub.unknownbyte1 != 7);
-                        bool isItemOp = (op.DialogPtr == 1 && op.dialog1 == 1 && op.dialog3 >= 10000 && op.dialog3 <= 65000);
-                        bool isDialog = (op.DialogPtr == 1 || op.DialogPtr == 2) && !isItemOp && (talkId24 > 0 || isChoiceOp);
+                        bool isDialog = (op.DialogPtr == 1 || op.DialogPtr == 2) && !isItemOp && !isAnimOp && (talkId24 >= 10000 || isChoiceOp);
 
                         if (isDialog)
                         {
@@ -266,6 +266,17 @@ namespace Game.Maps
                             ExecuteOpcode(player, map, clickId, eventEntry, selectedSub, postOp);
                         }
 
+                        // Check if newly updated quest flags activate a follow-up action branch (e.g. Sub #5 companion recruitment / despawn)
+                        EventSubEntry postSub = SelectMatchingBranch(player, map, clickId, eventEntry, excludeSub: selectedSub);
+                        if (postSub != null && postSub.SubEntry != null)
+                        {
+                            DebugSystem.Write($"[EveEventInterpreter] Executing follow-up action branch Sub #{postSub.subIndex} after dialogue completion");
+                            foreach (var actOp in postSub.SubEntry)
+                            {
+                                ExecuteOpcode(player, map, clickId, eventEntry, postSub, actOp);
+                            }
+                        }
+
                         if (!postDialogueOpcodes.Any(o => o.DialogPtr == 6 || o.DialogPtr == 7 || o.DialogPtr == 8 || o.DialogPtr == 9 || o.DialogPtr == 13 || o.DialogPtr == 186))
                         {
                             player.Send(Tools.FromFormat("bb", 20, 8));
@@ -384,26 +395,29 @@ namespace Game.Maps
                 }
             }
 
-            // 3. Fallback: only skip completed branches for chests and one-time props
-            bool isChestOrProp = eventEntry.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5));
-            if (!isChestOrProp)
+            // 3. Fallback: only when excludeSub == null (initial NPC click, not looking for follow-up state transitions)
+            if (excludeSub == null)
             {
-                var generalSub = eventEntry.SubEntry.FirstOrDefault(s => s != excludeSub && s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2));
-                if (generalSub != null) return generalSub;
-            }
-            else
-            {
-                foreach (var sub in eventEntry.SubEntry)
+                bool isChestOrProp = eventEntry.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5));
+                if (!isChestOrProp)
                 {
-                    if (sub == excludeSub || sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
-                    uint questId = sub.unknownword1;
-                    if (questId > 0 && player.Quests != null && player.Quests.TryGetValue(questId, out var pq) && pq.State == QuestState.Completed)
+                    var generalSub = eventEntry.SubEntry.FirstOrDefault(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2));
+                    if (generalSub != null) return generalSub;
+                }
+                else
+                {
+                    foreach (var sub in eventEntry.SubEntry)
                     {
-                        continue;
-                    }
-                    if (sub.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2))
-                    {
-                        return sub;
+                        if (sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
+                        uint questId = sub.unknownword1;
+                        if (questId > 0 && player.Quests != null && player.Quests.TryGetValue(questId, out var pq) && pq.State == QuestState.Completed)
+                        {
+                            continue;
+                        }
+                        if (sub.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2))
+                        {
+                            return sub;
+                        }
                     }
                 }
             }
@@ -433,16 +447,22 @@ namespace Game.Maps
                                 player.Inv.RemoveItem(itemId, consumeCount);
                                 // S->C AC 23:7 [itemId_2B, count_1B, 00, 00, 00]
                                 player.Send(Tools.FromFormat("bbwbbbb", 23, 7, itemId, consumeCount, 0, 0, 0));
+                                player.Send(new SendPacket(player.Inv.GetAC23_5()));
                                 player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
                                 DebugSystem.Write($"[EveEventInterpreter] Consumed Item #{itemId} x{consumeCount} from {player.CharName}");
                             }
-                            else // Item Grant (e.g. 256)
+                            else // Item Grant (e.g. 256, 2048, 3072, 3328)
                             {
                                 player.Inv.AddItem(itemId, count);
-                                string itemName = Game.Battle.MonsterDropManager.ResolveItemName(itemId) ?? $"Item #{itemId}";
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtained {itemName} x{count}!"));
+                                player.Send(new SendPacket(player.Inv.GetAC23_5()));
+                                string itemName = Game.Battle.MonsterDropManager.ResolveItemName(itemId);
+                                if (string.IsNullOrEmpty(itemName) || itemName.StartsWith("Item #"))
+                                {
+                                    itemName = $"Item #{itemId}";
+                                }
+                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
                                 player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
-                                DebugSystem.Write($"[EveEventInterpreter] Granted Item {itemName} (#{itemId}) x{count} to {player.CharName}");
+                                DebugSystem.Write($"[EveEventInterpreter] Granted Item {itemName} (#{itemId}) x{count} directly from eve.dat to {player.CharName}");
                             }
                             return true;
                         }
@@ -484,11 +504,7 @@ namespace Game.Maps
                         if (op.dialog2 == 5)
                         {
                             ushort propClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
-                            SendPacket anim = new SendPacket();
-                            anim.Pack8(22);
-                            anim.Pack8(1);
-                            anim.Pack16(propClickId);
-                            anim.Pack8(1);
+                            SendPacket anim = Tools.FromFormat("bbwb", 22, 1, propClickId, (byte)1);
                             player.Send(anim);
                             map?.Broadcast(anim);
 
@@ -496,6 +512,7 @@ namespace Game.Maps
                             if (qn != null)
                             {
                                 qn.IsBroken = true;
+                                qn.RespawnTime = DateTime.Now.AddSeconds(60);
                             }
 
                             DebugSystem.Write($"[EveEventInterpreter] Prop Break/Open Animation (AC 22:1) for ClickID {propClickId} triggered by {player.CharName}");
@@ -505,8 +522,8 @@ namespace Game.Maps
                         // Gathering Node Despawn Animation: dialog2 == 2 (e.g. Coconut, Wood, Ore)
                         if (op.dialog2 == 2)
                         {
-                            byte propClickId = (byte)(op.dialog1 > 0 ? op.dialog1 : clickId);
-                            SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, (ushort)propClickId, 0xFF, 0xFF);
+                            ushort propClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
+                            SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, propClickId, (byte)0xFF, (byte)0xFF);
                             player.Send(anim);
                             map?.Broadcast(anim);
 
@@ -529,7 +546,7 @@ namespace Game.Maps
                             else if (op.dialog2 >= 10000 && op.dialog2 <= 65000)
                                 talkId24 = (uint)op.dialog2;
 
-                            if (talkId24 == 0) return true; // Not a real text dialogue, avoid sending blank dialogs!
+                            if (talkId24 < 10000) return true; // Not a real text dialogue, avoid sending blank dialogs!
 
                             byte portrait = (byte)(op.dialog1 > 0 ? op.dialog1 : 3);
                             SendPacket dPkt = new SendPacket();
@@ -563,9 +580,10 @@ namespace Game.Maps
                         if (op.dialog2 > 0)
                         {
                             uint companionId = op.dialog2;
-                            QuestManager.SendCompanionReward(player, companionId, $"Companion #{companionId}");
-                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Companion #{companionId} has joined your party!"));
-                            DebugSystem.Write($"[EveEventInterpreter] Recruited Companion Pet #{companionId} for {player.CharName}");
+                            string petName = companionId == 12178 ? "Robinson" : (Game.Battle.PvEBattleManager.ResolveMonsterName(companionId) ?? $"Companion #{companionId}");
+                            QuestManager.SendCompanionReward(player, companionId, petName);
+                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{petName} has joined your party!"));
+                            DebugSystem.Write($"[EveEventInterpreter] Recruited Companion Pet {petName} (#{companionId}) for {player.CharName}");
                             return true;
                         }
                         break;
@@ -575,8 +593,8 @@ namespace Game.Maps
                         if (op.dialog1 > 0)
                         {
                             uint questId = op.dialog1;
-                            byte step = (byte)Math.Max(1, (int)(op.dialog4 >> 8 > 0 ? op.dialog4 >> 8 : op.dialog2));
-                            QuestState state = (op.dialog2 == 2 || step >= 250 || op.dialog4 == 256) ? QuestState.Completed : QuestState.InProgress;
+                            byte step = (byte)Math.Max(1, (int)(op.dialog3 > 0 ? op.dialog3 : (op.dialog4 >> 8 > 0 ? op.dialog4 >> 8 : 1)));
+                            QuestState state = (op.dialog2 == 2 || op.dialog2 == 3 || step >= 250) ? QuestState.Completed : QuestState.InProgress;
 
                             if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
 

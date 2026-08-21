@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Game;
 using Game.Maps;
+using Game.QuestRelated;
 using Network;
 
 namespace Game.Battle
@@ -29,20 +30,152 @@ namespace Game.Battle
         public bool IsCaptured { get; set; } = false;
     }
 
+    public enum BattleFighterType : byte
+    {
+        Player = 2,
+        Pet = 4,
+        Monster = 7
+    }
+
+    public enum BattleTeamSide : byte
+    {
+        Attacker = 1, // Right side (GridX = 4 for players, GridX = 3 for pets)
+        Defender = 2  // Left side (GridX = 1 for players/monsters, GridX = 2 for pets/frontline)
+    }
+
+    public class BattleFighter
+    {
+        public BattleTeamSide Side { get; set; } = BattleTeamSide.Attacker;
+        public BattleFighterType FighterType { get; set; } = BattleFighterType.Player;
+        public Player PlayerRef { get; set; }
+        public Player.PlayerPetData PetRef { get; set; }
+        public BattleMonster MonsterRef { get; set; }
+
+        public uint ID { get; set; }
+        public ushort ClickID { get; set; }
+        public uint OwnerID { get; set; } // CharID for pets, 0 for players/monsters
+        public string Name { get; set; }
+        public byte Level { get; set; } = 1;
+        public byte Element { get; set; } = 0;
+        public int MaxHP { get; set; } = 100;
+        public int CurHP { get; set; } = 100;
+        public int MaxSP { get; set; } = 50;
+        public int CurSP { get; set; } = 50;
+        public int Atk { get; set; } = 10;
+        public int Def { get; set; } = 10;
+        public int Spd { get; set; } = 10;
+
+        public byte GridX { get; set; }
+        public byte GridY { get; set; }
+
+        public bool IsDead => CurHP <= 0;
+        public bool IsCaptured { get; set; } = false;
+    }
+
     public class ActiveBattle
     {
-        public Player Player { get; set; }
-        public List<BattleMonster> Monsters { get; set; } = new List<BattleMonster>();
+        public List<Player> AttackingPlayers { get; set; } = new List<Player>();
+        public List<Player> DefendingPlayers { get; set; } = new List<Player>();
 
-        public Player.PlayerPetData BattlePet { get; set; }
-        public byte PetGridX { get; set; } = 3;
-        public byte PetGridY { get; set; } = 2;
-        public int PetHP { get; set; } = 0;
-        public int PetSP { get; set; } = 0;
-        public bool HasPet => BattlePet != null && PetHP > 0;
+        public List<BattleFighter> Attackers { get; set; } = new List<BattleFighter>();
+        public List<BattleFighter> Defenders { get; set; } = new List<BattleFighter>();
 
+        public IEnumerable<Player> AllPlayers => AttackingPlayers.Concat(DefendingPlayers).Where(p => p != null).Distinct();
+
+        public bool IsPvP => DefendingPlayers != null && DefendingPlayers.Count > 0;
+        public bool IsRandomEncounter { get; set; } = false;
+        public bool IsFinished { get; set; } = false;
+        public int Turn { get; set; } = 0;
+
+        // Backward compatibility properties
+        public Player LeaderPlayer => AttackingPlayers.FirstOrDefault();
+        public Player Player
+        {
+            get => AttackingPlayers.FirstOrDefault();
+            set
+            {
+                if (value != null && !AttackingPlayers.Contains(value))
+                    AttackingPlayers.Insert(0, value);
+            }
+        }
+
+        public List<BattleMonster> Monsters
+        {
+            get => Defenders.Where(d => d.MonsterRef != null).Select(d => d.MonsterRef).ToList();
+            set
+            {
+                if (value != null)
+                {
+                    foreach (var m in value)
+                    {
+                        if (!Defenders.Any(d => d.MonsterRef == m))
+                        {
+                            Defenders.Add(new BattleFighter
+                            {
+                                Side = BattleTeamSide.Defender,
+                                FighterType = BattleFighterType.Monster,
+                                MonsterRef = m,
+                                ID = m.MonsterId,
+                                ClickID = m.ClickId,
+                                Name = m.MonsterName,
+                                Level = (byte)Math.Min(255, m.MonsterLevel),
+                                Element = (byte)m.MonsterElement,
+                                MaxHP = m.MonsterMaxHP,
+                                CurHP = m.MonsterHP,
+                                MaxSP = m.MonsterMaxSP,
+                                CurSP = m.MonsterSP,
+                                Atk = m.MonsterAtk,
+                                Def = m.MonsterDef,
+                                Spd = m.MonsterSpd,
+                                GridX = m.GridX,
+                                GridY = m.GridY
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        public Player.PlayerPetData BattlePet
+        {
+            get => Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID)?.PetRef;
+            set
+            {
+                if (value != null && Player != null)
+                {
+                    var existing = Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player.CharID);
+                    if (existing != null) existing.PetRef = value;
+                }
+            }
+        }
+
+        public byte PlayerGridX => Attackers.FirstOrDefault(a => a.PlayerRef == Player)?.GridX ?? 4;
+        public byte PlayerGridY => Attackers.FirstOrDefault(a => a.PlayerRef == Player)?.GridY ?? 2;
+        public byte PetGridX => Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID)?.GridX ?? 3;
+        public byte PetGridY => Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID)?.GridY ?? 2;
+
+        public int PetHP
+        {
+            get => Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID)?.CurHP ?? 0;
+            set
+            {
+                var f = Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID);
+                if (f != null) { f.CurHP = value; if (f.PetRef != null) f.PetRef.HP = value; }
+            }
+        }
+
+        public int PetSP
+        {
+            get => Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID)?.CurSP ?? 0;
+            set
+            {
+                var f = Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == Player?.CharID);
+                if (f != null) { f.CurSP = value; if (f.PetRef != null) f.PetRef.SP = value; }
+            }
+        }
+
+        public bool HasPet => Attackers.Any(a => a.PetRef != null && a.OwnerID == Player?.CharID && !a.IsDead);
         public BattleMonster PrimaryMonster => Monsters.FirstOrDefault(m => !m.IsDead) ?? Monsters.FirstOrDefault();
-
         public uint MonsterId { get => PrimaryMonster?.MonsterId ?? 0; set { if (PrimaryMonster != null) PrimaryMonster.MonsterId = value; } }
         public string MonsterName { get => PrimaryMonster?.MonsterName ?? "Monster"; set { if (PrimaryMonster != null) PrimaryMonster.MonsterName = value; } }
         public int MonsterLevel { get => PrimaryMonster?.MonsterLevel ?? 1; set { if (PrimaryMonster != null) PrimaryMonster.MonsterLevel = value; } }
@@ -55,15 +188,8 @@ namespace Game.Battle
         public int MonsterDef { get => PrimaryMonster?.MonsterDef ?? 10; set { if (PrimaryMonster != null) PrimaryMonster.MonsterDef = value; } }
         public int MonsterSpd { get => PrimaryMonster?.MonsterSpd ?? 10; set { if (PrimaryMonster != null) PrimaryMonster.MonsterSpd = value; } }
         public ushort ClickId { get => PrimaryMonster?.ClickId ?? 0; set { if (PrimaryMonster != null) PrimaryMonster.ClickId = value; } }
-
-        public byte PlayerGridX { get; set; } = 4;
-        public byte PlayerGridY { get; set; } = 2;
         public byte MonsterGridX { get => PrimaryMonster?.GridX ?? 2; set { if (PrimaryMonster != null) PrimaryMonster.GridX = value; } }
         public byte MonsterGridY { get => PrimaryMonster?.GridY ?? 2; set { if (PrimaryMonster != null) PrimaryMonster.GridY = value; } }
-
-        public int Turn { get; set; } = 0;
-        public bool IsFinished { get; set; } = false;
-        public bool IsRandomEncounter { get; set; } = false;
     }
 
     public static class PvEBattleManager
@@ -72,8 +198,50 @@ namespace Game.Battle
         private static readonly object _lock = new object();
         private static readonly Random _rng = new Random();
 
-        // WLO Enemy Formation Grid Positions (Front row & Back row)
-        private static readonly byte[][] EnemyGridSlots = new byte[][]
+        // WLO Player/Attacking Team Grid Positions:
+        // Slot 0 (Leader): Player (4, 2), Pet (3, 2)
+        // Slot 1 (Member 1): Player (4, 3), Pet (3, 3)
+        // Slot 2 (Member 2): Player (4, 1), Pet (3, 1)
+        // Slot 3 (Member 3): Player (4, 4), Pet (3, 4)
+        public static readonly byte[][] AttackerPlayerGridSlots = new byte[][]
+        {
+            new byte[] { 4, 2 },
+            new byte[] { 4, 3 },
+            new byte[] { 4, 1 },
+            new byte[] { 4, 4 }
+        };
+
+        public static readonly byte[][] AttackerPetGridSlots = new byte[][]
+        {
+            new byte[] { 3, 2 },
+            new byte[] { 3, 3 },
+            new byte[] { 3, 1 },
+            new byte[] { 3, 4 }
+        };
+
+        // WLO Defending PvP Team Grid Positions:
+        // Slot 0 (Leader): Player (1, 2), Pet (2, 2)
+        // Slot 1 (Member 1): Player (1, 3), Pet (2, 3)
+        // Slot 2 (Member 2): Player (1, 1), Pet (2, 1)
+        // Slot 3 (Member 3): Player (1, 4), Pet (2, 4)
+        public static readonly byte[][] DefenderPlayerGridSlots = new byte[][]
+        {
+            new byte[] { 1, 2 },
+            new byte[] { 1, 3 },
+            new byte[] { 1, 1 },
+            new byte[] { 1, 4 }
+        };
+
+        public static readonly byte[][] DefenderPetGridSlots = new byte[][]
+        {
+            new byte[] { 2, 2 },
+            new byte[] { 2, 3 },
+            new byte[] { 2, 1 },
+            new byte[] { 2, 4 }
+        };
+
+        // WLO Enemy PvE Formation Grid Positions (Front row & Back row)
+        public static readonly byte[][] EnemyGridSlots = new byte[][]
         {
             new byte[] { 2, 2 }, // Front Center
             new byte[] { 2, 3 }, // Front Right
@@ -103,6 +271,44 @@ namespace Game.Battle
                     return b;
                 return null;
             }
+        }
+
+        public static List<Player> GetTeamMembers(Player leader)
+        {
+            if (leader == null) return new List<Player>();
+            if (leader.m_teammembers != null && leader.m_teammembers.Count > 0)
+            {
+                return leader.m_teammembers
+                    .Where(p => p != null && p.CurMap == leader.CurMap)
+                    .Take(4)
+                    .ToList();
+            }
+            return new List<Player> { leader };
+        }
+
+        public static Player.PlayerPetData GetActivePet(Player p)
+        {
+            if (p == null || p.PlayerPets == null || p.PlayerPets.Count == 0) return null;
+            var pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
+            if (pet == null && p.ActivePetID > 0)
+            {
+                pet = p.PlayerPets.Values.FirstOrDefault(x => x.PetID == p.ActivePetID && x.HP > 0);
+            }
+            if (pet == null)
+            {
+                pet = p.PlayerPets.Values.FirstOrDefault(x => x.HP > 0);
+            }
+            if (pet == null)
+            {
+                pet = p.PlayerPets.Values.FirstOrDefault();
+            }
+            if (pet != null)
+            {
+                if (pet.HP <= 0) pet.HP = Math.Max(50, pet.MaxHP);
+                if (pet.SP <= 0) pet.SP = Math.Max(20, pet.MaxSP);
+                pet.IsBattle = true;
+            }
+            return pet;
         }
 
         public static string ResolveMonsterName(uint templateId)
@@ -167,7 +373,6 @@ namespace Game.Battle
             if (IsSafeTownMap(mapId))
                 return;
 
-            // Find wild mob templates that exist on this map
             var candidateMobs = map.NpcList?
                 .OfType<QuestNpc>()
                 .Where(n => n.IsWildMonster())
@@ -191,11 +396,10 @@ namespace Game.Battle
                 if (_activeBattles.ContainsKey(player.CharID)) return;
             }
 
-            // Group size: 1 to 4 monsters
             int monsterCount = QuestNpc.NextRandom(1, 5);
             ActiveBattle battle = new ActiveBattle
             {
-                Player = player,
+                AttackingPlayers = GetTeamMembers(player),
                 IsRandomEncounter = true
             };
 
@@ -205,7 +409,6 @@ namespace Game.Battle
 
             for (int i = 0; i < monsterCount; i++)
             {
-                // Slight level variance (+/- 1) for multi-mob pack realism
                 int varLv = Math.Max(1, baseLevel + QuestNpc.NextRandom(-1, 2));
                 int varHp = (int)(baseHp * (0.9 + (QuestNpc.NextRandom(0, 20) / 100.0)));
                 int varSp = varLv * 20 + 50;
@@ -231,13 +434,8 @@ namespace Game.Battle
                 battle.Monsters.Add(bm);
             }
 
-            lock (_lock)
-            {
-                _activeBattles[player.CharID] = battle;
-            }
-
-            DebugSystem.Write($"[PvEBattle] Proximity Encounter triggered for {player.CharName} near {triggerMob.Name} on Map {map.MapID}: {battle.Monsters.Count} monsters spawned in formation!");
-            InitializeAndStartBattle(player, battle);
+            DebugSystem.Write($"[PvEBattle] Proximity Encounter triggered for {player.CharName} ({battle.AttackingPlayers.Count} team members) near {triggerMob.Name} on Map {map.MapID}: {battle.Monsters.Count} monsters spawned!");
+            InitializeAndStartBattle(battle);
         }
 
         private static void StartRandomEncounterFromPool(Player player, GameMap map, List<QuestNpc> pool)
@@ -252,7 +450,7 @@ namespace Game.Battle
             int monsterCount = QuestNpc.NextRandom(1, 5); // 1 to 4 monsters
             ActiveBattle battle = new ActiveBattle
             {
-                Player = player,
+                AttackingPlayers = GetTeamMembers(player),
                 IsRandomEncounter = true
             };
 
@@ -284,64 +482,8 @@ namespace Game.Battle
                 battle.Monsters.Add(bm);
             }
 
-            lock (_lock)
-            {
-                _activeBattles[player.CharID] = battle;
-            }
-
-            DebugSystem.Write($"[PvEBattle] Random Encounter triggered for {player.CharName} on Map {map.MapID}: {battle.Monsters.Count} monsters spawned in formation!");
-            InitializeAndStartBattle(player, battle);
-        }
-
-        private static void StartRandomEncounter(Player player, GameMap map, uint fallbackTid, string fallbackName, int fallbackLv)
-        {
-            if (player == null) return;
-
-            lock (_lock)
-            {
-                if (_activeBattles.ContainsKey(player.CharID)) return;
-            }
-
-            int monsterCount = QuestNpc.NextRandom(1, 3); // 1 to 2 monsters
-            ActiveBattle battle = new ActiveBattle
-            {
-                Player = player,
-                IsRandomEncounter = true
-            };
-
-            for (int i = 0; i < monsterCount; i++)
-            {
-                int monHP = fallbackLv * 30 + 100;
-                int monSP = fallbackLv * 20 + 50;
-
-                BattleMonster bm = new BattleMonster
-                {
-                    MonsterId = fallbackTid,
-                    MonsterName = fallbackName,
-                    MonsterLevel = fallbackLv,
-                    MonsterMaxHP = monHP,
-                    MonsterHP = monHP,
-                    MonsterMaxSP = monSP,
-                    MonsterSP = monSP,
-                    MonsterElement = 0,
-                    MonsterAtk = (int)Math.Round(fallbackLv * 1.5 + 5),
-                    MonsterDef = (int)Math.Round(fallbackLv * 1.2 + 3),
-                    MonsterSpd = (int)Math.Round(fallbackLv * 1.3 + 4),
-                    ClickId = (ushort)(2000 + i),
-                    GridX = EnemyGridSlots[i % EnemyGridSlots.Length][0],
-                    GridY = EnemyGridSlots[i % EnemyGridSlots.Length][1]
-                };
-
-                battle.Monsters.Add(bm);
-            }
-
-            lock (_lock)
-            {
-                _activeBattles[player.CharID] = battle;
-            }
-
-            DebugSystem.Write($"[PvEBattle] Random Encounter triggered for {player.CharName} on Map {map.MapID} ({battle.Monsters.Count}x {fallbackName})");
-            InitializeAndStartBattle(player, battle);
+            DebugSystem.Write($"[PvEBattle] Random Encounter triggered for {player.CharName} ({battle.AttackingPlayers.Count} team members) on Map {map.MapID}: {battle.Monsters.Count} monsters spawned in formation!");
+            InitializeAndStartBattle(battle);
         }
 
         public static void StartPvEBattle(Player player, ushort clickId, string monsterName, int npcLv = 10, int npcHp = 250, uint monsterTid = 11066)
@@ -364,7 +506,7 @@ namespace Game.Battle
 
             ActiveBattle battle = new ActiveBattle
             {
-                Player = player
+                AttackingPlayers = GetTeamMembers(player)
             };
 
             battle.Monsters.Add(new BattleMonster
@@ -385,13 +527,8 @@ namespace Game.Battle
                 GridY = 2
             });
 
-            lock (_lock)
-            {
-                _activeBattles[player.CharID] = battle;
-            }
-
-            DebugSystem.Write($"[PvEBattle] Starting Quest PvE battle for {player.CharName} vs {monsterName} (Lv: {npcLv}, HP: {npcHp})");
-            InitializeAndStartBattle(player, battle);
+            DebugSystem.Write($"[PvEBattle] Starting Quest PvE battle for {player.CharName} ({battle.AttackingPlayers.Count} team members) vs {monsterName} (Lv: {npcLv}, HP: {npcHp})");
+            InitializeAndStartBattle(battle);
         }
 
         public static void StartBattle(Player player, ushort clickId, uint targetNpcId)
@@ -407,12 +544,10 @@ namespace Game.Battle
                 }
             }
 
-            // Normalize clickId if high-byte swapped
             ushort realClickId = clickId;
             if (clickId > 255 && (clickId & 0xFF) == 0)
                 realClickId = (ushort)(clickId >> 8);
 
-            // Resolve authentic monster info from map NPC or GameDataBase
             uint realMonsterTID = targetNpcId;
             string monName = "Monster";
             int monLevel = 1;
@@ -437,7 +572,6 @@ namespace Game.Battle
             }
             else
             {
-                // Fallback database lookup
                 ushort mapId = (player.CurMap != null) ? (ushort)player.CurMap.MapID : (ushort)10017;
                 var dbInfo = DataBase.GameDataBase.GlobalInstance != null
                     ? DataBase.GameDataBase.GlobalInstance.ResolveNpcInfo(mapId, (byte)realClickId, (ushort)(targetNpcId & 0xFFFF))
@@ -465,10 +599,9 @@ namespace Game.Battle
 
             ActiveBattle battle = new ActiveBattle
             {
-                Player = player
+                AttackingPlayers = GetTeamMembers(player)
             };
 
-            // Main clicked monster at front-center (2, 2)
             battle.Monsters.Add(new BattleMonster
             {
                 MonsterId = realMonsterTID,
@@ -487,7 +620,6 @@ namespace Game.Battle
                 GridY = 2
             });
 
-            // Randomly add 0 to 2 companion monsters of similar level if wandering mob encounter
             if (realMonsterTID >= 16000 && realMonsterTID <= 19200)
             {
                 int companionCount = QuestNpc.NextRandom(0, 3);
@@ -513,143 +645,271 @@ namespace Game.Battle
                 }
             }
 
-            lock (_lock)
-            {
-                _activeBattles[player.CharID] = battle;
-            }
-
-            DebugSystem.Write($"[PvEBattle] Starting PvE battle for {player.CharName} vs {battle.MonsterName} ({battle.Monsters.Count} mobs, TID: {realMonsterTID}, ClickID: {realClickId})");
-            InitializeAndStartBattle(player, battle);
+            DebugSystem.Write($"[PvEBattle] Starting PvE battle for {player.CharName} ({battle.AttackingPlayers.Count} team members) vs {battle.MonsterName} ({battle.Monsters.Count} mobs, TID: {realMonsterTID}, ClickID: {realClickId})");
+            InitializeAndStartBattle(battle);
         }
 
-        private static void InitializeAndStartBattle(Player player, ActiveBattle battle)
+        public static void StartPvPBattle(Player attacker, Player defender)
         {
-            // 0. Detect active battle pet for player
-            Player.PlayerPetData activePet = null;
-            if (player.PlayerPets != null && player.PlayerPets.Count > 0)
+            if (attacker == null || defender == null) return;
+
+            lock (_lock)
             {
-                activePet = player.PlayerPets.Values.FirstOrDefault(p => p.IsBattle);
-                if (activePet == null && player.ActivePetID > 0)
+                if (_activeBattles.ContainsKey(attacker.CharID) || _activeBattles.ContainsKey(defender.CharID))
                 {
-                    activePet = player.PlayerPets.Values.FirstOrDefault(p => p.PetID == player.ActivePetID);
-                }
-                if (activePet == null)
-                {
-                    activePet = player.PlayerPets.Values.FirstOrDefault();
+                    DebugSystem.Write($"[PvPBattle] One or both players are already in battle.");
+                    return;
                 }
             }
 
-            if (activePet != null)
+            ActiveBattle battle = new ActiveBattle
             {
-                if (activePet.HP <= 0) activePet.HP = Math.Max(50, activePet.MaxHP);
-                if (activePet.SP <= 0) activePet.SP = Math.Max(20, activePet.MaxSP);
-                activePet.IsBattle = true;
+                AttackingPlayers = GetTeamMembers(attacker),
+                DefendingPlayers = GetTeamMembers(defender)
+            };
 
-                battle.BattlePet = activePet;
-                battle.PetHP = activePet.HP;
-                battle.PetSP = activePet.SP;
-                battle.PetGridX = 3;
-                battle.PetGridY = 2;
-                DebugSystem.Write($"[PvEBattle] Player {player.CharName} entered battle with companion '{activePet.PetName}' (ID: {activePet.PetID}, Lv: {activePet.Level}, HP: {battle.PetHP}) at Grid (3, 2).");
+            DebugSystem.Write($"[PvPBattle] Starting Team PvP Battle: Team {attacker.CharName} ({battle.AttackingPlayers.Count} players) VS Team {defender.CharName} ({battle.DefendingPlayers.Count} players) on Map {attacker.CurMap?.MapID}!");
+            InitializeAndStartBattle(battle);
+        }
+
+        private static void BuildFighters(ActiveBattle battle)
+        {
+            battle.Attackers.Clear();
+
+            // 1. Build Attacking Team (Right side)
+            for (int i = 0; i < battle.AttackingPlayers.Count && i < AttackerPlayerGridSlots.Length; i++)
+            {
+                Player p = battle.AttackingPlayers[i];
+                if (p == null) continue;
+
+                battle.Attackers.Add(new BattleFighter
+                {
+                    Side = BattleTeamSide.Attacker,
+                    FighterType = BattleFighterType.Player,
+                    PlayerRef = p,
+                    ID = p.CharID,
+                    Name = p.CharName,
+                    Level = p.Eqs?.Level ?? 1,
+                    Element = (byte)(p.Eqs?.Element ?? 0),
+                    MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
+                    CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
+                    MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
+                    CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
+                    Atk = p.Eqs?.FullAtk ?? 20,
+                    Def = p.Eqs?.FullDef ?? 10,
+                    Spd = p.Eqs?.FullSpd ?? 10,
+                    GridX = AttackerPlayerGridSlots[i][0],
+                    GridY = AttackerPlayerGridSlots[i][1]
+                });
+
+                // Check active battle pet for this player
+                var pet = GetActivePet(p);
+                if (pet != null)
+                {
+                    battle.Attackers.Add(new BattleFighter
+                    {
+                        Side = BattleTeamSide.Attacker,
+                        FighterType = BattleFighterType.Pet,
+                        PetRef = pet,
+                        OwnerID = p.CharID,
+                        ID = pet.PetID,
+                        Name = pet.PetName ?? "Pet",
+                        Level = pet.Level,
+                        Element = 0,
+                        MaxHP = Math.Max(1, pet.MaxHP),
+                        CurHP = Math.Max(1, pet.HP),
+                        MaxSP = Math.Max(0, pet.MaxSP),
+                        CurSP = Math.Max(0, pet.SP),
+                        Atk = Math.Max(15, (int)(pet.Level * 3 + pet.Str * 2)),
+                        Def = Math.Max(10, (int)(pet.Level * 2 + pet.Con * 2)),
+                        Spd = Math.Max(10, (int)(pet.Level * 2 + pet.Agi * 2)),
+                        GridX = AttackerPetGridSlots[i][0],
+                        GridY = AttackerPetGridSlots[i][1]
+                    });
+                }
             }
 
-            // 1. AC 20:12 (battle mode enter)
-            player.Send(Tools.FromFormat("bb", 20, 12));
-
-            // 2. AC 6:2 [01] (mode change signal)
-            player.Send(Tools.FromFormat("bbb", 6, 2, 1));
-
-            // 3. AC 11:250 (Player battle entity)
-            ushort bgId = (player.CurMap != null && player.CurMap.MapID < 10000) ? (ushort)player.CurMap.MapID : (ushort)1;
-            SendPacket p250 = new SendPacket();
-            p250.PackArray(new byte[] { 11, 250 });
-            p250.Pack16(bgId);
-            p250.Pack8(1); // role = 1
-            p250.Pack8(2); // ftype = 2 (player)
-            p250.Pack32(player.CharID);
-            p250.Pack16(0); // click_id
-            p250.Pack32(0); // owner_id
-            p250.Pack8(battle.PlayerGridX); // grid x = 4
-            p250.Pack8(battle.PlayerGridY); // grid y = 2
-            p250.Pack32((uint)Math.Max(1, player.Eqs.FullHP));
-            p250.Pack16((ushort)Math.Min(0xFFFF, Math.Max(1, player.Eqs.FullSP)));
-            p250.Pack32((uint)Math.Max(1, player.Eqs.CurHP));
-            p250.Pack16((ushort)Math.Min(0xFFFF, Math.Max(0, player.Eqs.CurSP)));
-            p250.Pack8(player.Eqs.Level);
-            p250.Pack8((byte)player.Eqs.Element);
-            p250.Pack8(0); // reborn
-            p250.Pack8(0); // job
-            p250.Pack16(0); // trailing pad
-            player.Send(p250);
-
-            // 4. AC 11:10 [01] (combat start signal)
-            player.Send(Tools.FromFormat("bbb", 11, 10, 1));
-
-            // 5. AC 11:5 (Spawn Pet Companion entity if present)
-            if (battle.HasPet)
+            // 2. Build Defending Team (Left side)
+            if (battle.IsPvP)
             {
-                SendPacket pPet = new SendPacket();
-                pPet.PackArray(new byte[] { 11, 5 });
-                pPet.Pack8(1); // role = 1 (player friendly side)
-                pPet.Pack8(4); // ftype = 4 (pet / companion)
-                pPet.Pack32(battle.BattlePet.PetID);
-                pPet.Pack16(0); // click_id
-                pPet.Pack32(player.CharID); // owner_id = player.CharID
-                pPet.Pack8(battle.PetGridX); // grid x = 3
-                pPet.Pack8(battle.PetGridY); // grid y = 2
-                pPet.Pack32((uint)Math.Max(1, battle.BattlePet.MaxHP));
-                pPet.Pack16((ushort)Math.Min(0xFFFF, Math.Max(1, battle.BattlePet.MaxSP)));
-                pPet.Pack32((uint)Math.Max(1, battle.PetHP));
-                pPet.Pack16((ushort)Math.Min(0xFFFF, Math.Max(0, battle.PetSP)));
-                pPet.Pack8(battle.BattlePet.Level);
-                pPet.Pack8(0); // element
-                pPet.Pack8(0); // reborn
-                pPet.Pack8(0); // job
-                pPet.Pack16(0); // trailing pad
-                player.Send(pPet);
+                battle.Defenders.Clear();
+                for (int i = 0; i < battle.DefendingPlayers.Count && i < DefenderPlayerGridSlots.Length; i++)
+                {
+                    Player p = battle.DefendingPlayers[i];
+                    if (p == null) continue;
+
+                    battle.Defenders.Add(new BattleFighter
+                    {
+                        Side = BattleTeamSide.Defender,
+                        FighterType = BattleFighterType.Player,
+                        PlayerRef = p,
+                        ID = p.CharID,
+                        Name = p.CharName,
+                        Level = p.Eqs?.Level ?? 1,
+                        Element = (byte)(p.Eqs?.Element ?? 0),
+                        MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
+                        CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
+                        MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
+                        CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
+                        Atk = p.Eqs?.FullAtk ?? 20,
+                        Def = p.Eqs?.FullDef ?? 10,
+                        Spd = p.Eqs?.FullSpd ?? 10,
+                        GridX = DefenderPlayerGridSlots[i][0],
+                        GridY = DefenderPlayerGridSlots[i][1]
+                    });
+
+                    var pet = GetActivePet(p);
+                    if (pet != null)
+                    {
+                        battle.Defenders.Add(new BattleFighter
+                        {
+                            Side = BattleTeamSide.Defender,
+                            FighterType = BattleFighterType.Pet,
+                            PetRef = pet,
+                            OwnerID = p.CharID,
+                            ID = pet.PetID,
+                            Name = pet.PetName ?? "Pet",
+                            Level = pet.Level,
+                            Element = 0,
+                            MaxHP = Math.Max(1, pet.MaxHP),
+                            CurHP = Math.Max(1, pet.HP),
+                            MaxSP = Math.Max(0, pet.MaxSP),
+                            CurSP = Math.Max(0, pet.SP),
+                            Atk = Math.Max(15, (int)(pet.Level * 3 + pet.Str * 2)),
+                            Def = Math.Max(10, (int)(pet.Level * 2 + pet.Con * 2)),
+                            Spd = Math.Max(10, (int)(pet.Level * 2 + pet.Agi * 2)),
+                            GridX = DefenderPetGridSlots[i][0],
+                            GridY = DefenderPetGridSlots[i][1]
+                        });
+                    }
+                }
+            }
+        }
+
+        private static void InitializeAndStartBattle(ActiveBattle battle)
+        {
+            if (battle == null) return;
+
+            BuildFighters(battle);
+
+            lock (_lock)
+            {
+                foreach (var p in battle.AllPlayers)
+                {
+                    _activeBattles[p.CharID] = battle;
+                }
             }
 
-            // 6. AC 11:5 (Spawn each monster entity in formation)
-            foreach (var monster in battle.Monsters)
-            {
-                SendPacket p5 = new SendPacket();
-                p5.PackArray(new byte[] { 11, 5 });
-                p5.Pack8(1); // role = 1
-                p5.Pack8(7); // ftype = 7 (monster)
-                p5.Pack32((uint)monster.MonsterId);
-                p5.Pack16(monster.ClickId);
-                p5.Pack32(0); // owner_id
-                p5.Pack8(monster.GridX);
-                p5.Pack8(monster.GridY);
-                p5.Pack32((uint)monster.MonsterMaxHP);
-                p5.Pack16((ushort)Math.Min(0xFFFF, monster.MonsterMaxSP));
-                p5.Pack32((uint)monster.MonsterHP);
-                p5.Pack16((ushort)Math.Min(0xFFFF, monster.MonsterSP));
-                p5.Pack8((byte)Math.Min(255, monster.MonsterLevel));
-                p5.Pack8((byte)monster.MonsterElement);
-                p5.Pack8(0); // reborn
-                p5.Pack8(0); // job
-                p5.Pack16(0); // trailing pad
-                player.Send(p5);
-            }
+            var leader = battle.LeaderPlayer;
+            ushort bgId = (leader?.CurMap != null && leader.CurMap.MapID < 10000) ? (ushort)leader.CurMap.MapID : (ushort)1;
 
-            // 7. AC 51:1 Sync HP/SP for player, pet, and all monsters
-            SendStatSync(player, battle.PlayerGridX, battle.PlayerGridY, 0x19, (uint)player.Eqs.CurHP);
-            SendStatSync(player, battle.PlayerGridX, battle.PlayerGridY, 0x1a, (uint)player.Eqs.CurSP);
-            if (battle.HasPet)
+            // Initialize combat state for each participating player
+            foreach (var p in battle.AllPlayers)
             {
-                SendStatSync(player, battle.PetGridX, battle.PetGridY, 0x19, (uint)battle.PetHP);
-                SendStatSync(player, battle.PetGridX, battle.PetGridY, 0x1a, (uint)battle.PetSP);
-            }
-            foreach (var monster in battle.Monsters)
-            {
-                SendStatSync(player, monster.GridX, monster.GridY, 0x19, (uint)monster.MonsterMaxHP);
-                SendStatSync(player, monster.GridX, monster.GridY, 0x1a, (uint)monster.MonsterMaxSP);
-            }
+                bool isAttacker = battle.AttackingPlayers.Contains(p);
+                var friendlyFighters = isAttacker ? battle.Attackers : battle.Defenders;
+                var friendlyPlayers = friendlyFighters.Where(f => f.FighterType == BattleFighterType.Player).ToList();
+                var friendlyPets = friendlyFighters.Where(f => f.FighterType == BattleFighterType.Pet).ToList();
+                var enemyFighters = isAttacker ? battle.Defenders : battle.Attackers;
 
-            // 8. AC 50:6 & AC 52:1 Start Round & Open Action UI
-            player.Send(Tools.FromFormat("bbbbb", 50, 6, battle.PlayerGridX, battle.PlayerGridY, 0));
-            player.Send(Tools.FromFormat("bb", 52, 1));
+                // 1. AC 20:12 (battle mode enter)
+                p.Send(Tools.FromFormat("bb", 20, 12));
+
+                // 2. AC 6:2 [01] (mode change signal)
+                p.Send(Tools.FromFormat("bbb", 6, 2, 1));
+
+                // 3. AC 11:250 (Prepare Battle: Pack friendly human players)
+                SendPacket p250 = new SendPacket();
+                p250.PackArray(new byte[] { 11, 250 });
+                p250.Pack16(bgId);
+
+                foreach (var pf in friendlyPlayers)
+                {
+                    p250.Pack8((byte)pf.Side); // role
+                    p250.Pack8(2); // ftype = 2 (player)
+                    p250.Pack32(pf.ID);
+                    p250.Pack16(0); // click_id
+                    p250.Pack32(0); // owner_id
+                    p250.Pack8(pf.GridX);
+                    p250.Pack8(pf.GridY);
+                    p250.Pack32((uint)pf.MaxHP);
+                    p250.Pack16((ushort)Math.Min(0xFFFF, pf.MaxSP));
+                    p250.Pack32((uint)pf.CurHP);
+                    p250.Pack16((ushort)Math.Min(0xFFFF, pf.CurSP));
+                    p250.Pack8(pf.Level);
+                    p250.Pack8(pf.Element);
+                    p250.Pack8(0); // reborn
+                    p250.Pack8(0); // job
+                    p250.Pack16(0); // trailing pad
+                }
+                p.Send(p250);
+
+                // 4. AC 11:10 [01] (combat start signal)
+                p.Send(Tools.FromFormat("bbb", 11, 10, 1));
+
+                // 5. AC 11:5 Spawn friendly companion pets
+                foreach (var pet in friendlyPets)
+                {
+                    SendPacket pPet = new SendPacket();
+                    pPet.PackArray(new byte[] { 11, 5 });
+                    pPet.Pack8((byte)pet.Side);
+                    pPet.Pack8(4); // ftype = 4 (pet)
+                    pPet.Pack32(pet.ID);
+                    pPet.Pack16(0); // click_id
+                    pPet.Pack32(pet.OwnerID);
+                    pPet.Pack8(pet.GridX);
+                    pPet.Pack8(pet.GridY);
+                    pPet.Pack32((uint)pet.MaxHP);
+                    pPet.Pack16((ushort)Math.Min(0xFFFF, pet.MaxSP));
+                    pPet.Pack32((uint)pet.CurHP);
+                    pPet.Pack16((ushort)Math.Min(0xFFFF, pet.CurSP));
+                    pPet.Pack8(pet.Level);
+                    pPet.Pack8(0); // element
+                    pPet.Pack8(0); // reborn
+                    pPet.Pack8(0); // job
+                    pPet.Pack16(0); // trailing pad
+                    p.Send(pPet);
+                }
+
+                // 6. AC 11:5 Spawn all enemy entities (Monsters or Opposing Players/Pets in PvP)
+                foreach (var ef in enemyFighters)
+                {
+                    SendPacket pEnemy = new SendPacket();
+                    pEnemy.PackArray(new byte[] { 11, 5 });
+                    pEnemy.Pack8((byte)ef.Side);
+                    pEnemy.Pack8((byte)ef.FighterType);
+                    pEnemy.Pack32(ef.ID);
+                    pEnemy.Pack16(ef.ClickID);
+                    pEnemy.Pack32(ef.OwnerID);
+                    pEnemy.Pack8(ef.GridX);
+                    pEnemy.Pack8(ef.GridY);
+                    pEnemy.Pack32((uint)ef.MaxHP);
+                    pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.MaxSP));
+                    pEnemy.Pack32((uint)ef.CurHP);
+                    pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.CurSP));
+                    pEnemy.Pack8(ef.Level);
+                    pEnemy.Pack8(ef.Element);
+                    pEnemy.Pack8(0); // reborn
+                    pEnemy.Pack8(0); // job
+                    pEnemy.Pack16(0); // trailing pad
+                    p.Send(pEnemy);
+                }
+
+                // 7. AC 51:1 Sync HP/SP for all entities in the entire battle
+                foreach (var f in battle.Attackers.Concat(battle.Defenders))
+                {
+                    SendStatSync(p, f.GridX, f.GridY, 0x19, (uint)f.CurHP);
+                    SendStatSync(p, f.GridX, f.GridY, 0x1a, (uint)f.CurSP);
+                }
+
+                // 8. AC 50:6 & AC 52:1 Start Round & Open Action UI for this player
+                var playerFighter = friendlyPlayers.FirstOrDefault(x => x.PlayerRef == p);
+                if (playerFighter != null)
+                {
+                    p.Send(Tools.FromFormat("bbbbb", 50, 6, playerFighter.GridX, playerFighter.GridY, 0));
+                    p.Send(Tools.FromFormat("bb", 52, 1));
+                }
+            }
         }
 
         public static void HandleBattleAction(Player player, byte sub, RecievePacket r)
@@ -657,7 +917,6 @@ namespace Game.Battle
             ActiveBattle battle = GetBattle(player);
             if (battle == null || battle.IsFinished) return;
 
-            // sub 1 / default (Attack, Skill, Defend, Flee, or Catch)
             ushort skillId = 10001; // Basic Attack
             byte targetX = 0, targetY = 0;
             try
@@ -687,18 +946,18 @@ namespace Game.Battle
             // 2. Defend / Shield (sub == 4 or Skill 60021)
             if (sub == 4 || skillId == 60021)
             {
-                ProcessTurn(battle, playerAction: "defend", skillId: 60021, targetGridX: 0, targetGridY: 0);
+                ProcessTurn(battle, player, playerAction: "defend", skillId: 60021, targetGridX: 0, targetGridY: 0);
                 return;
             }
 
             // 3. Catch (Skill 10008)
             if (skillId == 10008)
             {
-                ProcessTurn(battle, playerAction: "catch", skillId: 10008, targetGridX: targetX, targetGridY: targetY);
+                ProcessTurn(battle, player, playerAction: "catch", skillId: 10008, targetGridX: targetX, targetGridY: targetY);
                 return;
             }
 
-            ProcessTurn(battle, playerAction: "attack", skillId: skillId, targetGridX: targetX, targetGridY: targetY);
+            ProcessTurn(battle, player, playerAction: "attack", skillId: skillId, targetGridX: targetX, targetGridY: targetY);
         }
 
         public static void HandleFlee(Player player)
@@ -713,68 +972,58 @@ namespace Game.Battle
                     battle.IsFinished = true;
                     lock (_lock)
                     {
-                        _activeBattles.Remove(player.CharID);
+                        foreach (var p in battle.AllPlayers)
+                        {
+                            _activeBattles.Remove(p.CharID);
+                        }
                     }
+
+                    var pFighter = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.PlayerRef == player);
+                    byte pX = pFighter?.GridX ?? 4;
+                    byte pY = pFighter?.GridY ?? 2;
 
                     DebugSystem.Write($"[PvEBattle] Player {player.CharName} fled battle.");
 
                     // 1. AC 53:5 Action notification
-                    player.Send(Tools.FromFormat("bbbb", 53, 5, battle.PlayerGridX, battle.PlayerGridY));
+                    BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, pX, pY));
 
                     // 2. AC 50:1 Flee animation
                     SendPacket pAnim = new SendPacket();
                     pAnim.PackArray(new byte[] { 50, 1 });
                     pAnim.PackArray(new byte[] { 0x11, 0x00 });
-                    pAnim.Pack8(battle.PlayerGridX); pAnim.Pack8(battle.PlayerGridY); // source
+                    pAnim.Pack8(pX); pAnim.Pack8(pY); // source
                     pAnim.Pack16(60041); // flee skill
                     pAnim.Pack8(0);
                     pAnim.Pack8(1);
-                    pAnim.Pack8(battle.PlayerGridX); pAnim.Pack8(battle.PlayerGridY); // target
+                    pAnim.Pack8(pX); pAnim.Pack8(pY); // target
                     pAnim.Pack8(1); pAnim.Pack8(0); pAnim.Pack8(1);
                     pAnim.Pack8(0); // stat_id = 0
                     pAnim.Pack32(0); // 0 dmg
                     pAnim.Pack8(1);
-                    player.Send(pAnim);
+                    BroadcastToBattle(battle, pAnim);
 
                     await Task.Delay(1200);
 
-                    // 3. AC 11:12 Battle end
-                    player.Send(Tools.FromFormat("bbb", 11, 12, 1));
-
-                    // 4. AC 22:6 [11, 0, 1] (Result: 1=Fled)
-                    player.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 1));
-
-                    // 5. AC 11:0 Close battle window
-                    SendPacket p110 = new SendPacket();
-                    p110.PackArray(new byte[] { 11, 0 });
-                    p110.Pack32(player.CharID);
-                    p110.Pack16(0);
-                    player.Send(p110);
-
-                    // 6. Despawn all fighters from battle grid
-                    player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PlayerGridX, battle.PlayerGridY, 0));
-                    if (battle.HasPet)
+                    // Despawn and clean all players
+                    foreach (var p in battle.AllPlayers)
                     {
-                        player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PetGridX, battle.PetGridY, 0));
-                        if (battle.BattlePet != null)
-                        {
-                            battle.BattlePet.HP = battle.PetHP;
-                            battle.BattlePet.SP = battle.PetSP;
-                        }
-                    }
-                    if (battle.Monsters != null)
-                    {
-                        foreach (var m in battle.Monsters)
-                        {
-                            player.Send(Tools.FromFormat("bbbbb", 11, 1, m.GridX, m.GridY, 0));
-                        }
-                    }
+                        p.Send(Tools.FromFormat("bbb", 11, 12, 1));
+                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 1)); // Fled
 
-                    // 7. AC 6:2 [00] Return to map normal mode
-                    player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                        SendPacket p110 = new SendPacket();
+                        p110.PackArray(new byte[] { 11, 0 });
+                        p110.Pack32(p.CharID);
+                        p110.Pack16(0);
+                        p.Send(p110);
 
-                    // 8. AC 20:8 Release movement lock
-                    player.Send(Tools.FromFormat("bb", 20, 8));
+                        foreach (var f in battle.Attackers.Concat(battle.Defenders))
+                        {
+                            p.Send(Tools.FromFormat("bbbbb", 11, 1, f.GridX, f.GridY, 0));
+                        }
+
+                        p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                        p.Send(Tools.FromFormat("bb", 20, 8));
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -783,28 +1032,34 @@ namespace Game.Battle
             });
         }
 
-        private static void ProcessTurn(ActiveBattle battle, string playerAction, ushort skillId, byte targetGridX, byte targetGridY)
+        private static void ProcessTurn(ActiveBattle battle, Player actingPlayer, string playerAction, ushort skillId, byte targetGridX, byte targetGridY)
         {
             Task.Run(async () =>
             {
                 try
                 {
-                    Player player = battle?.Player;
-                    if (player == null || battle.IsFinished) return;
+                    if (battle == null || battle.IsFinished) return;
 
                     battle.Turn++;
 
-                    // Find targeted monster
-                    BattleMonster targetMonster = null;
-                    if (targetGridX > 0 && targetGridY > 0 && battle.Monsters != null)
+                    bool isAttacker = battle.AttackingPlayers.Contains(actingPlayer);
+                    var friendlyFighters = isAttacker ? battle.Attackers : battle.Defenders;
+                    var opposingFighters = isAttacker ? battle.Defenders : battle.Attackers;
+
+                    var actingFighter = friendlyFighters.FirstOrDefault(f => f.PlayerRef == actingPlayer);
+                    if (actingFighter == null || actingFighter.IsDead) return;
+
+                    // Find targeted opposing fighter
+                    BattleFighter targetFighter = null;
+                    if (targetGridX > 0 && targetGridY > 0)
                     {
-                        targetMonster = battle.Monsters.FirstOrDefault(m => !m.IsDead && m.GridX == targetGridX && m.GridY == targetGridY);
+                        targetFighter = opposingFighters.FirstOrDefault(f => !f.IsDead && f.GridX == targetGridX && f.GridY == targetGridY);
                     }
-                    if (targetMonster == null)
+                    if (targetFighter == null)
                     {
-                        targetMonster = battle.PrimaryMonster;
+                        targetFighter = opposingFighters.FirstOrDefault(f => !f.IsDead);
                     }
-                    if (targetMonster == null)
+                    if (targetFighter == null)
                     {
                         EndBattleVictory(battle);
                         return;
@@ -813,405 +1068,286 @@ namespace Game.Battle
                     // 1. Defend / Shield Action (Skill 60021)
                     if (playerAction == "defend" || skillId == 60021)
                     {
-                        // Action notification
-                        player.Send(Tools.FromFormat("bbbb", 53, 5, battle.PlayerGridX, battle.PlayerGridY));
+                        BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, actingFighter.GridX, actingFighter.GridY));
 
-                        // Defend animation on self (0 damage)
                         SendPacket pAnim = new SendPacket();
                         pAnim.PackArray(new byte[] { 50, 1 });
                         pAnim.PackArray(new byte[] { 0x11, 0x00 });
-                        pAnim.Pack8(battle.PlayerGridX); pAnim.Pack8(battle.PlayerGridY);
+                        pAnim.Pack8(actingFighter.GridX); pAnim.Pack8(actingFighter.GridY);
                         pAnim.Pack16(60021); // defend skill
                         pAnim.Pack8(0); pAnim.Pack8(1);
-                        pAnim.Pack8(battle.PlayerGridX); pAnim.Pack8(battle.PlayerGridY);
+                        pAnim.Pack8(actingFighter.GridX); pAnim.Pack8(actingFighter.GridY);
                         pAnim.Pack8(1); pAnim.Pack8(0); pAnim.Pack8(1);
                         pAnim.Pack8(0); // 0 stat
                         pAnim.Pack32(0); // 0 dmg
                         pAnim.Pack8(1);
-                        player.Send(pAnim);
+                        BroadcastToBattle(battle, pAnim);
                     }
-                    // 2. Check if action is Catch (Skill 10008)
-                    else if (skillId == 10008)
+                    // 2. Catch Action (Skill 10008 - PvE only)
+                    else if (skillId == 10008 && !battle.IsPvP && targetFighter.MonsterRef != null)
                     {
-                        // Action notification
-                        player.Send(Tools.FromFormat("bbbb", 53, 5, battle.PlayerGridX, battle.PlayerGridY));
+                        var targetMonster = targetFighter.MonsterRef;
+                        BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, actingFighter.GridX, actingFighter.GridY));
 
-                        // Catch chance calculation
-                        int playerLvl = player.Eqs?.Level ?? 1;
+                        int playerLvl = actingPlayer.Eqs?.Level ?? 1;
                         int monsterLvl = targetMonster.MonsterLevel;
                         double hpPercent = (double)targetMonster.MonsterHP / Math.Max(1, targetMonster.MonsterMaxHP);
-                        
+
                         double catchChance = 75.0 + ((playerLvl - monsterLvl) * 5.0) + ((1.0 - hpPercent) * 20.0);
                         if (playerLvl >= monsterLvl) catchChance = Math.Max(85.0, catchChance);
                         catchChance = Math.Min(98.0, Math.Max(15.0, catchChance));
 
                         bool catchSuccess = (_rng.NextDouble() * 100.0) <= catchChance;
 
-                        // Animation packet
                         SendPacket pAnim = new SendPacket();
                         pAnim.PackArray(new byte[] { 50, 1 });
                         pAnim.PackArray(new byte[] { 0x11, 0x00 });
-                        pAnim.Pack8(battle.PlayerGridX); pAnim.Pack8(battle.PlayerGridY);
-                        pAnim.Pack16(10008); // catch skill
+                        pAnim.Pack8(actingFighter.GridX); pAnim.Pack8(actingFighter.GridY);
+                        pAnim.Pack16(10008);
                         pAnim.Pack8(0); pAnim.Pack8(1);
-                        pAnim.Pack8(targetMonster.GridX); pAnim.Pack8(targetMonster.GridY);
+                        pAnim.Pack8(targetFighter.GridX); pAnim.Pack8(targetFighter.GridY);
                         pAnim.Pack8(1); pAnim.Pack8(0); pAnim.Pack8(1);
-                        pAnim.Pack8(0); // stat_id = 0 (no damage)
-                        pAnim.Pack32(0); // 0 dmg
+                        pAnim.Pack8(0);
+                        pAnim.Pack32(0);
                         pAnim.Pack8(1);
-                        player.Send(pAnim);
+                        BroadcastToBattle(battle, pAnim);
 
                         if (catchSuccess)
                         {
-                            int capturedLevel = Math.Max(1, targetMonster.MonsterLevel);
-                            int capturedMaxHp = Math.Max(50, targetMonster.MonsterMaxHP);
-                            int capturedMaxSp = Math.Max(30, targetMonster.MonsterMaxSP);
-                            ushort capturedAtk = (ushort)Math.Max(5, targetMonster.MonsterAtk);
-                            ushort capturedDef = (ushort)Math.Max(5, targetMonster.MonsterDef);
-                            ushort capturedSpd = (ushort)Math.Max(5, targetMonster.MonsterSpd);
+                            targetMonster.MonsterHP = 0;
+                            targetFighter.CurHP = 0;
+                            targetMonster.IsCaptured = true;
+                            targetFighter.IsCaptured = true;
 
-                            targetMonster.MonsterHP = 0; // Mark removed from combat
-                            targetMonster.IsCaptured = true; // Mark captured so no drops or exp are given
-
-                            // Add to player's pet list
                             byte petSlot = 1;
-                            if (player.PlayerPets != null)
+                            if (actingPlayer.PlayerPets != null)
                             {
-                                while (player.PlayerPets.ContainsKey(petSlot) && petSlot <= 4) petSlot++;
+                                while (actingPlayer.PlayerPets.ContainsKey(petSlot) && petSlot <= 4) petSlot++;
                                 if (petSlot <= 4)
                                 {
-                                    player.PlayerPets[petSlot] = new Player.PlayerPetData()
+                                    actingPlayer.PlayerPets[petSlot] = new Player.PlayerPetData
                                     {
                                         Slot = petSlot,
                                         PetID = (uint)targetMonster.MonsterId,
                                         PetName = targetMonster.MonsterName,
-                                        Level = (byte)capturedLevel,
-                                        HP = capturedMaxHp,
-                                        MaxHP = capturedMaxHp,
-                                        SP = capturedMaxSp,
-                                        MaxSP = capturedMaxSp,
+                                        Level = (byte)targetMonster.MonsterLevel,
+                                        HP = targetMonster.MonsterMaxHP,
+                                        MaxHP = targetMonster.MonsterMaxHP,
+                                        SP = targetMonster.MonsterMaxSP,
+                                        MaxSP = targetMonster.MonsterMaxSP,
                                         Amity = 60,
                                         IsBattle = false,
                                         IsRide = false
                                     };
 
-                                    // AC 15:1 54-byte Pet Recruit Packet
                                     SendPacket petPkt = new SendPacket();
                                     petPkt.PackArray(new byte[] { 15, 1 });
-                                    petPkt.Pack32(player.CharID);
+                                    petPkt.Pack32(actingPlayer.CharID);
                                     petPkt.Pack32((uint)targetMonster.MonsterId);
                                     petPkt.Pack8(petSlot);
-                                    petPkt.Pack16(capturedAtk); // STR
-                                    petPkt.Pack16(capturedDef); // CON
+                                    petPkt.Pack16((ushort)targetMonster.MonsterAtk);
+                                    petPkt.Pack16((ushort)targetMonster.MonsterDef);
                                     petPkt.Pack16(5); // INT
                                     petPkt.Pack16(5); // WIS
-                                    petPkt.Pack16(capturedSpd); // AGI
-                                    petPkt.Pack8((byte)targetMonster.MonsterElement); // Element
-                                    petPkt.Pack32((uint)capturedLevel); // Level
-                                    petPkt.Pack32((uint)capturedMaxHp); // CurHP
-                                    petPkt.Pack32((uint)capturedMaxHp); // MaxHP
+                                    petPkt.Pack16((ushort)targetMonster.MonsterSpd);
+                                    petPkt.Pack8((byte)targetMonster.MonsterElement);
+                                    petPkt.Pack32((uint)targetMonster.MonsterLevel);
+                                    petPkt.Pack32((uint)targetMonster.MonsterMaxHP);
+                                    petPkt.Pack32((uint)targetMonster.MonsterMaxHP);
                                     for (int i = 0; i < 7; i++) petPkt.Pack8(0);
-                                    petPkt.Pack8(60); // Amity: 60
+                                    petPkt.Pack8(60);
                                     for (int i = 0; i < 13; i++) petPkt.Pack8(0);
-                                    player.Send(petPkt);
+                                    actingPlayer.Send(petPkt);
 
-                                    // Sync Pet Level, HP, and SP stats for Party UI & Status window
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 35, petSlot, (uint)capturedLevel, 0)); // Pet Level (Stat 35)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 37, petSlot, (uint)(capturedLevel - 1), 0)); // Pet Potential / Level offset (Stat 37)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, petSlot, 0, 0)); // Pet Potential Points (Stat 38)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 207, petSlot, (uint)capturedMaxHp, 0)); // EquippedMaxHP (Stat 207)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 25, petSlot, (uint)capturedMaxHp, 0)); // CurHP (Stat 25)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 208, petSlot, (uint)capturedMaxSp, 0)); // EquippedMaxSP (Stat 208)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 26, petSlot, (uint)capturedMaxSp, 0)); // CurSP (Stat 26)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 205, petSlot, (uint)capturedMaxHp, 0)); // FullHP (Stat 205)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 206, petSlot, (uint)capturedMaxSp, 0)); // FullSP (Stat 206)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 210, petSlot, (uint)capturedAtk, 0)); // EquippedATK (Stat 210)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 41, petSlot, (uint)capturedAtk, 0)); // FullATK (Stat 41)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 211, petSlot, (uint)capturedDef, 0)); // EquippedDEF (Stat 211)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 42, petSlot, (uint)capturedDef, 0)); // FullDEF (Stat 42)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 214, petSlot, (uint)capturedSpd, 0)); // EquippedSPD (Stat 214)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 45, petSlot, (uint)capturedSpd, 0)); // FullSPD (Stat 45)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 28, petSlot, (uint)Math.Max(5, capturedAtk / 2), 0)); // STR (Stat 28)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 29, petSlot, (uint)Math.Max(5, capturedDef / 2), 0)); // CON (Stat 29)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 27, petSlot, 5, 0)); // INT (Stat 27)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 33, petSlot, 5, 0)); // WIS (Stat 33)
-                                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 30, petSlot, (uint)Math.Max(5, capturedSpd / 2), 0)); // AGI (Stat 30)
-
-                                    player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Successfully captured {targetMonster.MonsterName} (Lv.{capturedLevel}) into Pet Slot #{petSlot}!"));
-                                    DebugSystem.Write($"[PvEBattle] Player {player.CharName} caught {targetMonster.MonsterName} (Lv.{capturedLevel}, ID: {targetMonster.MonsterId}) into Pet Slot #{petSlot}!");
-                                }
-                                else
-                                {
-                                    player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Your Pet bag is full (Max 4 pets)!"));
+                                    actingPlayer.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Successfully captured {targetMonster.MonsterName} into Pet Slot #{petSlot}!"));
                                 }
                             }
 
-                            // Despawn captured monster from grid
-                            player.Send(Tools.FromFormat("bbbbb", 11, 1, targetMonster.GridX, targetMonster.GridY, 0));
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, targetFighter.GridX, targetFighter.GridY, 0));
                         }
                         else
                         {
-                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Failed to capture {targetMonster.MonsterName}!"));
-                            DebugSystem.Write($"[PvEBattle] Player {player.CharName} failed to catch {targetMonster.MonsterName} (Chance: {catchChance:F1}%).");
+                            actingPlayer.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Failed to capture {targetMonster.MonsterName}!"));
                         }
                     }
                     // 3. Normal Attack or Skill Attack
                     else
                     {
-                        // Action notification
-                        player.Send(Tools.FromFormat("bbbb", 53, 5, battle.PlayerGridX, battle.PlayerGridY));
+                        BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, actingFighter.GridX, actingFighter.GridY));
 
-                        // Calculate player damage
-                        int playerDmg = Math.Max(10, ((player.Eqs?.FullAtk ?? 20) * 2) - targetMonster.MonsterDef);
+                        int playerDmg = Math.Max(10, (actingFighter.Atk * 2) - targetFighter.Def);
                         if (skillId > 10001)
                         {
-                            playerDmg = Math.Max(15, (int)((player.Eqs?.FullAtk ?? 20) * 2.8) - (targetMonster.MonsterDef / 2));
-                            if (player.Eqs != null)
+                            playerDmg = Math.Max(15, (int)(actingFighter.Atk * 2.8) - (targetFighter.Def / 2));
+                            if (actingPlayer.Eqs != null)
                             {
-                                player.Eqs.CurSP = Math.Max(0, player.Eqs.CurSP - 10);
-                                SendStatSync(player, battle.PlayerGridX, battle.PlayerGridY, 0x1a, (uint)player.Eqs.CurSP);
+                                actingPlayer.Eqs.CurSP = Math.Max(0, actingPlayer.Eqs.CurSP - 10);
+                                actingFighter.CurSP = actingPlayer.Eqs.CurSP;
+                                foreach (var p in battle.AllPlayers)
+                                {
+                                    SendStatSync(p, actingFighter.GridX, actingFighter.GridY, 0x1a, (uint)actingFighter.CurSP);
+                                }
                             }
                         }
 
-                        // Animation packet
                         SendPacket pAnim = new SendPacket();
                         pAnim.PackArray(new byte[] { 50, 1 });
                         pAnim.PackArray(new byte[] { 0x11, 0x00 });
-                        pAnim.Pack8(battle.PlayerGridX); pAnim.Pack8(battle.PlayerGridY);
+                        pAnim.Pack8(actingFighter.GridX); pAnim.Pack8(actingFighter.GridY);
                         pAnim.Pack16(skillId > 0 ? skillId : (ushort)10001);
-                        pAnim.Pack8(0);
-                        pAnim.Pack8(1);
-                        pAnim.Pack8(targetMonster.GridX); pAnim.Pack8(targetMonster.GridY);
+                        pAnim.Pack8(0); pAnim.Pack8(1);
+                        pAnim.Pack8(targetFighter.GridX); pAnim.Pack8(targetFighter.GridY);
                         pAnim.Pack8(1); pAnim.Pack8(0); pAnim.Pack8(1);
                         pAnim.Pack8(0x19); // HP damage
                         pAnim.Pack32((uint)playerDmg);
                         pAnim.Pack8(1);
-                        player.Send(pAnim);
+                        BroadcastToBattle(battle, pAnim);
 
-                        targetMonster.MonsterHP = Math.Max(0, targetMonster.MonsterHP - playerDmg);
-                        SendStatSync(player, targetMonster.GridX, targetMonster.GridY, 0x19, (uint)targetMonster.MonsterHP);
+                        targetFighter.CurHP = Math.Max(0, targetFighter.CurHP - playerDmg);
+                        if (targetFighter.MonsterRef != null) targetFighter.MonsterRef.MonsterHP = targetFighter.CurHP;
+                        if (targetFighter.PlayerRef?.Eqs != null) targetFighter.PlayerRef.Eqs.CurHP = targetFighter.CurHP;
+                        if (targetFighter.PetRef != null) targetFighter.PetRef.HP = targetFighter.CurHP;
 
-                        if (targetMonster.IsDead)
+                        foreach (var p in battle.AllPlayers)
                         {
-                            player.Send(Tools.FromFormat("bbbbb", 11, 1, targetMonster.GridX, targetMonster.GridY, 0));
+                            SendStatSync(p, targetFighter.GridX, targetFighter.GridY, 0x19, (uint)targetFighter.CurHP);
+                        }
+
+                        if (targetFighter.IsDead)
+                        {
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, targetFighter.GridX, targetFighter.GridY, 0));
                         }
                     }
 
-                    // Wait for player animation
                     await Task.Delay(1200);
 
-                    // 4. Pet Action: Active Battle Pet attacks an enemy
-                    if (battle.HasPet && (playerAction == "attack" || playerAction == "defend"))
+                    // 4. Companion Pet Attacks for living friendly team pets
+                    var livingPets = friendlyFighters.Where(f => f.FighterType == BattleFighterType.Pet && !f.IsDead).ToList();
+                    foreach (var pet in livingPets)
                     {
-                        var petTarget = battle.Monsters?.FirstOrDefault(m => !m.IsDead);
-                        if (petTarget != null)
+                        var petTarget = opposingFighters.FirstOrDefault(f => !f.IsDead);
+                        if (petTarget == null) break;
+
+                        int petDmg = Math.Max(5, pet.Atk - petTarget.Def + QuestNpc.NextRandom(3, 10));
+
+                        BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, pet.GridX, pet.GridY));
+
+                        SendPacket pPetAnim = new SendPacket();
+                        pPetAnim.PackArray(new byte[] { 50, 1 });
+                        pPetAnim.PackArray(new byte[] { 0x11, 0x00 });
+                        pPetAnim.Pack8(pet.GridX); pPetAnim.Pack8(pet.GridY);
+                        pPetAnim.Pack16(10001); // basic attack
+                        pPetAnim.Pack8(0); pPetAnim.Pack8(1);
+                        pPetAnim.Pack8(petTarget.GridX); pPetAnim.Pack8(petTarget.GridY);
+                        pPetAnim.Pack8(1); pPetAnim.Pack8(0); pPetAnim.Pack8(1);
+                        pPetAnim.Pack8(0x19); // HP damage
+                        pPetAnim.Pack32((uint)petDmg);
+                        pPetAnim.Pack8(1);
+                        BroadcastToBattle(battle, pPetAnim);
+
+                        petTarget.CurHP = Math.Max(0, petTarget.CurHP - petDmg);
+                        if (petTarget.MonsterRef != null) petTarget.MonsterRef.MonsterHP = petTarget.CurHP;
+                        if (petTarget.PlayerRef?.Eqs != null) petTarget.PlayerRef.Eqs.CurHP = petTarget.CurHP;
+                        if (petTarget.PetRef != null) petTarget.PetRef.HP = petTarget.CurHP;
+
+                        foreach (var p in battle.AllPlayers)
                         {
-                            int petAtk = Math.Max(15, (int)(battle.BattlePet.Level * 3 + battle.BattlePet.Str * 2));
-                            int petDmg = Math.Max(5, petAtk - petTarget.MonsterDef + QuestNpc.NextRandom(3, 10));
-
-                            player.Send(Tools.FromFormat("bbbb", 53, 5, battle.PetGridX, battle.PetGridY));
-
-                            SendPacket pPetAnim = new SendPacket();
-                            pPetAnim.PackArray(new byte[] { 50, 1 });
-                            pPetAnim.PackArray(new byte[] { 0x11, 0x00 });
-                            pPetAnim.Pack8(battle.PetGridX); pPetAnim.Pack8(battle.PetGridY);
-                            pPetAnim.Pack16(10001); // basic attack
-                            pPetAnim.Pack8(0);
-                            pPetAnim.Pack8(1);
-                            pPetAnim.Pack8(petTarget.GridX); pPetAnim.Pack8(petTarget.GridY);
-                            pPetAnim.Pack8(1); pPetAnim.Pack8(0); pPetAnim.Pack8(1);
-                            pPetAnim.Pack8(0x19); // HP damage
-                            pPetAnim.Pack32((uint)petDmg);
-                            pPetAnim.Pack8(1);
-                            player.Send(pPetAnim);
-
-                            petTarget.MonsterHP = Math.Max(0, petTarget.MonsterHP - petDmg);
-                            SendStatSync(player, petTarget.GridX, petTarget.GridY, 0x19, (uint)petTarget.MonsterHP);
-
-                            if (petTarget.IsDead)
-                            {
-                                player.Send(Tools.FromFormat("bbbbb", 11, 1, petTarget.GridX, petTarget.GridY, 0));
-                            }
-
-                            await Task.Delay(1000);
+                            SendStatSync(p, petTarget.GridX, petTarget.GridY, 0x19, (uint)petTarget.CurHP);
                         }
+
+                        if (petTarget.IsDead)
+                        {
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, petTarget.GridX, petTarget.GridY, 0));
+                        }
+
+                        await Task.Delay(1000);
                     }
 
-                    // Check if all monsters are defeated
-                    if (battle.Monsters == null || battle.Monsters.All(m => m.IsDead))
+                    // Check if opposing side is defeated
+                    if (opposingFighters.All(f => f.IsDead))
                     {
-                        EndBattleVictory(battle);
+                        if (isAttacker)
+                            EndBattleVictory(battle);
+                        else
+                            EndBattleDefeat(battle);
                         return;
                     }
 
-                    // 5. Each living monster attacks player or pet in turn
-                    var livingMonsters = battle.Monsters.Where(m => !m.IsDead).ToList();
-                    foreach (var monster in livingMonsters)
+                    // 5. Opposing Side Retaliation (Monsters in PvE or Counter-attacks in PvP)
+                    if (!battle.IsPvP)
                     {
-                        bool targetPet = battle.HasPet && (_rng.Next(0, 2) == 1);
-                        byte defX = targetPet ? battle.PetGridX : battle.PlayerGridX;
-                        byte defY = targetPet ? battle.PetGridY : battle.PlayerGridY;
-
-                        int defVal = targetPet 
-                            ? Math.Max(5, (int)(battle.BattlePet.Level * 2 + battle.BattlePet.Con * 2)) 
-                            : (player.Eqs?.FullDef ?? 10);
-                        int rawDmg = Math.Max(5, (int)(monster.MonsterAtk * 1.2) - defVal);
-                        
-                        // If player defended, mitigate damage by 65% - 75%
-                        int monsterDmg = (!targetPet && (playerAction == "defend" || skillId == 60021)) 
-                            ? Math.Max(1, (int)(rawDmg * 0.35)) 
-                            : Math.Max(1, rawDmg);
-
-                        player.Send(Tools.FromFormat("bbbb", 53, 5, monster.GridX, monster.GridY));
-
-                        SendPacket mAnim = new SendPacket();
-                        mAnim.PackArray(new byte[] { 50, 1 });
-                        mAnim.PackArray(new byte[] { 0x11, 0x00 });
-                        mAnim.Pack8(monster.GridX); mAnim.Pack8(monster.GridY);
-                        mAnim.Pack16(10001);
-                        mAnim.Pack8(0);
-                        mAnim.Pack8(1);
-                        mAnim.Pack8(defX); mAnim.Pack8(defY);
-                        mAnim.Pack8(1); mAnim.Pack8(0); mAnim.Pack8(1);
-                        mAnim.Pack8(0x19); // HP damage
-                        mAnim.Pack32((uint)monsterDmg);
-                        mAnim.Pack8(1);
-                        player.Send(mAnim);
-
-                        if (targetPet)
+                        var livingMonsters = opposingFighters.Where(f => !f.IsDead).ToList();
+                        foreach (var monster in livingMonsters)
                         {
-                            battle.PetHP = Math.Max(0, battle.PetHP - monsterDmg);
-                            SendStatSync(player, battle.PetGridX, battle.PetGridY, 0x19, (uint)battle.PetHP);
-                            if (battle.PetHP <= 0)
-                            {
-                                player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PetGridX, battle.PetGridY, 0));
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{battle.BattlePet.PetName} has fallen in battle!"));
-                            }
-                        }
-                        else if (player.Eqs != null)
-                        {
-                            player.Eqs.CurHP = Math.Max(0, player.Eqs.CurHP - monsterDmg);
-                            SendStatSync(player, battle.PlayerGridX, battle.PlayerGridY, 0x19, (uint)player.Eqs.CurHP);
+                            var livingTargets = friendlyFighters.Where(f => !f.IsDead).ToList();
+                            if (livingTargets.Count == 0) break;
 
-                            // Player Defeat / Death
-                            if (player.Eqs.CurHP <= 0)
+                            var target = livingTargets[_rng.Next(0, livingTargets.Count)];
+                            int rawDmg = Math.Max(5, (int)(monster.Atk * 1.2) - target.Def);
+
+                            int monsterDmg = (target.FighterType == BattleFighterType.Player && (playerAction == "defend" || skillId == 60021))
+                                ? Math.Max(1, (int)(rawDmg * 0.35))
+                                : Math.Max(1, rawDmg);
+
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, monster.GridX, monster.GridY));
+
+                            SendPacket mAnim = new SendPacket();
+                            mAnim.PackArray(new byte[] { 50, 1 });
+                            mAnim.PackArray(new byte[] { 0x11, 0x00 });
+                            mAnim.Pack8(monster.GridX); mAnim.Pack8(monster.GridY);
+                            mAnim.Pack16(10001);
+                            mAnim.Pack8(0); mAnim.Pack8(1);
+                            mAnim.Pack8(target.GridX); mAnim.Pack8(target.GridY);
+                            mAnim.Pack8(1); mAnim.Pack8(0); mAnim.Pack8(1);
+                            mAnim.Pack8(0x19);
+                            mAnim.Pack32((uint)monsterDmg);
+                            mAnim.Pack8(1);
+                            BroadcastToBattle(battle, mAnim);
+
+                            target.CurHP = Math.Max(0, target.CurHP - monsterDmg);
+                            if (target.PlayerRef?.Eqs != null) target.PlayerRef.Eqs.CurHP = target.CurHP;
+                            if (target.PetRef != null) target.PetRef.HP = target.CurHP;
+
+                            foreach (var p in battle.AllPlayers)
                             {
-                                EndBattleDefeat(battle);
-                                return;
+                                SendStatSync(p, target.GridX, target.GridY, 0x19, (uint)target.CurHP);
                             }
+
+                            if (target.IsDead)
+                            {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, target.GridX, target.GridY, 0));
+                                if (target.FighterType == BattleFighterType.Pet)
+                                {
+                                    target.PlayerRef?.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{target.Name} has fallen in battle!"));
+                                }
+                            }
+
+                            await Task.Delay(1200);
                         }
 
-                        await Task.Delay(1200);
+                        // Check if all friendly players and pets are dead
+                        if (friendlyFighters.All(f => f.IsDead))
+                        {
+                            EndBattleDefeat(battle);
+                            return;
+                        }
                     }
 
-                    // 6. Give turn for next round
-                    player.Send(Tools.FromFormat("bbbb", 53, 5, battle.PlayerGridX, battle.PlayerGridY));
-                    player.Send(Tools.FromFormat("bbbbb", 50, 6, battle.PlayerGridX, battle.PlayerGridY, 0));
-                    player.Send(Tools.FromFormat("bb", 52, 1));
+                    // 6. Give turn for next round to all living human players
+                    foreach (var p in battle.AllPlayers)
+                    {
+                        var pf = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.PlayerRef == p);
+                        if (pf != null && !pf.IsDead)
+                        {
+                            p.Send(Tools.FromFormat("bbbb", 53, 5, pf.GridX, pf.GridY));
+                            p.Send(Tools.FromFormat("bbbbb", 50, 6, pf.GridX, pf.GridY, 0));
+                            p.Send(Tools.FromFormat("bb", 52, 1));
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
                     DebugSystem.Write($"[PvEBattle] Exception in ProcessTurn: {ex.Message}");
-                }
-            });
-        }
-
-        private static void EndBattleDefeat(ActiveBattle battle)
-        {
-            Task.Run(async () =>
-            {
-                try
-                {
-                    Player player = battle?.Player;
-                    if (player == null) return;
-
-                    battle.IsFinished = true;
-                    lock (_lock)
-                    {
-                        _activeBattles.Remove(player.CharID);
-                    }
-
-                    DebugSystem.Write($"[PvEBattle] Player {player.CharName} was defeated in combat!");
-
-                    await Task.Delay(1200);
-
-                    // 1. AC 11:12 Battle finish signal
-                    player.Send(Tools.FromFormat("bbb", 11, 12, 1));
-
-                    // 2. AC 22:6 [11, 0, 0] (Battle Result: 0 = Defeat)
-                    player.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0));
-
-                    // 3. AC 11:0 Close battle window
-                    SendPacket p110 = new SendPacket();
-                    p110.PackArray(new byte[] { 11, 0 });
-                    p110.Pack32(player.CharID);
-                    p110.Pack16(0);
-                    player.Send(p110);
-
-                    // 4. Despawn all fighters from battle grid
-                    player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PlayerGridX, battle.PlayerGridY, 0));
-                    if (battle.HasPet)
-                    {
-                        player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PetGridX, battle.PetGridY, 0));
-                        if (battle.BattlePet != null)
-                        {
-                            battle.BattlePet.HP = Math.Max(10, battle.BattlePet.MaxHP / 2);
-                        }
-                    }
-                    if (battle.Monsters != null)
-                    {
-                        foreach (var m in battle.Monsters)
-                        {
-                            player.Send(Tools.FromFormat("bbbbb", 11, 1, m.GridX, m.GridY, 0));
-                        }
-                    }
-
-                    // 5. Restore player HP upon revival
-                    if (player.Eqs != null)
-                    {
-                        player.Eqs.CurHP = Math.Max(10, player.Eqs.FullHP / 2);
-                        player.Eqs.Send8_1();
-                    }
-
-                    await Task.Delay(500);
-
-                    // 6. Teleport to recorded respawn point or Starter Beach (Map 10036, X: 1038, Y: 2235)
-                    WarpData respawnWarp;
-                    if (player.RecordMap != null && player.RecordMap.DstMap > 0)
-                    {
-                        respawnWarp = new WarpData()
-                        {
-                            DstMap = player.RecordMap.DstMap,
-                            DstX_Axis = player.RecordMap.DstX_Axis,
-                            DstY_Axis = player.RecordMap.DstY_Axis
-                        };
-                    }
-                    else if (player.ReturnSpawnMap != null && player.ReturnSpawnMap.DstMap > 0)
-                    {
-                        respawnWarp = new WarpData()
-                        {
-                            DstMap = player.ReturnSpawnMap.DstMap,
-                            DstX_Axis = player.ReturnSpawnMap.DstX_Axis,
-                            DstY_Axis = player.ReturnSpawnMap.DstY_Axis
-                        };
-                    }
-                    else
-                    {
-                        // Fallback to Starter Beach
-                        respawnWarp = new WarpData()
-                        {
-                            DstMap = 10036,
-                            DstX_Axis = 1038,
-                            DstY_Axis = 2235
-                        };
-                    }
-
-                    player.CurMap?.Teleport(TeleportType.CmD, player, 0, respawnWarp);
-                    player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You were defeated in battle and transported to your spawn point!"));
-                }
-                catch (Exception ex)
-                {
-                    DebugSystem.Write($"[PvEBattle] Exception in EndBattleDefeat: {ex.Message}");
                 }
             });
         }
@@ -1222,181 +1358,289 @@ namespace Game.Battle
             {
                 try
                 {
-                    Player player = battle?.Player;
-                    if (player == null) return;
-
+                    if (battle == null) return;
                     battle.IsFinished = true;
+
                     lock (_lock)
                     {
-                        _activeBattles.Remove(player.CharID);
+                        foreach (var p in battle.AllPlayers)
+                        {
+                            _activeBattles.Remove(p.CharID);
+                        }
                     }
 
-                    DebugSystem.Write($"[PvEBattle] Player {player.CharName} won battle against {battle.Monsters?.Count ?? 1} monsters!");
-
-                    // Wait for final death animation
+                    DebugSystem.Write($"[PvEBattle] Attacking team won battle! (Attackers: {battle.AttackingPlayers.Count}, Defenders: {battle.Defenders.Count})");
                     await Task.Delay(1200);
 
-                    // 1. AC 11:12 [01] (Combat finish signal)
-                    player.Send(Tools.FromFormat("bbb", 11, 12, 1));
-
-                    // Aggregate EXP, Gold and Drops safely
                     uint totalExp = 0;
                     uint totalGold = 0;
-                    if (battle.Monsters != null)
+
+                    if (!battle.IsPvP)
                     {
                         foreach (var m in battle.Monsters)
                         {
-                            // Captured monsters do NOT grant EXP, Gold, or Item Drops
                             if (m.IsCaptured) continue;
-
                             totalExp += (uint)Math.Max(10, m.MonsterLevel * 15);
                             totalGold += (uint)Math.Max(5, m.MonsterLevel * 8);
 
-                            // Monster item drops
+                            // Drops roll for leader player
                             try
                             {
                                 var drops = MonsterDropManager.RollDrops(m.MonsterId, m.MonsterName ?? "Monster", m.MonsterLevel);
-                                if (drops != null && drops.Count > 0 && player.Inv != null)
+                                if (drops != null && drops.Count > 0 && battle.LeaderPlayer?.Inv != null)
                                 {
                                     foreach (var drop in drops)
                                     {
                                         if (drop != null)
                                         {
-                                            player.Inv.AddItem(drop.ItemID, drop.Count);
-                                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtained {drop.ItemName} x{drop.Count}!"));
-                                            DebugSystem.Write($"[PvEBattle] Monster '{m.MonsterName}' dropped {drop.ItemName} x{drop.Count} for {player.CharName}.");
+                                            battle.LeaderPlayer.Inv.AddItem(drop.ItemID, drop.Count);
+                                            battle.LeaderPlayer.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtained {drop.ItemName} x{drop.Count}!"));
                                         }
                                     }
-                                    player.Send(new SendPacket(player.Inv.GetAC23_5()));
+                                    battle.LeaderPlayer.Send(new SendPacket(battle.LeaderPlayer.Inv.GetAC23_5()));
                                 }
                             }
-                            catch (Exception dropEx)
-                            {
-                                DebugSystem.Write($"[PvEBattle] Drop roll exception: {dropEx.Message}");
-                            }
+                            catch { }
                         }
                     }
-
-                    if (player.Eqs != null && (totalGold > 0 || totalExp > 0))
+                    else
                     {
-                        player.Eqs.AddGold((int)totalGold);
-                        player.Eqs.CurExp += (int)totalExp;
+                        totalExp = 150;
+                        totalGold = 100;
                     }
 
-                    // Sync companion / pet final battle stats & exp
-                    if (battle.BattlePet != null)
+                    // Reward and cleanup Attacking team (Winners)
+                    foreach (var p in battle.AttackingPlayers)
                     {
-                        battle.BattlePet.HP = Math.Max(1, battle.PetHP);
-                        battle.BattlePet.SP = Math.Max(0, battle.PetSP);
-                        if (totalExp >= 50 && battle.BattlePet.Level < 199)
+                        if (p.Eqs != null && (totalGold > 0 || totalExp > 0))
                         {
-                            battle.BattlePet.Level++;
-                            battle.BattlePet.MaxHP += 30;
-                            battle.BattlePet.HP = battle.BattlePet.MaxHP;
-                            battle.BattlePet.MaxSP += 15;
-                            battle.BattlePet.SP = battle.BattlePet.MaxSP;
-                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{battle.BattlePet.PetName} leveled up to Lv.{battle.BattlePet.Level}!"));
+                            p.Eqs.AddGold((int)totalGold);
+                            p.Eqs.CurExp += (int)totalExp;
                         }
-                    }
 
-                    // Check Quest Battle Completion
-                    try
-                    {
-                        // Quest 1005: Save Niss (Wolf Guard battle victory)
-                        if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 11066 || (m.MonsterName ?? "").ToLower().Contains("wolf guard")))
+                        // Pet progression
+                        var petFighter = battle.Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == p.CharID);
+                        if (petFighter?.PetRef != null)
                         {
-                            if (player.Quests != null && player.Quests.TryGetValue(1005, out var pq) && pq.State == QuestRelated.QuestState.InProgress)
+                            petFighter.PetRef.HP = Math.Max(1, petFighter.CurHP);
+                            petFighter.PetRef.SP = Math.Max(0, petFighter.CurSP);
+                            if (totalExp >= 50 && petFighter.PetRef.Level < 199)
                             {
-                                pq.State = QuestRelated.QuestState.Completed;
-                                pq.CompletedAt = DateTime.UtcNow;
-                                QuestRelated.QuestManager.SavePlayerQuest(player, 1005);
-                                QuestRelated.QuestManager.SendQuestUpdate(player, 1005, QuestRelated.QuestState.Completed);
-                                QuestRelated.QuestManager.SendCompanionReward(player, 11066, "Niss");
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You rescued Niss! She has joined your party."));
+                                petFighter.PetRef.Level++;
+                                petFighter.PetRef.MaxHP += 30;
+                                petFighter.PetRef.HP = petFighter.PetRef.MaxHP;
+                                petFighter.PetRef.MaxSP += 15;
+                                petFighter.PetRef.SP = petFighter.PetRef.MaxSP;
+                                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{petFighter.PetRef.PetName} leveled up to Lv.{petFighter.PetRef.Level}!"));
                             }
                         }
 
-                        // Quest 1010: Rescue Xaolan (Pirate Lea / Hijacker victory)
-                        if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 14155 || m.MonsterId == 12049 || m.MonsterId == 12050 || (m.MonsterName ?? "").ToLower().Contains("pirate lea") || (m.MonsterName ?? "").ToLower().Contains("hijacker")))
+                        // 1. AC 11:12 Combat finish
+                        p.Send(Tools.FromFormat("bbb", 11, 12, 1));
+                        // 2. AC 22:6 Victory
+                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2));
+                        // 3. AC 22:5 Rewards
+                        p.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)Math.Min(0xFFFF, totalExp), (ushort)Math.Min(0xFFFF, totalGold)));
+                        // 4. AC 11:0 Close Window
+                        SendPacket p110 = new SendPacket();
+                        p110.PackArray(new byte[] { 11, 0 });
+                        p110.Pack32(p.CharID);
+                        p110.Pack16(0);
+                        p.Send(p110);
+                        // 5. Despawn all fighters
+                        foreach (var f in battle.Attackers.Concat(battle.Defenders))
                         {
-                            if (player.Quests != null)
-                            {
-                                if (!player.Quests.ContainsKey(1010))
-                                {
-                                    player.Quests[1010] = new QuestRelated.PlayerQuest(1010, QuestRelated.QuestState.InProgress, 1);
-                                }
-                                var pq = player.Quests[1010];
-                                pq.State = QuestRelated.QuestState.Completed;
-                                pq.CompletedAt = DateTime.UtcNow;
-                                QuestRelated.QuestManager.SavePlayerQuest(player, 1010);
-                                QuestRelated.QuestManager.SendQuestUpdate(player, 1010, QuestRelated.QuestState.Completed);
-                                QuestRelated.QuestManager.SendCompanionReward(player, 14156, "Xaolan");
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the pirates and rescued Xaolan! She joined your party."));
+                            p.Send(Tools.FromFormat("bbbbb", 11, 1, f.GridX, f.GridY, 0));
+                        }
+                        // 6. Normal mode
+                        p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                        // 7. Movement lock release
+                        p.Send(Tools.FromFormat("bb", 20, 8));
+                    }
 
-                                // Despawn hijackers and Xaolan trapped event for player
-                                player.Send(Tools.FromFormat("bbwb", 24, 1, 1010, 2));
-                                player.Send(Tools.FromFormat("bbwb", 24, 5, 1010, 1));
-                            }
+                    // Defending team cleanup (if PvP)
+                    foreach (var p in battle.DefendingPlayers)
+                    {
+                        p.Send(Tools.FromFormat("bbb", 11, 12, 1));
+                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0)); // Defeat
+                        SendPacket p110 = new SendPacket();
+                        p110.PackArray(new byte[] { 11, 0 });
+                        p110.Pack32(p.CharID);
+                        p110.Pack16(0);
+                        p.Send(p110);
+
+                        foreach (var f in battle.Attackers.Concat(battle.Defenders))
+                        {
+                            p.Send(Tools.FromFormat("bbbbb", 11, 1, f.GridX, f.GridY, 0));
                         }
 
-                        // Quest 1012: Little Red Riding Hood (Wild Wolf victory)
-                        if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 17437 || (m.MonsterName ?? "").ToLower().Contains("wild wolf")))
+                        if (p.Eqs != null)
                         {
-                            if (player.Quests != null && player.Quests.TryGetValue(1012, out var pq) && pq.State == QuestRelated.QuestState.InProgress)
-                            {
-                                pq.State = QuestRelated.QuestState.Completed;
-                                pq.CompletedAt = DateTime.UtcNow;
-                                QuestRelated.QuestManager.SavePlayerQuest(player, 1012);
-                                QuestRelated.QuestManager.SendQuestUpdate(player, 1012, QuestRelated.QuestState.Completed);
-                                player.Gold += 400;
-                                player.Send(Tools.FromFormat("bbd", 23, 114, (uint)player.Gold));
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the wolf and saved Grandmother! Quest Completed."));
-                            }
+                            p.Eqs.CurHP = Math.Max(10, p.Eqs.FullHP / 2);
+                            p.Eqs.Send8_1();
                         }
-                    }
-                    catch (Exception qEx)
-                    {
-                        DebugSystem.Write($"[PvEBattle] Quest completion check exception: {qEx.Message}");
-                    }
 
-                    // 2. AC 22:6 [11, 0, 2] (Battle Result: 2=Victory)
-                    player.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2));
-
-                    // 3. AC 22:5 [11 (2B), exp (2B), gold (2B)] (Reward Popup)
-                    player.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)Math.Min(0xFFFF, totalExp), (ushort)Math.Min(0xFFFF, totalGold)));
-
-                    // 4. AC 11:0 [char_id (4B), 0 (2B)] -> CLOSE BATTLE WINDOW
-                    SendPacket p110 = new SendPacket();
-                    p110.PackArray(new byte[] { 11, 0 });
-                    p110.Pack32(player.CharID);
-                    p110.Pack16(0);
-                    player.Send(p110);
-
-                    // 5. AC 11:1 Despawn all battle fighters from grid
-                    player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PlayerGridX, battle.PlayerGridY, 0));
-                    if (battle.HasPet)
-                    {
-                        player.Send(Tools.FromFormat("bbbbb", 11, 1, battle.PetGridX, battle.PetGridY, 0));
-                    }
-                    if (battle.Monsters != null)
-                    {
-                        foreach (var m in battle.Monsters)
-                        {
-                            player.Send(Tools.FromFormat("bbbbb", 11, 1, m.GridX, m.GridY, 0));
-                        }
+                        p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                        p.Send(Tools.FromFormat("bb", 20, 8));
                     }
 
-                    // 6. AC 6:2 [00] Return to map normal mode
-                    player.Send(Tools.FromFormat("bbb", 6, 2, 0));
-
-                    // 7. AC 20:8 (Release movement lock)
-                    player.Send(Tools.FromFormat("bb", 20, 8));
+                    // Check Quest Battle Completion for Leader
+                    CheckQuestBattleCompletion(battle);
                 }
                 catch (Exception ex)
                 {
                     DebugSystem.Write($"[PvEBattle] Exception in EndBattleVictory: {ex.Message}");
                 }
             });
+        }
+
+        private static void EndBattleDefeat(ActiveBattle battle)
+        {
+            Task.Run(async () =>
+            {
+                try
+                {
+                    if (battle == null) return;
+                    battle.IsFinished = true;
+
+                    lock (_lock)
+                    {
+                        foreach (var p in battle.AllPlayers)
+                        {
+                            _activeBattles.Remove(p.CharID);
+                        }
+                    }
+
+                    DebugSystem.Write($"[PvEBattle] Attacking team was defeated in battle!");
+                    await Task.Delay(1200);
+
+                    // Attacking players defeat cleanup
+                    foreach (var p in battle.AttackingPlayers)
+                    {
+                        p.Send(Tools.FromFormat("bbb", 11, 12, 1));
+                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0)); // Defeat
+
+                        SendPacket p110 = new SendPacket();
+                        p110.PackArray(new byte[] { 11, 0 });
+                        p110.Pack32(p.CharID);
+                        p110.Pack16(0);
+                        p.Send(p110);
+
+                        foreach (var f in battle.Attackers.Concat(battle.Defenders))
+                        {
+                            p.Send(Tools.FromFormat("bbbbb", 11, 1, f.GridX, f.GridY, 0));
+                        }
+
+                        if (p.Eqs != null)
+                        {
+                            p.Eqs.CurHP = Math.Max(10, p.Eqs.FullHP / 2);
+                            p.Eqs.Send8_1();
+                        }
+
+                        p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                        p.Send(Tools.FromFormat("bb", 20, 8));
+                    }
+
+                    // Defending players victory cleanup (if PvP)
+                    foreach (var p in battle.DefendingPlayers)
+                    {
+                        p.Send(Tools.FromFormat("bbb", 11, 12, 1));
+                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2)); // Victory
+                        p.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)150, (ushort)100));
+
+                        SendPacket p110 = new SendPacket();
+                        p110.PackArray(new byte[] { 11, 0 });
+                        p110.Pack32(p.CharID);
+                        p110.Pack16(0);
+                        p.Send(p110);
+
+                        foreach (var f in battle.Attackers.Concat(battle.Defenders))
+                        {
+                            p.Send(Tools.FromFormat("bbbbb", 11, 1, f.GridX, f.GridY, 0));
+                        }
+
+                        p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                        p.Send(Tools.FromFormat("bb", 20, 8));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[PvEBattle] Exception in EndBattleDefeat: {ex.Message}");
+                }
+            });
+        }
+
+        private static void CheckQuestBattleCompletion(ActiveBattle battle)
+        {
+            try
+            {
+                var player = battle?.LeaderPlayer;
+                if (player == null) return;
+
+                // Quest 1005: Save Niss (Wolf Guard battle victory)
+                if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 11066 || (m.MonsterName ?? "").ToLower().Contains("wolf guard")))
+                {
+                    if (player.Quests != null && player.Quests.TryGetValue(1005, out var pq) && pq.State == QuestState.InProgress)
+                    {
+                        pq.State = QuestState.Completed;
+                        pq.CompletedAt = DateTime.UtcNow;
+                        QuestManager.SavePlayerQuest(player, 1005);
+                        QuestManager.SendQuestUpdate(player, 1005, QuestState.Completed);
+                        QuestManager.SendCompanionReward(player, 11066, "Niss");
+                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You rescued Niss! She has joined your party."));
+                    }
+                }
+
+                // Quest 1010: Rescue Xaolan (Pirate Lea / Hijacker victory)
+                if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 14155 || m.MonsterId == 12049 || m.MonsterId == 12050 || (m.MonsterName ?? "").ToLower().Contains("pirate lea") || (m.MonsterName ?? "").ToLower().Contains("hijacker")))
+                {
+                    if (player.Quests != null)
+                    {
+                        if (!player.Quests.ContainsKey(1010))
+                        {
+                            player.Quests[1010] = new PlayerQuest(1010, QuestState.InProgress, 1);
+                        }
+                        var pq = player.Quests[1010];
+                        pq.State = QuestState.Completed;
+                        pq.CompletedAt = DateTime.UtcNow;
+                        QuestManager.SavePlayerQuest(player, 1010);
+                        QuestManager.SendQuestUpdate(player, 1010, QuestState.Completed);
+                        QuestManager.SendCompanionReward(player, 14156, "Xaolan");
+                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the pirates and rescued Xaolan! She joined your party."));
+
+                        player.Send(Tools.FromFormat("bbwb", 24, 1, 1010, 2));
+                        player.Send(Tools.FromFormat("bbwb", 24, 5, 1010, 1));
+                    }
+                }
+
+                // Quest 1012: Little Red Riding Hood (Wild Wolf victory)
+                if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 17437 || (m.MonsterName ?? "").ToLower().Contains("wild wolf")))
+                {
+                    if (player.Quests != null && player.Quests.TryGetValue(1012, out var pq) && pq.State == QuestState.InProgress)
+                    {
+                        pq.State = QuestState.Completed;
+                        pq.CompletedAt = DateTime.UtcNow;
+                        QuestManager.SavePlayerQuest(player, 1012);
+                        QuestManager.SendQuestUpdate(player, 1012, QuestState.Completed);
+                        player.Gold += 400;
+                        player.Send(Tools.FromFormat("bbd", 23, 114, (uint)player.Gold));
+                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the wolf and saved Grandmother! Quest Completed."));
+                    }
+                }
+            }
+            catch (Exception qEx)
+            {
+                DebugSystem.Write($"[PvEBattle] Quest completion check exception: {qEx.Message}");
+            }
+        }
+
+        private static void BroadcastToBattle(ActiveBattle battle, SendPacket p)
+        {
+            if (battle == null || p == null) return;
+            foreach (var pl in battle.AllPlayers)
+            {
+                pl.Send(p);
+            }
         }
 
         private static void SendStatSync(Player player, byte x, byte y, byte statId, uint val)

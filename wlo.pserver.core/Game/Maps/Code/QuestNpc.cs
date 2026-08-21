@@ -197,11 +197,17 @@ namespace Game.Maps
                 return false;
             }
 
-            // Explicit static prop names
+            // Explicit static prop names, ground items, and gathering nodes
             if (lower.Contains("chest") || lower.Contains("box") || lower.Contains("crate") ||
                 lower.Contains("barrel") || lower.Contains("pot") || lower.Contains("machine") ||
-                lower.Contains("wood") || lower.Contains("stone") || lower.Contains("clay") ||
-                lower.Contains("mine") || lower.Contains("herb") || lower.Contains("tree") ||
+                lower.Contains("wood") || lower.Contains("driftwood") || lower.Contains("stone") || 
+                lower.Contains("clay") || lower.Contains("mine") || lower.Contains("herb") || 
+                lower.Contains("tree") || lower.Contains("coconut") || lower.Contains("fruit") ||
+                lower.Contains("ore") || lower.Contains("flower") || lower.Contains("grass") ||
+                lower.Contains("seed") || lower.Contains("leaf") || lower.Contains("sea water") ||
+                lower.Contains("water") || lower.Contains("bamboo") || lower.Contains("vine") ||
+                lower.Contains("kelp") || lower.Contains("mushroom") || lower.Contains("salt") ||
+                lower.Contains("rice") || lower.Contains("meat") || lower.Contains("shell") ||
                 lower.Contains("door") || lower.Contains("switch") || lower.Contains("lever") ||
                 lower.Contains("statue") || lower.Contains("sign") || lower.Contains("well") ||
                 lower.Contains("tent") || lower.Contains("portal") || lower.Contains("warp"))
@@ -209,9 +215,8 @@ namespace Game.Maps
                 return false;
             }
 
-            // Monster templates in WLO (17000 - 17999, 17400 - 17500, 19000 - 19500)
+            // Monster templates in WLO (17000 - 17999, e.g. Jellies, Wolves, Beetles, Snails, Boars)
             if ((TemplateID >= 17000 && TemplateID <= 17999) || 
-                (TemplateID >= 19000 && TemplateID <= 19500) ||
                 Game.Battle.MonsterDropManager.MonsterLootTables.ContainsKey(TemplateID))
                 return true;
 
@@ -306,7 +311,7 @@ namespace Game.Maps
                 string lowerName = (Name ?? "").ToLower();
 
                 // --- 0.0 WILD MONSTER / OVERWORLD MOB CLICK (Immediate PvE Combat Trigger) ---
-                if (this.IsWildMonster() || (this.TemplateID >= 17000 && this.TemplateID <= 19500))
+                if (this.IsWildMonster())
                 {
                     src.Send(Tools.FromFormat("bb", 20, 8));
                     string mobName = this.Name;
@@ -316,6 +321,15 @@ namespace Game.Maps
                     }
                     Battle.PvEBattleManager.StartPvEBattle(src, (ushort)this.CickID, mobName, Math.Max(1, (int)this.Level), Math.Max(50, (int)this.HP), this.TemplateID);
                     DebugSystem.Write($"[QuestNpc] Started PvE battle for monster '{mobName}' (ClickID {this.CickID}, TID {this.TemplateID}, Lv.{this.Level}) with {src.CharName}");
+                    return;
+                }
+
+                // --- 0.1 PRIMARY: Fully dynamic native eve.dat / eve.emg event resolution ---
+                // Resolves NPC ClickID -> MapObjectEntries.Events -> EventsinMapEntries
+                // Directly pulls all authentic chest drops (e.g. Map 10036 chests #32074, #32075), gathering items (Coconuts #41066),
+                // dialogues, multi-step quests, companions, and warp events directly from eve.dat.
+                if (src.CurMap is GameMap gmap && EveEventInterpreter.TryExecute(src, gmap, (ushort)this.CickID))
+                {
                     return;
                 }
 
@@ -446,13 +460,7 @@ namespace Game.Maps
                     return;
                 }
 
-                // --- 1. PRIMARY: Fully dynamic native eve.Emg event resolution ---
-                // Resolves NPC ClickID -> MapObjectEntries.Events -> EventsinMapEntries
-                // Handles all authentic dialogues, multi-step stages, items, companions, teleports across all 1,119 maps.
-                if (src.CurMap is GameMap gmap && EveEventInterpreter.TryExecute(src, gmap, (ushort)this.CickID))
-                {
-                    return;
-                }
+
 
                 string dialogueText;
 
@@ -575,51 +583,7 @@ namespace Game.Maps
                     return;
                 }
 
-                // 1. Handle Map Props / Gathering Objects by TemplateID (19000-19999 range)
-                // Map 10036 props: 19034=Coconut Tree, 19037=Crate, 19038=Chest, 19039=Coconut
-                bool isPropByTemplateId = (this.TemplateID >= 19000 && this.TemplateID <= 19999);
-                // Map 10036 specific prop ClickIDs (2-6 are confirmed props from eve.Emg)
-                bool isPropByMapClickId = (this.MapID == 10036 && (this.CickID == 2 || this.CickID == 3 || this.CickID == 4 || this.CickID == 5 || this.CickID == 6));
 
-                if (isPropByTemplateId || isPropByMapClickId)
-                {
-                    // Check if chest/prop is currently broken / waiting to respawn
-                    if (this.IsBroken)
-                    {
-                        int remainSec = Math.Max(1, (int)(this.RespawnTime - DateTime.Now).TotalSeconds);
-                        SendPacket emptyNotice = Tools.FromFormat("bbbs", 23, 57, 0, $"Empty... Respawns in {remainSec}s.");
-                        src.Send(emptyNotice);
-
-                        src.Send(Tools.FromFormat("bb", 20, 8));
-                        src.Send(Tools.FromFormat("bb", 5, 4));
-                        return;
-                    }
-
-                    // Roll authentic drop from Map / Category Loot Table
-                    var drop = ChestDropManager.RollDrop(src.CurMap?.MapID ?? 0, this.Name);
-
-                    // Play prop open / break animation (AC 22 Sub 1) and broadcast to map
-                    SendPacket anim = new SendPacket();
-                    anim.PackArray(new byte[] { 22, 1, (byte)this.CickID, 0, 1 });
-                    src.Send(anim);
-                    src.CurMap?.Broadcast(anim);
-
-                    // Add item to inventory
-                    src.Inv.AddItem(drop.ItemID, drop.Count);
-
-                    // Display authentic loot notification prompt (AC 23 Sub 57)
-                    SendPacket notice = Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {drop.ItemName}");
-                    src.Send(notice);
-
-                    // Mark as broken and set respawn timer
-                    this.IsBroken = true;
-                    this.RespawnTime = DateTime.Now.AddSeconds(ChestDropManager.DefaultRespawnSeconds);
-
-                    // Release movement lock
-                    src.Send(Tools.FromFormat("bb", 20, 8));
-                    src.Send(Tools.FromFormat("bb", 5, 4));
-                    return;
-                }
 
                 // 1.5 Handle Shopkeeper NPCs (Props Shop, Weapon Shop, Armor Shop, etc.)
                 if (lowerName.Contains("shop") || lowerName.Contains("sho") || lowerName.Contains("vendor") || 

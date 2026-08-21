@@ -133,6 +133,7 @@ namespace Wonderland_Private_Server.ActionCodes
                         p.Send(Tools.FromFormat("bb", 20, 11));
                         p.Send(Tools.FromFormat("bb", 20, 10));
 
+                        p.ContinueInteraction();
                         DebugSystem.Write($"[AC12] Started Robinson beach rescue cutscene for {p.CharName} on Map 10035");
                     }
                 }

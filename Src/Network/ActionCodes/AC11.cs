@@ -128,7 +128,7 @@ namespace Network.ActionCodes
             }
 
             DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK initiated: {attacker.CharName} vs {target.CharName}");
-            SendPKError(attacker, "PvP battle feature is under construction!");
+            Game.Battle.PvEBattleManager.StartPvPBattle(attacker, target);
         }
 
         void HandleNpcPK(Player attacker, uint npcID, ushort clickID)
