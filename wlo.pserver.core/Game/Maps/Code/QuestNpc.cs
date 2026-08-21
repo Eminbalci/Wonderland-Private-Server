@@ -162,7 +162,7 @@ namespace Game.Maps
 
         public bool IsWildMonster()
         {
-            if (IsStaticNpc() || this.TemplateID == 0)
+            if (this.TemplateID == 0)
                 return false;
 
             string lower = (Name ?? "").ToLower().Trim();
@@ -170,7 +170,10 @@ namespace Game.Maps
             // Domestic animals in villages / pens
             if (lower.Contains("pig") || lower.Contains("cow") || lower.Contains("sheep") || 
                 lower.Contains("chicken") || lower.Contains("duck") || lower.Contains("goat") ||
-                lower.Contains("horse") || lower.Contains("dog") || lower.Contains("cat"))
+                lower.Contains("horse") || lower.Contains("dog") || lower.Contains("cat") ||
+                lower.Contains("shiba") || lower.Contains("mary") || lower.Contains("lina") ||
+                lower.Contains("roca") || lower.Contains("niss") || lower.Contains("sam") ||
+                lower.Contains("fred") || lower.Contains("eliza") || lower.Contains("clive"))
             {
                 return false;
             }
@@ -194,8 +197,22 @@ namespace Game.Maps
                 return false;
             }
 
-            // Monster templates in WLO
-            if (TemplateID >= 17000 && TemplateID <= 19500)
+            // Explicit static prop names
+            if (lower.Contains("chest") || lower.Contains("box") || lower.Contains("crate") ||
+                lower.Contains("barrel") || lower.Contains("pot") || lower.Contains("machine") ||
+                lower.Contains("wood") || lower.Contains("stone") || lower.Contains("clay") ||
+                lower.Contains("mine") || lower.Contains("herb") || lower.Contains("tree") ||
+                lower.Contains("door") || lower.Contains("switch") || lower.Contains("lever") ||
+                lower.Contains("statue") || lower.Contains("sign") || lower.Contains("well") ||
+                lower.Contains("tent") || lower.Contains("portal") || lower.Contains("warp"))
+            {
+                return false;
+            }
+
+            // Monster templates in WLO (17000 - 17999, 17400 - 17500, 19000 - 19500)
+            if ((TemplateID >= 17000 && TemplateID <= 17999) || 
+                (TemplateID >= 19000 && TemplateID <= 19500) ||
+                Game.Battle.MonsterDropManager.MonsterLootTables.ContainsKey(TemplateID))
                 return true;
 
             // Known monster keywords
@@ -203,10 +220,11 @@ namespace Game.Maps
                 lower.Contains("spider") || lower.Contains("snake") || lower.Contains("bat") ||
                 lower.Contains("treant") || lower.Contains("tiger") || lower.Contains("bear") ||
                 lower.Contains("beetle") || lower.Contains("eagle") || lower.Contains("shark") ||
-                lower.Contains("crab") || lower.Contains("jellyfish") || lower.Contains("slime") ||
-                lower.Contains("boar") || lower.Contains("golem") || lower.Contains("spirit") ||
-                lower.Contains("ghost") || lower.Contains("scorpion") || lower.Contains("wasp") ||
-                lower.Contains("bee") || lower.Contains("flower monster") || lower.Contains("plant"))
+                lower.Contains("crab") || lower.Contains("jellyfish") || lower.Contains("jelly") ||
+                lower.Contains("slime") || lower.Contains("boar") || lower.Contains("golem") ||
+                lower.Contains("spirit") || lower.Contains("ghost") || lower.Contains("scorpion") ||
+                lower.Contains("wasp") || lower.Contains("bee") || lower.Contains("flower monster") ||
+                lower.Contains("plant"))
             {
                 return true;
             }
@@ -232,12 +250,14 @@ namespace Game.Maps
             if (this.TemplateID == 0)
                 return true;
 
+            // Wild monsters and human NPCs are never static props
+            if (IsWildMonster() || IsHumanNpc())
+                return false;
+
             // Prop / chest / object template ID ranges in WLO:
             // 12000-12999: containers, crates, beach wreckage props
-            // 16000-19999: props, furniture, machines, chests, gathering resources
             // 25000-35000: static map props & mechanisms
-            if ((this.TemplateID >= 12000 && this.TemplateID <= 12999 && !IsHumanNpc()) ||
-                (this.TemplateID >= 16000 && this.TemplateID <= 19999) ||
+            if ((this.TemplateID >= 12000 && this.TemplateID <= 12999) ||
                 (this.TemplateID >= 25000 && this.TemplateID <= 35000))
             {
                 return true;
@@ -270,6 +290,11 @@ namespace Game.Maps
             return false;
         }
 
+        public virtual bool HasPlayerDoneQuest(Player src)
+        {
+            return false;
+        }
+
         public virtual void EvaluateQuestData(Player src)
         {
         }
@@ -279,6 +304,20 @@ namespace Game.Maps
             try
             {
                 string lowerName = (Name ?? "").ToLower();
+
+                // --- 0.0 WILD MONSTER / OVERWORLD MOB CLICK (Immediate PvE Combat Trigger) ---
+                if (this.IsWildMonster() || (this.TemplateID >= 17000 && this.TemplateID <= 19500))
+                {
+                    src.Send(Tools.FromFormat("bb", 20, 8));
+                    string mobName = this.Name;
+                    if (string.IsNullOrEmpty(mobName) || mobName.Equals("Npc", StringComparison.OrdinalIgnoreCase) || mobName.StartsWith("unknown", StringComparison.OrdinalIgnoreCase))
+                    {
+                        mobName = Game.Battle.PvEBattleManager.ResolveMonsterName(this.TemplateID);
+                    }
+                    Battle.PvEBattleManager.StartPvEBattle(src, (ushort)this.CickID, mobName, Math.Max(1, (int)this.Level), Math.Max(50, (int)this.HP), this.TemplateID);
+                    DebugSystem.Write($"[QuestNpc] Started PvE battle for monster '{mobName}' (ClickID {this.CickID}, TID {this.TemplateID}, Lv.{this.Level}) with {src.CharName}");
+                    return;
+                }
 
                 // --- 0.1 PROPS KEEPER (Character-bound Storage Vault across all maps) ---
                 // Verified from propskeeper.pcapng (Frames 04-10) — Global ID 0x00019898 ensures identical shared items across all maps
@@ -296,7 +335,7 @@ namespace Game.Maps
                 // Verified from witchdoctor.pcapng (Frames 18-49)
                 if (lowerName.Contains("doctor") || lowerName.Contains("witch") || lowerName.Contains("clinic") || this.TemplateID == 14151)
                 {
-                    src.Send(Tools.FromFormat("bbb", 6, 2, 1)); // Lock movement
+                    src.Send(Tools.FromFormat("bbb", 6, 2, 1)); // Lock movementent
 
                     // Step 1: Send Choice Menu (Choice ID 3: 1=Heal, 2=Save Memory Point, 3=Cancel)
                     SendPacket cPkt = new SendPacket();
@@ -631,38 +670,7 @@ namespace Game.Maps
                     return;
                 }
 
-                // 1.8 Handle Monster / Wild Creature clicks (Trigger PvE Battle!)
-                // Only trigger battle for genuine wild monsters (TemplateID 17000-17999, slimes, wolves, etc.)
-                bool isMonster = Game.Battle.MonsterDropManager.MonsterLootTables.ContainsKey(this.TemplateID) ||
-                    (this.TemplateID >= 17000 && this.TemplateID <= 17999) ||
-                    lowerName.Contains("jelly") || lowerName.Contains("delicate") || lowerName.Contains("slime") ||
-                    lowerName.Contains("wolf") || lowerName.Contains("snake") || lowerName.Contains("beetle") ||
-                    lowerName.Contains("spider") || lowerName.Contains("boar") || lowerName.Contains("crab") || 
-                    lowerName.Contains("gargoyle") || lowerName.Contains("bat");
 
-                // Ensure friendly NPCs, companions, dogs/cats, statues, and items are NEVER flagged as monsters
-                if (lowerName.Contains("villager") || lowerName.Contains("guard") || lowerName.Contains("shiba") || 
-                    lowerName.Contains("dog") || lowerName.Contains("cat") || lowerName.Contains("mary") || 
-                    lowerName.Contains("jack") || lowerName.Contains("lina") || lowerName.Contains("roca") || 
-                    lowerName.Contains("noa") || lowerName.Contains("statue") || lowerName.Contains("sword") || 
-                    lowerName.Contains("comb") || lowerName.Contains("doll") || lowerName.Contains("emilie") || 
-                    lowerName.Contains("guidepost") || lowerName.Contains("boll") || lowerName.Contains("lou") ||
-                    this.TemplateID == 11003 || this.TemplateID == 11000 || this.TemplateID == 19020 || this.TemplateID == 19026 ||
-                    this.TemplateID == 19048 || this.TemplateID == 19074 || this.TemplateID == 14005 || this.TemplateID == 14013 ||
-                    this.TemplateID == 14030 || this.TemplateID == 14049 || this.TemplateID == 14052 || this.TemplateID == 14063 ||
-                    this.TemplateID == 14118 || this.TemplateID == 14140 || this.TemplateID == 14141 || this.TemplateID == 14144 ||
-                    this.TemplateID == 14153 || this.TemplateID == 14161 || this.TemplateID == 14162 || this.TemplateID == 25020)
-                {
-                    isMonster = false;
-                }
-
-                if (isMonster)
-                {
-                    src.Send(Tools.FromFormat("bb", 20, 8));
-                    Battle.PvEBattleManager.StartPvEBattle(src, (ushort)this.CickID, this.Name, Math.Max(1, (int)this.Level), Math.Max(50, (int)this.HP), this.TemplateID);
-                    DebugSystem.Write($"[QuestNpc] Started PvE battle for monster '{Name}' (Lv.{Level} HP.{HP} TID.{TemplateID}) with {src.CharName}");
-                    return;
-                }
 
 
 

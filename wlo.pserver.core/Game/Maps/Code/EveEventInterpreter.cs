@@ -25,9 +25,25 @@ namespace Game.Maps
                 var mapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
                 if (mapData == null) return false;
 
-                // 1. Dynamic NPC -> Event resolution from eve.Emg
-                // In eve.Emg, MapObjectEntries (NPC) contains an Events list [eventId1, ...]
                 var npcEntry = mapData.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+                var mapNpc = map.NpcList?.FirstOrDefault(n => n.CickID == clickId) as QuestNpc;
+
+                // If NPC is a wild/roaming monster, immediately initiate PvE Battle
+                if ((npcEntry != null && npcEntry.npcId >= 17000 && npcEntry.npcId <= 19500) || (mapNpc != null && mapNpc.IsWildMonster()))
+                {
+                    uint tid = npcEntry != null && npcEntry.npcId > 0 ? (uint)npcEntry.npcId : (mapNpc?.TemplateID ?? 17000);
+                    string mName = mapNpc?.Name;
+                    if (string.IsNullOrEmpty(mName) || mName.Equals("Npc", StringComparison.OrdinalIgnoreCase) || mName.StartsWith("unknown", StringComparison.OrdinalIgnoreCase))
+                    {
+                        mName = Game.Battle.PvEBattleManager.ResolveMonsterName(tid);
+                    }
+                    int mLv = mapNpc != null && mapNpc.Level > 0 ? (int)mapNpc.Level : 5;
+                    int mHp = mapNpc != null && mapNpc.HP > 0 ? (int)mapNpc.HP : 200;
+                    Battle.PvEBattleManager.StartPvEBattle(player, clickId, mName, mLv, mHp, tid);
+                    DebugSystem.Write($"[EveEventInterpreter] Monster encounter initiated for {player.CharName} vs {mName} (TID {tid}, ClickID {clickId})");
+                    return true;
+                }
+
                 EventsinMapEntries eventEntry = null;
 
                 if (npcEntry != null && npcEntry.Events != null && npcEntry.Events.Count > 0)

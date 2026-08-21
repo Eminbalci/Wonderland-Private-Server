@@ -98,10 +98,41 @@ namespace Game.Battle
             }
         }
 
+        public static string ResolveMonsterName(uint templateId)
+        {
+            switch (templateId)
+            {
+                case 17000: return "Water Jelly";
+                case 17001: return "Earth Jelly";
+                case 17002: return "Wind Jelly";
+                case 17003: return "Fire Jelly";
+                case 17004: return "Horned Beetle";
+                case 17005: return "Forest Snail";
+                case 17100: return "Wild Boar";
+                case 17101: return "Fire Boar";
+                case 17106: return "Wood Beetle";
+                case 17107: return "Stag Beetle";
+                case 17410: return "Island Wolf";
+                case 17411: return "Wolf Leader";
+                case 17412: return "Dire Wolf";
+                case 17413: return "Wild Boar";
+                case 17414: return "Wild Snail";
+                case 17415: return "Giant Beetle";
+                case 17416: return "Forest Treant";
+                case 17417: return "Dark Bat";
+                case 17418: return "Cave Spider";
+                case 11066: return "Wolf Guard";
+                default:
+                    if (templateId >= 17000 && templateId <= 17003) return "Jelly";
+                    if (templateId >= 17000 && templateId <= 19500) return $"Monster #{templateId}";
+                    return "Wild Monster";
+            }
+        }
+
         public static bool IsSafeTownMap(ushort mapId)
         {
             // Town / Village / Interior safe zones (No random encounters)
-            if (mapId == 10000 || mapId == 60000) return true; // Kelan Village
+            if (mapId == 10000) return true; // Kelan Village (Safe town)
             if (mapId >= 10001 && mapId <= 10036) return true; // Kelan houses, tent, beach
             if (mapId == 11000 || (mapId >= 11001 && mapId <= 11035)) return true; // Welling Village & houses
             if (mapId == 12000 || (mapId >= 12001 && mapId <= 12035)) return true; // Holy Village

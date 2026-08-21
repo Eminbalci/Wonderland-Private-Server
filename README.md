@@ -75,6 +75,8 @@ In the private server exe, click "Cheat" tab:
 - Native Eve.emg Portal Resolution Protocol (Hierarchical Multi-Priority Warp Engine) in [docs/native_eve_portal_resolution_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/native_eve_portal_resolution_protocol.md).
 - Character Props Keeper Storage & Database Persistence (AC 30 / AC 29 / storID 2) in [docs/props_keeper_storage_persistence.md](file:///d:/GitHub/Wonderland-Private-Server/docs/props_keeper_storage_persistence.md).
 - Pet Hotel Storage System & Companion Database Persistence (AC 31 / isHotel 1) in [docs/pet_hotel_storage_persistence.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pet_hotel_storage_persistence.md).
+- Overworld Monsters, Aggro, and Dynamic Encounter Combat Protocol in [docs/overworld_monsters_and_encounter_combat.md](file:///d:/GitHub/Wonderland-Private-Server/docs/overworld_monsters_and_encounter_combat.md).
+
 
 
 
