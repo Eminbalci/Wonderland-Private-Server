@@ -41,6 +41,8 @@ namespace Game.DataFiles
             return null;
         }
 
+        public IReadOnlyDictionary<ushort, MapData> AllMaps => Maps;
+
         void ReadData(byte[] d)
         {
             int ptr = 0;
@@ -190,6 +192,61 @@ namespace Game.DataFiles
             timer.Stop();
             DebugSystem.Write("Data loaded successfully");
         }
+        private static Encoding _big5Encoding = null;
+        public static Encoding Big5Encoding
+        {
+            get
+            {
+                if (_big5Encoding == null)
+                {
+                    try
+                    {
+                        _big5Encoding = Encoding.GetEncoding(950); // Big5 Traditional Chinese
+                    }
+                    catch
+                    {
+                        try { _big5Encoding = Encoding.GetEncoding("big5"); }
+                        catch { _big5Encoding = Encoding.Default; }
+                    }
+                }
+                return _big5Encoding;
+            }
+        }
+
+        public static string DecodeEveString(byte[] buffer, int offset, int maxLength)
+        {
+            if (buffer == null || offset < 0 || offset >= buffer.Length || maxLength <= 0) return "";
+            int available = Math.Min(maxLength, buffer.Length - offset);
+            if (available <= 0) return "";
+
+            // Find actual string length before trailing / embedded null bytes
+            int len = 0;
+            while (len < available && buffer[offset + len] != 0)
+            {
+                len++;
+            }
+            if (len == 0) return "";
+
+            try
+            {
+                string decoded = Big5Encoding.GetString(buffer, offset, len).Trim('\0', ' ', '\r', '\n');
+                if (!string.IsNullOrEmpty(decoded))
+                    return decoded;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                return Encoding.UTF8.GetString(buffer, offset, len).Trim('\0', ' ', '\r', '\n');
+            }
+            catch
+            {
+                return Encoding.Default.GetString(buffer, offset, len).Trim('\0', ' ', '\r', '\n');
+            }
+        }
+
         public List<MapObjectEntries> LoadNpcEntries(MapData y)
         {
             try
@@ -208,12 +265,7 @@ namespace Game.DataFiles
 
                     MapObjectEntries tmp = new MapObjectEntries();
                     tmp.clickId = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 1; ap < d[ptr] + 1; ap++)
-                    {
-                        if (ptr + ap >= d.Length) break;
-                        tmp.Name += (char)d[ap + ptr];
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
                     ptr += 20;
 
                     if (ptr + 10 > d.Length) break;
@@ -326,11 +378,8 @@ namespace Game.DataFiles
 
                     Entry_Exit_Point_Entries tmp = new Entry_Exit_Point_Entries();
                     tmp.clickID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
                     tmp.x = GetDWord(d, ptr); ptr += 4;
                     tmp.y = GetDWord(d, ptr); ptr += 4;
@@ -389,12 +438,8 @@ namespace Game.DataFiles
 
                     MiningAreaEntries tmp = new MiningAreaEntries();
                     tmp.clickID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     if (ptr >= d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
                     tmp.x = GetDWord(d, ptr); ptr += 4;
@@ -454,15 +499,10 @@ namespace Game.DataFiles
 
                     ItemsinMapEntries tmp = new ItemsinMapEntries();
                     tmp.clickID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
 
                     if (ptr >= d.Length) break;
                     int len = d[ptr]; ptr++;
-                    for (int ap = 0; ap < 19; ap++)
-                    {
-                        if (ptr + ap >= d.Length) break;
-                        tmp.Name += (char)d[ptr + ap];
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 19);
                     ptr += 19;
 
                     if (ptr >= d.Length) break;
@@ -527,13 +567,8 @@ namespace Game.DataFiles
 
                     if (ptr >= d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
-                    tmp.Name = "";
-                    byte[] test = new byte[20];
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; test[ap] = d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
 
                     if (ptr >= d.Length) break;
                     int blen = d[ptr]; ptr++;
@@ -601,12 +636,8 @@ namespace Game.DataFiles
 
                     GroupEntries tmp = new GroupEntries();
                     tmp.clickID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     if (ptr + 6 > d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
                     tmp.unknownbyte2 = d[ptr]; ptr++;
@@ -656,12 +687,8 @@ namespace Game.DataFiles
 
                     WarpInfo tmp = new WarpInfo();
                     tmp.clickID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     if (ptr + 13 > d.Length) break;
                     tmp.mapID = GetWord(d, ptr); ptr += 2;
                     tmp.x = GetDWord(d, ptr); ptr += 4;
@@ -699,12 +726,8 @@ namespace Game.DataFiles
 
                     InteractiveInfoEntries tmp = new InteractiveInfoEntries();
                     tmp.entryID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     if (ptr + 4 > d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
                     tmp.unknownbyte2 = d[ptr]; ptr++;
@@ -753,12 +776,8 @@ namespace Game.DataFiles
 
                     BattleInfoEntries tmp = new BattleInfoEntries();
                     tmp.entryID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     if (ptr + 18 > d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
                     tmp.unknownbyte2 = d[ptr]; ptr++;
@@ -836,12 +855,8 @@ namespace Game.DataFiles
 
                     if (ptr >= d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
 
                     if (ptr >= d.Length) break;
                     int blen = d[ptr]; ptr++;
@@ -866,7 +881,7 @@ namespace Game.DataFiles
                             for (int ga = 0; ga < 21; ga++)
                             {
                                 if (ptr >= d.Length) break;
-                                y.unknown.Add(d[ptr]); ptr++;
+                                fy.unknown.Add(d[ptr]); ptr++;
                             }
                             y.subentry2.Add(fy);
                         }
@@ -902,12 +917,8 @@ namespace Game.DataFiles
 
                     ExtgroupEntries tmp = new ExtgroupEntries();
                     tmp.clickID = GetWord(d, ptr); ptr += 2;
-                    tmp.Name = "";
-                    for (int ap = 0; ap < 20; ap++)
-                    {
-                        if (ptr >= d.Length) break;
-                        tmp.Name += (char)d[ptr]; ptr++;
-                    }
+                    tmp.Name = DecodeEveString(d, ptr, 20);
+                    ptr += 20;
                     if (ptr + 7 > d.Length) break;
                     tmp.unknownbyte1 = d[ptr]; ptr++;
                     tmp.unknownword1 = GetWord(d, ptr); ptr += 2;

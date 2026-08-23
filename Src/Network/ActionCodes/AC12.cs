@@ -110,6 +110,7 @@ namespace Wonderland_Private_Server.ActionCodes
                             if (p.Quests == null) p.Quests = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
                             p.Quests[12040] = new Game.QuestRelated.PlayerQuest(12040, Game.QuestRelated.QuestState.InProgress, 1);
                             Game.QuestRelated.QuestManager.SavePlayerQuest(p, 12040);
+                            p.Send(Tools.FromFormat("bbb", 6, 2, 0)); // Unlock movement (cancels AC 6:2, 1)
                             p.Send(Tools.FromFormat("bb", 20, 8)); // Unlock screen
                             p.Send(Tools.FromFormat("bb", 5, 4));  // Unlock player movement
                             DebugSystem.Write($"[AC12] Beach rescue cutscene completed, Quest 12040 registered and player unlocked for {p.CharName}");

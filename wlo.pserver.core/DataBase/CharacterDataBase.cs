@@ -1571,6 +1571,32 @@ namespace DataBase
             }
             #endregion
 
+            #region write quests
+            try
+            {
+                if (player.Quests != null && player.Quests.Count > 0)
+                {
+                    ExecuteNonQuery("CREATE TABLE IF NOT EXISTS charquest (pri_key INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, quest_started INT NOT NULL, quest_pos INT NOT NULL, UNIQUE(charID, quest_started));");
+                    List<string> questRows = new List<string>();
+                    foreach (var q in player.Quests.Values)
+                    {
+                        if (q != null && q.QuestID > 0)
+                        {
+                            questRows.Add(string.Format("('{0}', '{1}', '{2}')", charID, q.QuestID, (byte)q.State));
+                        }
+                    }
+                    if (questRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT OR REPLACE INTO charquest (charID, quest_started, quest_pos) VALUES {0};", string.Join(",", questRows)));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving quests for charID {charID}: {ex.Message}");
+            }
+            #endregion
+
             return true;
         }
 

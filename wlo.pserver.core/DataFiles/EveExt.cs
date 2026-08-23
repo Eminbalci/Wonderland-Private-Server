@@ -378,7 +378,7 @@ namespace Game.DataFiles
     public class preEventSubSubEntry
     {
         public byte subIndex;
-        List<byte> unknown = new List<byte>();
+        public List<byte> unknown = new List<byte>();
     }
     public class preEventEntries
     {

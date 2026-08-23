@@ -250,22 +250,15 @@ namespace Game.QuestRelated
 
             try
             {
-                string jsonPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "npc.json");
-                if (!System.IO.File.Exists(jsonPath)) jsonPath = @"d:\GitHub\Wonderland-Private-Server\Data\npc.json";
-                if (System.IO.File.Exists(jsonPath))
+                var allNames = Game.DataFiles.SceneDataManager.GetAllNpcNames();
+                if (allNames != null)
                 {
-                    string jsonText = System.IO.File.ReadAllText(jsonPath);
-                    var matches = System.Text.RegularExpressions.Regex.Matches(jsonText, @"""(\d+)""\s*:\s*""([^""]+)""");
-                    foreach (System.Text.RegularExpressions.Match match in matches)
+                    foreach (var kvp in allNames)
                     {
-                        if (uint.TryParse(match.Groups[1].Value, out uint jid))
+                        _npcNameCache[kvp.Key] = kvp.Value;
+                        if (!_npcTidByName.ContainsKey(kvp.Value))
                         {
-                            string jname = match.Groups[2].Value.Trim();
-                            _npcNameCache[jid] = jname;
-                            if (!_npcTidByName.ContainsKey(jname))
-                            {
-                                _npcTidByName[jname] = jid;
-                            }
+                            _npcTidByName[kvp.Value] = kvp.Key;
                         }
                     }
                 }
@@ -273,6 +266,14 @@ namespace Game.QuestRelated
             catch
             {
             }
+        }
+
+        public static string GetNpcName(uint tid)
+        {
+            EnsureNpcCache();
+            if (_npcNameCache != null && _npcNameCache.TryGetValue(tid, out string name) && !string.IsNullOrWhiteSpace(name))
+                return name;
+            return $"Companion #{tid}";
         }
 
         public static uint ResolveDefaultNpcTid(string pattern, string title, string area)
@@ -457,11 +458,25 @@ namespace Game.QuestRelated
             {
                 // 1. Extract Title from [200..265]
                 string title = ExtractReversedString(data, offset + 200, 65);
-                if (string.IsNullOrWhiteSpace(title) || title.StartsWith("Visit Mark") || title.StartsWith("Time Mark"))
+                if (string.IsNullOrWhiteSpace(title) || 
+                    title.StartsWith("Visit Mark", StringComparison.OrdinalIgnoreCase) || 
+                    title.StartsWith("Time Mark", StringComparison.OrdinalIgnoreCase) ||
+                    title.StartsWith("Quest Mark", StringComparison.OrdinalIgnoreCase))
                     return null;
 
                 // 2. Extract Body from [266..525]
                 string body = ExtractReversedString(data, offset + 266, 260);
+                if (string.IsNullOrWhiteSpace(body) || 
+                    body.StartsWith("Visit Mark", StringComparison.OrdinalIgnoreCase) || 
+                    body.StartsWith("Time Mark", StringComparison.OrdinalIgnoreCase) ||
+                    body.StartsWith("Visit Mar", StringComparison.OrdinalIgnoreCase) ||
+                    body.StartsWith("Time Mar", StringComparison.OrdinalIgnoreCase) ||
+                    body == "Quest Mark" ||
+                    (body == title && (title == "North Island" || title == "South Island" || title == "Maya" || title == "Japan" || title == "China" || title == "Egypt")))
+                {
+                    // Internal GPS coordinate marker or sightseeing flag in Mark.dat -> filter out
+                    return null;
+                }
 
                 var mark = new ParsedMark
                 {
@@ -469,16 +484,6 @@ namespace Game.QuestRelated
                     Title = CleanString(title),
                     NpcPattern = ExtractNpcPattern(title, body)
                 };
-
-                if (string.IsNullOrWhiteSpace(body) || body == "Quest Mark")
-                {
-                    mark.Description = mark.Title;
-                    mark.IntroDialogue = mark.Title;
-                    mark.InProgressDialogue = mark.Title;
-                    mark.CompletedSummary = mark.Title;
-                    mark.Location = ExtractAreaFromText(mark.Title, "");
-                    return mark;
-                }
 
                 mark.Location = ExtractAreaFromText(mark.Title, body);
 
@@ -1000,26 +1005,33 @@ namespace Game.QuestRelated
         /// <summary>
         /// Synchronizes personal, client-side NPC visibility for a specific player when entering a map.
         /// Ensures despawned/completed NPCs stay hidden ONLY for players who finished the quest on this specific map.
+        /// <summary>
+        /// Synchronizes personal client-side NPC visibility based on dynamic Eve.emg PreEvents and quest state.
         /// </summary>
         public static void SyncPerPlayerNpcVisibility(Player player, ushort mapId)
         {
-            if (player == null || player.Quests == null) return;
+            if (player == null) return;
 
             try
             {
-                lock (_lock)
+                // 1. Evaluate dynamic Eve.emg PreEvents bytecode across all 662 maps
+                PreEventInterpreter.EvaluateMapPreEvents(player, mapId);
+
+                // 2. Hide completed/recruited quest NPCs from registered definitions
+                if (player.Quests != null)
                 {
-                    foreach (var pq in player.Quests.Values)
+                    lock (_lock)
                     {
-                        if (pq.State == QuestState.Completed && _registeredQuests.TryGetValue(pq.QuestID, out var quest))
+                        foreach (var pq in player.Quests.Values)
                         {
-                            if (quest.MapID == mapId && quest.DespawnNpcClickIDs != null && quest.DespawnNpcClickIDs.Count > 0)
+                            if (pq.State == QuestState.Completed && _registeredQuests.TryGetValue(pq.QuestID, out var quest))
                             {
-                                foreach (var clickId in quest.DespawnNpcClickIDs)
+                                if (quest.MapID == mapId && quest.DespawnNpcClickIDs != null && quest.DespawnNpcClickIDs.Count > 0)
                                 {
-                                    SendPacket despawnPkt = new SendPacket();
-                                    despawnPkt.PackArray(new byte[] { 22, 1, (byte)clickId, 0, 1 });
-                                    player.Send(despawnPkt);
+                                    foreach (var clickId in quest.DespawnNpcClickIDs)
+                                    {
+                                        player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickId, (byte)0xFF, (byte)0xFF));
+                                    }
                                 }
                             }
                         }
@@ -1032,7 +1044,6 @@ namespace Game.QuestRelated
             }
         }
 
-        /// <summary>
         /// <summary>
         /// Sends authentic companion recruit packets (Official AC 15:1 format matching PCAP Frame 0958).
         /// </summary>
@@ -1056,29 +1067,7 @@ namespace Game.QuestRelated
                     mapNpc.RespawnTime = DateTime.MaxValue;
                 }
 
-                // 2. AC 15:1 Authentic 54-byte Pet Recruit Packet (Byte-for-byte from PCAP Frame 0958)
-                SendPacket petPkt = CreatePetPacket(player, petId, 1);
-                player.Send(petPkt);
-                player.CurMap?.Broadcast(petPkt, "Ex", player.CharID);
-                SendPetSkills(player, petId, 1);
-
-                // 3. If battle mode enabled, set active companion on map
-                if (setBattle)
-                {
-                    player.ActivePetID = petId;
-                    // AC 19:1 Set battle companion state for owner (Frame 0958)
-                    player.Send(Tools.FromFormat("bbd", 19, 1, petId));
-
-                    // AC 19:4 Broadcast battle companion following player to all players on map
-                    SendPacket followPkt = new SendPacket();
-                    followPkt.Pack8(19);
-                    followPkt.Pack8(4);
-                    followPkt.Pack32(player.CharID);
-                    followPkt.Pack32(petId);
-                    player.CurMap?.Broadcast(followPkt, "Ex", player.CharID);
-                }
-
-                // 4. Save to player's active pet list
+                // 2. Save to player's active pet list
                 if (player.PlayerPets != null)
                 {
                     player.PlayerPets[1] = new Player.PlayerPetData()
@@ -1097,6 +1086,20 @@ namespace Game.QuestRelated
                     };
                 }
 
+                // 3. AC 15:1 Authentic 54-byte Pet Recruit Packet (Byte-for-byte from PCAP Frame 0958)
+                SendPacket petPkt = CreatePetPacket(player, petId, 1);
+                player.Send(petPkt);
+                player.CurMap?.Broadcast(petPkt, "Ex", player.CharID);
+                SendPetSkills(player, petId, 1);
+
+                // 4. If battle mode enabled, set active companion on map and broadcast appearance
+                if (setBattle)
+                {
+                    player.ActivePetID = petId;
+                    player.Send(Tools.FromFormat("bbd", 19, 1, petId));
+                    player.BroadcastPetAppearance(petId, petName);
+                }
+
                 DebugSystem.Write($"[QuestManager] Companion {petName} (ID: {petId}) successfully recruited with authentic AC 15:1 54-byte packet!");
             }
             catch (Exception ex)
@@ -1110,10 +1113,11 @@ namespace Game.QuestRelated
             SendPacket petPkt = new SendPacket();
             petPkt.PackArray(new byte[] { 15, 1 });
             petPkt.Pack32(player.CharID);
-            petPkt.Pack32(petId);
+            uint pktPetId = (petId == 12032 || petId == 12178) ? (uint)12178 : petId;
+            petPkt.Pack32(pktPetId);
             petPkt.Pack8(slot);
 
-            if (petId == 12178 || petId == 12032) // Robinson (Official baseline stats)
+            if (pktPetId == 12178 || pktPetId == 12032) // Robinson (Official baseline stats)
             {
                 petPkt.Pack16(7);   // STR: 7
                 petPkt.Pack16(11);  // CON: 11
@@ -1153,11 +1157,12 @@ namespace Game.QuestRelated
             {
                 case 12032:
                 case 12178: // Robinson (Water)
-                    skills.Add(15249); // Fury Strike (30 SP, Water)
-                    skills.Add(15216); // Freeze Strike (77 SP, Water)
+                    skills.Add(25221); // Fury Strike (Water)
+                    skills.Add(12046); // Freeze Strike (Water)
                     break;
                 case 17162: // Monkey
                     skills.Add(12026); // Throw Banana Skin (12 SP)
+                    skills.Add(12027); // Monkey Trick
                     break;
                 case 12003: // Niss (Water)
                     skills.Add(11001); // Icicle Attack
@@ -1167,10 +1172,11 @@ namespace Game.QuestRelated
                     skills.Add(15002); // Instant Attack
                     break;
                 case 12001: // Xaolan (Fire)
-                    skills.Add(12001); // Fire Light
+                    skills.Add(11100); // Fire Light
                     break;
                 case 12005: // Sam (Wind)
-                    skills.Add(15003); // Newbie's Stunt
+                    skills.Add(12025); // Newbie's Stunt
+                    skills.Add(11057); // Shield Defence
                     break;
                 case 12015: // Shizune (Fire)
                     skills.Add(25436); // Random Sword Slash
@@ -1186,16 +1192,27 @@ namespace Game.QuestRelated
             var skills = GetDefaultPetSkills(petId);
             foreach (var skId in skills)
             {
-                SendPacket p = new SendPacket();
-                p.Pack8(8);
-                p.Pack8(2);
-                p.Pack8(slot);
-                p.Pack8(2);
-                p.Pack8(0);
-                p.Pack16(0x016F); // 367 = Pet Skill Unlock
-                p.Pack32(0);
-                p.Pack32((uint)skId);
-                player.Send(p);
+                // 1. Authentic AC 8:2 Stat 110 (Pet Skill Learned Notification)
+                SendPacket learnPkt = new SendPacket();
+                learnPkt.Pack8(8);
+                learnPkt.Pack8(2);
+                learnPkt.Pack8(slot);
+                learnPkt.Pack16(1);
+                learnPkt.Pack16(110);
+                learnPkt.Pack32(1);
+                learnPkt.Pack32((uint)skId);
+                player.Send(learnPkt);
+
+                // 2. Authentic AC 8:2 Stat 367 (Pet Skill Book / Tree Unlock)
+                SendPacket ac8_2 = new SendPacket();
+                ac8_2.Pack8(8);
+                ac8_2.Pack8(2);
+                ac8_2.Pack8(slot);
+                ac8_2.Pack16(1);
+                ac8_2.Pack16(0x016F);
+                ac8_2.Pack32(1);
+                ac8_2.Pack32((uint)skId);
+                player.Send(ac8_2);
             }
         }
 
@@ -1267,6 +1284,64 @@ namespace Game.QuestRelated
             catch (Exception ex)
             {
                 DebugSystem.Write($"[QuestManager] Error in SendAllQuestFlags for {player.CharName}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds the correct visible quest phase and actor states for the player on map entry:
+        /// - Despawns recruited companion NPCs (e.g. Robinson, Clive, Niss, Roca, Sam, Fred)
+        /// - Despawns/updates completed one-time quest NPCs and chests
+        /// </summary>
+        public static void ReplayActorVisibility(Player player, GameMap map)
+        {
+            if (player == null || map == null) return;
+            try
+            {
+                // 1. Despawn recruited companions from map if in player party/pets
+                if (player.PlayerPets != null && player.PlayerPets.Count > 0)
+                {
+                    foreach (var pet in player.PlayerPets.Values)
+                    {
+                        if (pet == null) continue;
+                        var companionNpc = map.NpcList?.OfType<Game.Maps.QuestNpc>().FirstOrDefault(qn => qn.TemplateID == pet.PetID || (qn.Name != null && qn.Name.Equals(pet.PetName, StringComparison.OrdinalIgnoreCase)));
+                        if (companionNpc != null)
+                        {
+                            player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)companionNpc.CickID, (byte)0xFF, (byte)0xFF));
+                            DebugSystem.Write($"[ActorVisibility] Replayed despawn for companion NPC {companionNpc.Name} (ClickID {companionNpc.CickID}) for {player.CharName}");
+                        }
+                    }
+                }
+
+                // 2. Despawn or show opened state for completed one-time events/chests
+                var mapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
+                if (mapData?.Events != null && player.Quests != null && player.Quests.Count > 0)
+                {
+                    foreach (var ev in mapData.Events)
+                    {
+                        if (ev.SubEntry == null) continue;
+                        foreach (var sub in ev.SubEntry)
+                        {
+                            uint qId = sub.unknownword1;
+                            if (qId > 0 && player.Quests.TryGetValue(qId, out var pq) && pq.State == QuestState.Completed)
+                            {
+                                bool isChest = sub.SubEntry != null && sub.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5);
+                                bool isDespawn = sub.SubEntry != null && sub.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 2);
+                                if (isChest)
+                                {
+                                    player.Send(Tools.FromFormat("bbwb", 22, 1, (ushort)ev.clickID, (byte)1));
+                                }
+                                else if (isDespawn)
+                                {
+                                    player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ActorVisibility] Error in ReplayActorVisibility: {ex.Message}");
             }
         }
 
@@ -1343,7 +1418,6 @@ namespace Game.QuestRelated
         }
 
         /// <summary>
-        /// <summary>
         /// Saves or updates a specific quest state in the database.
         /// </summary>
         public static void SavePlayerQuest(Player player, uint questId)
@@ -1412,6 +1486,37 @@ namespace Game.QuestRelated
             catch (Exception ex)
             {
                 DebugSystem.Write($"[QuestManager] Error in AdvanceQuestStep: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Explicitly sets and saves the quest state and step for a player.
+        /// </summary>
+        public static void SetPlayerQuestState(Player player, uint questId, QuestState state, byte step = 1)
+        {
+            if (player == null || questId == 0) return;
+            try
+            {
+                if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+                if (!player.Quests.TryGetValue(questId, out var pq))
+                {
+                    pq = new PlayerQuest(questId, state, step);
+                    player.Quests[questId] = pq;
+                }
+                else
+                {
+                    pq.State = state;
+                    pq.Step = step;
+                }
+                if (state == QuestState.Completed) pq.CompletedAt = DateTime.UtcNow;
+
+                SendQuestUpdate(player, questId, state, step);
+                SavePlayerQuest(player, questId);
+                DebugSystem.Write($"[QuestManager] Set Player {player.CharName} Quest #{questId} -> {state} (Step {step})");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[QuestManager] Error in SetPlayerQuestState: {ex.Message}");
             }
         }
 

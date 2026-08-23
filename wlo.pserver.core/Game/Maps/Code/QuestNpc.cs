@@ -1150,27 +1150,8 @@ namespace Game.Maps
         {
             try
             {
-                string talkPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
-                if (!System.IO.File.Exists(talkPath)) talkPath = @"d:\GitHub\Wonderland-Private-Server\Data\Talk.dat";
-                if (System.IO.File.Exists(talkPath) && talkId > 0)
-                {
-                    byte[] data = System.IO.File.ReadAllBytes(talkPath);
-                    if (talkId < data.Length)
-                    {
-                        int end = (int)talkId;
-                        while (end < data.Length && data[end] != 0) end++;
-                        int len = end - (int)talkId;
-                        if (len > 0 && len < 500)
-                        {
-                            byte[] slice = new byte[len];
-                            Array.Copy(data, (int)talkId, slice, 0, len);
-                            Array.Reverse(slice);
-                            string decoded = Encoding.GetEncoding(950).GetString(slice).Trim();
-                            if (decoded.StartsWith("fffff")) decoded = decoded.Substring(5).Trim();
-                            return decoded;
-                        }
-                    }
-                }
+                string text = DataBase.GameDataBase.GlobalInstance?.TalkDat?.GetDialogue(talkId);
+                if (!string.IsNullOrEmpty(text)) return text;
             }
             catch
             {

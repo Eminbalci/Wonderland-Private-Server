@@ -13,11 +13,13 @@ The Wonderland Online Skill System manages character stunt skills, elemental tre
 - **Format**: `Send_5_3()` sends standard character base stats and embeds the player's learned skill collection (`PlayerSkills` count followed by `[skillId 2B, grade 2B, exp 2B, 0 1B]` per skill), followed by reborn, job, and potential.
 - **Silent Loading**: WLO client silently populates the skill book and active slots upon receiving `AC 5:3` without triggering "You have learned [Skill]" popups or animations.
 
-#### B. Skill Unlock & EXP Sync (`AC 5 Sub 11`)
+#### B. Skill Proficiency & EXP Sync (`AC 5 Sub 11`)
 - **Action Code**: `5`
 - **Sub Action**: `11`
-- **Payload Format**: `[5, 11, <skill_id 4B uint>, <exp 4B uint>]`
-- **Purpose**: Dispatched ONLY when a player dynamically unlocks a new skill during active gameplay (e.g. stat requirement reached, Grade 10 evolution, quest reward, GM command). Triggers the client's "You learned [Skill Name]" announcement.
+- **Payload Format**: `[5, 11, <skill_id 4B uint>, <proficiency 2B ushort>]`
+- **Proficiency Range**: `0` to `10000` (rendered in client as `0.00%` to `100.00%`).
+- **Calculation Formula**: `proficiency = (sk.Exp * 10000) / (sk.Grade * 100)`.
+- **Purpose**: Dispatched when skills gain experience in battle, on login/refresh, and when unlocking new progression skills.
 
 #### C. Skill Slot Mapping (`AC 5 Sub 13`)
 - **Action Code**: `5`
@@ -25,16 +27,25 @@ The Wonderland Online Skill System manages character stunt skills, elemental tre
 - **Payload Format**: `[5, 13, <slot 1B>, <skill_id 2B ushort>]`
 - **Purpose**: Maps each unlocked skill into the client's skill window and battle quickbar slots.
 
-#### D. Skill Grade Stat Broadcast (`AC 8 Sub 1`)
+#### D. Skill Grade & Learning Stat Broadcast (`AC 8 Sub 1` / `AC 8 Sub 2`)
 - **Action Code**: `8`
-- **Sub Action**: `1`
-- **Stat ID**: `110` (Skill Grade)
-- **Sub Index**: `1`
-- **Payload Format**: `[8, 1, 110, 1, <grade 4B uint>, <skill_id 4B uint>]`
+- **Sub Action**: `2` (Multi-entity stat update)
+- **Stat ID 110**: Skill Learned Notification (`[8, 2, targetType, 1, 0, 110, 0, <grade 4B>, <skillId 4B>]`)
+- **Stat ID 367 (`0x016F`)**: Skill Tree / Book Unlock (`[8, 2, targetType, 1, 0, 0x6F, 0x01, <grade 4B>, <skillId 4B>]`)
+- **Target Types**: `4` for player character, `1..4` for pet slot index.
 
 #### E. Skill Finalize & Refresh Signal (`AC 5 Sub 4`)
 - **Payload**: `[5, 4]`
-- **Purpose**: Informs the client to refresh and render the updated skill menu in both normal mode and in-turn battle window.
+- **Purpose**: Informs the client to refresh and render the updated skill menu in both normal mode, skill book, and in-turn battle window.
+
+#### F. Companion / Pet Skills Synchronization
+- **Trigger Points**: Companion recruitment (`SendCompanionReward`), player login (`WorldServer.cs`), client map ready (`AC05.Recv7`), and battle end.
+- **Protocol**:
+  1. `AC 8:2 Stat 110`: Notifies client that pet in slot `S` has learned skill ID.
+  2. `AC 8:2 Stat 367`: Unlocks the skill in the pet's skill book node.
+  3. `AC 5:12`: Sets pet skill grade to 1.
+  4. `AC 5:11`: Sets initial pet proficiency to `0.00%`.
+  5. When switching tabs with `<` `>` in the Skill Window, the client immediately displays the companion's skills and details.
 
 ---
 

@@ -5,9 +5,20 @@ using System.Text;
 
 namespace DataFiles
 {
+    /// <summary>
+    /// High-performance parser and lookup engine for authentic Wonderland Online Talk.dat dialogue database.
+    /// Format: Exactly 17,494 records of 292 bytes each.
+    /// Supports both 1-based Record Index (1..17,494) and Direct Byte Offset lookups (e.g. 0x063ED2).
+    /// </summary>
     public class PhxTalkDat
     {
-        private readonly Dictionary<uint, string> _talkStrings = new Dictionary<uint, string>();
+        private readonly Dictionary<uint, string> _talkById = new Dictionary<uint, string>();
+        private readonly Dictionary<uint, string> _talkByIndex = new Dictionary<uint, string>();
+        private readonly Dictionary<uint, string> _talkByOffset = new Dictionary<uint, string>();
+        private readonly Dictionary<uint, int> _talkOffsets = new Dictionary<uint, int>();
+
+        public IReadOnlyDictionary<uint, string> AllDialogues => _talkById.Count > 0 ? _talkById : _talkByIndex;
+        public int Count => _talkById.Count > 0 ? _talkById.Count : _talkByIndex.Count;
 
         public PhxTalkDat(string filePath)
         {
@@ -21,24 +32,58 @@ namespace DataFiles
         {
             try
             {
+                _talkById.Clear();
+                _talkByIndex.Clear();
+                _talkByOffset.Clear();
+                _talkOffsets.Clear();
+
                 byte[] data = File.ReadAllBytes(filePath);
-                if (data.Length < 4) return;
+                const int recordSize = 292;
+                int totalRecords = data.Length / recordSize;
 
-                int maxSlots = data.Length / 4;
-
-                for (uint talkId = 1; talkId < maxSlots; talkId++)
+                for (uint r = 0; r < totalRecords; r++)
                 {
-                    int offset = BitConverter.ToInt32(data, (int)(talkId * 4));
-                    if (offset > 0 && offset < data.Length - 4)
+                    int recOffset = (int)(r * recordSize);
+                    if (recOffset + recordSize > data.Length) break;
+
+                    ushort talkId = BitConverter.ToUInt16(data, recOffset);
+                    int len = data[recOffset + 2];
+                    if (len <= 0 || len > 250) continue;
+
+                    // The reversed text ends right before the 35-byte tail (fffff prefix + 30-byte metadata footer)
+                    int textStart = recOffset + recordSize - 35 - len;
+                    if (textStart < recOffset || textStart + len > data.Length) continue;
+
+                    byte[] textBytes = new byte[len];
+                    for (int i = 0; i < len; i++)
                     {
-                        _talkOffsets[talkId] = offset;
-                        string decoded = ExtractReversedString(data, offset);
-                        if (!string.IsNullOrWhiteSpace(decoded))
-                        {
-                            _talkStrings[talkId] = decoded;
-                        }
+                        textBytes[i] = data[textStart + len - 1 - i]; // Reverse text while copying
                     }
+
+                    string dialogue = Encoding.Default.GetString(textBytes).Trim();
+                    if (string.IsNullOrWhiteSpace(dialogue)) continue;
+
+                    // Strip leading internal control tag fffff if present
+                    if (dialogue.StartsWith("fffff"))
+                    {
+                        dialogue = dialogue.Substring(5).Trim();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(dialogue)) continue;
+
+                    if (talkId > 0)
+                    {
+                        _talkById[talkId] = dialogue;
+                        _talkOffsets[talkId] = recOffset;
+                    }
+
+                    _talkByIndex[r] = dialogue;
+                    _talkByIndex[r + 1] = dialogue;
+                    _talkByOffset[(uint)textStart] = dialogue;
+                    _talkByOffset[(uint)recOffset] = dialogue;
                 }
+
+                TalkResolver.Initialize(this);
             }
             catch (Exception ex)
             {
@@ -46,50 +91,20 @@ namespace DataFiles
             }
         }
 
-        private string ExtractReversedString(byte[] data, int offset)
+        public bool TryGetByRecordIndex(uint recordIndex, out string text)
         {
-            try
-            {
-                int end = Math.Min(data.Length, offset + 512);
-                List<char> chars = new List<char>();
-
-                for (int i = offset; i < end; i++)
-                {
-                    byte b = data[i];
-                    if (b == 0)
-                    {
-                        if (chars.Count >= 3) break;
-                    }
-                    else if (b >= 32 && b <= 126)
-                    {
-                        chars.Add((char)b);
-                    }
-                    else if (chars.Count >= 3)
-                    {
-                        break;
-                    }
-                }
-
-                if (chars.Count == 0) return null;
-
-                chars.Reverse();
-                string result = new string(chars.ToArray()).Trim();
-
-                // Strip leading internal WLO control prefixes like "fffff" or color tags
-                if (result.StartsWith("fffff"))
-                {
-                    result = result.Substring(5).Trim();
-                }
-
-                return result;
-            }
-            catch
-            {
-                return null;
-            }
+            return _talkByIndex.TryGetValue(recordIndex, out text);
         }
 
-        private readonly Dictionary<uint, int> _talkOffsets = new Dictionary<uint, int>();
+        public bool TryGetByOffset(uint offset, out string text)
+        {
+            return _talkByOffset.TryGetValue(offset, out text);
+        }
+
+        public bool TryGetById(uint id, out string text)
+        {
+            return _talkById.TryGetValue(id, out text);
+        }
 
         public int GetOffset(uint talkId)
         {
@@ -97,23 +112,21 @@ namespace DataFiles
             {
                 return off;
             }
-            return 0;
-        }
-
-        public string GetDialogue(uint talkId)
-        {
-            if (_talkStrings.TryGetValue(talkId, out var s))
+            if (talkId > 20000)
             {
-                return s;
+                return (int)talkId;
             }
-            return null;
+            return (int)(talkId * 292);
         }
 
-        public bool TryGetDialogue(uint talkId, out string dialogue)
+        public string GetDialogue(uint idOrOffset)
         {
-            return _talkStrings.TryGetValue(talkId, out dialogue);
+            return TalkResolver.Resolve(idOrOffset);
         }
 
-        public int Count => _talkStrings.Count;
+        public bool TryGetDialogue(uint idOrOffset, out string dialogue)
+        {
+            return TalkResolver.TryResolve(idOrOffset, out dialogue);
+        }
     }
 }

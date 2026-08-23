@@ -32,8 +32,8 @@ namespace Wonderland_Private_Server
             SetupGmTab();
             SetupItemMallTab();
             SetupMonsterDropsTab();
-            SetupQuestManagerTab();
-            SetupEventSystemsTab();
+            SetupTalkResolverTab();
+            SetupMapNpcStudioTab();
             SetupServerStatusControl();
         }
 
@@ -2794,37 +2794,11 @@ namespace Wonderland_Private_Server
                 DebugSystem.Write($"[GUI] Error creating Monster Drops Tab: {ex.Message}");
             }
         }
-
-        private static Dictionary<int, string> _cachedNpcNames = null;
-
         private static string GetNpcDisplayName(uint npcId)
         {
-            if (_cachedNpcNames == null)
-            {
-                _cachedNpcNames = new Dictionary<int, string>();
-                string jsonPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "npc.json");
-                if (System.IO.File.Exists(jsonPath))
-                {
-                    try
-                    {
-                        string jsonText = System.IO.File.ReadAllText(jsonPath);
-                        var matches = System.Text.RegularExpressions.Regex.Matches(jsonText, @"""(\d+)""\s*:\s*""([^""]+)""");
-                        foreach (System.Text.RegularExpressions.Match match in matches)
-                        {
-                            if (int.TryParse(match.Groups[1].Value, out int jid))
-                            {
-                                _cachedNpcNames[jid] = match.Groups[2].Value;
-                            }
-                        }
-                    }
-                    catch { }
-                }
-            }
-            if (_cachedNpcNames.TryGetValue((int)npcId, out string name))
-            {
-                return name;
-            }
-            return $"Monster #{npcId}";
+            string name = Game.DataFiles.SceneDataManager.GetNpcName(npcId);
+            if (!string.IsNullOrEmpty(name) && !name.StartsWith("Template #")) return name;
+            return $"NPC #{npcId}";
         }
 
         private void RefreshMonsterListGrid()
@@ -2882,1146 +2856,6 @@ namespace Wonderland_Private_Server
             }
 
             dgvMonsterDrops.DataSource = dt;
-        }
-        #endregion
-
-        #region Quest Manager GUI Tab
-        private TabPage tabQuests;
-        private DataGridView dgvQuests;
-        private TextBox txtQuestSearch;
-        private Label lblQuestCount;
-        private ComboBox cmbQuestCategoryFilter;
-
-        // Top Summary & Meta controls
-        private TextBox txtQId, txtQName, txtQArea;
-        private ComboBox cmbQCategory, cmbQType;
-        private NumericUpDown numQInProgMark, numQCompMark, numQReqLevel;
-        private Button btnSaveQuest, btnNewQuest, btnDeleteQuest, btnReloadQuests;
-
-        // Tab 1: General & Prerequisites
-        private TextBox txtQDesc, txtQNpcPattern, txtQPrereqs, txtQRequiredItems;
-        private NumericUpDown numQNpcTid, numQStartMapId;
-
-        // Tab 2: Multi-Stage Steps
-        private DataGridView dgvQuestSteps;
-        private System.Data.DataTable dtQuestSteps;
-        private ComboBox cmbStepType;
-        private TextBox txtStepNpc, txtStepPrompt, txtStepReqItems, txtStepGrantItems;
-        private NumericUpDown numStepNpcTid, numStepMonsterId;
-        private Button btnAddStep, btnDeleteStep, btnApplyStepEdit;
-
-        // Tab 3: Dialogues
-        private TextBox txtQIntro, txtQInProgress, txtQComplete, txtQAlreadyDone;
-
-        // Tab 4: Rewards & Boss Battle
-        private NumericUpDown numQRewardGold, numQRewardExp, numQRewardCompanionId, numQBattleMonsterId;
-        private TextBox txtQRewardCompanionName, txtQRewardItems, txtQBattleMonsterName;
-
-        // Tab 5: Live Player Dispatcher
-        private ComboBox cmbQuestPlayersLive;
-        private Button btnLiveStartQuest, btnLiveAdvanceStep, btnLiveCompleteQuest, btnLiveResetQuest;
-
-        private void SetupQuestManagerTab()
-        {
-            try
-            {
-                tabQuests = new TabPage("📜 Quest DB Manager")
-                {
-                    BackColor = System.Drawing.Color.WhiteSmoke,
-                    Padding = new Padding(6)
-                };
-
-                if (this.tabControl3 != null && !this.tabControl3.TabPages.Contains(tabQuests))
-                {
-                    this.tabControl3.TabPages.Add(tabQuests);
-                }
-
-                SplitContainer split = new SplitContainer
-                {
-                    Dock = DockStyle.Fill,
-                    Orientation = Orientation.Vertical,
-                    SplitterWidth = 6
-                };
-
-                tabQuests.SizeChanged += (s, e) =>
-                {
-                    try
-                    {
-                        if (split.Width > 500)
-                            split.SplitterDistance = Math.Max(220, Math.Min(480, (int)(split.Width * 0.40)));
-                    }
-                    catch { }
-                };
-
-                // === LEFT PANEL: Search, Category Filter, Counter, Quest Grid ===
-                Panel pnlLeftTop = new Panel
-                {
-                    Dock = DockStyle.Top,
-                    Height = 96,
-                    BackColor = System.Drawing.Color.Transparent
-                };
-
-                Label lblHeader = new Label
-                {
-                    Text = "📜 Quests DB Manager (Structured Master Quests)",
-                    Font = new System.Drawing.Font("Segoe UI", 10.5f, System.Drawing.FontStyle.Bold),
-                    ForeColor = System.Drawing.Color.DarkSlateBlue,
-                    Location = new System.Drawing.Point(4, 4),
-                    AutoSize = true
-                };
-
-                lblQuestCount = new Label
-                {
-                    Text = "Total Quests: 0",
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
-                    ForeColor = System.Drawing.Color.DimGray,
-                    Location = new System.Drawing.Point(4, 26),
-                    AutoSize = true
-                };
-
-                Label lblCategory = new Label
-                {
-                    Text = "📂 Cat:",
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
-                    Location = new System.Drawing.Point(4, 46),
-                    AutoSize = true
-                };
-
-                cmbQuestCategoryFilter = new ComboBox
-                {
-                    Location = new System.Drawing.Point(52, 44),
-                    Size = new System.Drawing.Size(266, 22),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                    DropDownStyle = ComboBoxStyle.DropDownList,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
-                };
-                cmbQuestCategoryFilter.Items.AddRange(new object[] {
-                    "All Categories (Master Quests)",
-                    "🏝️ Storyline & Area",
-                    "👥 Companion & Rebirth",
-                    "🛠️ Crafting & Vehicles",
-                    "🐉 Dungeons & Instances",
-                    "🎯 Minigames & Challenges",
-                    "📜 All Raw Mark Entries (2,154 IDs)"
-                });
-                cmbQuestCategoryFilter.SelectedIndex = 0;
-                cmbQuestCategoryFilter.SelectedIndexChanged += (s, e) => RefreshQuestGrid(txtQuestSearch?.Text, cmbQuestCategoryFilter.SelectedItem?.ToString());
-
-                Label lblSearch = new Label
-                {
-                    Text = "🔍 Find:",
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
-                    Location = new System.Drawing.Point(4, 72),
-                    AutoSize = true
-                };
-
-                txtQuestSearch = new TextBox
-                {
-                    Location = new System.Drawing.Point(52, 70),
-                    Size = new System.Drawing.Size(266, 22),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                    Font = new System.Drawing.Font("Segoe UI", 9f)
-                };
-                txtQuestSearch.TextChanged += (s, e) => RefreshQuestGrid(txtQuestSearch.Text, cmbQuestCategoryFilter.SelectedItem?.ToString());
-
-                btnReloadQuests = new Button
-                {
-                    Text = "🔄 Refresh",
-                    Location = new System.Drawing.Point(325, 43),
-                    Size = new System.Drawing.Size(85, 49),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                    BackColor = System.Drawing.Color.LightSkyBlue,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnReloadQuests.Click += (s, e) => RefreshQuestGrid(txtQuestSearch.Text, cmbQuestCategoryFilter.SelectedItem?.ToString());
-
-                pnlLeftTop.Controls.AddRange(new Control[] { lblHeader, lblQuestCount, lblCategory, cmbQuestCategoryFilter, lblSearch, txtQuestSearch, btnReloadQuests });
-
-                // Quest Grid
-                dgvQuests = new DataGridView
-                {
-                    Dock = DockStyle.Fill,
-                    ReadOnly = true,
-                    AllowUserToAddRows = false,
-                    AllowUserToDeleteRows = false,
-                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                    MultiSelect = false,
-                    BackgroundColor = System.Drawing.Color.White,
-                    RowHeadersVisible = false,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
-                };
-                dgvQuests.SelectionChanged += (s, e) => OnQuestGridSelectionChanged();
-
-                split.Panel1.Controls.Add(dgvQuests);
-                split.Panel1.Controls.Add(pnlLeftTop);
-                dgvQuests.BringToFront();
-                pnlLeftTop.SendToBack();
-
-                // === RIGHT PANEL: Modern Structured Quest Editor ===
-                GroupBox grpQuestEdit = new GroupBox
-                {
-                    Text = "✏️ Quest Editor & Multi-Stage Architecture Studio",
-                    Dock = DockStyle.Fill,
-                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
-                };
-
-                // Top Toolbar for Actions
-                Panel pnlActions = new Panel
-                {
-                    Dock = DockStyle.Top,
-                    Height = 38,
-                    BackColor = System.Drawing.Color.Transparent
-                };
-
-                btnSaveQuest = new Button
-                {
-                    Text = "💾 Save / Update Quest",
-                    Location = new System.Drawing.Point(6, 4),
-                    Size = new System.Drawing.Size(160, 28),
-                    BackColor = System.Drawing.Color.LightGreen,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnSaveQuest.Click += (s, e) => SaveCurrentQuest();
-
-                btnNewQuest = new Button
-                {
-                    Text = "➕ New Quest",
-                    Location = new System.Drawing.Point(172, 4),
-                    Size = new System.Drawing.Size(100, 28),
-                    BackColor = System.Drawing.Color.LightYellow,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnNewQuest.Click += (s, e) => ClearQuestInputs();
-
-                btnDeleteQuest = new Button
-                {
-                    Text = "🗑️ Delete Quest",
-                    Location = new System.Drawing.Point(278, 4),
-                    Size = new System.Drawing.Size(110, 28),
-                    BackColor = System.Drawing.Color.MistyRose,
-                    ForeColor = System.Drawing.Color.DarkRed,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnDeleteQuest.Click += (s, e) => DeleteCurrentQuest();
-
-                Button btnReimportQuests = new Button
-                {
-                    Text = "🔄 Reset & Import Mark.dat",
-                    Location = new System.Drawing.Point(394, 4),
-                    Size = new System.Drawing.Size(185, 28),
-                    BackColor = System.Drawing.Color.LightCyan,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnReimportQuests.Click += (s, e) =>
-                {
-                    if (MessageBox.Show("Tüm görevleri sıfırlayıp Data/Mark.dat dosyasındaki 2.154 resmi görevi ve çok aşamalı adımları yüklemek istiyor musunuz?", "Görevleri Yenile", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                    {
-                        var db = cGlobal.gGameDataBase ?? DataBase.GameDataBase.GlobalInstance;
-                        DataBase.QuestDataBase.ReimportCleanQuests(db);
-                        RefreshQuestGrid(txtQuestSearch?.Text, cmbQuestCategoryFilter?.SelectedItem?.ToString());
-                        MessageBox.Show("2.154 resmi sistem görevi ve çok aşamalı adımları başarıyla yüklendi ve güncellendi!", "Başarılı", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                };
-
-                pnlActions.Controls.AddRange(new Control[] { btnSaveQuest, btnNewQuest, btnDeleteQuest, btnReimportQuests });
-
-                // Top Header Summary Panel
-                Panel pnlSummary = new Panel
-                {
-                    Dock = DockStyle.Top,
-                    Height = 62,
-                    BackColor = System.Drawing.Color.FromArgb(245, 247, 250),
-                    BorderStyle = BorderStyle.FixedSingle
-                };
-
-                Label lm1 = new Label { Text = "ID:", Location = new System.Drawing.Point(6, 6), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                txtQId = new TextBox { Location = new System.Drawing.Point(30, 4), Size = new System.Drawing.Size(60, 22), Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
-
-                Label lm2 = new Label { Text = "Title:", Location = new System.Drawing.Point(96, 6), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                txtQName = new TextBox { Location = new System.Drawing.Point(135, 4), Size = new System.Drawing.Size(260, 22), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
-
-                Label lm3 = new Label { Text = "Category:", Location = new System.Drawing.Point(402, 6), AutoSize = true, Anchor = AnchorStyles.Top | AnchorStyles.Right, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                cmbQCategory = new ComboBox { Location = new System.Drawing.Point(468, 4), Size = new System.Drawing.Size(165, 22), Anchor = AnchorStyles.Top | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                cmbQCategory.Items.AddRange(new object[] {
-                    "🏝️ Storyline & Area",
-                    "👥 Companion & Rebirth",
-                    "🛠️ Crafting & Vehicles",
-                    "🐉 Dungeons & Instances",
-                    "🎯 Minigames & Challenges"
-                });
-                cmbQCategory.SelectedIndex = 0;
-
-                Label lm4 = new Label { Text = "Area:", Location = new System.Drawing.Point(6, 34), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                txtQArea = new TextBox { Location = new System.Drawing.Point(42, 32), Size = new System.Drawing.Size(130, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label lm5 = new Label { Text = "In-Prog Mark:", Location = new System.Drawing.Point(178, 34), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                numQInProgMark = new NumericUpDown { Location = new System.Drawing.Point(260, 32), Size = new System.Drawing.Size(65, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label lm6 = new Label { Text = "Comp Mark:", Location = new System.Drawing.Point(332, 34), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                numQCompMark = new NumericUpDown { Location = new System.Drawing.Point(408, 32), Size = new System.Drawing.Size(65, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label lm7 = new Label { Text = "Req Lvl:", Location = new System.Drawing.Point(480, 34), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                numQReqLevel = new NumericUpDown { Location = new System.Drawing.Point(532, 32), Size = new System.Drawing.Size(55, 22), Maximum = 199, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                pnlSummary.Controls.AddRange(new Control[] { lm1, txtQId, lm2, txtQName, lm3, cmbQCategory, lm4, txtQArea, lm5, numQInProgMark, lm6, numQCompMark, lm7, numQReqLevel });
-
-                // Multi-Tab Container for Structured Quest Details
-                TabControl tabQuestSections = new TabControl
-                {
-                    Dock = DockStyle.Fill,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
-                };
-
-                #region Tab 1: Overview & Prerequisites
-                TabPage pageGeneral = new TabPage("📋 Overview & Prerequisites");
-                Panel pnlGenScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(8) };
-
-                int gy = 8;
-                Label lg1 = new Label { Text = "Storyline & Lore Description:", Location = new System.Drawing.Point(8, gy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                pnlGenScroll.Controls.Add(lg1);
-                gy += 20;
-
-                txtQDesc = new TextBox { Location = new System.Drawing.Point(8, gy), Size = new System.Drawing.Size(580, 55), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 9f), ScrollBars = ScrollBars.Vertical, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-                pnlGenScroll.Controls.Add(txtQDesc);
-                gy += 62;
-
-                Label lg2 = new Label { Text = "Quest Type:", Location = new System.Drawing.Point(8, gy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                cmbQType = new ComboBox { Location = new System.Drawing.Point(85, gy - 2), Size = new System.Drawing.Size(150, 22), DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                cmbQType.Items.AddRange(new object[] { "0 - Dialogue", "1 - ItemCollection", "2 - MonsterBattle", "3 - CompanionRecruit", "4 - MapTrigger", "5 - Minigame" });
-                cmbQType.SelectedIndex = 0;
-
-                Label lg3 = new Label { Text = "Start Map ID:", Location = new System.Drawing.Point(245, gy), AutoSize = true };
-                numQStartMapId = new NumericUpDown { Location = new System.Drawing.Point(325, gy - 2), Size = new System.Drawing.Size(70, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label lg4 = new Label { Text = "Start NPC TID:", Location = new System.Drawing.Point(405, gy), AutoSize = true };
-                numQNpcTid = new NumericUpDown { Location = new System.Drawing.Point(490, gy - 2), Size = new System.Drawing.Size(65, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                pnlGenScroll.Controls.AddRange(new Control[] { lg2, cmbQType, lg3, numQStartMapId, lg4, numQNpcTid });
-                gy += 30;
-
-                Label lg5 = new Label { Text = "Start NPC Pattern:", Location = new System.Drawing.Point(8, gy), AutoSize = true };
-                txtQNpcPattern = new TextBox { Location = new System.Drawing.Point(125, gy - 2), Size = new System.Drawing.Size(200, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                pnlGenScroll.Controls.AddRange(new Control[] { lg5, txtQNpcPattern });
-                gy += 32;
-
-                Label lg6 = new Label { Text = "Prerequisite Quest IDs (e.g. 1864, 52):", Location = new System.Drawing.Point(8, gy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                pnlGenScroll.Controls.Add(lg6);
-                gy += 20;
-
-                txtQPrereqs = new TextBox { Location = new System.Drawing.Point(8, gy), Size = new System.Drawing.Size(580, 22), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                pnlGenScroll.Controls.Add(txtQPrereqs);
-                gy += 28;
-
-                Label lg7 = new Label { Text = "Required Initial Items (e.g. 32005x1, 41066x2):", Location = new System.Drawing.Point(8, gy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                pnlGenScroll.Controls.Add(lg7);
-                gy += 20;
-
-                txtQRequiredItems = new TextBox { Location = new System.Drawing.Point(8, gy), Size = new System.Drawing.Size(580, 22), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                pnlGenScroll.Controls.Add(txtQRequiredItems);
-
-                pageGeneral.Controls.Add(pnlGenScroll);
-                #endregion
-
-                #region Tab 2: Multi-Stage Steps & Objectives
-                TabPage pageSteps = new TabPage("👣 Multi-Stage Steps & Objectives");
-                
-                SplitContainer splitSteps = new SplitContainer
-                {
-                    Dock = DockStyle.Fill,
-                    Orientation = Orientation.Horizontal,
-                    SplitterDistance = 140,
-                    SplitterWidth = 4
-                };
-
-                dtQuestSteps = new System.Data.DataTable();
-                dtQuestSteps.Columns.Add("Step", typeof(int));
-                dtQuestSteps.Columns.Add("Type", typeof(string));
-                dtQuestSteps.Columns.Add("Target NPC", typeof(string));
-                dtQuestSteps.Columns.Add("TID", typeof(uint));
-                dtQuestSteps.Columns.Add("Prompt / Objective", typeof(string));
-                dtQuestSteps.Columns.Add("Required Items", typeof(string));
-                dtQuestSteps.Columns.Add("Grant Items", typeof(string));
-                dtQuestSteps.Columns.Add("Monster Target", typeof(string));
-
-                dgvQuestSteps = new DataGridView
-                {
-                    Dock = DockStyle.Fill,
-                    DataSource = dtQuestSteps,
-                    ReadOnly = true,
-                    AllowUserToAddRows = false,
-                    AllowUserToDeleteRows = false,
-                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                    MultiSelect = false,
-                    BackgroundColor = System.Drawing.Color.White,
-                    RowHeadersVisible = false,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f),
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-                };
-                dgvQuestSteps.SelectionChanged += (s, e) => LoadSelectedStepToEditor();
-
-                Panel pnlStepTools = new Panel { Dock = DockStyle.Top, Height = 32, BackColor = System.Drawing.Color.FromArgb(240, 242, 245) };
-                btnAddStep = new Button { Text = "➕ Add Step", Location = new System.Drawing.Point(4, 3), Size = new System.Drawing.Size(90, 25), BackColor = System.Drawing.Color.Honeydew, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                btnDeleteStep = new Button { Text = "➖ Delete Step", Location = new System.Drawing.Point(100, 3), Size = new System.Drawing.Size(100, 25), BackColor = System.Drawing.Color.MistyRose, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                btnAddStep.Click += (s, e) => AddNewStepRow();
-                btnDeleteStep.Click += (s, e) => DeleteSelectedStepRow();
-                pnlStepTools.Controls.AddRange(new Control[] { btnAddStep, btnDeleteStep });
-
-                splitSteps.Panel1.Controls.Add(dgvQuestSteps);
-                splitSteps.Panel1.Controls.Add(pnlStepTools);
-                dgvQuestSteps.BringToFront();
-                pnlStepTools.SendToBack();
-
-                // Step Editor Sub-Panel
-                Panel pnlStepEditor = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = System.Drawing.Color.WhiteSmoke, Padding = new Padding(6) };
-                
-                int sy = 6;
-                Label ls1 = new Label { Text = "Step Type:", Location = new System.Drawing.Point(6, sy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                cmbStepType = new ComboBox { Location = new System.Drawing.Point(75, sy - 2), Size = new System.Drawing.Size(130, 22), DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                cmbStepType.Items.AddRange(new object[] { "Dialogue", "ItemCollection", "MonsterBattle", "CompanionRecruit", "MapTrigger" });
-                cmbStepType.SelectedIndex = 0;
-
-                Label ls2 = new Label { Text = "Target NPC:", Location = new System.Drawing.Point(215, sy), AutoSize = true };
-                txtStepNpc = new TextBox { Location = new System.Drawing.Point(290, sy - 2), Size = new System.Drawing.Size(120, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label ls3 = new Label { Text = "TID:", Location = new System.Drawing.Point(420, sy), AutoSize = true };
-                numStepNpcTid = new NumericUpDown { Location = new System.Drawing.Point(450, sy - 2), Size = new System.Drawing.Size(60, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                btnApplyStepEdit = new Button { Text = "✔️ Update Step", Location = new System.Drawing.Point(520, sy - 3), Size = new System.Drawing.Size(95, 26), BackColor = System.Drawing.Color.LightSkyBlue, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                btnApplyStepEdit.Click += (s, e) => ApplyCurrentStepEdit();
-
-                pnlStepEditor.Controls.AddRange(new Control[] { ls1, cmbStepType, ls2, txtStepNpc, ls3, numStepNpcTid, btnApplyStepEdit });
-                sy += 28;
-
-                Label ls4 = new Label { Text = "Step Dialogue / Prompt Instructions:", Location = new System.Drawing.Point(6, sy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                pnlStepEditor.Controls.Add(ls4);
-                sy += 18;
-
-                txtStepPrompt = new TextBox { Location = new System.Drawing.Point(6, sy), Size = new System.Drawing.Size(600, 38), Multiline = true, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical };
-                pnlStepEditor.Controls.Add(txtStepPrompt);
-                sy += 42;
-
-                Label ls5 = new Label { Text = "Required Items:", Location = new System.Drawing.Point(6, sy), AutoSize = true };
-                txtStepReqItems = new TextBox { Location = new System.Drawing.Point(100, sy - 2), Size = new System.Drawing.Size(180, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label ls6 = new Label { Text = "Grant Items:", Location = new System.Drawing.Point(290, sy), AutoSize = true };
-                txtStepGrantItems = new TextBox { Location = new System.Drawing.Point(370, sy - 2), Size = new System.Drawing.Size(150, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label ls7 = new Label { Text = "Monster ID:", Location = new System.Drawing.Point(525, sy), AutoSize = true };
-                numStepMonsterId = new NumericUpDown { Location = new System.Drawing.Point(595, sy - 2), Size = new System.Drawing.Size(60, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                pnlStepEditor.Controls.AddRange(new Control[] { ls5, txtStepReqItems, ls6, txtStepGrantItems, ls7, numStepMonsterId });
-
-                splitSteps.Panel2.Controls.Add(pnlStepEditor);
-                pageSteps.Controls.Add(splitSteps);
-                #endregion
-
-                #region Tab 3: Story Dialogues & Script
-                TabPage pageDialogues = new TabPage("💬 Story Dialogues & Script");
-                Panel pnlDiaScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(8) };
-
-                int dy = 8;
-                Label ld1 = new Label { Text = "🟢 Accept / Intro Dialogue (Görevi Verirken):", Location = new System.Drawing.Point(8, dy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkGreen };
-                pnlDiaScroll.Controls.Add(ld1);
-                dy += 20;
-
-                txtQIntro = new TextBox { Location = new System.Drawing.Point(8, dy), Size = new System.Drawing.Size(580, 42), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-                pnlDiaScroll.Controls.Add(txtQIntro);
-                dy += 48;
-
-                Label ld2 = new Label { Text = "🟡 In-Progress Dialogue (Görev Sürerken Konuşulduğunda):", Location = new System.Drawing.Point(8, dy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkGoldenrod };
-                pnlDiaScroll.Controls.Add(ld2);
-                dy += 20;
-
-                txtQInProgress = new TextBox { Location = new System.Drawing.Point(8, dy), Size = new System.Drawing.Size(580, 36), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-                pnlDiaScroll.Controls.Add(txtQInProgress);
-                dy += 42;
-
-                Label ld3 = new Label { Text = "🔵 Completion Dialogue (Görev Teslim Edildiğinde):", Location = new System.Drawing.Point(8, dy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkBlue };
-                pnlDiaScroll.Controls.Add(ld3);
-                dy += 20;
-
-                txtQComplete = new TextBox { Location = new System.Drawing.Point(8, dy), Size = new System.Drawing.Size(580, 36), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-                pnlDiaScroll.Controls.Add(txtQComplete);
-                dy += 42;
-
-                Label ld4 = new Label { Text = "⚪ Already Completed Dialogue (Zaten Bitmişken Konuşulduğunda):", Location = new System.Drawing.Point(8, dy), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DimGray };
-                pnlDiaScroll.Controls.Add(ld4);
-                dy += 20;
-
-                txtQAlreadyDone = new TextBox { Location = new System.Drawing.Point(8, dy), Size = new System.Drawing.Size(580, 32), Multiline = true, Font = new System.Drawing.Font("Segoe UI", 8.5f), ScrollBars = ScrollBars.Vertical, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-                pnlDiaScroll.Controls.Add(txtQAlreadyDone);
-
-                pageDialogues.Controls.Add(pnlDiaScroll);
-                #endregion
-
-                #region Tab 4: Rewards & Boss Battles
-                TabPage pageRewards = new TabPage("🎁 Rewards & Boss Battles");
-                Panel pnlRewScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(8) };
-
-                int ry = 8;
-                Label lr1 = new Label { Text = "💰 Gold Reward:", Location = new System.Drawing.Point(8, ry), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                numQRewardGold = new NumericUpDown { Location = new System.Drawing.Point(120, ry - 2), Size = new System.Drawing.Size(100, 22), Maximum = 9999999, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Label lr2 = new Label { Text = "⭐ EXP Reward:", Location = new System.Drawing.Point(240, ry), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                numQRewardExp = new NumericUpDown { Location = new System.Drawing.Point(340, ry - 2), Size = new System.Drawing.Size(100, 22), Maximum = 9999999, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                pnlRewScroll.Controls.AddRange(new Control[] { lr1, numQRewardGold, lr2, numQRewardExp });
-                ry += 32;
-
-                Label lr3 = new Label { Text = "👥 Companion Recruit:", Location = new System.Drawing.Point(8, ry), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                numQRewardCompanionId = new NumericUpDown { Location = new System.Drawing.Point(150, ry - 2), Size = new System.Drawing.Size(70, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                txtQRewardCompanionName = new TextBox { Location = new System.Drawing.Point(230, ry - 2), Size = new System.Drawing.Size(150, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                pnlRewScroll.Controls.AddRange(new Control[] { lr3, numQRewardCompanionId, txtQRewardCompanionName });
-                ry += 32;
-
-                Label lr4 = new Label { Text = "⚔️ Quest Boss / Battle:", Location = new System.Drawing.Point(8, ry), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                numQBattleMonsterId = new NumericUpDown { Location = new System.Drawing.Point(150, ry - 2), Size = new System.Drawing.Size(70, 22), Maximum = 65535, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-                txtQBattleMonsterName = new TextBox { Location = new System.Drawing.Point(230, ry - 2), Size = new System.Drawing.Size(150, 22), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                pnlRewScroll.Controls.AddRange(new Control[] { lr4, numQBattleMonsterId, txtQBattleMonsterName });
-                ry += 32;
-
-                Label lr5 = new Label { Text = "🎒 Item Rewards (Format: ItemIDxCount, e.g. 32001x2, 48016x1):", Location = new System.Drawing.Point(8, ry), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
-                pnlRewScroll.Controls.Add(lr5);
-                ry += 20;
-
-                txtQRewardItems = new TextBox { Location = new System.Drawing.Point(8, ry), Size = new System.Drawing.Size(580, 24), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Font = new System.Drawing.Font("Segoe UI", 9f) };
-                pnlRewScroll.Controls.Add(txtQRewardItems);
-
-                pageRewards.Controls.Add(pnlRewScroll);
-                #endregion
-
-                #region Tab 5: Live Player Quest Dispatcher
-                TabPage pageLive = new TabPage("🧪 Live Player Dispatcher");
-                Panel pnlLive = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12), BackColor = System.Drawing.Color.WhiteSmoke };
-
-                Label ll1 = new Label { Text = "Select Online Player:", Location = new System.Drawing.Point(12, 16), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
-                cmbQuestPlayersLive = new ComboBox { Location = new System.Drawing.Point(160, 14), Size = new System.Drawing.Size(220, 24), DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 9f) };
-
-                btnLiveStartQuest = new Button
-                {
-                    Text = "▶️ Start Quest (AC 24:1)",
-                    Location = new System.Drawing.Point(12, 55),
-                    Size = new System.Drawing.Size(190, 34),
-                    BackColor = System.Drawing.Color.PaleGreen,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnLiveStartQuest.Click += (s, e) => DispatchLiveQuestAction(1);
-
-                btnLiveAdvanceStep = new Button
-                {
-                    Text = "⏭️ Advance Step",
-                    Location = new System.Drawing.Point(210, 55),
-                    Size = new System.Drawing.Size(150, 34),
-                    BackColor = System.Drawing.Color.LightSkyBlue,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnLiveAdvanceStep.Click += (s, e) => DispatchLiveQuestAction(2);
-
-                btnLiveCompleteQuest = new Button
-                {
-                    Text = "🏆 Complete Quest (AC 24:5)",
-                    Location = new System.Drawing.Point(370, 55),
-                    Size = new System.Drawing.Size(200, 34),
-                    BackColor = System.Drawing.Color.Gold,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnLiveCompleteQuest.Click += (s, e) => DispatchLiveQuestAction(5);
-
-                btnLiveResetQuest = new Button
-                {
-                    Text = "🔄 Reset Quest Flags",
-                    Location = new System.Drawing.Point(12, 100),
-                    Size = new System.Drawing.Size(190, 32),
-                    BackColor = System.Drawing.Color.MistyRose,
-                    ForeColor = System.Drawing.Color.DarkRed,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnLiveResetQuest.Click += (s, e) => DispatchLiveQuestAction(3);
-
-                Label ll2 = new Label
-                {
-                    Text = "ℹ️ Live Quest Actions allow testing quest progression in real time on active connected game clients.\n- Start Quest: Sets In-Progress Mark, shows quest in F6 Quest Log, activates map PreEvents.\n- Complete Quest: Sets Completed Mark, grants Gold, EXP, Items, and Companion Pet, and updates Quest Log.",
-                    Location = new System.Drawing.Point(12, 145),
-                    Size = new System.Drawing.Size(560, 60),
-                    ForeColor = System.Drawing.Color.DimGray,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
-                };
-
-                pnlLive.Controls.AddRange(new Control[] { ll1, cmbQuestPlayersLive, btnLiveStartQuest, btnLiveAdvanceStep, btnLiveCompleteQuest, btnLiveResetQuest, ll2 });
-                pageLive.Controls.Add(pnlLive);
-                #endregion
-
-                tabQuestSections.TabPages.AddRange(new TabPage[] {
-                    pageGeneral, pageSteps, pageDialogues, pageRewards, pageLive
-                });
-
-                grpQuestEdit.Controls.Add(tabQuestSections);
-                grpQuestEdit.Controls.Add(pnlSummary);
-                grpQuestEdit.Controls.Add(pnlActions);
-                tabQuestSections.BringToFront();
-                pnlSummary.SendToBack();
-                pnlActions.SendToBack();
-
-                split.Panel2.Controls.Add(grpQuestEdit);
-                tabQuests.Controls.Add(split);
-
-                tabQuests.Enter += (s, e) =>
-                {
-                    RefreshQuestGrid(txtQuestSearch?.Text, cmbQuestCategoryFilter?.SelectedItem?.ToString());
-                    RefreshLiveQuestPlayers();
-                };
-
-                RefreshQuestGrid();
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error setting up Quest Manager Tab: {ex.Message}");
-            }
-        }
-
-        private void RefreshLiveQuestPlayers()
-        {
-            try
-            {
-                if (cmbQuestPlayersLive == null) return;
-                cmbQuestPlayersLive.Items.Clear();
-                var players = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
-                if (players != null)
-                {
-                    foreach (var p in players)
-                    {
-                        if (p != null && !string.IsNullOrEmpty(p.CharName))
-                        {
-                            cmbQuestPlayersLive.Items.Add(p.CharName);
-                        }
-                    }
-                }
-                if (cmbQuestPlayersLive.Items.Count > 0) cmbQuestPlayersLive.SelectedIndex = 0;
-            }
-            catch { }
-        }
-
-        private void DispatchLiveQuestAction(byte actionType)
-        {
-            try
-            {
-                if (!uint.TryParse(txtQId.Text.Trim(), out uint qId) || qId == 0)
-                {
-                    MessageBox.Show("Please select a valid Quest first.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                string pName = cmbQuestPlayersLive?.SelectedItem?.ToString();
-                if (string.IsNullOrEmpty(pName))
-                {
-                    MessageBox.Show("No active online player selected.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                var player = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(p => p != null && p.CharName == pName);
-                if (player == null)
-                {
-                    MessageBox.Show($"Player '{pName}' is no longer online.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                uint inProgMark = (uint)numQInProgMark.Value;
-                uint compMark = (uint)numQCompMark.Value;
-                if (inProgMark == 0) inProgMark = qId;
-                if (compMark == 0) compMark = qId + 1;
-
-                switch (actionType)
-                {
-                    case 1: // Start Quest
-                        Game.QuestRelated.QuestManager.AcceptQuest(player, qId);
-                        MessageBox.Show($"Quest #{qId} started for {pName} (In-Progress Mark #{inProgMark})!", "Quest Started", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        break;
-                    case 2: // Advance Step
-                        Game.QuestRelated.QuestManager.AdvanceQuestStep(player, qId);
-                        MessageBox.Show($"Quest #{qId} advanced to next step for {pName}!", "Step Advanced", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        break;
-                    case 5: // Complete Quest
-                        Game.QuestRelated.QuestManager.CompleteQuest(player, qId);
-                        MessageBox.Show($"Quest #{qId} completed for {pName} (Completed Mark #{compMark}) & rewards awarded!", "Quest Completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        break;
-                    case 3: // Reset Quest
-                        Game.QuestRelated.QuestManager.ResetQuest(player, qId);
-                        MessageBox.Show($"Quest #{qId} reset for {pName}.", "Quest Reset", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error executing live quest action: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void AddNewStepRow()
-        {
-            if (dtQuestSteps == null) return;
-            int nextStep = dtQuestSteps.Rows.Count + 1;
-            dtQuestSteps.Rows.Add(nextStep, "Dialogue", "NPC Target", 0, "Talk to NPC to proceed with this objective.", "", "", "");
-        }
-
-        private void DeleteSelectedStepRow()
-        {
-            if (dgvQuestSteps == null || dgvQuestSteps.SelectedRows.Count == 0 || dtQuestSteps == null) return;
-            int idx = dgvQuestSteps.SelectedRows[0].Index;
-            if (idx >= 0 && idx < dtQuestSteps.Rows.Count)
-            {
-                dtQuestSteps.Rows.RemoveAt(idx);
-                // Re-index remaining steps
-                for (int i = 0; i < dtQuestSteps.Rows.Count; i++)
-                {
-                    dtQuestSteps.Rows[i]["Step"] = i + 1;
-                }
-            }
-        }
-
-        private void LoadSelectedStepToEditor()
-        {
-            try
-            {
-                if (dgvQuestSteps == null || dgvQuestSteps.SelectedRows.Count == 0) return;
-                var row = dgvQuestSteps.SelectedRows[0];
-
-                string type = row.Cells["Type"].Value?.ToString() ?? "Dialogue";
-                int tIdx = cmbStepType.Items.IndexOf(type);
-                if (tIdx >= 0) cmbStepType.SelectedIndex = tIdx;
-
-                txtStepNpc.Text = row.Cells["Target NPC"].Value?.ToString() ?? "";
-                numStepNpcTid.Value = Convert.ToDecimal(row.Cells["TID"].Value ?? 0);
-                txtStepPrompt.Text = row.Cells["Prompt / Objective"].Value?.ToString() ?? "";
-                txtStepReqItems.Text = row.Cells["Required Items"].Value?.ToString() ?? "";
-                txtStepGrantItems.Text = row.Cells["Grant Items"].Value?.ToString() ?? "";
-            }
-            catch { }
-        }
-
-        private void ApplyCurrentStepEdit()
-        {
-            try
-            {
-                if (dgvQuestSteps == null || dgvQuestSteps.SelectedRows.Count == 0) return;
-                var row = dgvQuestSteps.SelectedRows[0];
-
-                row.Cells["Type"].Value = cmbStepType.SelectedItem?.ToString() ?? "Dialogue";
-                row.Cells["Target NPC"].Value = txtStepNpc.Text.Trim();
-                row.Cells["TID"].Value = (uint)numStepNpcTid.Value;
-                row.Cells["Prompt / Objective"].Value = txtStepPrompt.Text.Trim();
-                row.Cells["Required Items"].Value = txtStepReqItems.Text.Trim();
-                row.Cells["Grant Items"].Value = txtStepGrantItems.Text.Trim();
-            }
-            catch { }
-        }
-
-        private string SerializeStepsToJson()
-        {
-            if (dtQuestSteps == null || dtQuestSteps.Rows.Count == 0) return "[]";
-            var list = new List<string>();
-            foreach (System.Data.DataRow row in dtQuestSteps.Rows)
-            {
-                int sIdx = Convert.ToInt32(row["Step"]);
-                string type = row["Type"]?.ToString() ?? "Dialogue";
-                string npc = (row["Target NPC"]?.ToString() ?? "").Replace("\"", "\\\"");
-                uint tid = Convert.ToUInt32(row["TID"]);
-                string prompt = (row["Prompt / Objective"]?.ToString() ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
-                string req = (row["Required Items"]?.ToString() ?? "").Replace("\"", "\\\"");
-                string grant = (row["Grant Items"]?.ToString() ?? "").Replace("\"", "\\\"");
-
-                list.Add($"{{\"StepIndex\":{sIdx},\"StepType\":\"{type}\",\"TargetNpcPattern\":\"{npc}\",\"TargetNpcTemplateID\":{tid},\"PromptDialogue\":\"{prompt}\",\"RequiredItems\":\"{req}\",\"GrantItems\":\"{grant}\"}}");
-            }
-            return "[" + string.Join(",", list) + "]";
-        }
-
-        private void PopulateStepsFromData(string stepsJson, string intro, string inProgress, string complete, string npcPattern, uint npcTid)
-        {
-            if (dtQuestSteps == null) return;
-            dtQuestSteps.Rows.Clear();
-
-            bool loaded = false;
-            if (!string.IsNullOrWhiteSpace(stepsJson) && stepsJson.Trim() != "[]")
-            {
-                try
-                {
-                    var matches = System.Text.RegularExpressions.Regex.Matches(stepsJson, @"\{[\s\S]*?\}");
-                    int idx = 1;
-                    foreach (System.Text.RegularExpressions.Match m in matches)
-                    {
-                        string block = m.Value;
-                        string type = System.Text.RegularExpressions.Regex.Match(block, @"\""StepType\""\s*:\s*\""([^\""]+)\""").Groups[1].Value;
-                        string npc = System.Text.RegularExpressions.Regex.Match(block, @"\""TargetNpcPattern\""\s*:\s*\""([^\""]*)\""").Groups[1].Value;
-                        string prompt = System.Text.RegularExpressions.Regex.Match(block, @"\""PromptDialogue\""\s*:\s*\""([^\""]*)\""").Groups[1].Value;
-                        string req = System.Text.RegularExpressions.Regex.Match(block, @"\""RequiredItems\""\s*:\s*\""([^\""]*)\""").Groups[1].Value;
-                        string grant = System.Text.RegularExpressions.Regex.Match(block, @"\""GrantItems\""\s*:\s*\""([^\""]*)\""").Groups[1].Value;
-
-                        dtQuestSteps.Rows.Add(idx++, string.IsNullOrEmpty(type) ? "Dialogue" : type, npc, npcTid, prompt, req, grant, "");
-                    }
-                    if (dtQuestSteps.Rows.Count > 0) loaded = true;
-                }
-                catch { }
-            }
-
-            if (!loaded)
-            {
-                // Generate natural authentic step stages based on quest dialogues
-                dtQuestSteps.Rows.Add(1, "Dialogue", npcPattern, npcTid, string.IsNullOrEmpty(intro) ? "Talk to Quest NPC to start objective." : intro, "", "", "");
-                if (!string.IsNullOrEmpty(inProgress))
-                {
-                    dtQuestSteps.Rows.Add(2, "ItemCollection", npcPattern, npcTid, inProgress, "", "", "");
-                }
-                dtQuestSteps.Rows.Add(dtQuestSteps.Rows.Count + 1, "Dialogue", npcPattern, npcTid, string.IsNullOrEmpty(complete) ? "Deliver quest and claim rewards." : complete, "", "", "");
-            }
-
-            if (dgvQuestSteps.Rows.Count > 0)
-            {
-                dgvQuestSteps.Rows[0].Selected = true;
-                LoadSelectedStepToEditor();
-            }
-        }
-        private void RefreshQuestGrid(string filter = "", string categoryFilter = "")
-        {
-            try
-            {
-                if (dgvQuests == null) return;
-
-                bool showRaw = categoryFilter != null && categoryFilter.Contains("Raw Mark Entries");
-                var sourceQuests = showRaw 
-                    ? Game.QuestRelated.QuestManager.AllQuests.Values 
-                    : Game.QuestRelated.QuestManager.MasterQuests.Values;
-
-                // Fallback: If MasterQuests is empty, reload authentic Mark.dat
-                if (!sourceQuests.Any())
-                {
-                    string markDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Mark.dat");
-                    Game.QuestRelated.QuestManager.LoadAuthenticQuestsFromMarkDat(markDatPath);
-                    sourceQuests = showRaw 
-                        ? Game.QuestRelated.QuestManager.AllQuests.Values 
-                        : Game.QuestRelated.QuestManager.MasterQuests.Values;
-                }
-
-                System.Data.DataTable dt = new System.Data.DataTable();
-                dt.Columns.Add("quest_id", typeof(uint));
-                dt.Columns.Add("name", typeof(string));
-                dt.Columns.Add("category", typeof(string));
-                dt.Columns.Add("area", typeof(string));
-                dt.Columns.Add("map_id", typeof(int));
-                dt.Columns.Add("in_prog_mark", typeof(uint));
-                dt.Columns.Add("comp_mark", typeof(uint));
-                dt.Columns.Add("type", typeof(int));
-                dt.Columns.Add("npc_name_pattern", typeof(string));
-                dt.Columns.Add("npc_template_id", typeof(int));
-                dt.Columns.Add("reward_gold", typeof(int));
-                dt.Columns.Add("reward_exp", typeof(int));
-                dt.Columns.Add("reward_companion_name", typeof(string));
-                dt.Columns.Add("reward_items", typeof(string));
-                dt.Columns.Add("required_items", typeof(string));
-                dt.Columns.Add("prerequisite_quests", typeof(string));
-                dt.Columns.Add("description", typeof(string));
-                dt.Columns.Add("intro_dialogue", typeof(string));
-                dt.Columns.Add("in_progress_dialogue", typeof(string));
-                dt.Columns.Add("complete_dialogue", typeof(string));
-                dt.Columns.Add("already_completed_dialogue", typeof(string));
-                dt.Columns.Add("battle_monster_id", typeof(int));
-                dt.Columns.Add("battle_monster_name", typeof(string));
-                dt.Columns.Add("reward_companion_id", typeof(int));
-                dt.Columns.Add("steps_json", typeof(string));
-
-                string filterLower = (filter ?? "").Trim().ToLower();
-                string catClean = (categoryFilter ?? "").Replace("🏝️", "").Replace("👥", "").Replace("🛠️", "").Replace("🐉", "").Replace("🎯", "").Replace("📜", "").Trim().ToLower();
-                if (catClean.Contains("all categories") || string.IsNullOrEmpty(categoryFilter)) catClean = "";
-
-                foreach (var q in sourceQuests)
-                {
-                    if (!string.IsNullOrEmpty(catClean) && !showRaw)
-                    {
-                        string qCat = (q.Category ?? "").ToLower();
-                        if (!qCat.Contains(catClean)) continue;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(filterLower))
-                    {
-                        if (!q.QuestID.ToString().Contains(filterLower) &&
-                            !(q.Title ?? "").ToLower().Contains(filterLower) &&
-                            !(q.Category ?? "").ToLower().Contains(filterLower) &&
-                            !(q.AreaName ?? "").ToLower().Contains(filterLower) &&
-                            !(q.NpcNamePattern ?? "").ToLower().Contains(filterLower))
-                            continue;
-                    }
-
-                    string reqItemsStr = q.RequiredItems != null ? string.Join(", ", q.RequiredItems.Select(i => $"{i.ItemID}x{i.Amount}")) : "";
-                    string rewItemsStr = q.Reward?.Items != null ? string.Join(", ", q.Reward.Items.Select(i => $"{i.Item1}x{i.Item2}")) : "";
-                    string prereqsStr = q.PrerequisiteQuestIDs != null ? string.Join(", ", q.PrerequisiteQuestIDs) : "";
-
-                    string stepsJson = "";
-                    if (q.Steps != null && q.Steps.Count > 0)
-                    {
-                        var sList = new List<string>();
-                        foreach (var st in q.Steps)
-                        {
-                            string pDia = (st.PromptDialogue ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
-                            string inDia = (st.InProgressDialogue ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
-                            string compDia = (st.CompleteDialogue ?? "").Replace("\"", "\\\"").Replace("\r\n", "\\n").Replace("\n", "\\n");
-                            sList.Add($"{{\"StepIndex\":{st.StepIndex},\"StepType\":\"{st.StepType}\",\"TargetNpcPattern\":\"{st.TargetNpcPattern}\",\"TargetNpcTemplateID\":{st.TargetNpcTemplateID},\"PromptDialogue\":\"{pDia}\",\"InProgressDialogue\":\"{inDia}\",\"CompleteDialogue\":\"{compDia}\"}}");
-                        }
-                        stepsJson = "[" + string.Join(",", sList) + "]";
-                    }
-
-                    dt.Rows.Add(q.QuestID, q.Title ?? $"Quest #{q.QuestID}", q.Category ?? "Storyline", q.AreaName ?? "Unknown", (int)q.MapID,
-                        q.InProgressMarkID, q.CompletedMarkID, (int)q.Type, q.NpcNamePattern ?? "", (int)q.NpcTemplateID,
-                        q.Reward?.Gold ?? 0, (int)(q.Reward?.Exp ?? 0), q.Reward?.CompanionName ?? "",
-                        rewItemsStr, reqItemsStr, prereqsStr,
-                        q.Description ?? "", q.IntroDialogue ?? "", q.InProgressDialogue ?? "",
-                        q.CompleteDialogue ?? "", q.AlreadyCompletedDialogue ?? "",
-                        (int)q.BattleMonsterID, q.BattleMonsterName ?? "", (int)(q.Reward?.CompanionPetID ?? 0), stepsJson);
-                }
-
-                dgvQuests.DataSource = dt;
-
-                // Format visible columns clearly with manual resizing and flexible minimum widths
-                dgvQuests.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-                dgvQuests.AllowUserToResizeColumns = true;
-
-                if (dgvQuests.Columns.Contains("quest_id")) { 
-                    dgvQuests.Columns["quest_id"].HeaderText = "ID"; 
-                    dgvQuests.Columns["quest_id"].Width = 48; 
-                    dgvQuests.Columns["quest_id"].MinimumWidth = 40;
-                    dgvQuests.Columns["quest_id"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                }
-                if (dgvQuests.Columns.Contains("name")) { 
-                    dgvQuests.Columns["name"].HeaderText = "Title / Quest Name"; 
-                    dgvQuests.Columns["name"].Width = 240; 
-                    dgvQuests.Columns["name"].MinimumWidth = 60;
-                    dgvQuests.Columns["name"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                }
-                if (dgvQuests.Columns.Contains("category")) { 
-                    dgvQuests.Columns["category"].HeaderText = "Category"; 
-                    dgvQuests.Columns["category"].Width = 145; 
-                    dgvQuests.Columns["category"].MinimumWidth = 80;
-                    dgvQuests.Columns["category"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                }
-                if (dgvQuests.Columns.Contains("in_prog_mark")) { 
-                    dgvQuests.Columns["in_prog_mark"].HeaderText = "In-Prog"; 
-                    dgvQuests.Columns["in_prog_mark"].Width = 55; 
-                    dgvQuests.Columns["in_prog_mark"].MinimumWidth = 45;
-                    dgvQuests.Columns["in_prog_mark"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                }
-                if (dgvQuests.Columns.Contains("comp_mark")) { 
-                    dgvQuests.Columns["comp_mark"].HeaderText = "Comp"; 
-                    dgvQuests.Columns["comp_mark"].Width = 55; 
-                    dgvQuests.Columns["comp_mark"].MinimumWidth = 45;
-                    dgvQuests.Columns["comp_mark"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-                }
-
-                // Hide detailed non-grid columns so the grid is clean and readable
-                string[] hiddenCols = new string[] {
-                    "area", "map_id", "type", "npc_name_pattern", "reward_gold", "reward_exp",
-                    "npc_template_id", "reward_companion_name", "reward_items", "required_items",
-                    "prerequisite_quests", "description", "intro_dialogue", "in_progress_dialogue",
-                    "complete_dialogue", "already_completed_dialogue", "battle_monster_id",
-                    "battle_monster_name", "reward_companion_id", "steps_json"
-                };
-                foreach (var c in hiddenCols)
-                {
-                    if (dgvQuests.Columns.Contains(c)) dgvQuests.Columns[c].Visible = false;
-                }
-
-                if (lblQuestCount != null)
-                {
-                    lblQuestCount.Text = showRaw 
-                        ? $"Showing {dt.Rows.Count} / {Game.QuestRelated.QuestManager.Count} Raw Mark IDs"
-                        : $"Showing {dt.Rows.Count} / {Game.QuestRelated.QuestManager.MasterCount} Master Quests";
-                }
-
-                if (dgvQuests.Rows.Count > 0)
-                {
-                    dgvQuests.Rows[0].Selected = true;
-                    OnQuestGridSelectionChanged();
-                }
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error refreshing Quest Grid: {ex.Message}");
-            }
-        }
-
-        private void OnQuestGridSelectionChanged()
-        {
-            try
-            {
-                if (dgvQuests == null || dgvQuests.SelectedRows.Count == 0) return;
-                var row = dgvQuests.SelectedRows[0];
-
-                txtQId.Text = row.Cells["quest_id"].Value?.ToString() ?? "";
-                txtQName.Text = row.Cells["name"].Value?.ToString() ?? "";
-
-                string cat = row.Cells["category"].Value?.ToString() ?? "";
-                for (int i = 0; i < cmbQCategory.Items.Count; i++)
-                {
-                    if (cmbQCategory.Items[i].ToString().Contains(cat) || cat.Contains(cmbQCategory.Items[i].ToString()))
-                    {
-                        cmbQCategory.SelectedIndex = i;
-                        break;
-                    }
-                }
-
-                txtQArea.Text = row.Cells["area"].Value?.ToString() ?? "";
-                numQStartMapId.Value = Convert.ToDecimal(row.Cells["map_id"].Value ?? 0);
-                numQInProgMark.Value = Convert.ToDecimal(row.Cells["in_prog_mark"].Value ?? 0);
-                numQCompMark.Value = Convert.ToDecimal(row.Cells["comp_mark"].Value ?? 0);
-
-                int typeVal = Convert.ToInt32(row.Cells["type"].Value ?? 0);
-                if (typeVal >= 0 && typeVal < cmbQType.Items.Count) cmbQType.SelectedIndex = typeVal;
-
-                txtQNpcPattern.Text = row.Cells["npc_name_pattern"].Value?.ToString() ?? "";
-                uint npcTid = Convert.ToUInt32(row.Cells["npc_template_id"].Value ?? 0);
-                numQNpcTid.Value = npcTid;
-                txtQDesc.Text = row.Cells["description"].Value?.ToString() ?? "";
-
-                string intro = row.Cells["intro_dialogue"].Value?.ToString() ?? "";
-                string inProgress = row.Cells["in_progress_dialogue"].Value?.ToString() ?? "";
-                string complete = row.Cells["complete_dialogue"].Value?.ToString() ?? "";
-                string alreadyDone = row.Cells["already_completed_dialogue"].Value?.ToString() ?? "";
-
-                txtQIntro.Text = intro;
-                txtQInProgress.Text = inProgress;
-                txtQComplete.Text = complete;
-                txtQAlreadyDone.Text = alreadyDone;
-
-                numQBattleMonsterId.Value = Convert.ToDecimal(row.Cells["battle_monster_id"].Value ?? 0);
-                txtQBattleMonsterName.Text = row.Cells["battle_monster_name"].Value?.ToString() ?? "";
-
-                numQRewardGold.Value = Convert.ToDecimal(row.Cells["reward_gold"].Value ?? 0);
-                numQRewardExp.Value = Convert.ToDecimal(row.Cells["reward_exp"].Value ?? 0);
-                numQRewardCompanionId.Value = Convert.ToDecimal(row.Cells["reward_companion_id"].Value ?? 0);
-                txtQRewardCompanionName.Text = row.Cells["reward_companion_name"].Value?.ToString() ?? "";
-
-                txtQRewardItems.Text = row.Cells["reward_items"].Value?.ToString() ?? "";
-                txtQRequiredItems.Text = row.Cells["required_items"].Value?.ToString() ?? "";
-                txtQPrereqs.Text = row.Cells["prerequisite_quests"].Value?.ToString() ?? "";
-
-                string stepsJson = row.Cells["steps_json"].Value?.ToString() ?? "";
-                PopulateStepsFromData(stepsJson, intro, inProgress, complete, txtQNpcPattern.Text, npcTid);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error in OnQuestGridSelectionChanged: {ex.Message}");
-            }
-        }
-
-        private void SaveCurrentQuest()
-        {
-            try
-            {
-                if (!uint.TryParse(txtQId.Text.Trim(), out uint qId) || qId == 0)
-                {
-                    MessageBox.Show("Please enter a valid Quest ID (greater than 0).", "Invalid ID", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                string name = txtQName.Text.Trim();
-                if (string.IsNullOrEmpty(name))
-                {
-                    MessageBox.Show("Please enter a Quest Title / Name.", "Invalid Name", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                int type = cmbQType.SelectedIndex;
-                string npcPattern = txtQNpcPattern.Text.Trim();
-                int npcTid = (int)numQNpcTid.Value;
-                string desc = txtQDesc.Text.Trim();
-                string intro = txtQIntro.Text.Trim();
-                string inProgress = txtQInProgress.Text.Trim();
-                string complete = txtQComplete.Text.Trim();
-                string alreadyDone = txtQAlreadyDone.Text.Trim();
-
-                int battleMonsterId = (int)numQBattleMonsterId.Value;
-                string battleMonsterName = txtQBattleMonsterName.Text.Trim();
-
-                int rewardGold = (int)numQRewardGold.Value;
-                int rewardExp = (int)numQRewardExp.Value;
-                int rewardCompId = (int)numQRewardCompanionId.Value;
-                string rewardCompName = txtQRewardCompanionName.Text.Trim();
-
-                string rewardItems = txtQRewardItems.Text.Trim();
-                string requiredItems = txtQRequiredItems.Text.Trim();
-                string prereqs = txtQPrereqs.Text.Trim();
-                string stepsJson = SerializeStepsToJson();
-                int mapId = (int)numQStartMapId.Value;
-
-                if (DataBase.QuestDataBase.SaveQuest(DataBase.GameDataBase.GlobalInstance, qId, name, npcPattern, npcTid, mapId, type,
-                    desc, intro, inProgress, complete, alreadyDone, battleMonsterId, battleMonsterName,
-                    rewardGold, rewardExp, rewardCompId, rewardCompName, rewardItems, requiredItems, prereqs, stepsJson))
-                {
-                    RefreshQuestGrid(txtQuestSearch.Text);
-                    MessageBox.Show($"Quest #{qId} ('{name}') saved and updated in database successfully!", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    MessageBox.Show("Failed to save quest to database. Check server logs.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error saving quest: {ex.Message}", "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void DeleteCurrentQuest()
-        {
-            try
-            {
-                if (!uint.TryParse(txtQId.Text.Trim(), out uint qId) || qId == 0)
-                {
-                    MessageBox.Show("Please select a quest to delete.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                if (MessageBox.Show($"Are you sure you want to delete Quest #{qId} ('{txtQName.Text}') from the database?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                {
-                    if (DataBase.QuestDataBase.DeleteQuest(DataBase.GameDataBase.GlobalInstance, qId))
-                    {
-                        RefreshQuestGrid(txtQuestSearch.Text);
-                        ClearQuestInputs();
-                        MessageBox.Show($"Quest #{qId} deleted successfully from database.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error deleting quest: {ex.Message}", "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void ClearQuestInputs()
-        {
-            txtQId.Text = "";
-            txtQName.Text = "";
-            txtQArea.Text = "";
-            numQInProgMark.Value = 0;
-            numQCompMark.Value = 0;
-            numQReqLevel.Value = 0;
-            cmbQType.SelectedIndex = 0;
-            txtQNpcPattern.Text = "";
-            numQNpcTid.Value = 0;
-            numQStartMapId.Value = 0;
-            txtQDesc.Text = "";
-            txtQIntro.Text = "";
-            txtQInProgress.Text = "";
-            txtQComplete.Text = "";
-            txtQAlreadyDone.Text = "";
-            numQBattleMonsterId.Value = 0;
-            txtQBattleMonsterName.Text = "";
-            numQRewardGold.Value = 0;
-            numQRewardExp.Value = 0;
-            numQRewardCompanionId.Value = 0;
-            txtQRewardCompanionName.Text = "";
-            txtQRewardItems.Text = "";
-            txtQRequiredItems.Text = "";
-            txtQPrereqs.Text = "";
-            dtQuestSteps?.Rows.Clear();
         }
         #endregion
 
@@ -4163,614 +2997,1238 @@ namespace Wonderland_Private_Server
         }
         #endregion
 
-        #region 7 Event Systems & Map Interactive Entities GUI Tab
-        private TabPage tabEventSystems;
-        private ComboBox cmbEventMapsList;
-        private TextBox txtEventMapSearch;
-        private Label lblEventMapStats;
-        private Label lblEventMapTotals;
-        private TabControl tabControlMapEntities;
-        private DataGridView dgvMapTraps;
-        private DataGridView dgvMapPreEvents;
-        private DataGridView dgvMapMining;
-        private DataGridView dgvMapWarps;
-        private DataGridView dgvMapChests;
-        private DataGridView dgvMapNpcs;
-        private ComboBox cmbEventTesterPlayer;
-        private NumericUpDown numTestEventId;
-        private ushort _selectedEventMapId = 10036;
+        #region Talk ID Resolver & Dialogue Explorer Tab
+        private TabPage tabTalkResolver;
+        private NumericUpDown numResolverTalkId;
+        private TextBox txtResolverPlayerName;
+        private Label lblResolveResultMethod;
+        private Label lblResolveResultRecord;
+        private Label lblResolveResultSound;
+        private Label lblResolveResultFace;
+        private RichTextBox rtbResolvedPreview;
+        private RichTextBox rtbStyledPreview;
+        private DataGridView dgvTalkExplorer;
+        private TextBox txtTalkExplorerSearch;
+        private Label lblTalkExplorerStats;
+        private ComboBox cmbTalkLivePlayer;
+        private System.Data.DataTable dtTalkExplorer;
 
-        private void SetupEventSystemsTab()
+        private void SetupTalkResolverTab()
         {
             try
             {
-                tabEventSystems = new TabPage("🗺️ 7 Event Systems & Triggers")
+                tabTalkResolver = new TabPage("💬 Talk ID Resolver")
                 {
                     BackColor = System.Drawing.Color.WhiteSmoke,
                     Padding = new Padding(6)
                 };
 
-                // === TOP HEADER & MAP SELECTION PANEL ===
-                Panel pnlTop = new Panel
+                if (this.tabControl3 != null && !this.tabControl3.TabPages.Contains(tabTalkResolver))
                 {
+                    this.tabControl3.TabPages.Add(tabTalkResolver);
+                }
+
+                // Top Panel: Live Talk ID Resolver & Token Decoder
+                GroupBox grpResolver = new GroupBox
+                {
+                    Text = "⚡ Live Talk ID Resolver & Dynamic Token Decoder",
                     Dock = DockStyle.Top,
-                    Height = 85,
-                    BackColor = System.Drawing.Color.Transparent
-                };
-
-                Label lblHeader = new Label
-                {
-                    Text = "🗺️ 7 Event Systems & Map Interactive Entities (Eve.Emg Engine)",
-                    Font = new System.Drawing.Font("Segoe UI", 10.5f, System.Drawing.FontStyle.Bold),
+                    Height = 145,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue,
-                    Location = new System.Drawing.Point(4, 4),
-                    AutoSize = true
+                    Padding = new Padding(8)
                 };
 
-                lblEventMapTotals = new Label
+                Panel pnlInputs = new Panel { Dock = DockStyle.Top, Height = 32 };
+                
+                Label lblId = new Label { Text = "Talk ID / Offset:", Location = new System.Drawing.Point(4, 6), AutoSize = true, ForeColor = System.Drawing.Color.Black };
+                numResolverTalkId = new NumericUpDown
                 {
-                    Text = "🌐 Dataset: 1,119 Maps | 22,171 NPCs | 89,724 Doors | 34,363 Floor Traps | 47,569 Mining Nodes | 47,370 Chests | 41,340 PreEvents",
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
-                    ForeColor = System.Drawing.Color.DimGray,
-                    Location = new System.Drawing.Point(4, 26),
-                    AutoSize = true
+                    Location = new System.Drawing.Point(105, 4),
+                    Size = new System.Drawing.Size(100, 23),
+                    Maximum = 10000000,
+                    Value = 20304,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
+                numResolverTalkId.ValueChanged += (s, e) => ExecuteTalkResolution();
 
-                Label lblSelectMap = new Label
+                Label lblName = new Label { Text = "Player Name (#n):", Location = new System.Drawing.Point(220, 6), AutoSize = true, ForeColor = System.Drawing.Color.Black };
+                txtResolverPlayerName = new TextBox
                 {
-                    Text = "📍 Select Map:",
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
-                    Location = new System.Drawing.Point(4, 52),
-                    AutoSize = true
-                };
-
-                txtEventMapSearch = new TextBox
-                {
-                    Location = new System.Drawing.Point(90, 50),
+                    Location = new System.Drawing.Point(335, 4),
                     Size = new System.Drawing.Size(120, 23),
+                    Text = "Emin",
                     Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
-                txtEventMapSearch.TextChanged += (s, e) => FilterEventMapsDropdown(txtEventMapSearch.Text);
+                txtResolverPlayerName.TextChanged += (s, e) => ExecuteTalkResolution();
 
-                cmbEventMapsList = new ComboBox
+                Button btnResolve = new Button
                 {
-                    Location = new System.Drawing.Point(216, 49),
-                    Size = new System.Drawing.Size(280, 24),
-                    DropDownStyle = ComboBoxStyle.DropDownList,
-                    Font = new System.Drawing.Font("Segoe UI", 9f)
-                };
-                cmbEventMapsList.SelectedIndexChanged += (s, e) =>
-                {
-                    if (cmbEventMapsList.SelectedItem is EventMapComboItem item)
-                    {
-                        _selectedEventMapId = item.MapID;
-                        LoadSelectedMapEntities(item.MapID);
-                    }
-                };
-
-                Button btnReloadEve = new Button
-                {
-                    Text = "🔄 Reload Eve.Emg",
-                    Location = new System.Drawing.Point(504, 48),
-                    Size = new System.Drawing.Size(130, 26),
+                    Text = "🔍 Resolve Talk ID",
+                    Location = new System.Drawing.Point(465, 3),
+                    Size = new System.Drawing.Size(130, 25),
                     BackColor = System.Drawing.Color.LightSkyBlue,
+                    ForeColor = System.Drawing.Color.Black,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
-                btnReloadEve.Click += (s, e) =>
+                btnResolve.Click += (s, e) => ExecuteTalkResolution();
+
+                Button btnReloadTalk = new Button
                 {
-                    cGlobal.gGameDataBase?.EveDat?.LoadFile("Data\\eve.Emg");
-                    PopulateEventMapsDropdown();
-                    LoadSelectedMapEntities(_selectedEventMapId);
-                    MessageBox.Show("Eve.Emg reloaded successfully!", "Reloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Text = "🔄 Reload Talk.dat",
+                    Location = new System.Drawing.Point(605, 3),
+                    Size = new System.Drawing.Size(130, 25),
+                    BackColor = System.Drawing.Color.LightCyan,
+                    ForeColor = System.Drawing.Color.Black,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnReloadTalk.Click += (s, e) =>
+                {
+                    string talkPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                    cGlobal.TalkDatManager = new DataFiles.PhxTalkDat(talkPath);
+                    if (cGlobal.gGameDataBase != null) cGlobal.gGameDataBase.TalkDat = cGlobal.TalkDatManager;
+                    PopulateTalkExplorerGrid();
+                    ExecuteTalkResolution();
+                    MessageBox.Show("Talk.dat reloaded and indexed successfully!", "Reloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 };
 
-                lblEventMapStats = new Label
+                pnlInputs.Controls.AddRange(new Control[] { lblId, numResolverTalkId, lblName, txtResolverPlayerName, btnResolve, btnReloadTalk });
+
+                // Resolution Info Bar
+                Panel pnlInfoBar = new Panel { Dock = DockStyle.Top, Height = 24, BackColor = System.Drawing.Color.FromArgb(242, 245, 250) };
+                lblResolveResultMethod = new Label { Text = "Method: None", Location = new System.Drawing.Point(4, 4), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkBlue };
+                lblResolveResultRecord = new Label { Text = "Record Index: -", Location = new System.Drawing.Point(230, 4), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkGreen };
+                lblResolveResultSound = new Label { Text = "Audio/Cue: None", Location = new System.Drawing.Point(380, 4), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkMagenta };
+                lblResolveResultFace = new Label { Text = "Portrait Face: None", Location = new System.Drawing.Point(530, 4), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkSlateGray };
+
+                pnlInfoBar.Controls.AddRange(new Control[] { lblResolveResultMethod, lblResolveResultRecord, lblResolveResultSound, lblResolveResultFace });
+
+                // Resolved Preview Box
+                rtbResolvedPreview = new RichTextBox
                 {
-                    Text = "Map Entities: 0",
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
-                    ForeColor = System.Drawing.Color.DarkGreen,
-                    Location = new System.Drawing.Point(645, 52),
-                    AutoSize = true
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    BackColor = System.Drawing.Color.FromArgb(255, 255, 252),
+                    Font = new System.Drawing.Font("Segoe UI", 10f),
+                    BorderStyle = BorderStyle.FixedSingle
                 };
 
-                pnlTop.Controls.AddRange(new Control[] {
-                    lblHeader, lblEventMapTotals, lblSelectMap, txtEventMapSearch, cmbEventMapsList, btnReloadEve, lblEventMapStats
-                });
+                grpResolver.Controls.Add(rtbResolvedPreview);
+                grpResolver.Controls.Add(pnlInfoBar);
+                grpResolver.Controls.Add(pnlInputs);
 
-                // === BOTTOM LIVE TESTER & DISPATCHER PANEL ===
-                GroupBox grpTester = new GroupBox
+                // Bottom SplitContainer: Searchable Talk.dat Grid on Left, Rich Formatted Preview & Live Dispatcher on Right
+                SplitContainer splitExplorer = new SplitContainer
                 {
-                    Text = "⚡ Live Event Tester & Player Quest Dispatcher",
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical,
+                    SplitterWidth = 6,
+                    SplitterDistance = 560
+                };
+
+                // Left Panel: Search & Master Grid
+                Panel pnlSearch = new Panel { Dock = DockStyle.Top, Height = 36 };
+                Label lblSearch = new Label { Text = "🔍 Search (ID / Text):", Location = new System.Drawing.Point(4, 9), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
+                txtTalkExplorerSearch = new TextBox { Location = new System.Drawing.Point(145, 6), Size = new System.Drawing.Size(220, 23), Font = new System.Drawing.Font("Segoe UI", 9f) };
+                txtTalkExplorerSearch.TextChanged += (s, e) => FilterTalkExplorer(txtTalkExplorerSearch.Text);
+
+                lblTalkExplorerStats = new Label { Text = "Total: 0 Dialogues", Location = new System.Drawing.Point(375, 9), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold), ForeColor = System.Drawing.Color.DarkSlateBlue };
+
+                pnlSearch.Controls.AddRange(new Control[] { lblSearch, txtTalkExplorerSearch, lblTalkExplorerStats });
+
+                dgvTalkExplorer = new DataGridView
+                {
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = false,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    BackgroundColor = System.Drawing.Color.White,
+                    BorderStyle = BorderStyle.Fixed3D,
+                    RowHeadersVisible = false,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                };
+                dgvTalkExplorer.SelectionChanged += (s, e) => OnTalkExplorerSelectionChanged();
+
+                splitExplorer.Panel1.Controls.Add(dgvTalkExplorer);
+                splitExplorer.Panel1.Controls.Add(pnlSearch);
+
+                // Right Panel: Formatted Bubble Preview & Live Player Dispatcher
+                Panel pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(6), BackColor = System.Drawing.Color.White };
+
+                GroupBox grpDispatch = new GroupBox
+                {
+                    Text = "📡 Live Game Client Dialogue Dispatcher",
                     Dock = DockStyle.Bottom,
                     Height = 65,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue
                 };
 
-                Label lblPlayer = new Label { Text = "Online Player:", Location = new System.Drawing.Point(10, 26), AutoSize = true, ForeColor = System.Drawing.Color.Black };
-                cmbEventTesterPlayer = new ComboBox { Location = new System.Drawing.Point(100, 23), Size = new System.Drawing.Size(160, 22), DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                Label lblLive = new Label { Text = "Online Player:", Location = new System.Drawing.Point(8, 26), AutoSize = true, ForeColor = System.Drawing.Color.Black };
+                cmbTalkLivePlayer = new ComboBox { Location = new System.Drawing.Point(95, 23), Size = new System.Drawing.Size(150, 23), DropDownStyle = ComboBoxStyle.DropDownList, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
 
-                Label lblEventId = new Label { Text = "Event/Click ID:", Location = new System.Drawing.Point(270, 26), AutoSize = true, ForeColor = System.Drawing.Color.Black };
-                numTestEventId = new NumericUpDown { Location = new System.Drawing.Point(365, 23), Size = new System.Drawing.Size(80, 22), Maximum = 65535, Value = 1, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
-
-                Button btnExecuteLive = new Button
+                Button btnSendDialogue = new Button
                 {
-                    Text = "⚡ Execute Event Now",
-                    Location = new System.Drawing.Point(455, 21),
-                    Size = new System.Drawing.Size(155, 27),
+                    Text = "💬 Send Dialogue Prompt (AC 23:57)",
+                    Location = new System.Drawing.Point(255, 21),
+                    Size = new System.Drawing.Size(220, 27),
                     BackColor = System.Drawing.Color.LightGreen,
                     ForeColor = System.Drawing.Color.Black,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
-                btnExecuteLive.Click += (s, e) =>
-                {
-                    Player target = GetSelectedLivePlayer();
-                    if (target == null)
-                    {
-                        MessageBox.Show("Please select an online player first.", "No Player", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
+                btnSendDialogue.Click += (s, e) => SendDialogueToLivePlayer();
 
-                    ushort evId = (ushort)numTestEventId.Value;
-                    if (target.CurMap is GameMap gmap)
-                    {
-                        bool ok = Game.Maps.EveEventInterpreter.TryExecute(target, gmap, evId);
-                        MessageBox.Show(ok ? $"Event #{evId} executed successfully for {target.CharName}!" : $"Event #{evId} had no matching conditions on map {gmap.MapID}.", "Result", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                };
+                grpDispatch.Controls.AddRange(new Control[] { lblLive, cmbTalkLivePlayer, btnSendDialogue });
 
-                Button btnSyncFlags = new Button
-                {
-                    Text = "🔄 Sync Quest Flags (AC 24)",
-                    Location = new System.Drawing.Point(618, 21),
-                    Size = new System.Drawing.Size(175, 27),
-                    BackColor = System.Drawing.Color.LightCyan,
-                    ForeColor = System.Drawing.Color.Black,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnSyncFlags.Click += (s, e) =>
-                {
-                    Player target = GetSelectedLivePlayer();
-                    if (target != null)
-                    {
-                        Game.QuestRelated.QuestManager.SendAllQuestFlags(target);
-                        MessageBox.Show($"Synchronized all quest flags to live player {target.CharName}!", "Synchronized", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                };
-
-                Button btnTeleportToMap = new Button
-                {
-                    Text = "🚀 Warp to Selected Map",
-                    Location = new System.Drawing.Point(800, 21),
-                    Size = new System.Drawing.Size(165, 27),
-                    BackColor = System.Drawing.Color.LightGoldenrodYellow,
-                    ForeColor = System.Drawing.Color.Black,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
-                };
-                btnTeleportToMap.Click += (s, e) =>
-                {
-                    Player target = GetSelectedLivePlayer();
-                    if (target != null && target.CurMap != null)
-                    {
-                        var warp = new Game.Maps.WarpData() { DstMap = _selectedEventMapId, DstX_Axis = 400, DstY_Axis = 400 };
-                        target.CurMap.Teleport(TeleportType.CmD, target, 0, warp);
-                        MessageBox.Show($"Warped {target.CharName} to Map {_selectedEventMapId}!", "Teleported", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                };
-
-                grpTester.Controls.AddRange(new Control[] {
-                    lblPlayer, cmbEventTesterPlayer, lblEventId, numTestEventId, btnExecuteLive, btnSyncFlags, btnTeleportToMap
-                });
-
-                // === CENTER TABCONTROL: 6 SUB-GRIDS FOR ALL MAP ENTITIES ===
-                tabControlMapEntities = new TabControl
+                rtbStyledPreview = new RichTextBox
                 {
                     Dock = DockStyle.Fill,
-                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                    ReadOnly = true,
+                    BackColor = System.Drawing.Color.FromArgb(250, 252, 255),
+                    Font = new System.Drawing.Font("Segoe UI", 10.5f),
+                    BorderStyle = BorderStyle.FixedSingle
                 };
 
-                // Tab 1: Traps & Step Triggers
-                TabPage pageTraps = new TabPage("🪤 Floor Traps & Triggers");
-                dgvMapTraps = CreateEntityGrid();
-                pageTraps.Controls.Add(dgvMapTraps);
-
-                // Tab 2: PreEvents
-                TabPage pagePreEvents = new TabPage("🎭 Storyline PreEvents");
-                dgvMapPreEvents = CreateEntityGrid();
-                pagePreEvents.Controls.Add(dgvMapPreEvents);
-
-                // Tab 3: Mining & Gathering
-                TabPage pageMining = new TabPage("⛏️ Mining / Gathering Nodes");
-                dgvMapMining = CreateEntityGrid();
-                pageMining.Controls.Add(dgvMapMining);
-
-                // Tab 4: Warp Doors
-                TabPage pageWarps = new TabPage("🚪 Doors & Portals");
-                dgvMapWarps = CreateEntityGrid();
-                pageWarps.Controls.Add(dgvMapWarps);
-
-                // Tab 5: Ground Chests
-                TabPage pageChests = new TabPage("📦 Chests & Ground Items");
-                dgvMapChests = CreateEntityGrid();
-                pageChests.Controls.Add(dgvMapChests);
-
-                // Tab 6: Map NPCs
-                TabPage pageNpcs = new TabPage("👤 NPCs & Monsters");
-                dgvMapNpcs = CreateEntityGrid();
-                pageNpcs.Controls.Add(dgvMapNpcs);
-
-                tabControlMapEntities.TabPages.AddRange(new TabPage[] {
-                    pageTraps, pagePreEvents, pageMining, pageWarps, pageChests, pageNpcs
-                });
-
-                tabEventSystems.Controls.Add(tabControlMapEntities);
-                tabEventSystems.Controls.Add(grpTester);
-                tabEventSystems.Controls.Add(pnlTop);
-
-                if (this.tabControl3 != null)
+                Label lblBubbleHeader = new Label
                 {
-                    this.tabControl3.TabPages.Add(tabEventSystems);
-                }
-
-                tabEventSystems.Enter += (s, e) =>
-                {
-                    RefreshEventTesterPlayers();
-                    if (cmbEventMapsList.Items.Count == 0) PopulateEventMapsDropdown();
+                    Text = "📜 In-Game Styled Dialogue Display:",
+                    Dock = DockStyle.Top,
+                    Height = 24,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue
                 };
 
-                PopulateEventMapsDropdown();
-                LoadSelectedMapEntities(10036);
+                pnlRight.Controls.Add(rtbStyledPreview);
+                pnlRight.Controls.Add(lblBubbleHeader);
+                pnlRight.Controls.Add(grpDispatch);
+
+                splitExplorer.Panel2.Controls.Add(pnlRight);
+
+                tabTalkResolver.Controls.Add(splitExplorer);
+                tabTalkResolver.Controls.Add(grpResolver);
+
+                tabTalkResolver.Enter += (s, e) =>
+                {
+                    RefreshTalkLivePlayers();
+                    if (dtTalkExplorer == null || dtTalkExplorer.Rows.Count == 0) PopulateTalkExplorerGrid();
+                    ExecuteTalkResolution();
+                };
+
+                PopulateTalkExplorerGrid();
+                ExecuteTalkResolution();
             }
             catch (Exception ex)
             {
-                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error setting up Event Systems Tab: {ex.Message}");
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error setting up Talk Resolver Tab: {ex.Message}");
             }
         }
 
-        private DataGridView CreateEntityGrid()
+        private void ExecuteTalkResolution()
         {
-            return new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false,
-                BackgroundColor = System.Drawing.Color.White,
-                RowHeadersVisible = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                Font = new System.Drawing.Font("Segoe UI", 8.5f)
-            };
-        }
-
-        private class EventMapComboItem
-        {
-            public ushort MapID { get; set; }
-            public string Name { get; set; }
-            public override string ToString() => $"[{MapID}] {Name}";
-        }
-
-        private List<EventMapComboItem> _allEventMaps = new List<EventMapComboItem>();
-
-        private static readonly Dictionary<ushort, string> _officialMapNames = new Dictionary<ushort, string>()
-        {
-            { 10000, "North Island (Mainland)" },
-            { 10001, "Astrologer's Cave" },
-            { 10002, "North Island Cave 1" },
-            { 10003, "North Island Cave 2" },
-            { 10004, "North Island Peak" },
-            { 10005, "North Island Forest Path" },
-            { 10010, "North Island Underground Pool" },
-            { 10017, "Cruise Ship (Upper Deck)" },
-            { 10018, "Cruise Ship (Captain's Room)" },
-            { 10026, "Cruise Ship (Guest Cabins)" },
-            { 10027, "Cruise Ship (Bar & Lounge)" },
-            { 10028, "Cruise Ship (Engine Room)" },
-            { 10035, "Rhodes Island (Beach Coast)" },
-            { 10036, "Robinson Beach (Kelan Shore)" },
-            { 11000, "World Ocean (South Pacific)" },
-            { 11001, "World Ocean (Kelp Island Waters)" },
-            { 11002, "World Ocean (Japan Waters)" },
-            { 11003, "World Ocean (China Waters)" },
-            { 11004, "World Ocean (Maya Waters)" },
-            { 11005, "World Ocean (Egypt Waters)" },
-            { 11006, "World Ocean (Rome Waters)" },
-            { 11016, "World Ocean (Open Sea)" },
-            { 12000, "South Island (Mainland)" },
-            { 12001, "Welling Village" },
-            { 12002, "Holy Village" },
-            { 12003, "South Island Cave 1" },
-            { 12004, "South Island Cave 2" },
-            { 12005, "South Island Cave 3" },
-            { 12006, "Pass of South Island" },
-            { 12007, "South Island Waterfall" },
-            { 12008, "South Island Pine Forest" },
-            { 12010, "Welling Village Chief's House" },
-            { 12011, "Welling Weapon Shop" },
-            { 12012, "Welling Item Shop" },
-            { 12020, "Holy Village Church" },
-            { 12021, "Holy Village Chief's House" },
-            { 12022, "Holy Village Weapon Shop" },
-            { 12023, "Holy Village Item Shop" },
-            { 13000, "Kelp Island (Coast)" },
-            { 13001, "Kelp Island (Cave)" },
-            { 13002, "Kelp Island (Forest)" },
-            { 14000, "Maya (Jungle Coast)" },
-            { 14001, "Maya (Tribal Village)" },
-            { 14002, "Maya (Pyramid Sacred Altar)" },
-            { 14003, "Maya (Underground Cave)" },
-            { 15000, "Egypt (Nile Coast)" },
-            { 15001, "Egypt (Cairo City)" },
-            { 15002, "Egypt (Pyramid Interior)" },
-            { 15003, "Egypt (Sphinx Underground)" },
-            { 16000, "Japan (Kyoto Coast)" },
-            { 16001, "Japan (Kyoto City)" },
-            { 16002, "Japan (Ninja Village)" },
-            { 16003, "Japan (Shinto Shrine)" },
-            { 17000, "China (Great Wall Coast)" },
-            { 17001, "China (Chang'an City)" },
-            { 17002, "China (Forbidden Palace)" },
-            { 17003, "China (Great Wall Pass)" },
-            { 17004, "China (Taoist Cave)" },
-            { 18000, "Rome (Imperial Harbor)" },
-            { 18001, "Rome (Colosseum & City)" },
-            { 18002, "Athens (Acropolis)" },
-            { 18003, "Rome (Caesar's Palace)" },
-            { 19000, "Persia (Desert Coast)" },
-            { 19001, "Persia (Palace & Bazaar)" },
-            { 19002, "Persia (Desert Oasis)" },
-            { 19003, "India (Taj Mahal Area)" },
-            { 20000, "Bangkok (Floating Market)" },
-            { 21000, "Hawaii (Volcanic Beach)" },
-            { 22000, "Cornwall / England" },
-            { 23000, "Antarctica (Ice Shelf)" },
-            { 24000, "Inca / Amazon Jungle" },
-            { 25000, "Ghost Ship Island" },
-            { 26000, "Treasure Island" },
-            { 60001, "Player Space Tent (Floor 1)" },
-            { 60002, "Player Space Tent (Floor 2)" }
-        };
-
-        public static string GetMapDisplayName(ushort mapId)
-        {
-            if (_officialMapNames.TryGetValue(mapId, out string name)) return name;
-            return $"Map #{mapId}";
-        }
-
-        public static string GetItemDisplayName(uint itemId)
-        {
-            if (itemId == 0) return "Empty (0)";
             try
             {
-                var it = cGlobal.ItemDatManager?.GetItemByID((ushort)itemId);
-                if (it != null && it.ItemName != null && it.ItemName.Length > 0)
+                if (numResolverTalkId == null || rtbResolvedPreview == null) return;
+
+                uint rawId = (uint)numResolverTalkId.Value;
+                string pName = txtResolverPlayerName?.Text?.Trim();
+
+                var res = DataFiles.TalkResolver.ResolveDetailed(rawId, pName);
+
+                if (res.Success)
                 {
-                    string n = System.Text.Encoding.Default.GetString(it.ItemName).Trim('\0', ' ');
-                    if (!string.IsNullOrEmpty(n)) return $"{n} ({itemId})";
+                    lblResolveResultMethod.Text = $"Method: {res.ResolutionMethod}";
+                    lblResolveResultRecord.Text = $"Record Index: #{res.RecordIndex}";
+                    lblResolveResultSound.Text = string.IsNullOrEmpty(res.SoundEffect) ? "Audio: None" : $"🎵 Sound: {res.SoundEffect}";
+                    lblResolveResultFace.Text = res.SpeakerFaceIndex >= 0 ? $"Face: #{res.SpeakerFaceIndex}" : "Face: Standard";
+
+                    rtbResolvedPreview.Clear();
+                    rtbResolvedPreview.SelectionFont = new System.Drawing.Font("Segoe UI", 10.5f, System.Drawing.FontStyle.Bold);
+                    rtbResolvedPreview.SelectionColor = System.Drawing.Color.DarkBlue;
+                    rtbResolvedPreview.AppendText($"[Talk ID #{res.RawId}]\r\n\r\n");
+
+                    rtbResolvedPreview.SelectionFont = new System.Drawing.Font("Segoe UI", 10.5f, System.Drawing.FontStyle.Regular);
+                    rtbResolvedPreview.SelectionColor = System.Drawing.Color.Black;
+                    rtbResolvedPreview.AppendText(res.FormattedText);
+
+                    if (rtbStyledPreview != null)
+                    {
+                        rtbStyledPreview.Clear();
+                        rtbStyledPreview.SelectionFont = new System.Drawing.Font("Segoe UI", 11f, System.Drawing.FontStyle.Bold);
+                        rtbStyledPreview.SelectionColor = System.Drawing.Color.DarkSlateBlue;
+                        string soundNote = !string.IsNullOrEmpty(res.SoundEffect) ? $" [🎵 {res.SoundEffect}]" : "";
+                        string faceNote = res.SpeakerFaceIndex >= 0 ? $" [👤 Face #{res.SpeakerFaceIndex}]" : "";
+                        rtbStyledPreview.AppendText($"💬 Dialogue #{res.RawId}{soundNote}{faceNote}\r\n\r\n");
+
+                        rtbStyledPreview.SelectionFont = new System.Drawing.Font("Segoe UI", 11f, System.Drawing.FontStyle.Regular);
+                        rtbStyledPreview.SelectionColor = System.Drawing.Color.FromArgb(20, 20, 20);
+                        rtbStyledPreview.AppendText(res.FormattedText);
+                    }
+                }
+                else
+                {
+                    lblResolveResultMethod.Text = "Method: Unresolved";
+                    lblResolveResultRecord.Text = "Record Index: -";
+                    lblResolveResultSound.Text = "Audio: None";
+                    lblResolveResultFace.Text = "Face: None";
+
+                    rtbResolvedPreview.Clear();
+                    rtbResolvedPreview.SelectionColor = System.Drawing.Color.DarkRed;
+                    rtbResolvedPreview.AppendText($"⚠️ Could not resolve Talk ID #{rawId} into any valid Talk.dat dialogue string.");
+
+                    if (rtbStyledPreview != null)
+                    {
+                        rtbStyledPreview.Clear();
+                        rtbStyledPreview.SelectionColor = System.Drawing.Color.DarkRed;
+                        rtbStyledPreview.AppendText($"⚠️ Unresolved Dialogue ID #{rawId}");
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void PopulateTalkExplorerGrid()
+        {
+            if (dgvTalkExplorer == null) return;
+
+            try
+            {
+                dtTalkExplorer = new System.Data.DataTable();
+                dtTalkExplorer.Columns.Add("Record #", typeof(int));
+                dtTalkExplorer.Columns.Add("Talk ID", typeof(ushort));
+                dtTalkExplorer.Columns.Add("Length", typeof(int));
+                dtTalkExplorer.Columns.Add("Dialogue Text", typeof(string));
+
+                string talkPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                if (System.IO.File.Exists(talkPath))
+                {
+                    byte[] bytes = System.IO.File.ReadAllBytes(talkPath);
+                    int recSize = 292;
+                    int total = bytes.Length / recSize;
+
+                    for (int r = 0; r < total; r++)
+                    {
+                        int off = r * recSize;
+                        if (off + recSize > bytes.Length) break;
+
+                        ushort rawId = BitConverter.ToUInt16(bytes, off);
+                        int len = bytes[off + 2];
+                        string text = "";
+
+                        if (len > 0 && len <= 250)
+                        {
+                            int textStart = off + recSize - 35 - len;
+                            if (textStart >= 0 && textStart + len <= bytes.Length)
+                            {
+                                byte[] textBytes = new byte[len];
+                                for (int k = 0; k < len; k++)
+                                {
+                                    textBytes[k] = bytes[textStart + len - 1 - k];
+                                }
+
+                                text = System.Text.Encoding.Default.GetString(textBytes).Trim();
+                                if (text.StartsWith("fffff")) text = text.Substring(5).Trim();
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            dtTalkExplorer.Rows.Add(r, rawId, len, text);
+                        }
+                    }
+                }
+
+                dgvTalkExplorer.DataSource = dtTalkExplorer;
+                if (lblTalkExplorerStats != null)
+                {
+                    lblTalkExplorerStats.Text = $"Total: {dtTalkExplorer.Rows.Count:N0} Dialogues";
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error populating Talk Explorer: {ex.Message}");
+            }
+        }
+
+        private void FilterTalkExplorer(string search)
+        {
+            if (dgvTalkExplorer == null || dtTalkExplorer == null) return;
+
+            try
+            {
+                string s = (search ?? "").Trim();
+                if (string.IsNullOrEmpty(s))
+                {
+                    dtTalkExplorer.DefaultView.RowFilter = "";
+                }
+                else
+                {
+                    string safe = s.Replace("'", "''");
+                    if (int.TryParse(s, out int numVal))
+                    {
+                        dtTalkExplorer.DefaultView.RowFilter = $"[Record #] = {numVal} OR [Talk ID] = {numVal} OR [Dialogue Text] LIKE '%{safe}%'";
+                    }
+                    else
+                    {
+                        dtTalkExplorer.DefaultView.RowFilter = $"[Dialogue Text] LIKE '%{safe}%'";
+                    }
+                }
+
+                if (lblTalkExplorerStats != null)
+                {
+                    lblTalkExplorerStats.Text = $"Showing {dtTalkExplorer.DefaultView.Count:N0} of {dtTalkExplorer.Rows.Count:N0}";
+                }
+            }
+            catch { }
+        }
+
+        private void OnTalkExplorerSelectionChanged()
+        {
+            try
+            {
+                if (dgvTalkExplorer == null || dgvTalkExplorer.SelectedRows.Count == 0) return;
+                var row = dgvTalkExplorer.SelectedRows[0];
+
+                if (row.Cells["Record #"].Value != null)
+                {
+                    int rIdx = Convert.ToInt32(row.Cells["Record #"].Value);
+                    if (numResolverTalkId != null)
+                    {
+                        numResolverTalkId.Value = (decimal)rIdx;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void RefreshTalkLivePlayers()
+        {
+            if (cmbTalkLivePlayer == null) return;
+            cmbTalkLivePlayer.Items.Clear();
+            var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+            if (online != null)
+            {
+                foreach (var p in online)
+                {
+                    cmbTalkLivePlayer.Items.Add(p);
+                }
+            }
+            if (cmbTalkLivePlayer.Items.Count > 0) cmbTalkLivePlayer.SelectedIndex = 0;
+        }
+
+        private void SendDialogueToLivePlayer()
+        {
+            try
+            {
+                Player target = null;
+                if (cmbTalkLivePlayer?.SelectedItem is Player p) target = p;
+                else target = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault();
+
+                if (target == null)
+                {
+                    MessageBox.Show("No online player selected to receive dialogue.", "No Player", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string text = rtbResolvedPreview?.Text;
+                if (string.IsNullOrEmpty(text))
+                {
+                    MessageBox.Show("No dialogue text resolved.", "Empty Text", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Send dialogue message to player
+                target.Send(Tools.FromFormat("bbbs", 23, 57, 0, text));
+                MessageBox.Show($"Sent dialogue to {target.CharName}!", "Sent", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error sending dialogue: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        #endregion
+
+        #region Map NPCs & Event Sequence Studio Tab
+        private TabPage tabMapNpcStudio;
+        private ComboBox cmbMapSelect;
+        private NumericUpDown numMapSelect;
+        private TextBox txtMapFilter;
+        private Label lblMapStatsBadge;
+        private DataGridView dgvMapNpcs;
+        private TextBox txtNpcSearch;
+        private Label lblNpcCountBadge;
+        private Label lblSelectedNpcHeader;
+        private RichTextBox rtbEventSequenceFlow;
+        private ComboBox cmbLivePlayerForNpc;
+        private System.Data.DataTable dtMapNpcs;
+        private ushort _currentSelectedMapId = 10035;
+
+        private void SetupMapNpcStudioTab()
+        {
+            try
+            {
+                tabMapNpcStudio = new TabPage("🗺️ Map NPCs & Events")
+                {
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Padding = new Padding(6)
+                };
+
+                if (this.tabControl3 != null && !this.tabControl3.TabPages.Contains(tabMapNpcStudio))
+                {
+                    this.tabControl3.TabPages.Add(tabMapNpcStudio);
+                }
+
+                // Top Control Bar: Map Selector, Direct ID Jump, Map Search, and Stats Badge
+                Panel pnlTopMap = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 44,
+                    BackColor = System.Drawing.Color.FromArgb(242, 245, 250),
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Padding = new Padding(4)
+                };
+
+                Label lblSelectMap = new Label
+                {
+                    Text = "🗺️ Select Map:",
+                    Location = new System.Drawing.Point(6, 12),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue
+                };
+
+                cmbMapSelect = new ComboBox
+                {
+                    Location = new System.Drawing.Point(105, 9),
+                    Size = new System.Drawing.Size(260, 24),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                cmbMapSelect.SelectedIndexChanged += (s, e) =>
+                {
+                    if (cmbMapSelect.SelectedItem is MapComboItem item)
+                    {
+                        _currentSelectedMapId = item.MapId;
+                        if (numMapSelect != null && numMapSelect.Value != item.MapId)
+                        {
+                            numMapSelect.Value = item.MapId;
+                        }
+                        LoadNpcsForMap(item.MapId);
+                    }
+                };
+
+                Label lblDirect = new Label
+                {
+                    Text = "ID:",
+                    Location = new System.Drawing.Point(375, 12),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                numMapSelect = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(400, 9),
+                    Size = new System.Drawing.Size(75, 23),
+                    Maximum = 65535,
+                    Value = 10035,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                numMapSelect.ValueChanged += (s, e) =>
+                {
+                    ushort targetMap = (ushort)numMapSelect.Value;
+                    if (targetMap != _currentSelectedMapId)
+                    {
+                        _currentSelectedMapId = targetMap;
+                        SelectMapInCombo(targetMap);
+                        LoadNpcsForMap(targetMap);
+                    }
+                };
+
+                Label lblFilterMap = new Label
+                {
+                    Text = "🔍 Filter:",
+                    Location = new System.Drawing.Point(485, 12),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                txtMapFilter = new TextBox
+                {
+                    Location = new System.Drawing.Point(535, 9),
+                    Size = new System.Drawing.Size(120, 23),
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                txtMapFilter.TextChanged += (s, e) => PopulateMapSelector(txtMapFilter.Text);
+
+                lblMapStatsBadge = new Label
+                {
+                    Text = "Map #10035: Loading...",
+                    Location = new System.Drawing.Point(670, 12),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue
+                };
+
+                Button btnReloadMaps = new Button
+                {
+                    Text = "🔄 Reload",
+                    Location = new System.Drawing.Point(920, 8),
+                    Size = new System.Drawing.Size(80, 25),
+                    BackColor = System.Drawing.Color.LightCyan,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnReloadMaps.Click += (s, e) =>
+                {
+                    PopulateMapSelector(txtMapFilter.Text);
+                    LoadNpcsForMap(_currentSelectedMapId);
+                };
+
+                pnlTopMap.Controls.AddRange(new Control[] {
+                    lblSelectMap, cmbMapSelect, lblDirect, numMapSelect, lblFilterMap, txtMapFilter, lblMapStatsBadge, btnReloadMaps
+                });
+
+                // Main SplitContainer: Left Panel = NPCs on Map | Right Panel = Event Sequence Flow
+                SplitContainer splitStudio = new SplitContainer
+                {
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical,
+                    SplitterWidth = 6,
+                    SplitterDistance = 460
+                };
+
+                // Left Panel: NPC List Grid & Search
+                Panel pnlNpcTop = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 36,
+                    BackColor = System.Drawing.Color.Transparent
+                };
+
+                Label lblNpcSearch = new Label
+                {
+                    Text = "🔍 Search NPCs:",
+                    Location = new System.Drawing.Point(4, 9),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                txtNpcSearch = new TextBox
+                {
+                    Location = new System.Drawing.Point(110, 6),
+                    Size = new System.Drawing.Size(180, 23),
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                txtNpcSearch.TextChanged += (s, e) => FilterMapNpcs(txtNpcSearch.Text);
+
+                lblNpcCountBadge = new Label
+                {
+                    Text = "0 NPCs",
+                    Location = new System.Drawing.Point(300, 9),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue
+                };
+
+                pnlNpcTop.Controls.AddRange(new Control[] { lblNpcSearch, txtNpcSearch, lblNpcCountBadge });
+
+                dgvMapNpcs = new DataGridView
+                {
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = false,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    BackgroundColor = System.Drawing.Color.White,
+                    BorderStyle = BorderStyle.Fixed3D,
+                    RowHeadersVisible = false,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                };
+                dgvMapNpcs.SelectionChanged += (s, e) => OnNpcGridSelectionChanged();
+
+                splitStudio.Panel1.Controls.Add(dgvMapNpcs);
+                splitStudio.Panel1.Controls.Add(pnlNpcTop);
+
+                // Right Panel: Event Sequence & Action Flow Inspector
+                Panel pnlRightFlow = new Panel
+                {
+                    Dock = DockStyle.Fill,
+                    Padding = new Padding(6),
+                    BackColor = System.Drawing.Color.White
+                };
+
+                Panel pnlFlowHeader = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 44,
+                    BackColor = System.Drawing.Color.FromArgb(248, 250, 252),
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Padding = new Padding(4)
+                };
+
+                lblSelectedNpcHeader = new Label
+                {
+                    Text = "⚡ Selected NPC: (Select an NPC from the list)",
+                    Location = new System.Drawing.Point(6, 11),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkBlue
+                };
+
+                Label lblLiveP = new Label
+                {
+                    Text = "Live Player:",
+                    Location = new System.Drawing.Point(400, 12),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                cmbLivePlayerForNpc = new ComboBox
+                {
+                    Location = new System.Drawing.Point(480, 9),
+                    Size = new System.Drawing.Size(120, 23),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                };
+
+                Button btnSimulate = new Button
+                {
+                    Text = "▶️ Trigger Event on Player",
+                    Location = new System.Drawing.Point(610, 8),
+                    Size = new System.Drawing.Size(170, 26),
+                    BackColor = System.Drawing.Color.LightGreen,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnSimulate.Click += (s, e) => SimulateEventForSelectedPlayer();
+
+                pnlFlowHeader.Controls.AddRange(new Control[] {
+                    lblSelectedNpcHeader, lblLiveP, cmbLivePlayerForNpc, btnSimulate
+                });
+
+                rtbEventSequenceFlow = new RichTextBox
+                {
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9.5f),
+                    BackColor = System.Drawing.Color.FromArgb(252, 253, 255),
+                    BorderStyle = BorderStyle.FixedSingle
+                };
+
+                pnlRightFlow.Controls.Add(rtbEventSequenceFlow);
+                pnlRightFlow.Controls.Add(pnlFlowHeader);
+
+                splitStudio.Panel2.Controls.Add(pnlRightFlow);
+
+                tabMapNpcStudio.Controls.Add(splitStudio);
+                tabMapNpcStudio.Controls.Add(pnlTopMap);
+
+                tabMapNpcStudio.Enter += (s, e) =>
+                {
+                    RefreshMapNpcLivePlayers();
+                    if (cmbMapSelect.Items.Count == 0) PopulateMapSelector();
+                    LoadNpcsForMap(_currentSelectedMapId);
+                };
+
+                PopulateMapSelector();
+                LoadNpcsForMap(_currentSelectedMapId);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error setting up Map NPC Studio Tab: {ex.Message}");
+            }
+        }
+
+        private class MapComboItem
+        {
+            public ushort MapId { get; set; }
+            public string DisplayName { get; set; }
+            public override string ToString() => DisplayName;
+        }
+
+        private void PopulateMapSelector(string filter = "")
+        {
+            if (cmbMapSelect == null) return;
+
+            try
+            {
+                cmbMapSelect.Items.Clear();
+                var eve = cGlobal.gGameDataBase?.EveDat;
+                string s = (filter ?? "").Trim().ToLower();
+
+                List<MapComboItem> items = new List<MapComboItem>();
+
+                if (eve != null && eve.AllMaps != null)
+                {
+                    foreach (var kvp in eve.AllMaps.OrderBy(k => k.Key))
+                    {
+                        ushort mid = kvp.Key;
+                        string mName = GetMapDisplayName(mid);
+                        string display = $"{mid} - {mName}";
+
+                        if (string.IsNullOrEmpty(s) || mid.ToString().Contains(s) || mName.ToLower().Contains(s))
+                        {
+                            items.Add(new MapComboItem { MapId = mid, DisplayName = display });
+                        }
+                    }
+                }
+
+                if (items.Count == 0)
+                {
+                    // Fallback to essential maps
+                    ushort[] defaults = { 10001, 10017, 10035, 10036, 12001, 12002, 11001, 11002 };
+                    foreach (var mid in defaults)
+                    {
+                        string mName = GetMapDisplayName(mid);
+                        items.Add(new MapComboItem { MapId = mid, DisplayName = $"{mid} - {mName}" });
+                    }
+                }
+
+                foreach (var it in items) cmbMapSelect.Items.Add(it);
+
+                SelectMapInCombo(_currentSelectedMapId);
+            }
+            catch { }
+        }
+
+        private void SelectMapInCombo(ushort mapId)
+        {
+            if (cmbMapSelect == null) return;
+            for (int i = 0; i < cmbMapSelect.Items.Count; i++)
+            {
+                if (cmbMapSelect.Items[i] is MapComboItem item && item.MapId == mapId)
+                {
+                    cmbMapSelect.SelectedIndex = i;
+                    return;
+                }
+            }
+            if (cmbMapSelect.Items.Count > 0 && cmbMapSelect.SelectedIndex < 0)
+            {
+                cmbMapSelect.SelectedIndex = 0;
+            }
+        }
+
+        private void LoadNpcsForMap(ushort mapId)
+        {
+            try
+            {
+                dtMapNpcs = new System.Data.DataTable();
+                dtMapNpcs.Columns.Add("Click ID", typeof(ushort));
+                dtMapNpcs.Columns.Add("NPC Name", typeof(string));
+                dtMapNpcs.Columns.Add("Template ID", typeof(ushort));
+                dtMapNpcs.Columns.Add("Position", typeof(string));
+                dtMapNpcs.Columns.Add("Events / Script", typeof(string));
+
+                var eve = cGlobal.gGameDataBase?.EveDat;
+                var mapData = eve?.GetMapData(mapId);
+
+                if (mapData != null && mapData.Npclist != null)
+                {
+                    foreach (var npc in mapData.Npclist)
+                    {
+                        if (npc.clickId == 0 && npc.x == 0 && npc.y == 0) continue;
+                        if (npc.x > 5000 || npc.y > 5000) continue;
+
+                        string nName = GetNpcDisplayName(npc.npcId);
+                        if (string.IsNullOrEmpty(nName) || nName.StartsWith("NPC_"))
+                        {
+                            if (!string.IsNullOrEmpty(npc.Name)) nName = npc.Name.Trim('\0', ' ');
+                        }
+
+                        int evCount = npc.Events != null ? npc.Events.Count : 0;
+                        string scriptText = evCount > 0
+                            ? $"⚡ {evCount} Event Trigger{(evCount > 1 ? "s" : "")}"
+                            : "Static NPC / Prop";
+
+                        dtMapNpcs.Rows.Add(npc.clickId, nName, npc.npcId, $"({npc.x}, {npc.y})", scriptText);
+                    }
+                }
+
+                if (dgvMapNpcs != null)
+                {
+                    dgvMapNpcs.DataSource = dtMapNpcs;
+                }
+
+                int totalEvents = mapData?.Events != null ? mapData.Events.Count : 0;
+                if (lblMapStatsBadge != null)
+                {
+                    lblMapStatsBadge.Text = $"Map #{mapId} ({GetMapDisplayName(mapId)}): {dtMapNpcs.Rows.Count} NPCs | {totalEvents} Event Entries";
+                }
+
+                if (lblNpcCountBadge != null)
+                {
+                    lblNpcCountBadge.Text = $"{dtMapNpcs.Rows.Count} NPCs";
+                }
+
+                if (dgvMapNpcs != null && dgvMapNpcs.Rows.Count > 0)
+                {
+                    dgvMapNpcs.Rows[0].Selected = true;
+                    OnNpcGridSelectionChanged();
+                }
+                else
+                {
+                    if (rtbEventSequenceFlow != null) rtbEventSequenceFlow.Clear();
+                    if (lblSelectedNpcHeader != null) lblSelectedNpcHeader.Text = "⚡ Selected NPC: (No NPCs on this map)";
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error loading NPCs for map {mapId}: {ex.Message}");
+            }
+        }
+
+        private void FilterMapNpcs(string filter)
+        {
+            if (dgvMapNpcs == null || dtMapNpcs == null) return;
+            try
+            {
+                string s = (filter ?? "").Trim();
+                if (string.IsNullOrEmpty(s))
+                {
+                    dtMapNpcs.DefaultView.RowFilter = "";
+                }
+                else
+                {
+                    string safe = s.Replace("'", "''");
+                    if (ushort.TryParse(s, out ushort numVal))
+                    {
+                        dtMapNpcs.DefaultView.RowFilter = $"[Click ID] = {numVal} OR [Template ID] = {numVal} OR [NPC Name] LIKE '%{safe}%'";
+                    }
+                    else
+                    {
+                        dtMapNpcs.DefaultView.RowFilter = $"[NPC Name] LIKE '%{safe}%' OR [Events / Script] LIKE '%{safe}%'";
+                    }
+                }
+
+                if (lblNpcCountBadge != null)
+                {
+                    lblNpcCountBadge.Text = $"Showing {dtMapNpcs.DefaultView.Count} of {dtMapNpcs.Rows.Count} NPCs";
+                }
+            }
+            catch { }
+        }
+
+        private void OnNpcGridSelectionChanged()
+        {
+            try
+            {
+                if (dgvMapNpcs == null || dgvMapNpcs.SelectedRows.Count == 0) return;
+                var row = dgvMapNpcs.SelectedRows[0];
+
+                if (row.Cells["Click ID"].Value == null) return;
+
+                ushort clickId = Convert.ToUInt16(row.Cells["Click ID"].Value);
+                string npcName = row.Cells["NPC Name"].Value?.ToString() ?? $"NPC #{clickId}";
+                ushort templateId = Convert.ToUInt16(row.Cells["Template ID"].Value ?? 0);
+
+                if (lblSelectedNpcHeader != null)
+                {
+                    lblSelectedNpcHeader.Text = $"⚡ Selected: {npcName} (Click ID: {clickId}, TID: {templateId}) on Map #{_currentSelectedMapId}";
+                }
+
+                if (rtbEventSequenceFlow != null)
+                {
+                    rtbEventSequenceFlow.Text = FormatNpcEventSequenceFlow(_currentSelectedMapId, clickId, npcName, templateId);
+                }
+            }
+            catch { }
+        }
+
+        private string FormatNpcEventSequenceFlow(ushort mapId, ushort clickId, string npcName, ushort templateId)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("===============================================================================");
+            sb.AppendLine($" MAP #{mapId} ({GetMapDisplayName(mapId)}) -> {npcName} (ClickID: {clickId}, TemplateID: {templateId})");
+            sb.AppendLine("===============================================================================\r\n");
+
+            var eve = cGlobal.gGameDataBase?.EveDat;
+            if (eve == null)
+            {
+                sb.AppendLine("⚠️ Eve.Emg database is not loaded.");
+                return sb.ToString();
+            }
+
+            var mapData = eve.GetMapData(mapId);
+            if (mapData == null)
+            {
+                sb.AppendLine("⚠️ No Eve map data found for this map ID.");
+                return sb.ToString();
+            }
+
+            var matchingEvents = new List<Game.DataFiles.EventsinMapEntries>();
+            var npcEntry = mapData.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+
+            if (npcEntry != null && npcEntry.Events != null && npcEntry.Events.Count > 0 && mapData.Events != null)
+            {
+                foreach (var evId in npcEntry.Events)
+                {
+                    var ev = mapData.Events.FirstOrDefault(e => e.clickID == evId);
+                    if (ev != null && ev.SubEntry != null && ev.SubEntry.Count > 0 && !matchingEvents.Contains(ev))
+                    {
+                        matchingEvents.Add(ev);
+                    }
+                }
+            }
+            else if (mapData.Events != null)
+            {
+                var directEv = mapData.Events.FirstOrDefault(e => e.clickID == clickId);
+                if (directEv != null && directEv.SubEntry != null && directEv.SubEntry.Count > 0 && !matchingEvents.Contains(directEv))
+                {
+                    matchingEvents.Add(directEv);
+                }
+            }
+
+            if (matchingEvents.Count == 0)
+            {
+                sb.AppendLine($"ℹ️ No interactive Eve.Emg bytecode event linked to ClickID {clickId}.");
+                sb.AppendLine("   This NPC operates as a standard non-event ambient entity or roaming monster.");
+                return sb.ToString();
+            }
+
+            for (int eIdx = 0; eIdx < matchingEvents.Count; eIdx++)
+            {
+                var eventEntry = matchingEvents[eIdx];
+                string formattedEventName = FormatEveName(eventEntry.Name, eventEntry.clickID);
+                sb.AppendLine($"📜 Event Entry #{eventEntry.clickID}: '{formattedEventName}' | Total Branches: {eventEntry.SubEntry.Count}\r\n");
+
+                for (int b = 0; b < eventEntry.SubEntry.Count; b++)
+                {
+                    var sub = eventEntry.SubEntry[b];
+                    sb.AppendLine("-------------------------------------------------------------------------------");
+                    sb.AppendLine($"📌 BRANCH #{b + 1} (Sub #{sub.subIndex}) -> Condition: {FormatSubCondition(sub)}");
+                    sb.AppendLine("-------------------------------------------------------------------------------");
+
+                    if (sub.SubEntry == null || sub.SubEntry.Count == 0)
+                    {
+                        sb.AppendLine("   (Empty branch / state trigger)\r\n");
+                        continue;
+                    }
+
+                    for (int o = 0; o < sub.SubEntry.Count; o++)
+                    {
+                        var op = sub.SubEntry[o];
+                        sb.AppendLine(FormatOpcodeDetailed(op, clickId));
+                    }
+                    sb.AppendLine();
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        private string FormatSubCondition(Game.DataFiles.EventSubEntry sub)
+        {
+            if (sub.unknownbyte1 == 1) return $"Player Level >= {sub.unknownword1}";
+            if (sub.unknownbyte1 == 2) return $"Player Has Item #{sub.unknownword3} ({GetItemDisplayName(sub.unknownword3)}) x{Math.Max(1, (int)sub.unknownword2)}";
+            if (sub.unknownbyte1 == 4) return $"Player Has Companion Pet #{sub.unknownword1} ({Game.Battle.PvEBattleManager.ResolveMonsterName((uint)sub.unknownword1)})";
+            if (sub.unknownbyte1 == 5)
+            {
+                if (sub.unknownword1 >= 10000)
+                {
+                    string st = sub.unknownword2 == 2 ? "Not Started" : (sub.unknownword2 == 1 ? $"In-Progress (Step {sub.unknownword3})" : "Completed");
+                    return $"Quest/Flag #{sub.unknownword1} is {st}";
+                }
+                return $"Player Gold >= {sub.unknownword1} G";
+            }
+            if (sub.unknownbyte1 == 7) return $"Player Selected Choice Option #{sub.unknownword2} (Branch {sub.unknownword2})";
+            if (sub.unknownbyte1 == 15) return $"Inventory Free Space Gate Check ({sub.unknownword1} slots required)";
+            if (sub.unknownword1 > 0)
+            {
+                string st = sub.unknownword2 == 2 ? "Not Started" : (sub.unknownword2 == 1 ? $"In-Progress (Step {sub.unknownword3})" : "Completed");
+                return $"Quest/Flag #{sub.unknownword1} is {st}";
+            }
+            return "Default / Unconditional Execution";
+        }
+
+        private string FormatOpcodeDetailed(Game.DataFiles.EventSubSubEntry op, ushort clickId)
+        {
+            switch (op.DialogPtr)
+            {
+                case 1:
+                    // 1. Item Grant Opcode: dptr=1, d1=1, d2=count, d3=Item ID
+                    if (op.dialog1 == 1 && op.dialog3 > 0)
+                    {
+                        ushort gId = op.dialog3;
+                        int count = Math.Max(1, (int)op.dialog2);
+                        return $"   🎁 [OPCODE 1 - GRANT ITEM] Award Item #{gId} ({GetItemDisplayName(gId)}) x{count} + Fanfare";
+                    }
+                    // 2. Quest Flag: d1=2 and d3 >= 10000
+                    if (op.dialog1 == 2 && op.dialog3 >= 10000)
+                    {
+                        string st = op.dialog4 >= 32768 ? "Completed" : "InProgress";
+                        return $"   🚩 [QUEST FLAG]: Set Flag #{op.dialog3} -> Step {op.dialog2} ({st})";
+                    }
+                    // 3. Spoken Dialogue
+                    uint diaId1 = op.dialog2 > 0 ? (uint)op.dialog2 : (uint)op.dialog3;
+                    if (diaId1 > 0)
+                    {
+                        string text = DataFiles.TalkResolver.Resolve(diaId1, "Adventurer");
+                        string spk = (op.dialog1 == 2) ? "[PLAYER SPEECH]" : (op.dialog1 > 0 ? $"[NPC SPEECH (ClickID {op.dialog1})]" : $"[NPC SPEECH (ClickID {clickId})]");
+                        return $"   💬 {spk} TalkID #{diaId1}:\r\n      \"{text ?? "(Dialogue not found)"}\"";
+                    }
+                    return $"   ⚙️ [ACTION]: (type={op.dialog1}, val1={op.dialog2}, val2={op.dialog3}, val3={op.dialog4})";
+
+                case 2:
+                    if (op.dialog2 == 6) return "   ❓ [CHOICE PROMPT]: Player Dialogue Choice Selection Prompt";
+                    if (op.dialog2 == 5) return "   💥 [ANIMATION]: Prop Break / Chest Open Animation (AC 22:1)";
+                    if (op.dialog2 == 2 && op.dialog1 == 0 && op.dialog3 == 0) return "   🌿 [DESPAWN]: Entity / Gathering Node Despawn (AC 22:10)";
+
+                    uint diaId2 = 0;
+                    if (op.dialog3 >= 10000 && op.dialog3 <= 65535) diaId2 = op.dialog3;
+                    else if (op.dialog2 >= 10000 && op.dialog2 <= 65535) diaId2 = op.dialog2;
+                    else if (op.dialog3 > 0) diaId2 = op.dialog3;
+                    else if (op.dialog2 > 0) diaId2 = op.dialog2;
+
+                    if (diaId2 > 0)
+                    {
+                        string text = DataFiles.TalkResolver.Resolve(diaId2, "Adventurer");
+                        string spk = (op.dialog2 == 2 || op.dialog1 == 2) ? "[PLAYER SPEECH]" : (op.dialog1 > 0 ? $"[NPC SPEECH (ClickID {op.dialog1})]" : $"[NPC SPEECH (ClickID {clickId})]");
+                        return $"   💬 {spk} TalkID #{diaId2}:\r\n      \"{text ?? "(Dialogue not found)"}\"";
+                    }
+                    return $"   ⚙️ [ANIMATION / FRAME]: (dialog1={op.dialog1}, dialog2={op.dialog2}, dialog3={op.dialog3}, dialog4={op.dialog4})";
+
+                case 3:
+                    string petName = Game.Battle.PvEBattleManager.ResolveMonsterName((uint)op.dialog2);
+                    return $"   👥 [OPCODE 3 - RECRUITMENT] Recruit Companion Pet #{op.dialog2} ({petName})";
+
+                case 5:
+                    if (op.dialog1 >= 12000 && op.dialog1 < 20000)
+                    {
+                        string qState = (op.dialog2 == 2 || op.dialog4 >= 32768) ? "Completed" : (op.dialog2 == 1 ? $"In-Progress (Step {Math.Max(1, (int)op.dialog3)})" : $"State {op.dialog2}");
+                        return $"   🚩 [OPCODE 5 - QUEST FLAG] Set Quest Flag #{op.dialog1} -> {qState}";
+                    }
+                    if (op.dialog2 == 2)
+                    {
+                        return $"   🔻 [OPCODE 5 - CONSUME ITEM] Consume Item #{op.dialog1} ({GetItemDisplayName(op.dialog1)}) x{Math.Max(1, (int)op.dialog3)}";
+                    }
+                    if (op.dialog2 == 1)
+                    {
+                        ushort gId = op.dialog1;
+                        return $"   🎁 [OPCODE 5 - GRANT ITEM] Award Item #{gId} ({GetItemDisplayName(gId)}) x{Math.Max(1, (int)op.dialog3)} + Fanfare";
+                    }
+                    return $"   🚩 [OPCODE 5 - QUEST UPDATE] Update Quest #{op.dialog1} State={op.dialog2}, Step={op.dialog3}";
+
+                case 6:
+                    return $"   ⚔️ [OPCODE 6 - BATTLE] Initiate PvE Battle Encounter: Monster Group #{op.dialog1}";
+
+                case 7:
+                    return $"   🚪 [OPCODE 7 - TELEPORT] Real Map Teleport to Map #{op.dialog1} ({GetMapDisplayName(op.dialog1)}) at ({op.dialog2}, {op.dialog3})";
+
+                case 8:
+                    return $"   🎵 [OPCODE 8 - FANFARE] Play Sound Effect / Cinematic Cutscene (ID #{op.dialog1})";
+
+                case 9:
+                    return $"   🎯 [OPCODE 9 - MINIGAME] Launch Interactive Arcade Minigame #{op.dialog1}";
+
+                case 10:
+                    return $"   💰 [OPCODE 10 - GOLD] Award {op.dialog1} Gold Coins to Player";
+
+                case 11:
+                    return $"   ⭐ [OPCODE 11 - EXP] Award {op.dialog1} Experience Points to Player";
+
+                default:
+                    return $"   ⚙️ [OPCODE {op.DialogPtr}] dialog1={op.dialog1}, dialog2={op.dialog2}, dialog3={op.dialog3}, dialog4={op.dialog4}";
+            }
+        }
+
+        private string FormatEveName(string rawName, ushort evId)
+        {
+            if (string.IsNullOrEmpty(rawName)) return $"Event #{evId}";
+            string trimmed = rawName.Trim();
+            if (trimmed.StartsWith("新事件") || trimmed.Contains("事件"))
+            {
+                return $"[Action Trigger #{evId}]";
+            }
+            return trimmed;
+        }
+
+        private string GetNpcDisplayName(ushort npcId)
+        {
+            try
+            {
+                string name = Game.DataFiles.SceneDataManager.GetNpcName(npcId);
+                if (!string.IsNullOrEmpty(name)) return name;
+            }
+            catch { }
+            return $"NPC #{npcId}";
+        }
+
+        private string GetItemDisplayName(ushort itemId)
+        {
+            try
+            {
+                var item = cGlobal.ItemDatManager?.GetItemByID(itemId);
+                if (item != null && item.ItemName != null)
+                {
+                    string raw = System.Text.Encoding.ASCII.GetString(item.ItemName).Trim('\0', ' ');
+                    if (!string.IsNullOrEmpty(raw)) return raw;
                 }
             }
             catch { }
             return $"Item #{itemId}";
         }
 
-        private void PopulateEventMapsDropdown()
+        private string GetMapDisplayName(ushort mapId)
         {
             try
             {
-                _allEventMaps.Clear();
-                var eve = cGlobal.gGameDataBase?.EveDat;
-                if (eve == null) return;
-
-                for (int m = 10000; m <= 65000; m++)
-                {
-                    var mapData = eve.GetMapData((ushort)m);
-                    if (mapData != null)
-                    {
-                        string mName = GetMapDisplayName((ushort)m);
-                        _allEventMaps.Add(new EventMapComboItem { MapID = (ushort)m, Name = mName });
-                    }
-                }
-
-                FilterEventMapsDropdown(txtEventMapSearch?.Text ?? "");
+                string name = Game.DataFiles.SceneDataManager.GetMapName(mapId);
+                if (!string.IsNullOrEmpty(name)) return name;
             }
             catch { }
+            return $"Map {mapId}";
         }
 
-        private void FilterEventMapsDropdown(string search)
+        private void RefreshMapNpcLivePlayers()
         {
-            if (cmbEventMapsList == null) return;
-            string s = (search ?? "").Trim().ToLower();
-            cmbEventMapsList.Items.Clear();
-
-            foreach (var item in _allEventMaps)
-            {
-                if (string.IsNullOrEmpty(s) || item.MapID.ToString().Contains(s) || item.Name.ToLower().Contains(s))
-                {
-                    cmbEventMapsList.Items.Add(item);
-                }
-            }
-
-            if (cmbEventMapsList.Items.Count > 0)
-            {
-                var match = cmbEventMapsList.Items.OfType<EventMapComboItem>().FirstOrDefault(i => i.MapID == _selectedEventMapId);
-                cmbEventMapsList.SelectedItem = match ?? cmbEventMapsList.Items[0];
-            }
-        }
-
-        private void LoadSelectedMapEntities(ushort mapId)
-        {
-            try
-            {
-                var eve = cGlobal.gGameDataBase?.EveDat;
-                if (eve == null) return;
-
-                var mapData = eve.GetMapData(mapId);
-                if (mapData == null) return;
-
-                // 1. Traps & Step Triggers
-                System.Data.DataTable dtTraps = new System.Data.DataTable();
-                dtTraps.Columns.Add("EntryID", typeof(ushort));
-                dtTraps.Columns.Add("Description", typeof(string));
-                dtTraps.Columns.Add("Tile (X, Y)", typeof(string));
-                dtTraps.Columns.Add("Pixel Position", typeof(string));
-                dtTraps.Columns.Add("Area Size", typeof(string));
-                dtTraps.Columns.Add("Sub-Triggers", typeof(int));
-
-                if (mapData.InteractiveInfo != null)
-                {
-                    foreach (var trap in mapData.InteractiveInfo)
-                    {
-                        if (trap.subentry != null && trap.subentry.Count > 0)
-                        {
-                            var s = trap.subentry[0];
-                            int tx = s.unknownbyte1;
-                            int ty = s.unknownbyte2;
-                            int px = tx * 20;
-                            int py = ty * 20;
-                            int w = Math.Max(20, (int)s.unknownbyte3 * 20);
-                            int h = Math.Max(20, (int)s.unknownbyte4 * 20);
-
-                            dtTraps.Rows.Add(trap.entryID, $"Step Trigger / Trap #{trap.entryID}", $"Tile ({tx}, {ty})", $"Pixel ({px}, {py})", $"{w} x {h} px", trap.subentry.Count);
-                        }
-                        else
-                        {
-                            dtTraps.Rows.Add(trap.entryID, $"Step Trigger #{trap.entryID}", "Tile (0, 0)", "Pixel (0, 0)", "20 x 20 px", 0);
-                        }
-                    }
-                }
-                dgvMapTraps.DataSource = dtTraps;
-
-                // 2. PreEvents
-                System.Data.DataTable dtPre = new System.Data.DataTable();
-                dtPre.Columns.Add("Index", typeof(int));
-                dtPre.Columns.Add("Click ID", typeof(ushort));
-                dtPre.Columns.Add("Event Name / Flag", typeof(string));
-                dtPre.Columns.Add("Type Code", typeof(byte));
-                dtPre.Columns.Add("Sub-Conditions", typeof(int));
-
-                if (mapData.PreEvents != null)
-                {
-                    for (int i = 0; i < mapData.PreEvents.Count; i++)
-                    {
-                        var pe = mapData.PreEvents[i];
-                        dtPre.Rows.Add(i + 1, pe.clickID, $"PreEvent Action #{pe.clickID}", pe.unknownbyte1, pe.subentry1?.Count ?? 0);
-                    }
-                }
-                dgvMapPreEvents.DataSource = dtPre;
-
-                // 3. Mining & Gathering
-                System.Data.DataTable dtMine = new System.Data.DataTable();
-                dtMine.Columns.Add("Click ID", typeof(ushort));
-                dtMine.Columns.Add("Node Name", typeof(string));
-                dtMine.Columns.Add("Pixel Position", typeof(string));
-                dtMine.Columns.Add("Tool Required", typeof(string));
-
-                if (mapData.MiningAreas != null)
-                {
-                    foreach (var m in mapData.MiningAreas)
-                    {
-                        string tool;
-                        switch (m.unknownbyte1)
-                        {
-                            case 1: tool = "⛏️ Pickaxe (Mining)"; break;
-                            case 2: tool = "🎣 Fishing Rod (Fishing)"; break;
-                            case 3: tool = "🪓 Wood Axe (Logging)"; break;
-                            default: tool = $"Tool Type #{m.unknownbyte1}"; break;
-                        }
-                        dtMine.Rows.Add(m.clickID, $"Resource Gathering Node #{m.clickID}", $"({m.x}, {m.y})", tool);
-                    }
-                }
-                dgvMapMining.DataSource = dtMine;
-
-                // 4. Warp Doors & Portals
-                System.Data.DataTable dtWarp = new System.Data.DataTable();
-                dtWarp.Columns.Add("Portal ID", typeof(ushort));
-                dtWarp.Columns.Add("Source Position", typeof(string));
-                dtWarp.Columns.Add("Destination Map", typeof(string));
-                dtWarp.Columns.Add("Destination Position", typeof(string));
-                dtWarp.Columns.Add("Pass Condition", typeof(string));
-
-                if (mapData.WarpLoc != null)
-                {
-                    foreach (var w in mapData.WarpLoc)
-                    {
-                        string dstMapStr = $"[{w.mapID}] {GetMapDisplayName(w.mapID)}";
-                        string passStr = w.neededtopass > 0 ? $"Requires Event/Quest #{w.neededtopass}" : "Open";
-                        dtWarp.Rows.Add(w.clickID, $"({w.x}, {w.y})", dstMapStr, $"({w.x}, {w.y})", passStr);
-                    }
-                }
-                dgvMapWarps.DataSource = dtWarp;
-
-                // 5. Chests & Ground Items
-                System.Data.DataTable dtChest = new System.Data.DataTable();
-                dtChest.Columns.Add("Click ID", typeof(ushort));
-                dtChest.Columns.Add("Item Name / ID", typeof(string));
-                dtChest.Columns.Add("Pixel Position", typeof(string));
-
-                if (mapData.ItemAreas != null)
-                {
-                    foreach (var it in mapData.ItemAreas)
-                    {
-                        string itName = GetItemDisplayName(it.itemID);
-                        dtChest.Rows.Add(it.clickID, itName, $"({it.x}, {it.y})");
-                    }
-                }
-                dgvMapChests.DataSource = dtChest;
-
-                // 6. NPCs & Monsters
-                System.Data.DataTable dtNpc = new System.Data.DataTable();
-                dtNpc.Columns.Add("Click ID", typeof(ushort));
-                dtNpc.Columns.Add("NPC Name", typeof(string));
-                dtNpc.Columns.Add("Template ID", typeof(uint));
-                dtNpc.Columns.Add("Pixel Position", typeof(string));
-                dtNpc.Columns.Add("Interactive Script", typeof(string));
-
-                if (mapData.Npclist != null)
-                {
-                    foreach (var npc in mapData.Npclist)
-                    {
-                        string nName = GetNpcDisplayName(npc.npcId);
-                        string script = npc.Events?.Count > 0 ? $"⚡ Interactive ({npc.Events.Count} script bytes)" : "Static NPC";
-                        dtNpc.Rows.Add(npc.clickId, nName, npc.npcId, $"({npc.x}, {npc.y})", script);
-                    }
-                }
-                dgvMapNpcs.DataSource = dtNpc;
-
-                if (lblEventMapStats != null)
-                {
-                    lblEventMapStats.Text = $"Map #{mapId} ({GetMapDisplayName(mapId)}): {dtTraps.Rows.Count} Traps | {dtPre.Rows.Count} PreEvents | {dtMine.Rows.Count} Mining | {dtWarp.Rows.Count} Warps | {dtChest.Rows.Count} Chests | {dtNpc.Rows.Count} NPCs";
-                }
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write(DebugItemType.Error, $"[MainForm1] Error loading map entities for {mapId}: {ex.Message}");
-            }
-        }
-
-        private void RefreshEventTesterPlayers()
-        {
-            if (cmbEventTesterPlayer == null) return;
-            cmbEventTesterPlayer.Items.Clear();
+            if (cmbLivePlayerForNpc == null) return;
+            cmbLivePlayerForNpc.Items.Clear();
             var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
             if (online != null)
             {
                 foreach (var p in online)
                 {
-                    cmbEventTesterPlayer.Items.Add(p);
+                    cmbLivePlayerForNpc.Items.Add(p);
                 }
             }
-            if (cmbEventTesterPlayer.Items.Count > 0) cmbEventTesterPlayer.SelectedIndex = 0;
+            if (cmbLivePlayerForNpc.Items.Count > 0) cmbLivePlayerForNpc.SelectedIndex = 0;
         }
 
-        private Player GetSelectedLivePlayer()
+        private void SimulateEventForSelectedPlayer()
         {
-            if (cmbEventTesterPlayer?.SelectedItem is Player p) return p;
-            var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
-            return online?.FirstOrDefault();
+            try
+            {
+                if (dgvMapNpcs == null || dgvMapNpcs.SelectedRows.Count == 0) return;
+                var row = dgvMapNpcs.SelectedRows[0];
+                ushort clickId = Convert.ToUInt16(row.Cells["Click ID"].Value);
+
+                Player target = null;
+                if (cmbLivePlayerForNpc?.SelectedItem is Player p) target = p;
+                else target = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault();
+
+                if (target == null)
+                {
+                    MessageBox.Show("No online player available to trigger event.", "No Player", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (target.CurMap is GameMap gmap)
+                {
+                    bool handled = Game.Maps.EveEventInterpreter.TryExecute(target, gmap, clickId);
+                    MessageBox.Show($"Triggered event for ClickID #{clickId} on player '{target.CharName}' (Handled: {handled})", "Event Triggered", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Player '{target.CharName}' is not currently in a valid map.", "Map Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error simulating event: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
         #endregion
     }
 }
-
-

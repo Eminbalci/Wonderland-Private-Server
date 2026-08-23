@@ -1002,6 +1002,78 @@ namespace Game
 
 
 
+        public SendPacket CreatePetMapPacket(uint petId = 0, string petName = "")
+        {
+            if (petId == 0) petId = ActivePetID;
+            if (petId == 0) return null;
+            if (string.IsNullOrEmpty(petName))
+            {
+                var pet = PlayerPets?.Values?.FirstOrDefault(x => x.PetID == petId);
+                petName = pet?.PetName;
+                if (string.IsNullOrWhiteSpace(petName)) petName = QuestRelated.QuestManager.GetNpcName(petId);
+                if (string.IsNullOrWhiteSpace(petName)) petName = $"Pet #{petId}";
+            }
+
+            SendPacket pkt = new SendPacket();
+            pkt.Pack8(15);
+            pkt.Pack8(4);
+            pkt.Pack32(this.CharID);
+            pkt.Pack32(petId);
+            pkt.Pack8(0);
+            pkt.Pack8(1);
+            pkt.PackString(petName);
+            pkt.Pack16(0);
+            return pkt;
+        }
+
+        public void BroadcastPetAppearance(uint petId = 0, string petName = "")
+        {
+            if (petId == 0) petId = ActivePetID;
+            if (petId == 0) return;
+
+            var mapPkt = CreatePetMapPacket(petId, petName);
+            if (mapPkt != null)
+            {
+                Send(mapPkt);
+                CurMap?.Broadcast(mapPkt, "Ex", this.CharID);
+            }
+
+            var pet = PlayerPets?.Values?.FirstOrDefault(x => x.PetID == petId);
+            SendPacket petPkt;
+            if (pet != null)
+            {
+                petPkt = QuestRelated.QuestManager.CreatePetPacket(this, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level);
+            }
+            else
+            {
+                petPkt = QuestRelated.QuestManager.CreatePetPacket(this, petId, 1);
+            }
+            Send(petPkt);
+            CurMap?.Broadcast(petPkt, "Ex", this.CharID);
+
+            SendPacket followPkt = new SendPacket();
+            followPkt.Pack8(19);
+            followPkt.Pack8(4);
+            followPkt.Pack32(this.CharID);
+            followPkt.Pack32(petId);
+            Send(followPkt);
+            CurMap?.Broadcast(followPkt, "Ex", this.CharID);
+
+            SendPacket petFollow = new SendPacket();
+            petFollow.PackArray(new byte[] { 13, 5 });
+            petFollow.Pack32(this.CharID);
+            petFollow.Pack32(petId);
+            Send(petFollow);
+            CurMap?.Broadcast(petFollow, "Ex", this.CharID);
+
+            SendPacket petRefresh = new SendPacket();
+            petRefresh.PackArray(new byte[] { 5, 8 });
+            petRefresh.Pack32(this.CharID);
+            petRefresh.Pack8(0);
+            Send(petRefresh);
+            CurMap?.Broadcast(petRefresh, "Ex", this.CharID);
+        }
+
         public bool AddPetToPartyList(string petID)
         {
             UnridePet();
@@ -1010,82 +1082,87 @@ namespace Game
             SendPacket dp = new SendPacket();
             dp.PackArray(new byte[] { 15, 2 });
             dp.Pack32(this.CharID);
-            dp.Pack8(1); //dismiss previous pet at slot1
-            Send(dp); // Only to owner, NOT broadcast
+            dp.Pack8(1); // dismiss previous pet at slot1
+            Send(dp);
 
-            if (petID == "") return false; //no pet
-            SendPacket pkt = new SendPacket();
-            pkt.PackArray(new byte[] { 15, 1 }); //add pet to party list
-            pkt.Pack32(this.CharID);
-            pkt.Pack32(uint.Parse(petID));
-            pkt.Pack8((byte)2); pkt.Pack32((uint)100); pkt.Pack8((byte)1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack32(100); pkt.Pack8(1); pkt.Pack16(0); pkt.Pack16(0); pkt.Pack8(0);
+            if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return false;
 
-            // Broadcast to all players so they can see the pet in party
-            if (CurMap != null)
-            {
-                CurMap.Broadcast(pkt);
-            }
-            else
-            {
-                Send(pkt); // Fallback if not in map yet
-            }
+            ActivePetID = pid;
+            BroadcastPetAppearance(pid);
             return true;
         }
 
         public void PutPetToBattle(string petID)
         {
-            SendPacket pp = new SendPacket();
-            pp.PackArray(new byte[] { 19, 4 }); //put into battle
-            pp.Pack32(this.CharID); // Owner CharID - same as PutPetToRide format
-            uint pid = uint.Parse(petID);
-            pp.Pack32(pid); // Pet ID
-            ActivePetID = pid; // Store for broadcasting
+            if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return;
 
-            // Broadcast to all players in map so they can see the pet
-            if (CurMap != null)
-            {
-                CurMap.Broadcast(pp);
+            UnridePet();
+            ActivePetID = pid;
 
-                // Try to force refresh player appearance to spawn pet
-                SendPacket refresh = new SendPacket();
-                refresh.PackArray(new byte[] { 5, 8 });
-                refresh.Pack32(this.CharID);
-                refresh.Pack8(0);
-                CurMap.Broadcast(refresh);
-            }
-            else
+            if (PlayerPets != null)
             {
-                Send(pp); // Fallback if not in map yet
+                foreach (var kvp in PlayerPets)
+                {
+                    if (kvp.Value.PetID == pid)
+                    {
+                        kvp.Value.IsBattle = true;
+                    }
+                    else
+                    {
+                        kvp.Value.IsBattle = false;
+                    }
+                }
             }
+
+            // AC 19:1 Set battle companion state to owner
+            Send(Tools.FromFormat("bbd", 19, 1, pid));
+
+            // Full broadcast of AC 15:4, AC 15:1, AC 19:4, AC 13:5, and AC 5:8
+            BroadcastPetAppearance(pid);
         }
 
         public void PutPetToRide(string petID)
         {
+            if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return;
+
+            ActivePetID = 0; // Un-battle
+            ActiveMountID = pid;
+
             SendPacket rp = new SendPacket();
-            rp.PackArray(new byte[] { 15, 16 }); //put into ride npc mode
+            rp.PackArray(new byte[] { 15, 16 }); // put into ride npc mode
             rp.Pack8(1);
             rp.Pack32(this.CharID);
-            uint pid = uint.Parse(petID);
             rp.Pack32(pid);
-            ActiveMountID = pid; // Store for broadcasting
+            for (int i = 0; i < 26; i++) rp.Pack8(0);
 
-            // Broadcast to all players in map so they can see the mount
-            if (CurMap != null)
-            {
-                CurMap.Broadcast(rp);
-            }
-            else
-            {
-                Send(rp); // Fallback if not in map yet
-            }
+            Send(rp);
+            CurMap?.Broadcast(rp, "Ex", this.CharID);
+
+            SendPacket refresh = new SendPacket();
+            refresh.PackArray(new byte[] { 5, 8 });
+            refresh.Pack32(this.CharID);
+            refresh.Pack8(0);
+            Send(refresh);
+            CurMap?.Broadcast(refresh, "Ex", this.CharID);
         }
+
         public void UnridePet()
         {
+            if (ActiveMountID == 0) return;
             SendPacket urp = new SendPacket();
-            urp.PackArray(new byte[] { 15, 17 }); //unride pet first to dismiss it
+            urp.PackArray(new byte[] { 15, 17 }); // unride pet
             urp.Pack32(this.CharID);
-            ActiveMountID = 0; // Clear mount when unriding
+            ActiveMountID = 0;
+
             Send(urp);
+            CurMap?.Broadcast(urp, "Ex", this.CharID);
+
+            SendPacket refresh = new SendPacket();
+            refresh.PackArray(new byte[] { 5, 8 });
+            refresh.Pack32(this.CharID);
+            refresh.Pack8(0);
+            Send(refresh);
+            CurMap?.Broadcast(refresh, "Ex", this.CharID);
         }
 
         public void Disconnect()
@@ -1339,9 +1416,17 @@ namespace Game
         public bool PendingBeachCutscene { get; set; }
         public bool BeachCutsceneActive { get; set; }
         public Queue<Action> StepQueue { get; set; } = new Queue<Action>();
+        public int LastDialogueAdvanceTick { get; set; } = 0;
 
         public bool ContinueInteraction()
         {
+            int now = Environment.TickCount;
+            if (now - LastDialogueAdvanceTick < 100 && LastDialogueAdvanceTick != 0 && ((StepQueue != null && StepQueue.Count > 0) || (QueueData != null && QueueData.Count > 0)))
+            {
+                return true;
+            }
+            LastDialogueAdvanceTick = now;
+
             if (StepQueue != null && StepQueue.Count > 0)
             {
                 var stepAction = StepQueue.Dequeue();
@@ -1350,7 +1435,14 @@ namespace Game
             }
             if (QueueData != null && QueueData.Count > 0)
             {
-                m_socket.SendPacket(QueueData.Dequeue());
+                var nextPkt = QueueData.Dequeue();
+                Send(nextPkt);
+                DebugSystem.Write($"[Player.ContinueInteraction] Dispatched next queued step to {CharName} (Remaining in queue: {QueueData.Count})");
+                return true;
+            }
+            if (OnDialogueChoice != null)
+            {
+                // Active choice prompt is awaiting player selection
                 return true;
             }
             if (OnInteractionComplete != null)
@@ -1366,10 +1458,33 @@ namespace Game
                 }
                 if (QueueData != null && QueueData.Count > 0)
                 {
-                    m_socket.SendPacket(QueueData.Dequeue());
+                    var nextPkt = QueueData.Dequeue();
+                    Send(nextPkt);
+                    DebugSystem.Write($"[Player.ContinueInteraction] Dispatched next queued step after action to {CharName} (Remaining in queue: {QueueData.Count})");
                     return true;
                 }
                 return false;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Instantly commits character data (inventory, skills, quests, map, coords, stats, gold, pets, equips) to database.
+        /// </summary>
+        public bool SaveCharacterData()
+        {
+            if (CharID == 0) return false;
+            try
+            {
+                var db = DataBase.CharacterDataBase.GlobalInstance;
+                if (db != null)
+                {
+                    return db.WritePlayer(CharID, this);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[Player.SaveCharacterData] Error saving char {CharName} ({CharID}): {ex.Message}");
             }
             return false;
         }
@@ -1784,6 +1899,9 @@ namespace Game
             try
             {
                 DebugSystem.Write($"[Player.OnConnectionLost] Processing disconnect for {CharName} (ID: {CharID})");
+
+                // 0. Clean up active battle state if disconnected during combat
+                Game.Battle.PvEBattleManager.OnPlayerDisconnect(this);
 
                 // 1. Leave party if in party
                 LeaveParty();

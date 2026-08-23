@@ -124,6 +124,7 @@ namespace Network.ActionCodes
 
                     p.Inv.RemoveItem(slot, 1);
                     p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Used {itemName}! Recovered {hpGain} HP and {spGain} SP."));
+                    p.SaveCharacterData();
                     DebugSystem.Write($"[AC23.Recv96] {p.CharName} consumed {itemName} (#{itemId}) at slot {slot}: +{hpGain} HP, +{spGain} SP.");
                     return;
                 }
@@ -131,6 +132,7 @@ namespace Network.ActionCodes
                 // Generic Consumable fallback
                 p.Inv.RemoveItem(slot, 1);
                 p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Used {itemName}!"));
+                p.SaveCharacterData();
                 DebugSystem.Write($"[AC23.Recv96] {p.CharName} used generic item {itemName} (#{itemId}) at slot {slot}.");
             }
             catch (Exception t)
@@ -205,6 +207,7 @@ namespace Network.ActionCodes
                 try { count = r.Unpack8(); } catch { count = 1; }
                 if (count == 0) count = 1;
                 Game.PlayerRelated.ItemMallManager.PurchaseItem(p, itemId, count);
+                p.SaveCharacterData();
             }
             catch (Exception t) { Console.WriteLine(t); }
         }
@@ -222,7 +225,7 @@ namespace Network.ActionCodes
             {
                 byte pos = r.Unpack8();
                 ((GameMap)p.CurMap).onItemPickup(p, pos);
-
+                p.SaveCharacterData();
             }
             catch (Exception t) { Console.WriteLine(t); }
         }
@@ -241,6 +244,7 @@ namespace Network.ActionCodes
                     if (item.Dropable)
                     {
                         ((GameMap)p.CurMap).onItemDrop(p, pos, qnt);
+                        p.SaveCharacterData();
                     }
                     else
                     {
@@ -265,7 +269,10 @@ namespace Network.ActionCodes
                 byte dst = r[4];
 
                 if (((src > 0) && (src < 51)) && ((dst > 0) && (dst < 51)) && ((ammt > 0) && (ammt < 51)))
+                {
                     p.Inv.MoveItem(src, dst, ammt);
+                    p.SaveCharacterData();
+                }
 
             }
             catch (Exception t) { Console.WriteLine(t); }
@@ -280,6 +287,7 @@ namespace Network.ActionCodes
                 {
                     //TODO do any checks here to make sure we can wear item or in Equipment class
                     p.WearEQ(loc);
+                    p.SaveCharacterData();
                 }
 
             }
@@ -294,6 +302,7 @@ namespace Network.ActionCodes
                 if ((loc > 0) && (loc < 7) && (dst > 0) && (dst < 51))
                 {
                     p.unWearEQ(loc, dst);
+                    p.SaveCharacterData();
                 }
             }
             catch (Exception t) { Console.WriteLine(t); }
@@ -328,6 +337,7 @@ namespace Network.ActionCodes
                     s.Pack8(qnt);
                     p.Send(s);
                     p.Inv.RemoveItem(pos, qnt);
+                    p.SaveCharacterData();
                 }
 
             }

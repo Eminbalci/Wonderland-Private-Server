@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj": {}
+    "D:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj": {}
   },
   "projects": {
-    "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj": {
+    "D:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
+        "projectUniqueName": "D:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
         "projectName": "Phoenix.Core",
-        "projectPath": "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
+        "projectPath": "D:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\Phoenix.Core.csproj",
         "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
-        "outputPath": "d:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\obj\\",
+        "outputPath": "D:\\GitHub\\Wonderland-Private-Server\\Phoenix.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",

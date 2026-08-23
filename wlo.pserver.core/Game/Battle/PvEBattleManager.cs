@@ -30,6 +30,16 @@ namespace Game.Battle
         public bool IsCaptured { get; set; } = false;
     }
 
+    public class QuestBattleContext
+    {
+        public uint QuestID { get; set; }
+        public byte Step { get; set; }
+        public ushort MapID { get; set; }
+        public ushort ClickID { get; set; }
+        public Action OnVictory { get; set; }
+        public Action OnDefeat { get; set; }
+    }
+
     public enum BattleFighterType : byte
     {
         Player = 2,
@@ -141,6 +151,7 @@ namespace Game.Battle
 
         public bool IsPvP => DefendingPlayers != null && DefendingPlayers.Count > 0;
         public bool IsRandomEncounter { get; set; } = false;
+        public QuestBattleContext QuestContext { get; set; }
         public bool IsFinished { get; set; } = false;
         public int Turn { get; set; } = 0;
 
@@ -336,6 +347,42 @@ namespace Game.Battle
                 if (_activeBattles.TryGetValue(player.CharID, out var b))
                     return b;
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Cleans up combat session when a player loses socket connection.
+        /// </summary>
+        public static void OnPlayerDisconnect(Player player)
+        {
+            if (player == null || player.CharID == 0) return;
+            try
+            {
+                lock (_lock)
+                {
+                    if (_activeBattles.TryGetValue(player.CharID, out var battle))
+                    {
+                        DebugSystem.Write($"[PvEBattle] Player {player.CharName} disconnected during battle. Cleaning up battle session.");
+                        _activeBattles.Remove(player.CharID);
+                        battle.AttackingPlayers.Remove(player);
+                        battle.DefendingPlayers.Remove(player);
+
+                        // If no active players remain in the battle, terminate the battle and stop the turn timer
+                        if (!battle.AllPlayers.Any() || battle.AttackingPlayers.Count == 0)
+                        {
+                            battle.IsFinished = true;
+                            battle.CancelTurnTimer();
+                            foreach (var p in battle.AllPlayers)
+                            {
+                                _activeBattles.Remove(p.CharID);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PvEBattle] Error in OnPlayerDisconnect: {ex.Message}");
             }
         }
 
@@ -552,7 +599,7 @@ namespace Game.Battle
             InitializeAndStartBattle(battle);
         }
 
-        public static void StartPvEBattle(Player player, ushort clickId, string monsterName, int npcLv = 10, int npcHp = 250, uint monsterTid = 11066)
+        public static void StartPvEBattle(Player player, ushort clickId, string monsterName, int npcLv = 10, int npcHp = 250, uint monsterTid = 11066, QuestBattleContext questContext = null)
         {
             if (player == null) return;
 
@@ -572,7 +619,8 @@ namespace Game.Battle
 
             ActiveBattle battle = new ActiveBattle
             {
-                AttackingPlayers = GetTeamMembers(player)
+                AttackingPlayers = GetTeamMembers(player),
+                QuestContext = questContext
             };
 
             battle.Monsters.Add(new BattleMonster
@@ -1106,13 +1154,6 @@ namespace Game.Battle
             }
             catch { }
 
-            // 1. Flee / Escape (sub == 5 or Skill 60041)
-            if (sub == 5 || skillId == 60041)
-            {
-                HandleFlee(player);
-                return;
-            }
-
             if (battle.IsTurnProcessing) return;
 
             var allFriendly = battle.Attackers.Concat(battle.Defenders);
@@ -1135,7 +1176,12 @@ namespace Game.Battle
             // Determine action type from skill
             var skill = SkillRelated.SkillManager.GetSkill(skillId);
             string actionType = "attack";
-            if (sub == 4 || skillId == 60021)
+            if (sub == 5 || skillId == 60041)
+            {
+                actionType = "flee";
+                skillId = 60041;
+            }
+            else if (sub == 4 || skillId == 60021)
             {
                 actionType = "defend";
                 skillId = 60021;
@@ -1174,6 +1220,16 @@ namespace Game.Battle
 
             // AC 53:5 Acknowledge action to all players
             BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 5, srcX, srcY));
+
+            // If this player has another living fighter (e.g. Pet or Character) that hasn't acted yet, send AC 50:6 to open their action menu!
+            var remainingFightersForPlayer = allFriendly.Where(f => !f.IsDead && (f.PlayerRef == player || f.OwnerID == player.CharID) && !battle.PendingActions.ContainsKey((f.GridX << 8) | f.GridY)).ToList();
+            if (remainingFightersForPlayer.Count > 0)
+            {
+                var nextFighter = remainingFightersForPlayer.First();
+                player.Send(Tools.FromFormat("bbbbb", 50, 6, nextFighter.GridX, nextFighter.GridY, 0));
+                player.Send(Tools.FromFormat("bb", 52, 1));
+                DebugSystem.Write($"[PvEBattle] Prompting next action (AC 50:6) for {player.CharName}'s {nextFighter.Name} at ({nextFighter.GridX},{nextFighter.GridY})");
+            }
 
             TryExecuteTurn(battle);
         }
@@ -1232,6 +1288,42 @@ namespace Game.Battle
                     // Set of fighters that chose Defend this round
                     var defendingActors = new HashSet<int>();
 
+                    // ---- Phase 0.5: Flee / Escape Actions ----
+                    var fleeActions = actions.Where(a => a.ActionType == "flee").ToList();
+                    if (fleeActions.Count > 0)
+                    {
+                        foreach (var fa in fleeActions)
+                        {
+                            var actor = fa.Actor;
+                            if (actor == null || actor.IsDead) continue;
+
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, actor.GridX, actor.GridY, 0));
+
+                            SendPacket pAnim = new SendPacket();
+                            pAnim.PackArray(new byte[] { 50, 1 });
+                            pAnim.PackArray(new byte[] { 0x11, 0x00 });
+                            pAnim.Pack8(actor.GridX); pAnim.Pack8(actor.GridY); // actor
+                            pAnim.Pack16(60041); // Flee skill
+                            pAnim.Pack8(0); pAnim.Pack8(1);
+                            pAnim.Pack8(actor.GridX); pAnim.Pack8(actor.GridY); // target
+                            pAnim.Pack8(1); pAnim.Pack8(0); pAnim.Pack8(1);
+                            pAnim.Pack8(0); // stat_id = 0
+                            pAnim.Pack32(0); // 0 dmg
+                            pAnim.Pack8(1);
+                            BroadcastToBattle(battle, pAnim);
+
+                            await Task.Delay(600);
+                        }
+
+                        // If any attacking player or pet chose to flee, exit battle
+                        var fledLeader = fleeActions.Any(a => a.Actor != null && (a.Actor.FighterType == BattleFighterType.Player || a.Actor.FighterType == BattleFighterType.Pet));
+                        if (fledLeader)
+                        {
+                            EndBattleFlee(battle);
+                            return;
+                        }
+                    }
+
                     // ---- Phase 1: Defend Actions ----
                     var defendActions = actions.Where(a => a.ActionType == "defend").ToList();
                     foreach (var da in defendActions)
@@ -1288,6 +1380,12 @@ namespace Game.Battle
                         // Target ally
                         var targetAlly = friendlyFighters.FirstOrDefault(f => f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
                                       ?? friendlyFighters.FirstOrDefault(f => !f.IsDead) ?? actor;
+
+                        // Award skill proficiency EXP to player
+                        if (actor.PlayerRef != null && sa.SkillId > 0)
+                        {
+                            SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, sa.SkillId, 1);
+                        }
 
                         BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, actor.GridX, actor.GridY, 0));
 
@@ -1615,6 +1713,12 @@ namespace Game.Battle
                                     else if (sk.IsParalyze) targetFighter.AddStatus(FighterStatusType.Paralyzed, turns);
                                 }
 
+                                // Award skill proficiency EXP to player
+                                if (actor.PlayerRef != null && a.SkillId > 0)
+                                {
+                                    SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, a.SkillId, 1);
+                                }
+
                                 pAttackAnim.PackArray(new byte[] { 0x11, 0x00 });
                                 pAttackAnim.Pack8(actor.GridX); pAttackAnim.Pack8(actor.GridY);
                                 pAttackAnim.Pack16(a.SkillId > 0 ? a.SkillId : (ushort)10001);
@@ -1787,8 +1891,13 @@ namespace Game.Battle
 
                     foreach (var p in battle.AllPlayers)
                     {
-                        var pf = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.PlayerRef == p);
-                        if (pf != null && !pf.IsDead)
+                        var pf = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.PlayerRef == p && !f.IsDead);
+                        if (pf == null)
+                        {
+                            pf = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.OwnerID == p.CharID && !f.IsDead);
+                        }
+
+                        if (pf != null)
                         {
                             p.Send(Tools.FromFormat("bbbbb", 50, 6, pf.GridX, pf.GridY, 0));
                             p.Send(Tools.FromFormat("bb", 52, 1));
@@ -1807,11 +1916,17 @@ namespace Game.Battle
 
         public static void HandleFlee(Player player)
         {
+            if (player == null) return;
+            var battle = GetBattle(player);
+            if (battle != null) EndBattleFlee(battle);
+        }
+
+        private static void EndBattleFlee(ActiveBattle battle)
+        {
             Task.Run(async () =>
             {
                 try
                 {
-                    ActiveBattle battle = GetBattle(player);
                     if (battle == null) return;
 
                     battle.IsFinished = true;
@@ -1824,26 +1939,7 @@ namespace Game.Battle
                         }
                     }
 
-                    var f = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(x => x.PlayerRef == player);
-                    byte pX = f?.GridX ?? 4;
-                    byte pY = f?.GridY ?? 2;
-
-                    BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, pX, pY, 0));
-
-                    SendPacket pAnim = new SendPacket();
-                    pAnim.PackArray(new byte[] { 50, 1 });
-                    pAnim.PackArray(new byte[] { 0x11, 0x00 });
-                    pAnim.Pack8(pX); pAnim.Pack8(pY); // actor
-                    pAnim.Pack16(60041); // Flee skill
-                    pAnim.Pack8(0); pAnim.Pack8(1);
-                    pAnim.Pack8(pX); pAnim.Pack8(pY); // target
-                    pAnim.Pack8(1); pAnim.Pack8(0); pAnim.Pack8(1);
-                    pAnim.Pack8(0); // stat_id = 0
-                    pAnim.Pack32(0); // 0 dmg
-                    pAnim.Pack8(1);
-                    BroadcastToBattle(battle, pAnim);
-
-                    await Task.Delay(1200);
+                    await Task.Delay(800);
 
                     // Despawn and clean all players
                     foreach (var p in battle.AllPlayers)
@@ -1864,6 +1960,7 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SaveCharacterData();
                     }
                 }
                 catch (Exception ex)
@@ -2018,6 +2115,12 @@ namespace Game.Battle
 
                     // Check Quest Battle Completion for Leader
                     CheckQuestBattleCompletion(battle);
+
+                    // Persist state for all combat participants
+                    foreach (var p in battle.AllPlayers)
+                    {
+                        p.SaveCharacterData();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -2095,6 +2198,23 @@ namespace Game.Battle
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
                     }
+                    if (battle.QuestContext?.OnDefeat != null)
+                    {
+                        try
+                        {
+                            battle.QuestContext.OnDefeat.Invoke();
+                            DebugSystem.Write($"[PvEBattle] Executed QuestBattleContext.OnDefeat for {battle.LeaderPlayer?.CharName}");
+                        }
+                        catch (Exception qcbEx)
+                        {
+                            DebugSystem.Write($"[PvEBattle] Error in QuestBattleContext.OnDefeat: {qcbEx.Message}");
+                        }
+                    }
+                    // Persist state for all combat participants
+                    foreach (var p in battle.AllPlayers)
+                    {
+                        p.SaveCharacterData();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -2109,6 +2229,20 @@ namespace Game.Battle
             {
                 var player = battle?.LeaderPlayer;
                 if (player == null) return;
+
+                // Dynamic Quest / Event Battle Callback (Eve.Emg engine)
+                if (battle.QuestContext?.OnVictory != null)
+                {
+                    try
+                    {
+                        battle.QuestContext.OnVictory.Invoke();
+                        DebugSystem.Write($"[PvEBattle] Executed QuestBattleContext.OnVictory for {player.CharName}");
+                    }
+                    catch (Exception qcbEx)
+                    {
+                        DebugSystem.Write($"[PvEBattle] Error in QuestBattleContext.OnVictory: {qcbEx.Message}");
+                    }
+                }
 
                 // Quest 1005: Save Niss (Wolf Guard battle victory)
                 if (battle.Monsters != null && battle.Monsters.Any(m => m.MonsterId == 11066 || (m.MonsterName ?? "").ToLower().Contains("wolf guard")))

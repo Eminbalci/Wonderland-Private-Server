@@ -458,30 +458,6 @@ namespace DataBase
                 if (!System.IO.File.Exists(datPath)) return 0;
                 DebugSystem.Write("[GameDataBase] Loading Npc.dat...");
 
-                // Load npc.json lookup dictionary if available
-                Dictionary<int, string> npcJsonNames = new Dictionary<int, string>();
-                string jsonPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "npc.json");
-                if (System.IO.File.Exists(jsonPath))
-                {
-                    try
-                    {
-                        string jsonText = System.IO.File.ReadAllText(jsonPath);
-                        var matches = System.Text.RegularExpressions.Regex.Matches(jsonText, @"""(\d+)""\s*:\s*""([^""]+)""");
-                        foreach (System.Text.RegularExpressions.Match match in matches)
-                        {
-                            if (int.TryParse(match.Groups[1].Value, out int jid))
-                            {
-                                npcJsonNames[jid] = match.Groups[2].Value;
-                            }
-                        }
-                        DebugSystem.Write($"[GameDataBase] Loaded {npcJsonNames.Count} NPC names from npc.json");
-                    }
-                    catch (Exception jsonEx)
-                    {
-                        DebugSystem.Write($"[GameDataBase] Error parsing npc.json: {jsonEx.Message}");
-                    }
-                }
-
                 byte[] fileBytes = System.IO.File.ReadAllBytes(datPath);
                 int recordSize = 138;
                 int totalRecords = fileBytes.Length / recordSize;
@@ -495,7 +471,7 @@ namespace DataBase
 
                     // 1. Read exact fixed binary fields
                     ushort rawId = (ushort)(fileBytes[offset + 12] | (fileBytes[offset + 13] << 8));
-                    int id = (ushort)((rawId ^ 0x5209) - 1);
+                    int id = (ushort)(rawId ^ 0x520E);
                     if (id == 0) continue;
 
                     byte rawLvl = fileBytes[offset + 37];
@@ -507,7 +483,7 @@ namespace DataBase
                     byte rawElem = fileBytes[offset + 57];
                     int element = (byte)((rawElem ^ 0xC8) - 1);
 
-                    // 2. Extract authentic name from reversed 10-byte buffer (offset + 1 to offset + 10)
+                    // Extract authentic name
                     var rawChars = new List<byte>();
                     for (int i = offset + 10; i >= offset + 1; i--)
                     {
@@ -518,81 +494,32 @@ namespace DataBase
                         }
                     }
 
-                    string datName = System.Text.Encoding.ASCII.GetString(rawChars.ToArray()).Trim();
-
-                    string finalName = null;
-
-                    // Priority 1: Exact lookup in npc.json for full canonical English names
-                    if (npcJsonNames.TryGetValue(id, out string exactName))
-                    {
-                        finalName = exactName;
-                    }
-                    // Priority 2: Decoded ASCII name from Npc.dat
-                    else if (!string.IsNullOrEmpty(datName) && datName.Length >= 2)
-                    {
-                        finalName = datName;
-                    }
-                    // Priority 3: Big5 CJK decoding
-                    else
-                    {
-                        var cjkBytes = new List<byte>();
-                        for (int i = offset + 1; i <= offset + 10; i++)
-                        {
-                            byte b = fileBytes[i];
-                            if (b != 0 && b != 0xCA && b != 0xC8 && b != 0xC9) cjkBytes.Add(b);
-                        }
-                        if (cjkBytes.Count > 0)
-                        {
-                            cjkBytes.Reverse();
-                            string cjk = System.Text.Encoding.GetEncoding(950).GetString(cjkBytes.ToArray()).Trim('\0', ' ');
-                            if (!cjk.Contains("?") && !string.IsNullOrEmpty(cjk) && cjk.Length >= 2)
-                            {
-                                finalName = cjk;
-                            }
-                        }
-                    }
-
+                    string finalName = System.Text.Encoding.ASCII.GetString(rawChars.ToArray()).Trim();
                     if (string.IsNullOrEmpty(finalName))
                     {
                         finalName = $"NPC_{id}";
                     }
-                    else
-                    {
-                        finalName = new string(finalName.Where(c => !char.IsControl(c)).ToArray()).Trim();
-                    }
 
                     finalName = finalName.Replace("'", "''");
-                    batch.Append($"({id}, '{finalName}', {level}, {hp}, {element}),");
+
+                    // Build SQL batch statement
+                    batch.Append($"INSERT OR REPLACE INTO npc_data (id, name, level, hp, element) VALUES ({id}, '{finalName}', {level}, {hp}, {element});\n");
                     count++;
-
-                    if (debugLimit < 5)
-                    {
-                        DebugSystem.Write($"[GameDataBase] Sample Import - ID: {id}, Name: {finalName}");
-                        debugLimit++;
-                    }
-
-                    if (count % 200 == 0)
-                    {
-                        string batchSql = "INSERT OR REPLACE INTO npc_data (id, name, level, hp, element) VALUES " + batch.ToString().TrimEnd(',') + ";";
-                        ExecuteNonQuery(batchSql);
-                        batch.Clear();
-                    }
                 }
 
                 if (batch.Length > 0)
                 {
-                    string batchSql = "INSERT OR REPLACE INTO npc_data (id, name, level, hp, element) VALUES " + batch.ToString().TrimEnd(',') + ";";
-                    ExecuteNonQuery(batchSql);
-                    batch.Clear();
+                    ExecuteNonQuery("BEGIN TRANSACTION;\n" + batch.ToString() + "COMMIT;");
                 }
 
-                DebugSystem.Write($"[GameDataBase] Successfully Imported {count} NPCs from Npc.dat");
+                DebugSystem.Write($"[GameDataBase] Successfully Imported {count} NPCs from Npc.dat directly");
+                return count;
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[GameDataBase] Error importing Npc.dat: {ex.Message}");
+                return 0;
             }
-            return count;
         }
 
 
@@ -620,7 +547,6 @@ namespace DataBase
         {
             try
             {
-                // Escape name
                 name = name.Replace("'", "''");
                 string query = $"INSERT INTO npc_data (id, name, level, hp, element) VALUES ({id}, '{name}', {level}, {hp}, {element}) ON DUPLICATE KEY UPDATE name='{name}', level={level}, hp={hp}, element={element}";
                 ExecuteNonQuery(query);
@@ -643,7 +569,7 @@ namespace DataBase
 
         public NpcTemplateInfo ResolveNpcInfo(ushort mapId, byte clickId, ushort templateId)
         {
-            // 1. Map/Click specific overrides matching Python server
+            // 1. Map/Click specific overrides matching cutscenes
             var overrides = new Dictionary<string, int>
             {
                 { "10017_9", 25787 },
@@ -660,50 +586,20 @@ namespace DataBase
                     return new NpcTemplateInfo(r["name"].ToString(), Convert.ToInt32(r["level"]), Convert.ToInt32(r["hp"]), Convert.ToInt32(r["element"]));
             }
 
-            // 2. Pre-decode client-side special template ID mappings
-            ushort mappedId = templateId;
-            if (templateId == 0x908e) mappedId = 0x5209;
-            else if (templateId == 0x9092) mappedId = 0x9090;
-            else if (templateId == 0x9093) mappedId = 0x9091;
-            else if (templateId == 0x9094) mappedId = 0x9095;
-            else if (templateId == 0x9096) mappedId = 0x9097;
+            // 2. Resolve authentic name from SceneDataManager (direct Npc.dat engine)
+            string authenticName = Game.DataFiles.SceneDataManager.GetNpcName(templateId);
 
-            int decNoOffset = (mappedId & 0xFFFF) ^ 0x5209;
-            int decWithOffset = decNoOffset - 9;
-            int[] candidates = new int[]
+            // 3. Query stats from SQLite npc_data table
+            var row = GetNpcTemplate(templateId);
+            if (row != null)
             {
-                templateId,
-                decNoOffset,
-                decWithOffset,
-                decNoOffset + 27000,
-                decWithOffset + 27000,
-                decNoOffset + 10000,
-                decWithOffset + 10000,
-                templateId * 2,
-                templateId + 16000
-            };
-
-            // Priority pass: Find a template that has a named identity (not NPC_xxx)
-            foreach (var candId in candidates)
-            {
-                var r = GetNpcTemplate(candId);
-                if (r != null)
-                {
-                    string n = r["name"].ToString();
-                    if (!string.IsNullOrEmpty(n) && !n.StartsWith("NPC_"))
-                        return new NpcTemplateInfo(n, Convert.ToInt32(r["level"]), Convert.ToInt32(r["hp"]), Convert.ToInt32(r["element"]));
-                }
+                int lvl = Convert.ToInt32(row["level"]);
+                int hp = Convert.ToInt32(row["hp"]);
+                int elem = Convert.ToInt32(row["element"]);
+                return new NpcTemplateInfo(authenticName, lvl, hp, elem);
             }
 
-            // Secondary pass: Any matching template
-            foreach (var candId in candidates)
-            {
-                var r = GetNpcTemplate(candId);
-                if (r != null)
-                    return new NpcTemplateInfo(r["name"].ToString(), Convert.ToInt32(r["level"]), Convert.ToInt32(r["hp"]), Convert.ToInt32(r["element"]));
-            }
-
-            return new NpcTemplateInfo($"NPC_{templateId}", 1, 100, 0);
+            return new NpcTemplateInfo(authenticName, 1, 100, 0);
         }
         //{
 

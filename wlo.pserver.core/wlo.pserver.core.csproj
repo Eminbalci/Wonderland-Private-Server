@@ -183,6 +183,8 @@
     <Compile Include="Game\QuestRelated\QuestDefinition.cs" />
     <Compile Include="Game\QuestRelated\PlayerQuest.cs" />
     <Compile Include="Game\QuestRelated\QuestManager.cs" />
+    <Compile Include="Game\QuestRelated\PreEventInterpreter.cs" />
+    <Compile Include="DataFiles\SceneDataManager.cs" />
     <Compile Include="Game\User.cs" />
 
     <Compile Include="Generics\Tools.cs" />

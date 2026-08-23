@@ -113,7 +113,24 @@ namespace Network.ActionCodes
             s.Pack8(0);
             c.Send(s);
 
-            DebugSystem.Write($"[AC5.Recv7] Dispatched AC 3, AC 5:0, AC 5:8 spawn sequence to {c.CharName}");
+            // 4. Synchronize inventory (AC 23:5), equipment (AC 23:11), and gold (AC 26:4) upon client map ready
+            if (c.Inv != null)
+            {
+                c.Send(new SendPacket(c.Inv.GetAC23_5()));
+            }
+            if (c._23_11Data != null)
+            {
+                c.Send(new SendPacket(c._23_11Data));
+            }
+            c.Send(Tools.FromFormat("bbd", 26, 4, c.Gold));
+
+            // 5. Synchronize character & pet skills (AC 5:11/12, AC 8:2)
+            Game.SkillRelated.SkillManager.SendAllSkills(c);
+
+            // 6. Commit immediate character persistence
+            c.SaveCharacterData();
+
+            DebugSystem.Write($"[AC5.Recv7] Dispatched AC 3, AC 5:0, AC 5:8, full Inventory/Equip and Skills sync to {c.CharName}");
         }
 
         private void Recv4(Player c, RecievePacket p)

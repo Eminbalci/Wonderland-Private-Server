@@ -685,7 +685,8 @@ namespace Game.SkillRelated
                 var db = DataBase.CharacterDataBase.GlobalInstance;
                 if (db != null && player.CharID > 0)
                 {
-                    db.ExecuteNonQuery($"INSERT INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{sk.Grade}', '{sk.Exp}') ON CONFLICT(charID, skillID) DO UPDATE SET grade = '{sk.Grade}', exp = '{sk.Exp}';");
+                    db.ExecuteNonQuery($"CREATE TABLE IF NOT EXISTS character_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, skillID INT NOT NULL, grade TINYINT DEFAULT 1, exp INT DEFAULT 0, UNIQUE(charID, skillID));");
+                    db.ExecuteNonQuery($"INSERT OR REPLACE INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{sk.Grade}', '{sk.Exp}');");
                 }
             }
             catch (Exception ex)
@@ -693,10 +694,15 @@ namespace Game.SkillRelated
                 DebugSystem.Write($"[SkillManager] Error updating skill EXP: {ex.Message}");
             }
 
-            // 1. AC 5:12 (Skill ID & Grade Update)
+            // 1. AC 5:11 (Proficiency / EXP sync: 0-10000 -> 0.00% - 100.00%)
+            uint currentNeededExp = (uint)(sk.Grade * 100);
+            ushort prof = (ushort)Math.Min(10000, (sk.Exp * 10000) / Math.Max(1, currentNeededExp));
+            player.Send(Tools.FromFormat("bbdw", 5, 11, (uint)sk.SkillID, prof));
+
+            // 2. AC 5:12 (Skill ID & Grade Update)
             player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)sk.SkillID, (byte)sk.Grade));
 
-            // 2. AC 8:1 stat 367 / 0x016F (Skill Grade & Unlock Update)
+            // 3. AC 8:1 stat 367 / 0x016F (Skill Grade & Unlock Update)
             if (gradeUp)
             {
                 player.Send(Tools.FromFormat("bbwdd", 8, 1, 0x016F, (uint)sk.Grade, sk.SkillID));
@@ -755,6 +761,9 @@ namespace Game.SkillRelated
                     // 3. AC 5:12 (Skill ID & Grade Update in Skill Book)
                     player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)skId, (byte)1));
 
+                    // 4. AC 5:11 (Initial Proficiency 0.00%)
+                    player.Send(Tools.FromFormat("bbdw", 5, 11, (uint)skId, (ushort)0));
+
                     newlyUnlocked = true;
                     DebugSystem.Write($"[SkillManager] Auto-unlocked progression skill {skId} for {player.CharName}");
                 }
@@ -771,6 +780,7 @@ namespace Game.SkillRelated
                     player.Send(Tools.FromFormat("bbbw", 5, 13, a, 0));
                 }
                 player.Send(Tools.FromFormat("bb", 5, 4));
+                player.SaveCharacterData();
             }
         }
 
@@ -818,9 +828,26 @@ namespace Game.SkillRelated
 
                 // 3. AC 5:12 (Skill ID & Grade Update in Skill Book)
                 player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)sk.SkillID, (byte)sk.Grade));
+
+                // 4. AC 5:11 (Skill Proficiency: 0-10000 -> 0.00% to 100.00%)
+                uint maxExp = (uint)(sk.Grade * 100);
+                ushort prof = (ushort)Math.Min(10000, (sk.Exp * 10000) / Math.Max(1, maxExp));
+                player.Send(Tools.FromFormat("bbdw", 5, 11, (uint)sk.SkillID, prof));
             }
 
-            // 4. Finalize Skill Table Load with AC 5:4
+            // 5. Synchronize Companion Pet Skills
+            if (player.PlayerPets != null)
+            {
+                foreach (var pet in player.PlayerPets.Values)
+                {
+                    if (pet != null && pet.PetID > 0)
+                    {
+                        QuestRelated.QuestManager.SendPetSkills(player, pet.PetID, pet.Slot);
+                    }
+                }
+            }
+
+            // 6. Finalize Skill Table Load with AC 5:4
             SendPacket fin = new SendPacket();
             fin.Pack8(5);
             fin.Pack8(4);

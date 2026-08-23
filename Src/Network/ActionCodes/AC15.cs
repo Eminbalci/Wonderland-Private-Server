@@ -192,15 +192,7 @@ namespace Network.ActionCodes
                 byte slot = p.Unpack8();
                 uint petId = p.Unpack32();
 
-                SendPacket ridePkt = new SendPacket();
-                ridePkt.PackArray(new byte[] { 15, 16, slot });
-                ridePkt.Pack32(player.CharID);
-                ridePkt.Pack32(petId);
-                for (int i = 0; i < 26; i++) ridePkt.Pack8(0);
-
-                player.Send(ridePkt);
-                player.CurMap?.Broadcast(ridePkt);
-
+                player.PutPetToRide(petId.ToString());
                 DebugSystem.Write($"[AC15] Player {player.CharName} mounted companion ID {petId} (Slot {slot})");
             }
             catch (Exception ex)
@@ -216,11 +208,8 @@ namespace Network.ActionCodes
                 byte slot = p.Unpack8();
                 uint petId = p.Unpack32();
 
-                SendPacket restPkt = Tools.FromFormat("bbd", 15, 17, player.CharID);
-                player.Send(restPkt);
-                player.CurMap?.Broadcast(restPkt);
-
-                DebugSystem.Write($"[AC15] Player {player.CharName} rested companion ID {petId} (Slot {slot})");
+                player.UnridePet();
+                DebugSystem.Write($"[AC15] Player {player.CharName} rested/dismounted companion ID {petId} (Slot {slot})");
             }
             catch (Exception ex)
             {

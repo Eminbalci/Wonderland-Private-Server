@@ -96,32 +96,9 @@ namespace Network.ActionCodes
                     }
                 }
 
-                // 1. Send authentic AC 19:1 Set Battle Pet packet to player
+                // 1. Send authentic AC 19:1 Set Battle Pet packet and full AC 15:4, AC 15:1, AC 19:4, AC 13:5, AC 5:8 to map
                 player.Send(Tools.FromFormat("bbd", 19, 1, petId));
-                if (player.CurMap != null)
-                {
-                    // AC 19:4 Broadcast battle companion following player to all other players on map
-                    SendPacket followPkt = new SendPacket();
-                    followPkt.Pack8(19);
-                    followPkt.Pack8(4);
-                    followPkt.Pack32(player.CharID);
-                    followPkt.Pack32(petId);
-                    player.CurMap.Broadcast(followPkt, "Ex", player.CharID);
-
-                    // AC 13:5 Broadcast companion follow formation to peers
-                    SendPacket petFollow = new SendPacket();
-                    petFollow.PackArray(new byte[] { 13, 5 });
-                    petFollow.Pack32(player.CharID);
-                    petFollow.Pack32(petId);
-                    player.CurMap.Broadcast(petFollow, "Ex", player.CharID);
-
-                    // AC 5:8 Appearance refresh
-                    SendPacket petRefresh = new SendPacket();
-                    petRefresh.PackArray(new byte[] { 5, 8 });
-                    petRefresh.Pack32(player.CharID);
-                    petRefresh.Pack8(0);
-                    player.CurMap.Broadcast(petRefresh, "Ex", player.CharID);
-                }
+                player.BroadcastPetAppearance(petId, activePet?.PetName);
 
                 // 2. Synchronize Pet Level & Stats so Party UI and Status Window show authentic Level and HP/SP
                 if (activePet != null)
@@ -169,11 +146,19 @@ namespace Network.ActionCodes
                     }
                 }
 
-                player.Send(Tools.FromFormat("bbd", 19, 5, player.CharID));
-                if (player.CurMap != null)
-                {
-                    player.CurMap.Broadcast(Tools.FromFormat("bbd", 19, 5, player.CharID));
-                }
+                SendPacket restPkt = Tools.FromFormat("bbd", 19, 5, player.CharID);
+                player.Send(restPkt);
+                player.CurMap?.Broadcast(restPkt, "Ex", player.CharID);
+
+                // Send AC 15:2 dismiss to map peers
+                SendPacket dismissPkt = Tools.FromFormat("bbdb", 15, 2, player.CharID, (byte)1);
+                player.CurMap?.Broadcast(dismissPkt, "Ex", player.CharID);
+
+                // Send AC 5:8 appearance refresh
+                SendPacket refreshPkt = Tools.FromFormat("bbdb", 5, 8, player.CharID, (byte)0);
+                player.Send(refreshPkt);
+                player.CurMap?.Broadcast(refreshPkt, "Ex", player.CharID);
+
                 DebugSystem.Write($"[AC19] Player {player.CharName} rested active battle companion");
             }
             catch (Exception ex)

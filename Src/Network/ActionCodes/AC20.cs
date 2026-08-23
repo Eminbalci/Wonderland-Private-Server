@@ -57,6 +57,7 @@ namespace Wonderland_Private_Server.ActionCodes
 
                 if (p.CurMap.Teleport(TeleportType.Regular, p, portalID))
                 {
+                    p.SaveCharacterData();
                     return;
                 }
             }
@@ -88,7 +89,13 @@ namespace Wonderland_Private_Server.ActionCodes
                 clickID = r.Unpack8();
             }
 
-            DebugSystem.Write($"[AC20.Recv1] Player {p.CharName} clicked NPC {clickID} on Map {p.CurMap.MapID}");
+            var gMap = p.CurMap as GameMap;
+            var clickedNpcObj = gMap?.NpcList?.FirstOrDefault(n => n.CickID == clickID) as Game.Maps.QuestNpc;
+            ushort templateId = clickedNpcObj != null ? (ushort)clickedNpcObj.TemplateID : (ushort)(p.CurMap.mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickID)?.npcId ?? 0);
+            string npcName = clickedNpcObj != null ? clickedNpcObj.Name : (templateId > 0 ? Game.DataFiles.SceneDataManager.GetNpcName(templateId) : (p.CurMap.mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickID)?.Name ?? "Unknown"));
+            string mapName = Game.DataFiles.SceneDataManager.GetMapName((ushort)p.CurMap.MapID);
+
+            DebugSystem.Write($"[AC20.Recv1] Player {p.CharName} clicked NPC #{clickID} '{npcName}' (TID: {templateId}) on Map #{p.CurMap.MapID} ({mapName})");
 
             // Prioritize NPC interaction (dialogue, quests, battles)
             if (p.CurMap.ProcessInteraction((byte)clickID, p))
@@ -107,6 +114,7 @@ namespace Wonderland_Private_Server.ActionCodes
                     DebugSystem.Write($"[AC20.Recv1] Object {clickID} is an explicit door linking to portal {linkedPortal} on Map {p.CurMap.MapID}");
                     if (p.CurMap.Teleport(TeleportType.Regular, p, linkedPortal))
                     {
+                        p.SaveCharacterData();
                         return;
                     }
                 }
@@ -120,9 +128,16 @@ namespace Wonderland_Private_Server.ActionCodes
         {
             if (!p.ContinueInteraction())
             {
+                // If the player is currently on an interactive choice prompt, keep the dialog open
+                if (p.OnDialogueChoice != null)
+                {
+                    return;
+                }
+
                 p.Send(Tools.FromFormat("bb", 20, 8));
                 p.Send(Tools.FromFormat("bb", 5, 4));
                 p.Flags.Add(PlayerFlag.InMap);
+                p.SaveCharacterData();
             }
         }
         void Recv9(Player p, RecievePacket r)

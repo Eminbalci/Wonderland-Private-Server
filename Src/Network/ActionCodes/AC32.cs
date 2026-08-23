@@ -42,14 +42,15 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte emote = r.Unpack8();
-                if (p.Emote != emote)
+                byte actionCode = (r.Buffer != null && r.Buffer.Count() > 6) ? r[6] : (byte)0;
+
+                if (p.Emote != actionCode)
                 {
-                    p.Emote = emote;
+                    p.Emote = actionCode;
                     SendPacket s = new SendPacket();
                     s.PackArray(new byte[] { 32, 2 });
                     s.Pack32(p.CharID);
-                    s.Pack8(emote);
+                    s.Pack8(actionCode);
                     p.CurMap?.Broadcast(s, "Ex", p.CharID);
                 }
             }
