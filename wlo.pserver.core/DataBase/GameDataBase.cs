@@ -272,9 +272,25 @@ namespace DataBase
             #region Pets
             try
             {
-                // Ensure character_pets table exists
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0);");
+                // Ensure character_pets table exists with comprehensive stat columns
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN exp INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN str INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN con INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN int_ INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN wis INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN agi INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN potential INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN skillPoints INT DEFAULT 0;"); } catch { }
                 try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN reborn TINYINT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN job TINYINT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_head INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_body INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_weapon INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_wrist INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_shoes INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_special INT DEFAULT 0;"); } catch { }
 
                 var petTable = GetDataTable("SELECT * FROM character_pets WHERE charID = '" + c.CharID + "'");
                 c.PlayerPets.Clear();
@@ -288,15 +304,31 @@ namespace DataBase
                         if (petId == 12178) petId = 12032;
                         string petName = row["petName"] != DBNull.Value ? row["petName"].ToString() : "Robinson";
                         if (petName.StartsWith("Companion #") || petName == "Companion") petName = "Robinson";
-                        byte lvl = byte.Parse(row["level"].ToString());
-                        int hp = int.Parse(row["hp"].ToString());
-                        int maxHp = int.Parse(row["maxHp"].ToString());
-                        int sp = int.Parse(row["sp"].ToString());
-                        int maxSp = int.Parse(row["maxSp"].ToString());
-                        byte amity = byte.Parse(row["amity"].ToString());
+                        byte lvl = row.Table.Columns.Contains("level") && row["level"] != DBNull.Value ? byte.Parse(row["level"].ToString()) : (byte)1;
+                        uint exp = row.Table.Columns.Contains("exp") && row["exp"] != DBNull.Value ? uint.Parse(row["exp"].ToString()) : 0;
+                        int hp = row.Table.Columns.Contains("hp") && row["hp"] != DBNull.Value ? int.Parse(row["hp"].ToString()) : 250;
+                        int maxHp = row.Table.Columns.Contains("maxHp") && row["maxHp"] != DBNull.Value ? int.Parse(row["maxHp"].ToString()) : 250;
+                        int sp = row.Table.Columns.Contains("sp") && row["sp"] != DBNull.Value ? int.Parse(row["sp"].ToString()) : 100;
+                        int maxSp = row.Table.Columns.Contains("maxSp") && row["maxSp"] != DBNull.Value ? int.Parse(row["maxSp"].ToString()) : 100;
+                        ushort str = row.Table.Columns.Contains("str") && row["str"] != DBNull.Value ? ushort.Parse(row["str"].ToString()) : (ushort)10;
+                        ushort con = row.Table.Columns.Contains("con") && row["con"] != DBNull.Value ? ushort.Parse(row["con"].ToString()) : (ushort)10;
+                        ushort int_ = row.Table.Columns.Contains("int_") && row["int_"] != DBNull.Value ? ushort.Parse(row["int_"].ToString()) : (ushort)10;
+                        ushort wis = row.Table.Columns.Contains("wis") && row["wis"] != DBNull.Value ? ushort.Parse(row["wis"].ToString()) : (ushort)10;
+                        ushort agi = row.Table.Columns.Contains("agi") && row["agi"] != DBNull.Value ? ushort.Parse(row["agi"].ToString()) : (ushort)10;
+                        ushort potential = row.Table.Columns.Contains("potential") && row["potential"] != DBNull.Value ? ushort.Parse(row["potential"].ToString()) : (ushort)0;
+                        ushort skillPoints = row.Table.Columns.Contains("skillPoints") && row["skillPoints"] != DBNull.Value ? ushort.Parse(row["skillPoints"].ToString()) : (ushort)0;
+                        byte amity = row.Table.Columns.Contains("amity") && row["amity"] != DBNull.Value ? byte.Parse(row["amity"].ToString()) : (byte)60;
                         bool isBattle = row["isBattle"].ToString() == "1";
                         bool isRide = row["isRide"].ToString() == "1";
                         bool isHotel = row.Table.Columns.Contains("isHotel") && row["isHotel"].ToString() == "1";
+                        bool reborn = row.Table.Columns.Contains("reborn") && row["reborn"].ToString() == "1";
+                        byte job = row.Table.Columns.Contains("job") && row["job"] != DBNull.Value ? byte.Parse(row["job"].ToString()) : (byte)0;
+                        ushort eqHead = row.Table.Columns.Contains("eq_head") && row["eq_head"] != DBNull.Value ? ushort.Parse(row["eq_head"].ToString()) : (ushort)0;
+                        ushort eqBody = row.Table.Columns.Contains("eq_body") && row["eq_body"] != DBNull.Value ? ushort.Parse(row["eq_body"].ToString()) : (ushort)0;
+                        ushort eqWeapon = row.Table.Columns.Contains("eq_weapon") && row["eq_weapon"] != DBNull.Value ? ushort.Parse(row["eq_weapon"].ToString()) : (ushort)0;
+                        ushort eqWrist = row.Table.Columns.Contains("eq_wrist") && row["eq_wrist"] != DBNull.Value ? ushort.Parse(row["eq_wrist"].ToString()) : (ushort)0;
+                        ushort eqShoes = row.Table.Columns.Contains("eq_shoes") && row["eq_shoes"] != DBNull.Value ? ushort.Parse(row["eq_shoes"].ToString()) : (ushort)0;
+                        ushort eqSpecial = row.Table.Columns.Contains("eq_special") && row["eq_special"] != DBNull.Value ? ushort.Parse(row["eq_special"].ToString()) : (ushort)0;
 
                         var petData = new Player.PlayerPetData()
                         {
@@ -304,13 +336,29 @@ namespace DataBase
                             PetID = petId,
                             PetName = petName,
                             Level = lvl,
+                            Exp = exp,
                             HP = hp,
                             MaxHP = maxHp,
                             SP = sp,
                             MaxSP = maxSp,
+                            Str = str,
+                            Con = con,
+                            Int = int_,
+                            Wis = wis,
+                            Agi = agi,
+                            Potential = potential,
+                            SkillPoints = skillPoints,
                             Amity = amity,
                             IsBattle = isBattle,
-                            IsRide = isRide
+                            IsRide = isRide,
+                            Reborn = reborn,
+                            Job = job,
+                            Eq_Head = eqHead,
+                            Eq_Body = eqBody,
+                            Eq_Weapon = eqWeapon,
+                            Eq_Wrist = eqWrist,
+                            Eq_Shoes = eqShoes,
+                            Eq_Special = eqSpecial
                         };
 
                         if (isHotel)
@@ -321,14 +369,15 @@ namespace DataBase
                         else
                         {
                             c.PlayerPets[slot] = petData;
-
-                            // Send recruited companion to client upon spawn
-                            Game.QuestRelated.QuestManager.SendCompanionReward(c, petId, petName, setBattle: isBattle);
+                            if (isBattle)
+                            {
+                                c.ActivePetID = petId;
+                            }
                             if (isRide)
                             {
                                 c.PutPetToRide(petId.ToString());
                             }
-                            DebugSystem.Write($"[GameDataBase] Loaded companion '{petName}' (ID: {petId}, Slot: {slot}) for {c.CharName}");
+                            DebugSystem.Write($"[GameDataBase] Loaded companion '{petName}' (ID: {petId}, Slot: {slot}, Lv.{lvl}, Battle:{isBattle}) for {c.CharName}");
                         }
                     }
                 }
@@ -471,7 +520,7 @@ namespace DataBase
 
                     // 1. Read exact fixed binary fields
                     ushort rawId = (ushort)(fileBytes[offset + 12] | (fileBytes[offset + 13] << 8));
-                    int id = (ushort)(rawId ^ 0x520E);
+                    int id = (ushort)(((rawId ^ 0x5209) - 1) & 0xFFFF);
                     if (id == 0) continue;
 
                     byte rawLvl = fileBytes[offset + 37];
@@ -569,36 +618,8 @@ namespace DataBase
 
         public NpcTemplateInfo ResolveNpcInfo(ushort mapId, byte clickId, ushort templateId)
         {
-            // 1. Map/Click specific overrides matching cutscenes
-            var overrides = new Dictionary<string, int>
-            {
-                { "10017_9", 25787 },
-                { "10017_10", 25789 },
-                { "10017_3", 25786 },
-                { "10017_11", 25786 },
-            };
-
-            string key = $"{mapId}_{clickId}";
-            if (overrides.TryGetValue(key, out int overrideId))
-            {
-                var r = GetNpcTemplate(overrideId);
-                if (r != null)
-                    return new NpcTemplateInfo(r["name"].ToString(), Convert.ToInt32(r["level"]), Convert.ToInt32(r["hp"]), Convert.ToInt32(r["element"]));
-            }
-
-            // 2. Resolve authentic name from SceneDataManager (direct Npc.dat engine)
+            // Resolve authentic name from SceneDataManager (direct in-memory Npc.dat engine - instant O(1))
             string authenticName = Game.DataFiles.SceneDataManager.GetNpcName(templateId);
-
-            // 3. Query stats from SQLite npc_data table
-            var row = GetNpcTemplate(templateId);
-            if (row != null)
-            {
-                int lvl = Convert.ToInt32(row["level"]);
-                int hp = Convert.ToInt32(row["hp"]);
-                int elem = Convert.ToInt32(row["element"]);
-                return new NpcTemplateInfo(authenticName, lvl, hp, elem);
-            }
-
             return new NpcTemplateInfo(authenticName, 1, 100, 0);
         }
         //{

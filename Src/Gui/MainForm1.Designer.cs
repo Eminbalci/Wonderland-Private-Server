@@ -31,6 +31,15 @@ namespace Wonderland_Private_Server
             this.tabPage6 = new System.Windows.Forms.TabPage();
             this.tabControl3 = new System.Windows.Forms.TabControl();
             this.tabPage7 = new System.Windows.Forms.TabPage();
+            this.lblServerName = new System.Windows.Forms.Label();
+            this.txtServerName = new System.Windows.Forms.TextBox();
+            this.lblWelcomeMsg = new System.Windows.Forms.Label();
+            this.txtWelcomeMsg = new System.Windows.Forms.TextBox();
+            this.btnSaveServerInfo = new System.Windows.Forms.Button();
+            this.lblBroadcastPrompt = new System.Windows.Forms.Label();
+            this.txtBroadcastPrompt = new System.Windows.Forms.TextBox();
+            this.cmbBroadcastColor = new System.Windows.Forms.ComboBox();
+            this.btnBroadcastPrompt = new System.Windows.Forms.Button();
             this.MainOutput = new System.Windows.Forms.RichTextBox();
             this.tabPage1 = new System.Windows.Forms.TabPage();
             this.panel_CheatTop = new System.Windows.Forms.Panel();
@@ -181,8 +190,17 @@ namespace Wonderland_Private_Server
             // 
             // tabPage7
             // 
+            this.tabPage7.Controls.Add(this.lblServerName);
+            this.tabPage7.Controls.Add(this.txtServerName);
+            this.tabPage7.Controls.Add(this.lblWelcomeMsg);
+            this.tabPage7.Controls.Add(this.txtWelcomeMsg);
+            this.tabPage7.Controls.Add(this.btnSaveServerInfo);
             this.tabPage7.Controls.Add(this.btnSaveAllNow);
             this.tabPage7.Controls.Add(this.btnSafeShutdown);
+            this.tabPage7.Controls.Add(this.lblBroadcastPrompt);
+            this.tabPage7.Controls.Add(this.txtBroadcastPrompt);
+            this.tabPage7.Controls.Add(this.cmbBroadcastColor);
+            this.tabPage7.Controls.Add(this.btnBroadcastPrompt);
             this.tabPage7.Controls.Add(this.MainOutput);
             this.tabPage7.Location = new System.Drawing.Point(4, 22);
             this.tabPage7.Name = "tabPage7";
@@ -192,6 +210,54 @@ namespace Wonderland_Private_Server
             this.tabPage7.Text = "Status";
             this.tabPage7.UseVisualStyleBackColor = true;
             // 
+            // lblServerName
+            // 
+            this.lblServerName.AutoSize = true;
+            this.lblServerName.Location = new System.Drawing.Point(6, 12);
+            this.lblServerName.Name = "lblServerName";
+            this.lblServerName.Size = new System.Drawing.Size(72, 13);
+            this.lblServerName.TabIndex = 9;
+            this.lblServerName.Text = "Server Name:";
+            // 
+            // txtServerName
+            // 
+            this.txtServerName.Location = new System.Drawing.Point(82, 9);
+            this.txtServerName.Name = "txtServerName";
+            this.txtServerName.Size = new System.Drawing.Size(95, 20);
+            this.txtServerName.TabIndex = 10;
+            this.txtServerName.TextChanged += new System.EventHandler(this.txtServerInfo_TextChanged);
+            // 
+            // lblWelcomeMsg
+            // 
+            this.lblWelcomeMsg.AutoSize = true;
+            this.lblWelcomeMsg.Location = new System.Drawing.Point(183, 12);
+            this.lblWelcomeMsg.Name = "lblWelcomeMsg";
+            this.lblWelcomeMsg.Size = new System.Drawing.Size(42, 13);
+            this.lblWelcomeMsg.TabIndex = 11;
+            this.lblWelcomeMsg.Text = "MOTD:";
+            // 
+            // txtWelcomeMsg
+            // 
+            this.txtWelcomeMsg.Location = new System.Drawing.Point(228, 9);
+            this.txtWelcomeMsg.Name = "txtWelcomeMsg";
+            this.txtWelcomeMsg.Size = new System.Drawing.Size(245, 20);
+            this.txtWelcomeMsg.TabIndex = 12;
+            this.txtWelcomeMsg.TextChanged += new System.EventHandler(this.txtServerInfo_TextChanged);
+            // 
+            // btnSaveServerInfo
+            // 
+            this.btnSaveServerInfo.BackColor = System.Drawing.Color.SeaGreen;
+            this.btnSaveServerInfo.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSaveServerInfo.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnSaveServerInfo.ForeColor = System.Drawing.Color.White;
+            this.btnSaveServerInfo.Location = new System.Drawing.Point(478, 6);
+            this.btnSaveServerInfo.Name = "btnSaveServerInfo";
+            this.btnSaveServerInfo.Size = new System.Drawing.Size(76, 26);
+            this.btnSaveServerInfo.TabIndex = 13;
+            this.btnSaveServerInfo.Text = "💾 Save";
+            this.btnSaveServerInfo.UseVisualStyleBackColor = false;
+            this.btnSaveServerInfo.Click += new System.EventHandler(this.btnSaveServerInfo_Click);
+            // 
             // btnSaveAllNow
             // 
             this.btnSaveAllNow.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -199,11 +265,11 @@ namespace Wonderland_Private_Server
             this.btnSaveAllNow.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnSaveAllNow.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btnSaveAllNow.ForeColor = System.Drawing.Color.White;
-            this.btnSaveAllNow.Location = new System.Drawing.Point(440, 6);
+            this.btnSaveAllNow.Location = new System.Drawing.Point(560, 6);
             this.btnSaveAllNow.Name = "btnSaveAllNow";
-            this.btnSaveAllNow.Size = new System.Drawing.Size(160, 30);
-            this.btnSaveAllNow.TabIndex = 1;
-            this.btnSaveAllNow.Text = "💾 Save All Data Now";
+            this.btnSaveAllNow.Size = new System.Drawing.Size(100, 26);
+            this.btnSaveAllNow.TabIndex = 10;
+            this.btnSaveAllNow.Text = "💾 Save All";
             this.btnSaveAllNow.UseVisualStyleBackColor = false;
             this.btnSaveAllNow.Click += new System.EventHandler(this.btnSaveAllNow_Click);
             // 
@@ -214,24 +280,67 @@ namespace Wonderland_Private_Server
             this.btnSafeShutdown.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnSafeShutdown.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btnSafeShutdown.ForeColor = System.Drawing.Color.White;
-            this.btnSafeShutdown.Location = new System.Drawing.Point(608, 6);
+            this.btnSafeShutdown.Location = new System.Drawing.Point(666, 6);
             this.btnSafeShutdown.Name = "btnSafeShutdown";
-            this.btnSafeShutdown.Size = new System.Drawing.Size(160, 30);
-            this.btnSafeShutdown.TabIndex = 2;
-            this.btnSafeShutdown.Text = "🛡️ Safe Server Shutdown";
+            this.btnSafeShutdown.Size = new System.Drawing.Size(100, 26);
+            this.btnSafeShutdown.TabIndex = 11;
+            this.btnSafeShutdown.Text = "🛡️ Shutdown";
             this.btnSafeShutdown.UseVisualStyleBackColor = false;
             this.btnSafeShutdown.Click += new System.EventHandler(this.btnSafeShutdown_Click);
             // 
+            // lblBroadcastPrompt
+            // 
+            this.lblBroadcastPrompt.AutoSize = true;
+            this.lblBroadcastPrompt.Location = new System.Drawing.Point(6, 43);
+            this.lblBroadcastPrompt.Name = "lblBroadcastPrompt";
+            this.lblBroadcastPrompt.Size = new System.Drawing.Size(74, 13);
+            this.lblBroadcastPrompt.TabIndex = 14;
+            this.lblBroadcastPrompt.Text = "Live Prompt:";
+            // 
+            // txtBroadcastPrompt
+            this.txtBroadcastPrompt.Location = new System.Drawing.Point(82, 40);
+            this.txtBroadcastPrompt.Name = "txtBroadcastPrompt";
+            this.txtBroadcastPrompt.Size = new System.Drawing.Size(290, 20);
+            this.txtBroadcastPrompt.TabIndex = 15;
+            // 
+            // cmbBroadcastColor
+            // 
+            this.cmbBroadcastColor.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbBroadcastColor.FormattingEnabled = true;
+            this.cmbBroadcastColor.Items.AddRange(new object[] {
+            "🔴 Kırmızı (GM Duyurusu)",
+            "🟡 Sarı (Dünya Sohbeti)",
+            "🔵 Mavi (Lonca Sohbeti)",
+            "🟣 Pembe (Fısıltı)"});
+            this.cmbBroadcastColor.Location = new System.Drawing.Point(378, 40);
+            this.cmbBroadcastColor.Name = "cmbBroadcastColor";
+            this.cmbBroadcastColor.Size = new System.Drawing.Size(175, 21);
+            this.cmbBroadcastColor.TabIndex = 16;
+            // 
+            // btnBroadcastPrompt
+            // 
+            this.btnBroadcastPrompt.BackColor = System.Drawing.Color.DarkOrange;
+            this.btnBroadcastPrompt.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnBroadcastPrompt.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnBroadcastPrompt.ForeColor = System.Drawing.Color.White;
+            this.btnBroadcastPrompt.Location = new System.Drawing.Point(560, 37);
+            this.btnBroadcastPrompt.Name = "btnBroadcastPrompt";
+            this.btnBroadcastPrompt.Size = new System.Drawing.Size(120, 26);
+            this.btnBroadcastPrompt.TabIndex = 17;
+            this.btnBroadcastPrompt.Text = "📢 Broadcast";
+            this.btnBroadcastPrompt.UseVisualStyleBackColor = false;
+            this.btnBroadcastPrompt.Click += new System.EventHandler(this.btnBroadcastPrompt_Click);
+            // 
             // MainOutput
             // 
-            this.MainOutput.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.MainOutput.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.MainOutput.BackColor = System.Drawing.SystemColors.InactiveCaptionText;
             this.MainOutput.ForeColor = System.Drawing.Color.White;
-            this.MainOutput.Location = new System.Drawing.Point(6, 42);
+            this.MainOutput.Location = new System.Drawing.Point(6, 130);
             this.MainOutput.Name = "MainOutput";
-            this.MainOutput.Size = new System.Drawing.Size(762, 407);
+            this.MainOutput.Size = new System.Drawing.Size(762, 319);
             this.MainOutput.TabIndex = 8;
             this.MainOutput.Text = "";
             // 
@@ -373,8 +482,8 @@ namespace Wonderland_Private_Server
             // 
             this.dataGridViewUsers.AllowUserToAddRows = false;
             this.dataGridViewUsers.AllowUserToDeleteRows = false;
-            this.dataGridViewUsers.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dataGridViewUsers.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dataGridViewUsers.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dataGridViewUsers.Location = new System.Drawing.Point(6, 6);
@@ -459,7 +568,7 @@ namespace Wonderland_Private_Server
             // 
             this.dgvPortals.AllowUserToAddRows = false;
             this.dgvPortals.AllowUserToDeleteRows = false;
-            this.dgvPortals.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvPortals.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvPortals.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvPortals.Location = new System.Drawing.Point(6, 26);
@@ -473,8 +582,8 @@ namespace Wonderland_Private_Server
             // 
             this.dgvDestinations.AllowUserToAddRows = false;
             this.dgvDestinations.AllowUserToDeleteRows = false;
-            this.dgvDestinations.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvDestinations.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvDestinations.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvDestinations.Location = new System.Drawing.Point(6, 248);
@@ -577,8 +686,8 @@ namespace Wonderland_Private_Server
             // 
             // dgvCharacters
             // 
-            this.dgvCharacters.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvCharacters.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvCharacters.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvCharacters.Location = new System.Drawing.Point(6, 6);
@@ -638,8 +747,8 @@ namespace Wonderland_Private_Server
             // 
             this.dgvSettings.AllowUserToAddRows = false;
             this.dgvSettings.AllowUserToDeleteRows = false;
-            this.dgvSettings.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvSettings.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvSettings.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvSettings.Location = new System.Drawing.Point(6, 6);
@@ -687,8 +796,8 @@ namespace Wonderland_Private_Server
             //
             this.dgvFriends.AllowUserToAddRows = false;
             this.dgvFriends.AllowUserToDeleteRows = false;
-            this.dgvFriends.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvFriends.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvFriends.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvFriends.Location = new System.Drawing.Point(6, 6);
@@ -757,8 +866,8 @@ namespace Wonderland_Private_Server
             //
             this.dgvInventory.AllowUserToAddRows = false;
             this.dgvInventory.AllowUserToDeleteRows = false;
-            this.dgvInventory.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvInventory.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvInventory.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvInventory.Location = new System.Drawing.Point(6, 35);
@@ -827,8 +936,8 @@ namespace Wonderland_Private_Server
             //
             this.dgvStats.AllowUserToAddRows = false;
             this.dgvStats.AllowUserToDeleteRows = false;
-            this.dgvStats.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvStats.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvStats.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvStats.Location = new System.Drawing.Point(6, 35);
@@ -917,8 +1026,8 @@ namespace Wonderland_Private_Server
             // dgvChestDrops
             //
             this.dgvChestDrops.AllowUserToAddRows = false;
-            this.dgvChestDrops.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.dgvChestDrops.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvChestDrops.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dgvChestDrops.Location = new System.Drawing.Point(6, 35);
@@ -962,7 +1071,7 @@ namespace Wonderland_Private_Server
             //
             // grpAddDrop
             //
-            this.grpAddDrop.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            this.grpAddDrop.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.grpAddDrop.Controls.Add(this.lblNewItemId);
             this.grpAddDrop.Controls.Add(this.txtNewItemId);
@@ -1111,7 +1220,7 @@ namespace Wonderland_Private_Server
             // 
             // textBox_FindNPC
             // 
-            this.textBox_FindNPC.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox_FindNPC.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_FindNPC.Location = new System.Drawing.Point(6, 20);
             this.textBox_FindNPC.Name = "textBox_FindNPC";
@@ -1120,8 +1229,8 @@ namespace Wonderland_Private_Server
             // 
             // listBox_NPC
             // 
-            this.listBox_NPC.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.listBox_NPC.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.listBox_NPC.FormattingEnabled = true;
             this.listBox_NPC.Location = new System.Drawing.Point(6, 44);
@@ -1144,7 +1253,7 @@ namespace Wonderland_Private_Server
             // 
             // textBox_FindItems
             // 
-            this.textBox_FindItems.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox_FindItems.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_FindItems.Location = new System.Drawing.Point(6, 20);
             this.textBox_FindItems.Name = "textBox_FindItems";
@@ -1153,8 +1262,8 @@ namespace Wonderland_Private_Server
             // 
             // listBox_Items
             // 
-            this.listBox_Items.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.listBox_Items.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.listBox_Items.FormattingEnabled = true;
             this.listBox_Items.Location = new System.Drawing.Point(6, 44);
@@ -1178,7 +1287,7 @@ namespace Wonderland_Private_Server
             // 
             // button_UnrideVehicle
             // 
-            this.button_UnrideVehicle.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            this.button_UnrideVehicle.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.button_UnrideVehicle.Location = new System.Drawing.Point(6, 368);
             this.button_UnrideVehicle.Name = "button_UnrideVehicle";
@@ -1190,7 +1299,7 @@ namespace Wonderland_Private_Server
             // 
             // textBox_FindVehicle
             // 
-            this.textBox_FindVehicle.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox_FindVehicle.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_FindVehicle.Location = new System.Drawing.Point(6, 20);
             this.textBox_FindVehicle.Name = "textBox_FindVehicle";
@@ -1199,8 +1308,8 @@ namespace Wonderland_Private_Server
             // 
             // listBox_Vehicles
             // 
-            this.listBox_Vehicles.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.listBox_Vehicles.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.listBox_Vehicles.FormattingEnabled = true;
             this.listBox_Vehicles.Location = new System.Drawing.Point(6, 44);
@@ -1223,7 +1332,7 @@ namespace Wonderland_Private_Server
             // 
             // textBox_FindMap
             // 
-            this.textBox_FindMap.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox_FindMap.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox_FindMap.Location = new System.Drawing.Point(6, 20);
             this.textBox_FindMap.Name = "textBox_FindMap";
@@ -1232,8 +1341,8 @@ namespace Wonderland_Private_Server
             // 
             // listBox_Maps
             // 
-            this.listBox_Maps.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.listBox_Maps.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.listBox_Maps.FormattingEnabled = true;
             this.listBox_Maps.Location = new System.Drawing.Point(6, 44);
@@ -1259,7 +1368,7 @@ namespace Wonderland_Private_Server
             this.Controls.Add(this.tabControl1);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Sizable;
             this.Name = "Form1";
-            this.Text = "WLO Private Server CheatEngine";
+            this.Text = "WLO Private Server";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.tabPage6.ResumeLayout(false);
@@ -1386,6 +1495,15 @@ namespace Wonderland_Private_Server
         private System.Windows.Forms.Panel panel_CheatTop;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel_Cheat;
         private System.Windows.Forms.Label label_CheatHint;
+        private System.Windows.Forms.Label lblServerName;
+        private System.Windows.Forms.TextBox txtServerName;
+        private System.Windows.Forms.Label lblWelcomeMsg;
+        private System.Windows.Forms.TextBox txtWelcomeMsg;
+        private System.Windows.Forms.Button btnSaveServerInfo;
+        private System.Windows.Forms.Label lblBroadcastPrompt;
+        private System.Windows.Forms.TextBox txtBroadcastPrompt;
+        private System.Windows.Forms.ComboBox cmbBroadcastColor;
+        private System.Windows.Forms.Button btnBroadcastPrompt;
     }
 }
 

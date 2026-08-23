@@ -26,12 +26,25 @@ namespace Wonderland_Private_Server.ActionCodes
         {
             if (p == null || p.CurMap == null) return;
 
-            // 1-second debounce guard to prevent double/rapid portal teleports
-            if ((DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds < 1000)
+            // Portal debounce and spawn proximity guard
+            double elapsedMs = (DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds;
+            if (elapsedMs < 2500)
             {
-                DebugSystem.Write($"[AC20.Recv8] Portal cooldown active (1s) for {p.CharName}. Ignoring request.");
+                DebugSystem.Write($"[AC20.Recv8] Portal cooldown active ({elapsedMs:F0}ms / 2500ms) for {p.CharName}. Ignoring request.");
                 p.Send(Tools.FromFormat("bb", 20, 8));
                 return;
+            }
+
+            // If player just entered map and is within 120 pixels of their spawn location, ignore re-triggering return portal
+            if (elapsedMs < 4000 && p.LastSpawnX > 0 && p.LastSpawnY > 0)
+            {
+                double spawnDist = Math.Sqrt(Math.Pow((int)p.CurX - (int)p.LastSpawnX, 2) + Math.Pow((int)p.CurY - (int)p.LastSpawnY, 2));
+                if (spawnDist < 120)
+                {
+                    DebugSystem.Write($"[AC20.Recv8] Spawn proximity guard active for {p.CharName} (dist={spawnDist:F1}px from spawn {p.LastSpawnX},{p.LastSpawnY}). Ignoring immediate return portal.");
+                    p.Send(Tools.FromFormat("bb", 20, 8));
+                    return;
+                }
             }
 
             ushort portalID = r.Unpack16();

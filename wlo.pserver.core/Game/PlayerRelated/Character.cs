@@ -84,37 +84,43 @@ namespace Game
         {
             PacketBuilder p = new PacketBuilder();
             p.Begin();
-            p.Add((byte)5);
-            p.Add((byte)3);
-            p.Add((byte)Element);
-            p.Add(CurHP);
-            p.Add((ushort)CurSP);
-            p.Add(Str); //base str
-            p.Add(Con); //base con
-            p.Add(Int); //base int
-            p.Add(Wis); //base wis
-            p.Add(Agi); //base agi
-            p.Add(Level); //lvl
-            p.Add(TotalExp); //exp ???
-            //p.Add(Level -1); //lvl -1
-            p.Add(FullHP); //max hp
-            p.Add((ushort)FullSP); //max sp
-            //-------------- 7 DWords
-            p.Add(417);
-            p.Add(0);
-            p.Add(0);
-            p.Add(240);
-            p.Add(0);
-            p.Add(0);
-            p.Add(0);
+            p.Add((byte)5);                              // Offset 0: ActionCode (byte)
+            p.Add((byte)3);                              // Offset 1: SubCode (byte)
+            p.Add((byte)Element);                        // Offset 2: Element (byte)
+            p.Add((uint)CurHP);                          // Offset 3..6: CurHP (uint, 4B)
+            p.Add((ushort)CurSP);                        // Offset 7..8: CurSP (ushort, 2B)
+            p.Add((ushort)Con);                          // Offset 9..10: CON (ushort, 2B)
+            p.Add((ushort)Int);                          // Offset 11..12: INT (ushort, 2B)
+            p.Add((ushort)Str);                          // Offset 13..14: STR (ushort, 2B)
+            p.Add((ushort)Agi);                          // Offset 15..16: AGI (ushort, 2B)
+            p.Add((ushort)Wis);                          // Offset 17..18: WIS (ushort, 2B)
+            p.Add((byte)(Level > 0 ? Level : 1));        // Offset 19: Level (byte, 1B)
+            p.Add((uint)TotalExp);                       // Offset 20..23: TotalExp (uint, 4B)
+            p.Add((ushort)FullHP);                       // Offset 24..25: FullHP (ushort, 2B)
+            p.Add((ushort)FullSP);                       // Offset 26..27: FullSP (ushort, 2B)
+            
+            // Client internal static state offsets (0x1c .. 0x3d = 34 bytes)
+            p.Add((uint)417);                            // Offset 28..31: DWord (4B)
+            p.Add((ushort)0);                            // Offset 32..33: Word (2B)
+            p.Add((uint)0);                              // Offset 34..37: DWord (4B)
+            p.Add((uint)240);                            // Offset 38..41: DWord (4B)
+            p.Add((uint)0);                              // Offset 42..45: DWord (4B)
+            p.Add((uint)0);                              // Offset 46..49: DWord (4B)
+            p.Add((uint)0);                              // Offset 50..53: DWord (4B)
+            p.Add((uint)0);                              // Offset 54..57: DWord (4B)
+            p.Add((uint)0);                              // Offset 58..61: DWord (4B)
 
-            //--------------- Skills
+            // Offset 62..63 (0x3E..0x3F): SkillCount (ushort)
             p.Add((ushort)0);
-            //--------------- table with rebirth and job
-            p.Add(0);
-            p.Add(Reborn);
-            p.Add((byte)Job);
-            p.Add((byte)Potential);
+
+            // Post-skill trailer offsets
+            p.Add((ushort)SkillPoints);                  // 2 bytes: Available Stat Points (StatusUp)
+            p.Add((ushort)Potential);                    // 2 bytes: Potential
+            p.Add((byte)0);                              // 1 byte: Padding
+            p.Add((byte)(Reborn ? 1 : 0));               // 1 byte: Reborn flag
+            p.Add((byte)Potential);                      // 1 byte: Potential byte
+            p.Add((byte)Job);                            // 1 byte: Reborn Job
+
             Send(new SendPacket(p.End()));
         }
 
@@ -185,6 +191,8 @@ namespace Game
             p.PackArray(src.Worn_Equips ?? new byte[0]);
             p.Pack32(0);
             p.PackString(src.CharName ?? "");
+            p.PackString(src.NickName ?? "");
+            p.Pack32(0);
             return p;
         }
 

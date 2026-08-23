@@ -78,7 +78,6 @@ namespace DataFiles
                     }
 
                     _talkByIndex[r] = dialogue;
-                    _talkByIndex[r + 1] = dialogue;
                     _talkByOffset[(uint)textStart] = dialogue;
                     _talkByOffset[(uint)recOffset] = dialogue;
                 }

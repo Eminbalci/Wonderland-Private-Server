@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,6 +26,10 @@ namespace Game.Code
         bool _locked, firstime, _closed;
 
         ushort _floorcolor = 39062, _wallcolor = 39064;
+
+        public ushort Floor1Color { get { return _floorcolor; } set { _floorcolor = value; } }
+        public ushort Floor1Wallpaper { get { return _wallcolor; } set { _wallcolor = value; } }
+        public bool IsClosed { get { return _closed; } }
 
         // TENT ITEMS
         private List<TentItem> _tentObjects;
@@ -94,41 +98,18 @@ namespace Game.Code
         public void Close()
         {
             if (_closed) return;
-            _ownerMap.onTentClosing(this);
-            WarpData warp = new WarpData();
-            warp.DstMap = (ushort)_ownerMap.MapID;
-            warp.DstX_Axis = (ushort)_mapx;
-            warp.DstY_Axis = (ushort)_mapy;
-            //warp Players  out
-            //foreach (var f in Floors)
-            //{
-
-            //    for (int a = 0; a < Players.Values.Count; a++)
-            //    {
-            //        Players.Values.ToList()[a].DataOut = SendType.Multi;
-            //        SendPacket warpConf = new SendPacket();
-            //        warpConf.PackArray(new byte[] { 20, 7 });
-            //        SendPacket tmp = new SendPacket();
-            //        tmp.PackArray(new byte[] { 23, 32 });
-            //        tmp.Pack(Players.Values.ToList()[a].ID);
-            //        Players.Values.ToList()[a].SendPacket(tmp);
-            //        tmp = new SendPacket();
-            //        tmp.PackArray(new byte[] { 23, 112 });
-            //        tmp.Pack(p.ID);
-            //        Players.Values.ToList()[a].SendPacket(tmp);
-            //        tmp = new SendPacket();
-            //        tmp.PackArray(new byte[] { 23, 132 });
-            //        tmp.Pack(p.ID);
-            //        Players.Values.ToList()[a].SendPacket(tmp);
-
-            //        onWarp_Out(f.Key, ref Players.Values.ToList()[a], warp, false);// warp out of map
-            //        p.X = warp.DstX_Axis;//switch x
-            //        p.Y = warp.DstY_Axis;//switch y
-            //        cGlobal.WLO_World.onTelePort(f.Key, warp, ref p);
-            //        p.DataOut = SendType.Normal;
-
-            //    }
-            //}
+            if (_ownerMap != null)
+            {
+                _ownerMap.onTentClosing(this);
+                if (_owner != null && (_owner.CurMap == this || _owner.CurMap?.Type == MapType.Tent))
+                {
+                    WarpData warp = new WarpData();
+                    warp.DstMap = (ushort)_ownerMap.MapID;
+                    warp.DstX_Axis = (ushort)_mapx;
+                    warp.DstY_Axis = (ushort)_mapy;
+                    _owner.CurMap.Teleport(TeleportType.CmD, _owner, 0, warp);
+                }
+            }
             _closed = true;
         }
 
@@ -184,13 +165,10 @@ namespace Game.Code
             #region TentItems Send
             // REVERTING: SubCmd 3 was showing items (even if outside tent)
             // Using SubCmd 3 format that worked before
-            List<byte> initPacket = new List<byte>();
-            initPacket.Add(0xF4);
-            initPacket.Add(0x44);
-            initPacket.AddRange(BitConverter.GetBytes((ushort)2)); // Length = 2 (AC + SubCmd)
-            initPacket.Add(23);  // AC
-            initPacket.Add(3);   // SubCmd 3
-            t.Send(initPacket.ToArray());
+            SendPacket initPacket = new SendPacket();
+            initPacket.Pack8(23);
+            initPacket.Pack8(3);
+            t.Send(initPacket);
 
             DebugSystem.Write(DebugItemType.Error, $"[Tent] SendMapInfo called - sending items to {t.CharName}");
             SendTentItemsToPlayer(t);
@@ -332,9 +310,9 @@ namespace Game.Code
         /// </summary>
         void InitializeDefaultItems()
         {
-            // Using ID from previous successful captures
-            // Forcing Floor 0 as requested
-            PlaceItem(38049, 43, 42, 0, 0);  // Floor 0
+            // Default beginner crafting furniture in Wonderland Online
+            PlaceItem(38027, 43, 42, 0, 0); // Coconut Basin (38027)
+            PlaceItem(38049, 45, 42, 0, 0); // Work Platform / Low Workbench (38049)
         }
 
         /// <summary>
@@ -407,44 +385,29 @@ namespace Game.Code
         /// </summary>
         public void SendTentItemsToPlayer(Player player)
         {
+            if (player == null) return;
             try
             {
-                // CONFIRMED via Wireshark: Tent items use AC 23, SubCmd 1
-                // Format: AC(1) + SubCmd(1) + ItemID(2) + X(4) + Y(4) + Floor(4) + Count(1) + Rotation(1) + Unknown(2)
-                // Total: 18 bytes (matching client drop packet)
-
                 int sentCount = 0;
                 foreach (var item in _tentObjects)
                 {
                     if (item.ItemID == 0) continue;
 
-                    // COMPLETE MANUAL PACKET (including header) to bypass SendPacket corruption
-                    List<byte> fullPacket = new List<byte>();
-
-                    // Header
-                    fullPacket.Add(0xF4);
-                    fullPacket.Add(0x44);
-
-                    // Length (will be 18 bytes: AC+SubCmd+ItemID+X+Y+Floor+Count+Rot+Unknown)
-                    fullPacket.AddRange(BitConverter.GetBytes((ushort)18));
-
-                    // Payload
-                    fullPacket.Add(23);  // AC
-                    fullPacket.Add(3);   // SubCmd 3 (ground items - was working before)
-                    fullPacket.AddRange(BitConverter.GetBytes(item.ItemID));  // ItemID
-                    fullPacket.AddRange(BitConverter.GetBytes((uint)item.tentX));  // X
-                    fullPacket.AddRange(BitConverter.GetBytes((uint)item.tentY));  // Y
-                    fullPacket.AddRange(BitConverter.GetBytes((uint)item.floor));  // Floor
-                    fullPacket.Add(1);   // Count (MUST BE 1!)
-                    fullPacket.Add(item.rotate);  // Rotation
-                    fullPacket.AddRange(BitConverter.GetBytes((ushort)0));  // Unknown
-
-                    // Send raw bytes directly
-                    player.Send(fullPacket.ToArray());
+                    SendPacket pkt = new SendPacket();
+                    pkt.Pack8(23);
+                    pkt.Pack8(3);
+                    pkt.Pack16(item.ItemID);
+                    pkt.Pack32((uint)item.tentX);
+                    pkt.Pack32((uint)item.tentY);
+                    pkt.Pack32((uint)item.floor);
+                    pkt.Pack8(1);
+                    pkt.Pack8(item.rotate);
+                    pkt.Pack16(0);
+                    player.Send(pkt);
                     sentCount++;
                 }
 
-                DebugSystem.Write(DebugItemType.Error, $"[Tent] ✓ Sent {sentCount} items via AC 23 SubCmd 3 (MapID={this.MapID})");
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] ✓ Sent {sentCount} items via AC 23:3 to {player.CharName} (MapID={this.MapID})");
             }
             catch (Exception ex)
             {

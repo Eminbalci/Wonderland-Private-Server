@@ -20,11 +20,12 @@ namespace Network.ActionCodes
 
         public override void ProcessPkt(Player c, RecievePacket p)
         {
+            string srvName = !string.IsNullOrEmpty(cGlobal.SrvSettings?.ServerName) ? cGlobal.SrvSettings.ServerName : cGlobal.SrvVersion;
             SendPacket s = new SendPacket();
             s.Pack8(1);
             s.Pack8(9);
             s.PackArray(new byte[] { 101, 0, 1 });
-            s.PackStringN(cGlobal.SrvVersion);
+            s.PackStringN(srvName);
             c.Send(s);
 
             // Authentic WLO Mall Category Catalog Matrix (AC 54 Sub 201) from itemmall.pcapng

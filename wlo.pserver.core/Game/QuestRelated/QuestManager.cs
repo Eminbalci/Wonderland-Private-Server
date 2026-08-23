@@ -1108,7 +1108,7 @@ namespace Game.QuestRelated
             }
         }
 
-        public static SendPacket CreatePetPacket(Player player, uint petId, byte slot = 1, int curHp = 250, int maxHp = 250, int curSp = 100, int maxSp = 100, byte amity = 60, byte level = 1)
+        public static SendPacket CreatePetPacket(Player player, uint petId, byte slot = 1, int curHp = 250, int maxHp = 250, int curSp = 100, int maxSp = 100, byte amity = 60, byte level = 1, ushort str = 0, ushort con = 0, ushort int_ = 0, ushort wis = 0, ushort agi = 0, uint exp = 0, bool reborn = false, byte job = 0)
         {
             SendPacket petPkt = new SendPacket();
             petPkt.PackArray(new byte[] { 15, 1 });
@@ -1119,33 +1119,39 @@ namespace Game.QuestRelated
 
             if (pktPetId == 12178 || pktPetId == 12032) // Robinson (Official baseline stats)
             {
-                petPkt.Pack16(7);   // STR: 7
-                petPkt.Pack16(11);  // CON: 11
-                petPkt.Pack16(2);   // INT: 2
-                petPkt.Pack16(4);   // WIS: 4
-                petPkt.Pack16(6);   // AGI: 6
+                petPkt.Pack16(str > 0 ? str : (ushort)7);   // STR: 7
+                petPkt.Pack16(con > 0 ? con : (ushort)11);  // CON: 11
+                petPkt.Pack16(int_ > 0 ? int_ : (ushort)2); // INT: 2
+                petPkt.Pack16(wis > 0 ? wis : (ushort)4);   // WIS: 4
+                petPkt.Pack16(agi > 0 ? agi : (ushort)6);   // AGI: 6
                 petPkt.Pack8(1);    // Water Element
                 petPkt.Pack32(level > 0 ? level : (byte)1);   // Level / Potential
                 petPkt.Pack32((uint)curHp); // CurHP
                 petPkt.Pack32((uint)maxHp); // MaxHP
-                for (int i = 0; i < 7; i++) petPkt.Pack8(0);
+                petPkt.Pack32(exp); // Exp
+                for (int i = 0; i < 3; i++) petPkt.Pack8(0);
                 petPkt.Pack8(amity > 0 ? amity : (byte)60);   // Amity
-                for (int i = 0; i < 13; i++) petPkt.Pack8(0);
+                petPkt.Pack8(reborn ? (byte)1 : (byte)0);
+                petPkt.Pack8(job);
+                for (int i = 0; i < 11; i++) petPkt.Pack8(0);
             }
             else // Monkey / other companions
             {
-                petPkt.Pack16(5);   // STR: 5
-                petPkt.Pack16(8);   // CON: 8
-                petPkt.Pack16(2);   // INT: 2
-                petPkt.Pack16(3);   // WIS: 3
-                petPkt.Pack16(5);   // AGI: 5
+                petPkt.Pack16(str > 0 ? str : (ushort)5);   // STR: 5
+                petPkt.Pack16(con > 0 ? con : (ushort)8);   // CON: 8
+                petPkt.Pack16(int_ > 0 ? int_ : (ushort)2); // INT: 2
+                petPkt.Pack16(wis > 0 ? wis : (ushort)3);   // WIS: 3
+                petPkt.Pack16(agi > 0 ? agi : (ushort)5);   // AGI: 5
                 petPkt.Pack8(0);    // Earth Element
                 petPkt.Pack32(level > 0 ? level : (byte)1);   // Level
                 petPkt.Pack32((uint)curHp); // CurHP
                 petPkt.Pack32((uint)maxHp); // MaxHP
-                for (int i = 0; i < 7; i++) petPkt.Pack8(0);
+                petPkt.Pack32(exp); // Exp
+                for (int i = 0; i < 3; i++) petPkt.Pack8(0);
                 petPkt.Pack8(amity > 0 ? amity : (byte)60);   // Amity
-                for (int i = 0; i < 13; i++) petPkt.Pack8(0);
+                petPkt.Pack8(reborn ? (byte)1 : (byte)0);
+                petPkt.Pack8(job);
+                for (int i = 0; i < 11; i++) petPkt.Pack8(0);
             }
             return petPkt;
         }

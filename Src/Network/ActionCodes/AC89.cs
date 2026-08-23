@@ -28,7 +28,14 @@ namespace Network.ActionCodes
             s.Pack8(1);
             s.PackArray(new byte[] { 0, 1, 1, 3, 2, 3 });
             c.Send(s);
+            c.LastTeleportTime = DateTime.UtcNow; // Scene is fully ready on client, refresh cooldown
             DebugSystem.Write($"[AC89.Recv0] Sent AC 90:1 to {c.CharName}");
+
+            if (!c.MotdSent)
+            {
+                c.MotdSent = true;
+                Server.WorldServer.DispatchLoginMotd(c);
+            }
         }
     }
 }

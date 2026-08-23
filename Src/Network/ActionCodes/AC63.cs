@@ -71,18 +71,7 @@ namespace Network.ActionCodes
                 else
                 {
                     #region Login
-                    SendPacket tmp = new SendPacket();
-                    tmp.Pack8(63);
-                    tmp.Pack8(2);
-                    tmp.Pack32(p.UserAcc.UserID);
-                    p.Send(tmp);
                     cGlobal.gWorld.OnLogin(p);
-
-                    // Automatically send friend list on login and notify online friends
-                    AC14.SendFriendList(p);
-                    AC14.NotifyFriendsStatus(p, true);
-
-                    //NormalLog(p);
                     #endregion
                 }
             }

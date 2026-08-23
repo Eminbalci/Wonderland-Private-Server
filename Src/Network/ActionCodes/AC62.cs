@@ -55,10 +55,15 @@ namespace Network.ActionCodes
 
                 if (p.Tent != null)
                 {
-                    DebugSystem.Write(DebugItemType.Error, "[Tent] FORCE PLACING Coconut Basin (38027) at (43,42)");
-                    p.Tent.PlaceItem(38027, 43, 42, 0, 0);
+                    ushort placeItemId = 38027;
+                    if (p.Inv != null && slotIndex > 0 && slotIndex <= 50 && p.Inv[slotIndex].ItemID > 0)
+                    {
+                        placeItemId = p.Inv[slotIndex].ItemID;
+                        p.Inv.RemoveItem(slotIndex, 1, true);
+                    }
 
-                    // ALWAYS Refresh Tent Items (To trigger Matrix Test) with the new item included
+                    p.Tent.PlaceItem(placeItemId, (int)x, (int)y, (int)floor, 0);
+
                     p.Tent.SendTentItemsToPlayer(p);
 
                     // Send Confirmation
@@ -66,6 +71,8 @@ namespace Network.ActionCodes
                     confirmation.PackArray(new byte[] { 62, 1 });
                     confirmation.Pack8(1);
                     p.Send(confirmation);
+
+                    cGlobal.gCharacterDataBase?.SaveTentData(p);
                 }
             }
             catch (Exception ex)
@@ -84,9 +91,6 @@ namespace Network.ActionCodes
                 uint floor = r.Unpack32();
                 byte rotation = 0;
 
-                // Try reading rotation if available
-                // if (r.Buffer.Count > r.Offset) rotation = r.Unpack8();
-                // User capture shows 'ad' (00) at end. Assuming Rot.
                 try { rotation = r.Unpack8(); } catch { }
 
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] AC62,3 Move: Index {index} to ({x},{y}) Flr {floor} Rot {rotation}");
@@ -95,6 +99,7 @@ namespace Network.ActionCodes
                 {
                     p.Tent.MoveItem(index, (int)x, (int)y, (int)floor, rotation);
                     p.Tent.SendTentItemsToPlayer(p);
+                    cGlobal.gCharacterDataBase?.SaveTentData(p);
                 }
             }
             catch (Exception t) { Console.WriteLine(t); }

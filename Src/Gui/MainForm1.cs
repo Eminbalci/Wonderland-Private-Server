@@ -34,6 +34,7 @@ namespace Wonderland_Private_Server
             SetupMonsterDropsTab();
             SetupTalkResolverTab();
             SetupMapNpcStudioTab();
+            SetupNpcResolverTab();
             SetupServerStatusControl();
         }
 
@@ -133,21 +134,20 @@ namespace Wonderland_Private_Server
                 catch { }
             };
 
-            Task.Run(() =>
+            try
             {
-                Thread.Sleep(2000); // Wait for server initialization
-                try
+                if (cGlobal.SrvSettings != null)
                 {
-                    this.Invoke(new Action(() =>
-                    {
-                        LoadCharacterFilters();
-                        LoadChestDropTargets();
-                        RefreshMonsterListGrid();
-                        RefreshMallGrid();
-                    }));
+                    txtServerName.Text = cGlobal.SrvSettings.ServerName ?? "Wonderland";
+                    txtWelcomeMsg.Text = cGlobal.SrvSettings.WelcomeMessage ?? "Welcome to the WLO Community Server! Enjoy!";
                 }
-                catch { }
-            });
+                if (cmbBroadcastColor.SelectedIndex < 0) cmbBroadcastColor.SelectedIndex = 0;
+                LoadCharacterFilters();
+                LoadChestDropTargets();
+                RefreshMonsterListGrid();
+                RefreshMallGrid();
+            }
+            catch { }
         }
 
         void GuiThread()
@@ -298,20 +298,30 @@ namespace Wonderland_Private_Server
             #region load settings file
 
             DebugSystem.Write("Loading Settings File");
-            if (System.IO.File.Exists(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo"))
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo";
+            string localDataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Config.settings.wlo");
+            string targetPath = File.Exists(appDataPath) ? appDataPath : (File.Exists(localDataPath) ? localDataPath : null);
+
+            if (!string.IsNullOrEmpty(targetPath))
             {
                 System.Xml.Serialization.XmlSerializer diskio = new System.Xml.Serialization.XmlSerializer(typeof(Server.Config.Settings));
 
                 try
                 {
-                    using (StreamReader file = new StreamReader(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo"))
+                    using (System.IO.StreamReader file = new System.IO.StreamReader(targetPath, System.Text.Encoding.UTF8))
                         cGlobal.SrvSettings = (Server.Config.Settings)diskio.Deserialize(file);
-                    DebugSystem.Write("Settings File loaded successfully");
+                    DebugSystem.Write($"Settings File loaded successfully from: {targetPath}");
                 }
-                catch { DebugSystem.Write("Settings File failed to load"); }
+                catch (Exception ex) { DebugSystem.Write($"Settings File failed to load: {ex.Message}"); }
             }
             else
-                DebugSystem.Write("Settings File not found");
+                DebugSystem.Write("Settings File not found, using default settings");
+
+            if (cGlobal.SrvSettings != null)
+            {
+                txtServerName.Text = cGlobal.SrvSettings.ServerName ?? "Wonderland";
+                txtWelcomeMsg.Text = cGlobal.SrvSettings.WelcomeMessage ?? "Welcome to the WLO Community Server! Enjoy!";
+            }
 
 
 
@@ -1779,6 +1789,78 @@ namespace Wonderland_Private_Server
         #endregion
 
         #region Safe Shutdown & Data Save
+        private void txtServerInfo_TextChanged(object sender, EventArgs e)
+        {
+            if (cGlobal.SrvSettings == null) return;
+            cGlobal.SrvSettings.ServerName = txtServerName.Text;
+            cGlobal.SrvSettings.WelcomeMessage = txtWelcomeMsg.Text;
+        }
+
+        private void btnSaveServerInfo_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (cGlobal.SrvSettings == null) cGlobal.SrvSettings = new Server.Config.Settings();
+                cGlobal.SrvSettings.ServerName = txtServerName.Text;
+                cGlobal.SrvSettings.WelcomeMessage = txtWelcomeMsg.Text;
+                string path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo";
+                cGlobal.SrvSettings.SaveSettings(path);
+                MessageBox.Show($"Server information saved successfully!\nServer Name: {txtServerName.Text}\nMOTD: {txtWelcomeMsg.Text}", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error saving server info: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnBroadcastPrompt_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(txtBroadcastPrompt.Text))
+                {
+                    MessageBox.Show("Please enter a prompt/announcement text to broadcast.", "Prompt Empty", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string promptText = txtBroadcastPrompt.Text.Trim();
+                int colorIdx = cmbBroadcastColor.SelectedIndex >= 0 ? cmbBroadcastColor.SelectedIndex : 0;
+                var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                if (online != null && online.Count > 0)
+                {
+                    var lines = promptText.Split(new[] { "\r\n", "\n", "|", "||" }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var p in online)
+                    {
+                        try
+                        {
+                            byte chatType = 4; // 🔴 Kırmızı (GM Duyurusu - AC 2:4)
+                            if (colorIdx == 1) chatType = 1; // 🟡 Sarı (Dünya Sohbeti - AC 2:1)
+                            else if (colorIdx == 2) chatType = 6; // 🔵 Mavi (Lonca Sohbeti - AC 2:6)
+                            else if (colorIdx == 3) chatType = 3; // 🟣 Pembe (Fısıltı - AC 2:3)
+
+                            foreach (var line in lines)
+                            {
+                                string trimmed = line.Trim();
+                                if (string.IsNullOrEmpty(trimmed)) continue;
+                                Server.WorldServer.SendChatMessage(p, chatType, trimmed);
+                            }
+                        }
+                        catch { }
+                    }
+                    DebugSystem.Write(DebugItemType.Info_Light, $"[Broadcast] System prompt broadcasted to {online.Count} player(s): {promptText}");
+                    MessageBox.Show($"Broadcast sent successfully to {online.Count} online player(s)!\nPrompt: {promptText}", "Broadcast Sent", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("No players are currently online to receive the broadcast.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error broadcasting system prompt: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private void btnSaveAllNow_Click(object sender, EventArgs e)
         {
             try
@@ -2874,15 +2956,15 @@ namespace Wonderland_Private_Server
                     Text = "🌐 Sunucu Listesi Trafik Işığı / Doluluk Rengi (Port 6416)",
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue,
-                    Location = new System.Drawing.Point(6, 42),
-                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 65),
+                    Location = new System.Drawing.Point(6, 68),
+                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 58),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
                 };
 
                 Label lblStatus = new Label
                 {
                     Text = "Sunucu Durumu:",
-                    Location = new System.Drawing.Point(10, 26),
+                    Location = new System.Drawing.Point(10, 24),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.Black
@@ -2890,7 +2972,7 @@ namespace Wonderland_Private_Server
 
                 cmbServerStatus = new ComboBox
                 {
-                    Location = new System.Drawing.Point(125, 23),
+                    Location = new System.Drawing.Point(125, 21),
                     Size = new System.Drawing.Size(220, 24),
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     Font = new System.Drawing.Font("Segoe UI", 9f)
@@ -2921,7 +3003,7 @@ namespace Wonderland_Private_Server
                 Button btnSetGreen = new Button
                 {
                     Text = "🟢 Yeşil",
-                    Location = new System.Drawing.Point(355, 22),
+                    Location = new System.Drawing.Point(355, 20),
                     Size = new System.Drawing.Size(90, 26),
                     BackColor = System.Drawing.Color.LightGreen,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2931,7 +3013,7 @@ namespace Wonderland_Private_Server
                 Button btnSetYellow = new Button
                 {
                     Text = "🟡 Sarı",
-                    Location = new System.Drawing.Point(450, 22),
+                    Location = new System.Drawing.Point(450, 20),
                     Size = new System.Drawing.Size(90, 26),
                     BackColor = System.Drawing.Color.Khaki,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2941,7 +3023,7 @@ namespace Wonderland_Private_Server
                 Button btnSetRed = new Button
                 {
                     Text = "🔴 Kırmızı",
-                    Location = new System.Drawing.Point(545, 22),
+                    Location = new System.Drawing.Point(545, 20),
                     Size = new System.Drawing.Size(95, 26),
                     BackColor = System.Drawing.Color.MistyRose,
                     ForeColor = System.Drawing.Color.DarkRed,
@@ -2952,7 +3034,7 @@ namespace Wonderland_Private_Server
                 Button btnSetAuto = new Button
                 {
                     Text = "⚡ Otomatik",
-                    Location = new System.Drawing.Point(645, 22),
+                    Location = new System.Drawing.Point(645, 20),
                     Size = new System.Drawing.Size(105, 26),
                     BackColor = System.Drawing.Color.LightCyan,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2966,8 +3048,8 @@ namespace Wonderland_Private_Server
                 this.tabPage7.Controls.Add(grpServerStatus);
 
                 // Adjust MainOutput position
-                this.MainOutput.Location = new System.Drawing.Point(6, 112);
-                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 118);
+                this.MainOutput.Location = new System.Drawing.Point(6, 130);
+                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 136);
 
                 RefreshServerStatusUi();
             }
@@ -4228,6 +4310,426 @@ namespace Wonderland_Private_Server
             {
                 MessageBox.Show($"Error simulating event: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+        #endregion
+
+        #region NPC Name Resolver & Template Directory Tab
+        private TabPage tabNpcResolver;
+        private NumericUpDown numNpcResolverTid;
+        private TextBox txtNpcResolverSearch;
+        private Label lblNpcResolvedName;
+        private Label lblNpcResolvedCategory;
+        private Label lblNpcResolvedHex;
+        private Label lblNpcResolvedStatus;
+        private Label lblNpcResolverStats;
+        private ComboBox cmbNpcCategoryFilter;
+        private DataGridView dgvNpcDirectory;
+        private System.Data.DataTable dtNpcDirectory;
+        private RichTextBox rtbNpcWorldSpawns;
+
+        private void SetupNpcResolverTab()
+        {
+            try
+            {
+                tabNpcResolver = new TabPage("🧙 NPC Name Resolver")
+                {
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Padding = new Padding(6)
+                };
+
+                if (this.tabControl3 != null && !this.tabControl3.TabPages.Contains(tabNpcResolver))
+                {
+                    this.tabControl3.TabPages.Add(tabNpcResolver);
+                }
+
+                // Top GroupBox: Live Template Resolver & Quick Lookup
+                GroupBox grpResolver = new GroupBox
+                {
+                    Text = "⚡ Live NPC Template Resolver & Inspection",
+                    Dock = DockStyle.Top,
+                    Height = 135,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateBlue,
+                    Padding = new Padding(8)
+                };
+
+                Panel pnlInputs = new Panel { Dock = DockStyle.Top, Height = 32 };
+
+                Label lblTid = new Label { Text = "Template ID (TID):", Location = new System.Drawing.Point(4, 6), AutoSize = true, ForeColor = System.Drawing.Color.Black };
+                numNpcResolverTid = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(125, 4),
+                    Size = new System.Drawing.Size(100, 23),
+                    Maximum = 65535,
+                    Value = 10001,
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                numNpcResolverTid.ValueChanged += (s, e) => ExecuteNpcResolution();
+
+                Button btnResolve = new Button
+                {
+                    Text = "🔍 Resolve Template",
+                    Location = new System.Drawing.Point(235, 3),
+                    Size = new System.Drawing.Size(135, 25),
+                    BackColor = System.Drawing.Color.LightSkyBlue,
+                    ForeColor = System.Drawing.Color.Black,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnResolve.Click += (s, e) => ExecuteNpcResolution();
+
+                Button btnReloadNpcDat = new Button
+                {
+                    Text = "🔄 Reload Npc.dat",
+                    Location = new System.Drawing.Point(380, 3),
+                    Size = new System.Drawing.Size(135, 25),
+                    BackColor = System.Drawing.Color.LightCyan,
+                    ForeColor = System.Drawing.Color.Black,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnReloadNpcDat.Click += (s, e) =>
+                {
+                    Game.DataFiles.SceneDataManager.Initialize();
+                    PopulateNpcDirectoryGrid();
+                    ExecuteNpcResolution();
+                    MessageBox.Show("Npc.dat binary database reloaded and indexed successfully!", "Reloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                pnlInputs.Controls.AddRange(new Control[] { lblTid, numNpcResolverTid, btnResolve, btnReloadNpcDat });
+
+                // Resolution Info Bar Cards
+                Panel pnlInfoBar = new Panel { Dock = DockStyle.Fill, BackColor = System.Drawing.Color.FromArgb(242, 245, 250), Padding = new Padding(6) };
+                lblNpcResolvedName = new Label
+                {
+                    Text = "Name: Breillat",
+                    Location = new System.Drawing.Point(8, 8),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 12f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.MidnightBlue
+                };
+                lblNpcResolvedCategory = new Label
+                {
+                    Text = "Category: Humanoid NPC",
+                    Location = new System.Drawing.Point(8, 38),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkGreen
+                };
+                lblNpcResolvedHex = new Label
+                {
+                    Text = "Hex ID: 0x2711",
+                    Location = new System.Drawing.Point(260, 38),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkMagenta
+                };
+                lblNpcResolvedStatus = new Label
+                {
+                    Text = "Source: Authentic Npc.dat Binary Decode",
+                    Location = new System.Drawing.Point(430, 38),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateGray
+                };
+
+                pnlInfoBar.Controls.AddRange(new Control[] { lblNpcResolvedName, lblNpcResolvedCategory, lblNpcResolvedHex, lblNpcResolvedStatus });
+                grpResolver.Controls.Add(pnlInfoBar);
+                grpResolver.Controls.Add(pnlInputs);
+
+                // Main Split Container: Left = Directory Grid, Right = World Spawn Inspector
+                SplitContainer splitMain = new SplitContainer
+                {
+                    Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical,
+                    SplitterDistance = 620,
+                    Padding = new Padding(0, 6, 0, 0)
+                };
+
+                // Left Panel: Directory Grid & Filters
+                Panel pnlDirectoryHeader = new Panel { Dock = DockStyle.Top, Height = 34 };
+                Label lblSearch = new Label { Text = "🔍 Filter Search:", Location = new System.Drawing.Point(4, 7), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
+                txtNpcResolverSearch = new TextBox
+                {
+                    Location = new System.Drawing.Point(105, 4),
+                    Size = new System.Drawing.Size(160, 23),
+                    Font = new System.Drawing.Font("Segoe UI", 9f)
+                };
+                txtNpcResolverSearch.TextChanged += (s, e) => FilterNpcDirectory();
+
+                Label lblCat = new Label { Text = "Category:", Location = new System.Drawing.Point(275, 7), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
+                cmbNpcCategoryFilter = new ComboBox
+                {
+                    Location = new System.Drawing.Point(340, 4),
+                    Size = new System.Drawing.Size(150, 23),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f)
+                };
+                cmbNpcCategoryFilter.Items.AddRange(new object[] { "All Categories", "Companions (10000-12999)", "Humanoids & NPCs (13000-15999)", "Monsters & Animals (16000-18999)", "Props & Gathering (19000+)" });
+                cmbNpcCategoryFilter.SelectedIndex = 0;
+                cmbNpcCategoryFilter.SelectedIndexChanged += (s, e) => FilterNpcDirectory();
+
+                lblNpcResolverStats = new Label
+                {
+                    Text = "Loaded 0 NPCs",
+                    Location = new System.Drawing.Point(500, 7),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkBlue
+                };
+
+                pnlDirectoryHeader.Controls.AddRange(new Control[] { lblSearch, txtNpcResolverSearch, lblCat, cmbNpcCategoryFilter, lblNpcResolverStats });
+
+                dgvNpcDirectory = new DataGridView
+                {
+                    Dock = DockStyle.Fill,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    ReadOnly = true,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = false,
+                    BackgroundColor = System.Drawing.Color.White,
+                    RowHeadersVisible = false,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                };
+                dgvNpcDirectory.SelectionChanged += (s, e) => OnNpcDirectorySelectionChanged();
+
+                splitMain.Panel1.Controls.Add(dgvNpcDirectory);
+                splitMain.Panel1.Controls.Add(pnlDirectoryHeader);
+
+                // Right Panel: World Map Spawn Inspector
+                GroupBox grpSpawns = new GroupBox
+                {
+                    Text = "🗺️ World Map Spawns & Placements",
+                    Dock = DockStyle.Fill,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.MidnightBlue,
+                    Padding = new Padding(6)
+                };
+
+                rtbNpcWorldSpawns = new RichTextBox
+                {
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    BackColor = System.Drawing.Color.FromArgb(250, 252, 255),
+                    Font = new System.Drawing.Font("Consolas", 9f),
+                    BorderStyle = BorderStyle.None
+                };
+                grpSpawns.Controls.Add(rtbNpcWorldSpawns);
+                splitMain.Panel2.Controls.Add(grpSpawns);
+
+                tabNpcResolver.Controls.Add(splitMain);
+                tabNpcResolver.Controls.Add(grpResolver);
+
+                // Populate Directory
+                PopulateNpcDirectoryGrid();
+                ExecuteNpcResolution();
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[SetupNpcResolverTab] Error setting up NPC resolver tab: {ex.Message}");
+            }
+        }
+
+        private void PopulateNpcDirectoryGrid()
+        {
+            try
+            {
+                dtNpcDirectory = new System.Data.DataTable();
+                dtNpcDirectory.Columns.Add("Template ID", typeof(uint));
+                dtNpcDirectory.Columns.Add("Hex ID", typeof(string));
+                dtNpcDirectory.Columns.Add("NPC Name", typeof(string));
+                dtNpcDirectory.Columns.Add("Category", typeof(string));
+
+                var allNames = Game.DataFiles.SceneDataManager.GetAllNpcNames();
+                foreach (var kvp in allNames.OrderBy(k => k.Key))
+                {
+                    dtNpcDirectory.Rows.Add(kvp.Key, $"0x{kvp.Key:X4}", kvp.Value, GetNpcCategory(kvp.Key));
+                }
+
+                if (dgvNpcDirectory != null)
+                {
+                    dgvNpcDirectory.DataSource = dtNpcDirectory;
+                    if (dgvNpcDirectory.Columns["Template ID"] != null) dgvNpcDirectory.Columns["Template ID"].Width = 100;
+                    if (dgvNpcDirectory.Columns["Hex ID"] != null) dgvNpcDirectory.Columns["Hex ID"].Width = 90;
+                    if (dgvNpcDirectory.Columns["NPC Name"] != null) dgvNpcDirectory.Columns["NPC Name"].Width = 200;
+                    if (dgvNpcDirectory.Columns["Category"] != null) dgvNpcDirectory.Columns["Category"].Width = 180;
+                }
+
+                if (lblNpcResolverStats != null)
+                {
+                    lblNpcResolverStats.Text = $"Showing {dtNpcDirectory.Rows.Count} NPCs";
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PopulateNpcDirectoryGrid] Error: {ex.Message}");
+            }
+        }
+
+        private void FilterNpcDirectory()
+        {
+            try
+            {
+                if (dtNpcDirectory == null) return;
+                string query = txtNpcResolverSearch?.Text?.Trim() ?? "";
+                string selectedCat = cmbNpcCategoryFilter?.SelectedItem?.ToString() ?? "All Categories";
+
+                var filters = new List<string>();
+
+                if (!string.IsNullOrEmpty(query))
+                {
+                    string safe = query.Replace("'", "''");
+                    if (uint.TryParse(query, out uint qId))
+                    {
+                        filters.Add($"[Template ID] = {qId} OR [NPC Name] LIKE '%{safe}%' OR [Hex ID] LIKE '%{safe}%'");
+                    }
+                    else
+                    {
+                        filters.Add($"[NPC Name] LIKE '%{safe}%' OR [Hex ID] LIKE '%{safe}%'");
+                    }
+                }
+
+                if (selectedCat != "All Categories")
+                {
+                    if (selectedCat.StartsWith("Companions")) filters.Add("[Template ID] >= 10000 AND [Template ID] <= 12999");
+                    else if (selectedCat.StartsWith("Humanoids")) filters.Add("[Template ID] >= 13000 AND [Template ID] <= 15999");
+                    else if (selectedCat.StartsWith("Monsters")) filters.Add("[Template ID] >= 16000 AND [Template ID] <= 18999");
+                    else if (selectedCat.StartsWith("Props")) filters.Add("[Template ID] >= 19000");
+                }
+
+                dtNpcDirectory.DefaultView.RowFilter = filters.Count > 0 ? string.Join(" AND ", filters) : "";
+
+                if (lblNpcResolverStats != null)
+                {
+                    lblNpcResolverStats.Text = $"Showing {dtNpcDirectory.DefaultView.Count} of {dtNpcDirectory.Rows.Count} NPCs";
+                }
+            }
+            catch { }
+        }
+
+        private void OnNpcDirectorySelectionChanged()
+        {
+            try
+            {
+                if (dgvNpcDirectory == null || dgvNpcDirectory.SelectedRows.Count == 0) return;
+                var row = dgvNpcDirectory.SelectedRows[0];
+                if (row.Cells["Template ID"].Value != null)
+                {
+                    uint tid = Convert.ToUInt32(row.Cells["Template ID"].Value);
+                    if (numNpcResolverTid != null && numNpcResolverTid.Value != tid)
+                    {
+                        numNpcResolverTid.Value = tid;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void ExecuteNpcResolution()
+        {
+            try
+            {
+                if (numNpcResolverTid == null) return;
+                uint tid = (uint)numNpcResolverTid.Value;
+
+                string authenticName = Game.DataFiles.SceneDataManager.GetNpcName(tid);
+                string category = GetNpcCategory(tid);
+
+                if (lblNpcResolvedName != null)
+                {
+                    lblNpcResolvedName.Text = $"🏷️ NPC Name: {authenticName}";
+                }
+
+                if (lblNpcResolvedCategory != null)
+                {
+                    lblNpcResolvedCategory.Text = $"Category: {category}";
+                }
+
+                if (lblNpcResolvedHex != null)
+                {
+                    lblNpcResolvedHex.Text = $"Hex ID: 0x{tid:X4} ({tid})";
+                }
+
+                if (lblNpcResolvedStatus != null)
+                {
+                    bool isDatDirect = Game.DataFiles.SceneDataManager.GetAllNpcNames().ContainsKey(tid);
+                    lblNpcResolvedStatus.Text = isDatDirect ? "Source: Direct Npc.dat Binary Decode" : "Source: Categorical Fallback Label";
+                }
+
+                if (rtbNpcWorldSpawns != null)
+                {
+                    rtbNpcWorldSpawns.Text = FormatNpcWorldSpawns(tid, authenticName);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ExecuteNpcResolution] Error: {ex.Message}");
+            }
+        }
+
+        private string GetNpcCategory(uint tid)
+        {
+            if (tid >= 10000 && tid <= 12999) return "Companion / Special";
+            if (tid >= 13000 && tid <= 15999) return "Humanoid / Villager";
+            if (tid >= 16000 && tid <= 18999) return "Monster / Animal";
+            if (tid >= 19000 && tid <= 29999) return "Prop / Node / Chest";
+            return "General Entity";
+        }
+
+        private string FormatNpcWorldSpawns(uint templateId, string npcName)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("===============================================================================");
+            sb.AppendLine($" WORLD MAP SPAWN ANALYSIS FOR NPC TEMPLATE #{templateId} ('{npcName}')");
+            sb.AppendLine("===============================================================================\r\n");
+
+            var eve = cGlobal.gGameDataBase?.EveDat;
+            if (eve == null || eve.AllMaps == null || eve.AllMaps.Count == 0)
+            {
+                sb.AppendLine("⚠️ Eve.Emg database is not loaded or has no maps in memory.");
+                return sb.ToString();
+            }
+
+            int spawnCount = 0;
+            foreach (var kvp in eve.AllMaps)
+            {
+                ushort mapId = kvp.Key;
+                var mapData = kvp.Value;
+                if (mapData?.Npclist == null) continue;
+
+                foreach (var npc in mapData.Npclist)
+                {
+                    if (npc.npcId == templateId)
+                    {
+                        spawnCount++;
+                        string mapName = Game.DataFiles.SceneDataManager.GetMapName(mapId);
+                        sb.AppendLine($"📍 Map #{mapId} ({mapName})");
+                        sb.AppendLine($"   • Click ID: #{npc.clickId}");
+                        sb.AppendLine($"   • Coordinates: X={npc.x}, Y={npc.y}");
+                        if (npc.Events != null && npc.Events.Count > 0)
+                        {
+                            sb.AppendLine($"   • Linked Events: {string.Join(", ", npc.Events.Select(e => $"Event #{e}"))}");
+                        }
+                        else
+                        {
+                            sb.AppendLine("   • Linked Events: None (Ambient NPC / Static Prop)");
+                        }
+                        sb.AppendLine();
+                    }
+                }
+            }
+
+            if (spawnCount == 0)
+            {
+                sb.AppendLine($"ℹ️ Template #{templateId} is not statically pre-placed on any map via eve.Emg.");
+                sb.AppendLine("   (It may be dynamically spawned in battles, quest cutscenes, or minigames).");
+            }
+            else
+            {
+                sb.AppendLine("-------------------------------------------------------------------------------");
+                sb.AppendLine($"Total Static Map Spawns: {spawnCount} locations.");
+            }
+
+            return sb.ToString();
         }
         #endregion
     }

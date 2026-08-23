@@ -122,6 +122,17 @@ namespace DataBase
             chartent.Add("floor2wallpaperr", "int");
             #endregion
 
+            #region chartent_items Columns
+            Dictionary<string, string> chartent_items = new Dictionary<string, string>();
+            chartent_items.Add("pri_key", "int/NN/AI/PK");
+            chartent_items.Add("charID", "int/NN");
+            chartent_items.Add("itemID", "int");
+            chartent_items.Add("posX", "int");
+            chartent_items.Add("posY", "int");
+            chartent_items.Add("floor", "int");
+            chartent_items.Add("rotate", "int");
+            #endregion
+
             #region charquest Columns
             Dictionary<string, string> charquest = new Dictionary<string, string>();
             charquest.Add("pri_key", "int/NN/AI/PK");
@@ -411,6 +422,63 @@ namespace DataBase
                     goto retry3;
                 }
             }
+            #endregion
+
+            #region chartent_items Verification
+            DebugSystem.Write("Checking for chartent_items table");
+        retry_tent_items:
+            if (GetDataTable("SELECT * FROM chartent_items") != null) goto exist_tent_items;
+
+            DebugSystem.Write("Setting up chartent_items table");
+            nonsqlite_prikey = "";
+            cmstr = "create table chartent_items (";
+
+            foreach (var t in chartent_items)
+            {
+                var str = "";
+                var att = t.Value.Split('/');
+
+                switch (ServType)
+                {
+                    case RCLibrary.Core.DataBaseTypes.MySQl:
+                        foreach (var a in att)
+                            switch (a)
+                            {
+                                case "text": str += "text "; break;
+                                case "int": str += "int(11) "; break;
+                                case "NN": str += "NOT NULL "; break;
+                                case "AI": str += "AUTO_INCREMENT "; break;
+                                case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
+                            }
+                        break;
+                    case RCLibrary.Core.DataBaseTypes.Sqlite:
+                        foreach (var a in att)
+                            switch (a)
+                            {
+                                case "text": str += "text "; break;
+                                case "int": str += "INTEGER "; break;
+                                case "NN": str += "NOT NULL "; break;
+                                case "PK": str += "PRIMARY KEY "; break;
+                                case "AI": str += "AUTOINCREMENT "; break;
+                            }
+                        break;
+                }
+                cmstr += string.Format("{0} {1},", t.Key, str);
+            }
+
+            if (nonsqlite_prikey != "")
+                cmstr += string.Format("{0},", nonsqlite_prikey);
+
+            cmstr = cmstr.Substring(0, cmstr.Length - 1);
+            if (ServType == RCLibrary.Core.DataBaseTypes.MySQl)
+                cmstr += ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
+            else if (ServType == RCLibrary.Core.DataBaseTypes.Sqlite)
+                cmstr += ");";
+
+            ExecuteNonQuery(cmstr);
+
+        exist_tent_items:
+            DebugSystem.Write("Found chartent_items table");
             #endregion
 
             #region charquest Verification
@@ -857,6 +925,9 @@ namespace DataBase
             try { ExecuteNonQuery("DELETE FROM chartent WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
+            try { ExecuteNonQuery("DELETE FROM chartent_items WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
             try { ExecuteNonQuery("DELETE FROM charunlocks WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
@@ -1189,6 +1260,17 @@ namespace DataBase
             }
             #endregion
 
+            #region load tent data
+            try
+            {
+                LoadTentData(t);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[DEBUG] Error loading tent data for {t.CharName}: {ex.Message}");
+            }
+            #endregion
+
             return true;
         }
 
@@ -1202,6 +1284,7 @@ namespace DataBase
                 ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM charquest WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM chartent WHERE charID = '" + charID + "';");
+                ExecuteNonQuery("DELETE FROM chartent_items WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM charunlocks WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM stats WHERE charID = '" + charID + "';");
@@ -1501,8 +1584,25 @@ namespace DataBase
             #region write pets
             try
             {
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0);");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN exp INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN str INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN con INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN int_ INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN wis INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN agi INT DEFAULT 10;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN potential INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN skillPoints INT DEFAULT 0;"); } catch { }
                 try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN reborn TINYINT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN job TINYINT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_head INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_body INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_weapon INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_wrist INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_shoes INT DEFAULT 0;"); } catch { }
+                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_special INT DEFAULT 0;"); } catch { }
+
                 ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
                 List<string> petRows = new List<string>();
 
@@ -1515,8 +1615,8 @@ namespace DataBase
                         {
                             uint pId = (pet.PetID == 12178) ? 12032 : pet.PetID;
                             string pName = (pet.PetName == "Companion #12178" || pet.PetName == "Companion") ? "Robinson" : (pet.PetName ?? "");
-                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','0')",
-                                charID, pet.Slot, pId, pName.Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0));
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','{18}','{19}','0','{20}','{21}','{22}','{23}','{24}','{25}','{26}','{27}')",
+                                charID, pet.Slot, pId, pName.Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special));
                         }
                     }
                 }
@@ -1528,15 +1628,15 @@ namespace DataBase
                     {
                         if (pet.PetID > 0)
                         {
-                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','1')",
-                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, 0, 0));
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','0','0','1','{18}','{19}','{20}','{21}','{22}','{23}','{24}','{25}')",
+                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special));
                         }
                     }
                 }
 
                 if (petRows.Count > 0)
                 {
-                    ExecuteNonQuery(string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,hp,maxHp,sp,maxSp,amity,isBattle,isRide,isHotel) VALUES {0};", string.Join(",", petRows)));
+                    ExecuteNonQuery(string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,exp,hp,maxHp,sp,maxSp,str,con,int_,wis,agi,potential,skillPoints,amity,isBattle,isRide,isHotel,reborn,job,eq_head,eq_body,eq_weapon,eq_wrist,eq_shoes,eq_special) VALUES {0};", string.Join(",", petRows)));
                 }
             }
             catch (Exception ex)
@@ -1597,8 +1697,103 @@ namespace DataBase
             }
             #endregion
 
+            #region write tent data
+            try
+            {
+                SaveTentData(player);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving tent data for charID {charID}: {ex.Message}");
+            }
+            #endregion
+
             return true;
         }
+
+        #region Tent Database Persistence
+        public void LoadTentData(Player player)
+        {
+            if (player == null || player.CharID == 0 || player.Tent == null) return;
+            try
+            {
+                // 1. Load Tent Attributes
+                DataTable dt = GetDataTable($"SELECT * FROM chartent WHERE charID = '{player.CharID}'");
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    DataRow row = dt.Rows[0];
+                    if (row["floor1Color"] != DBNull.Value) player.Tent.Floor1Color = ushort.Parse(row["floor1Color"].ToString());
+                    if (row["floor1wallpaper"] != DBNull.Value) player.Tent.Floor1Wallpaper = ushort.Parse(row["floor1wallpaper"].ToString());
+                }
+
+                // 2. Load Tent Placed Items
+                DataTable itemsDt = GetDataTable($"SELECT * FROM chartent_items WHERE charID = '{player.CharID}'");
+                if (itemsDt != null && itemsDt.Rows.Count > 0)
+                {
+                    player.Tent.TentObjects.Clear();
+                    foreach (DataRow r in itemsDt.Rows)
+                    {
+                        ushort itemID = ushort.Parse(r["itemID"].ToString());
+                        int x = int.Parse(r["posX"].ToString());
+                        int y = int.Parse(r["posY"].ToString());
+                        int floor = int.Parse(r["floor"].ToString());
+                        byte rotate = byte.Parse(r["rotate"].ToString());
+                        player.Tent.PlaceItem(itemID, x, y, floor, rotate);
+                    }
+                    DebugSystem.Write($"[TentDB] Loaded {player.Tent.TentObjects.Count} tent items for {player.CharName} (CharID={player.CharID})");
+                }
+                else
+                {
+                    // If no tent items saved yet in DB for this character, save the default initial items to DB
+                    SaveTentData(player);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[TentDB] Error loading tent data for {player.CharName}: {ex.Message}");
+            }
+        }
+
+        public void SaveTentData(Player player)
+        {
+            if (player == null || player.CharID == 0 || player.Tent == null) return;
+            try
+            {
+                // 1. Save / Update chartent
+                DataTable dt = GetDataTable($"SELECT * FROM chartent WHERE charID = '{player.CharID}'");
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    ExecuteNonQuery($"INSERT INTO chartent (charID, locked, enlarged, tenttype, floor1Color, floor1wallpaper, floor2Color, floor2wallpaperr) VALUES ('{player.CharID}', '0', '0', '0', '{player.Tent.Floor1Color}', '{player.Tent.Floor1Wallpaper}', '0', '0');");
+                }
+                else
+                {
+                    ExecuteNonQuery($"UPDATE chartent SET floor1Color = '{player.Tent.Floor1Color}', floor1wallpaper = '{player.Tent.Floor1Wallpaper}' WHERE charID = '{player.CharID}';");
+                }
+
+                // 2. Save chartent_items
+                ExecuteNonQuery($"DELETE FROM chartent_items WHERE charID = '{player.CharID}';");
+                if (player.Tent.TentObjects != null && player.Tent.TentObjects.Count > 0)
+                {
+                    List<string> itemRows = new List<string>();
+                    foreach (var item in player.Tent.TentObjects)
+                    {
+                        if (item.ItemID == 0) continue;
+                        itemRows.Add(string.Format("('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')",
+                            player.CharID, item.ItemID, item.tentX, item.tentY, item.floor, item.rotate));
+                    }
+                    if (itemRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO chartent_items (charID, itemID, posX, posY, floor, rotate) VALUES {0};", string.Join(",", itemRows)));
+                    }
+                }
+                DebugSystem.Write($"[TentDB] Saved {player.Tent.TentObjects?.Count ?? 0} tent items for {player.CharName} (CharID={player.CharID})");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[TentDB] Error saving tent data for {player.CharName}: {ex.Message}");
+            }
+        }
+        #endregion
 
         public void SendOnlineCharacters(Player src)
         {

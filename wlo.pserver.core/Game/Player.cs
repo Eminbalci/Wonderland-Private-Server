@@ -89,6 +89,9 @@ namespace Game
         public int StepsSinceLastBattle { get; set; } = 0;
         public int NextBattleSteps { get; set; } = 25;
         public DateTime LastTeleportTime { get; set; } = DateTime.MinValue;
+        public ushort LastSpawnX { get; set; } = 0;
+        public ushort LastSpawnY { get; set; } = 0;
+        public ushort LastOriginMapID { get; set; } = 0;
         public int BreillatTalkCount { get; set; } = 0;
 
         // FIX: Added properties for ActionCodes compatibility
@@ -123,6 +126,7 @@ namespace Game
         public Dictionary<uint, Game.QuestRelated.PlayerQuest> Quests { get; set; } = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
         public Dictionary<byte, PlayerPetData> PlayerPets { get; set; } = new Dictionary<byte, PlayerPetData>();
         public Dictionary<byte, PlayerPetData> HotelPets { get; set; } = new Dictionary<byte, PlayerPetData>();
+        public bool MotdSent { get; set; } = false;
         #endregion
 
         public class PlayerPetData
@@ -131,6 +135,7 @@ namespace Game
             public uint PetID { get; set; }
             public string PetName { get; set; } = "";
             public byte Level { get; set; } = 1;
+            public uint Exp { get; set; } = 0;
             public int HP { get; set; } = 250;
             public int MaxHP { get; set; } = 250;
             public int SP { get; set; } = 100;
@@ -141,9 +146,18 @@ namespace Game
             public ushort Wis { get; set; } = 10;
             public ushort Agi { get; set; } = 10;
             public ushort SkillPoints { get; set; } = 0;
+            public ushort Potential { get; set; } = 0;
             public byte Amity { get; set; } = 60;
             public bool IsBattle { get; set; } = true;
             public bool IsRide { get; set; } = false;
+            public bool Reborn { get; set; } = false;
+            public byte Job { get; set; } = 0;
+            public ushort Eq_Head { get; set; } = 0;
+            public ushort Eq_Body { get; set; } = 0;
+            public ushort Eq_Weapon { get; set; } = 0;
+            public ushort Eq_Wrist { get; set; } = 0;
+            public ushort Eq_Shoes { get; set; } = 0;
+            public ushort Eq_Special { get; set; } = 0;
         }
 
         public bool HasRecruitedCompanion(string npcName, ushort templateId)
@@ -1323,29 +1337,31 @@ namespace Game
         {
             PacketBuilder p = new PacketBuilder();
             p.Begin();
-            p.Add((byte)5);
-            p.Add((byte)3);
-            p.Add((byte)Element);                       // Offset 2: Element (byte)
-            p.Add((uint)FullHP);                        // Offset 3..6: FullHP (uint, 4B)
-            p.Add((ushort)FullSP);                      // Offset 7..8: FullSP (ushort, 2B)
-            p.Add((ushort)Str);                         // Offset 9..10: STR (0x1f8c, ushort, 2B)
-            p.Add((ushort)Con);                         // Offset 11..12: CON (0x1f8e, ushort, 2B)
-            p.Add((ushort)Int);                         // Offset 13..14: INT (0x1f8a, ushort, 2B)
-            p.Add((ushort)Wis);                         // Offset 15..16: WIS (0x1f92, ushort, 2B)
-            p.Add((ushort)Agi);                         // Offset 17..18: AGI (0x1f90, ushort, 2B)
-            p.Add((byte)(Level > 0 ? Level : 1));       // Offset 19: Level (byte, 1B)
-            p.Add((uint)TotalExp);                      // Offset 20..23: TotalExp (uint, 4B)
-            p.Add((ushort)0);                           // Offset 24..25: (ushort, 2B)
-            p.Add((ushort)Eqs.Potential);               // Offset 26..27: Potential (ushort, 2B)
-            p.Add((uint)CurHP);                         // Offset 28..31: CurHP (uint, 4B)
-            p.Add((ushort)CurSP);                       // Offset 32..33: CurSP (ushort, 2B)
-            p.Add((uint)Eqs.SkillPoints);               // Offset 34..37: POINT / SkillPoints (0x1fa8, uint, 4B)
-            p.Add((uint)Gold);                          // Offset 38..41: Gold (0x1fb8, uint, 4B)
-            p.Add((uint)0);                             // Offset 42..45: (0x1fc8, uint, 4B)
-            p.Add((uint)0);                             // Offset 46..49: (0x1fc0, uint, 4B)
-            p.Add((uint)0);                             // Offset 50..53: (0x1fd8, uint, 4B)
-            p.Add((uint)0);                             // Offset 54..57: (0x1fdc, uint, 4B)
-            p.Add((uint)0);                             // Offset 58..61: (0x2268, uint, 4B)
+            p.Add((byte)5);                              // Offset 0: ActionCode (byte)
+            p.Add((byte)3);                              // Offset 1: SubCode (byte)
+            p.Add((byte)Element);                        // Offset 2: Element (byte)
+            p.Add((uint)CurHP);                          // Offset 3..6: CurHP (uint, 4B)
+            p.Add((ushort)CurSP);                        // Offset 7..8: CurSP (ushort, 2B)
+            p.Add((ushort)Con);                          // Offset 9..10: CON (ushort, 2B)
+            p.Add((ushort)Int);                          // Offset 11..12: INT (ushort, 2B)
+            p.Add((ushort)Str);                          // Offset 13..14: STR (ushort, 2B)
+            p.Add((ushort)Agi);                          // Offset 15..16: AGI (ushort, 2B)
+            p.Add((ushort)Wis);                          // Offset 17..18: WIS (ushort, 2B)
+            p.Add((byte)(Level > 0 ? Level : 1));        // Offset 19: Level (byte, 1B)
+            p.Add((uint)TotalExp);                       // Offset 20..23: TotalExp (uint, 4B)
+            p.Add((ushort)FullHP);                       // Offset 24..25: FullHP (ushort, 2B)
+            p.Add((ushort)FullSP);                       // Offset 26..27: FullSP (ushort, 2B)
+            
+            // Client internal static state offsets (0x1c .. 0x3d = 34 bytes)
+            p.Add((uint)417);                            // Offset 28..31: DWord (4B)
+            p.Add((ushort)0);                            // Offset 32..33: Word (2B)
+            p.Add((uint)0);                              // Offset 34..37: DWord (4B)
+            p.Add((uint)240);                            // Offset 38..41: DWord (4B)
+            p.Add((uint)0);                              // Offset 42..45: DWord (4B)
+            p.Add((uint)0);                              // Offset 46..49: DWord (4B)
+            p.Add((uint)0);                              // Offset 50..53: DWord (4B)
+            p.Add((uint)0);                              // Offset 54..57: DWord (4B)
+            p.Add((uint)0);                              // Offset 58..61: DWord (4B)
 
             // Offset 62..63 (0x3E..0x3F): SkillCount (ushort)
             if (PlayerSkills != null && PlayerSkills.Count > 0)
@@ -1355,9 +1371,9 @@ namespace Game
                 {
                     var skillData = Game.SkillRelated.SkillManager.GetSkill((ushort)sk.SkillID);
                     ushort tableOrder = (skillData != null) ? skillData.SkillTableOrder : (ushort)0;
-                    p.Add((ushort)tableOrder);    // 2 bytes: TableOrder
-                    p.Add((byte)sk.Grade);        // 1 byte: Grade
-                    p.Add((uint)sk.Exp);          // 4 bytes: Exp
+                    p.Add((ushort)tableOrder);           // 2 bytes: TableOrder
+                    p.Add((byte)sk.Grade);               // 1 byte: Grade
+                    p.Add((uint)sk.Exp);                 // 4 bytes: Exp
                 }
             }
             else
@@ -1365,8 +1381,13 @@ namespace Game
                 p.Add((ushort)0);
             }
 
-            // Trailing 11 bytes
-            p.Add(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+            // Post-skill trailer offsets
+            p.Add((ushort)SkillPoints);                  // 2 bytes: Available Stat Points (StatusUp)
+            p.Add((ushort)Potential);                    // 2 bytes: Potential
+            p.Add((byte)0);                              // 1 byte: Padding
+            p.Add((byte)(Reborn ? 1 : 0));               // 1 byte: Reborn flag
+            p.Add((byte)Potential);                      // 1 byte: Potential byte
+            p.Add((byte)Job);                            // 1 byte: Reborn Job
 
             SendPacket pkt = new SendPacket(p.End());
             Send(pkt);

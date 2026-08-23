@@ -102,51 +102,43 @@ namespace Game.DataFiles
         {
             try
             {
-                if (File.Exists(filePath))
+                if (!File.Exists(filePath)) return;
+
+                byte[] bytes = File.ReadAllBytes(filePath);
+                int recSize = 138;
+                int total = bytes.Length / recSize;
+
+                for (int r = 1; r < total; r++)
                 {
-                    byte[] bytes = File.ReadAllBytes(filePath);
-                    int recSize = 138;
-                    int total = bytes.Length / recSize;
+                    int off = r * recSize;
+                    if (off + 14 > bytes.Length) break;
 
-                    for (int r = 0; r < total; r++)
+                    ushort rawId = BitConverter.ToUInt16(bytes, off + 12);
+                    uint npcId = (uint)(((rawId ^ 0x5209) - 1) & 0xFFFF);
+                    if (npcId == 0) continue;
+
+                    var chars = new List<char>();
+                    for (int p = off + 10; p >= off + 1; p--)
                     {
-                        int off = r * recSize;
-                        if (off + 14 > bytes.Length) break;
-
-                        int len = bytes[off];
-                        if (len <= 0 || len > 30) continue;
-
-                        ushort rawId = BitConverter.ToUInt16(bytes, off + 12);
-                        uint npcId = (uint)(rawId ^ 0x520E);
-
-                        if (!_npcNames.ContainsKey(npcId))
+                        byte b = bytes[p];
+                        if (b >= 32 && b <= 126)
                         {
-                            byte[] slice = new byte[len];
-                            for (int i = 0; i < len; i++)
-                            {
-                                slice[i] = bytes[off + 10 - i];
-                            }
-
-                            string name = Encoding.ASCII.GetString(slice).Trim('\0', ' ');
-                            if (!string.IsNullOrEmpty(name) && name.Length >= 2)
-                            {
-                                // Expand truncated 10-byte binary strings from Npc.dat
-                                if (name == "Springboar") name = "Springboard";
-                                else if (name == "Treas Ches") name = "Treasure Chest";
-                                else if (name == "Persian Ca") name = "Persian Cat";
-                                else if (name == "Little Per") name = "Little Persian";
-                                else if (name == "Cute Pand") name = "Cute Panda";
-                                else if (name == "Grunt Boa") name = "Grunt Boar";
-                                else if (name == "Lazy Shee") name = "Lazy Sheep";
-
-                                _npcNames[npcId] = name;
-                            }
+                            chars.Add((char)b);
                         }
                     }
+
+                    string name = new string(chars.ToArray()).Trim();
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        _npcNames[npcId] = name;
+                    }
                 }
+
+                DebugSystem.Write($"[SceneDataManager] Loaded {_npcNames.Count} authentic NPCs directly from Npc.dat");
             }
             catch (Exception ex)
             {
+                DebugSystem.Write($"[SceneDataManager] Error loading Npc.dat: {ex.Message}");
             }
         }
 
@@ -170,30 +162,17 @@ namespace Game.DataFiles
         {
             Initialize();
 
-            // Resolve authentic in-game context for templates
-            if (templateId == 12032) return "Robinson";
-            if (templateId == 12049 || templateId == 12050) return "Hijacker";
-            if (templateId == 14005) return "Jack";
-            if (templateId == 14029) return "Old Woman";
-            if (templateId == 14052) return "Villager";
-            if (templateId == 14138) return "Band of Brothers";
-            if (templateId == 14139) return "Old Woman";
-            if (templateId == 14140) return "Emilie";
-            if (templateId == 14141) return "Doll";
-            if (templateId == 14144) return "Statue";
-            if (templateId == 14145) return "John";
-            if (templateId == 14146) return "Peter";
-            if (templateId == 14156) return "Xaolan";
-            if (templateId == 16006) return "Treasure Chest";
-            if (templateId == 19039) return "Coconut Node";
-            if (templateId == 19034) return "Cask";
-            if (templateId == 19035) return "Treasure Chest";
-            if (templateId == 19037 || templateId == 19038) return "Springboard";
-
             if (_npcNames.TryGetValue(templateId, out string name) && !string.IsNullOrWhiteSpace(name))
             {
                 return name;
             }
+
+            // Universal categorical fallbacks for templates without explicit labels in npc.json
+            if (templateId >= 14000 && templateId < 15000) return "Villager";
+            if (templateId == 19039) return "Coconut Node";
+            if (templateId == 19034) return "Cask";
+            if (templateId == 19035 || templateId == 16006) return "Treasure Chest";
+            if (templateId == 19037 || templateId == 19038) return "Springboard";
 
             return $"Template #{templateId}";
         }

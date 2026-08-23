@@ -127,7 +127,7 @@ namespace DataFiles
             // =========================================================================
             else if (lookupId >= 30000 && lookupId <= 49999)
             {
-                recordIdx = (int)(lookupId - 23104);
+                recordIdx = (int)(lookupId - 23105);
                 method = "World_VillageSection";
             }
 

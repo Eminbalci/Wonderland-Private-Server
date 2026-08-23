@@ -116,15 +116,10 @@ namespace Game.Maps
                             }
                             else if (op.DialogPtr == 2)
                             {
-                                if (op.dialog3 >= 10000 && op.dialog3 <= 65000)
+                                if (op.dialog3 >= 10000 && op.dialog3 <= 55000 && (op.dialog2 == 1 || op.dialog2 == 0 || op.dialog2 == 2 || op.dialog2 == 6))
                                 {
                                     uint highByte = (op.dialog1 > 0) ? (uint)op.dialog1 : ((op.dialog2 > 0 && op.dialog2 < 20) ? (uint)op.dialog2 : 3u);
                                     talkId24 = (uint)op.dialog3 | (highByte << 16);
-                                }
-                                else if (op.dialog2 >= 10000 && op.dialog2 <= 65000)
-                                {
-                                    uint highByte = (op.dialog1 > 0) ? (uint)op.dialog1 : (uint)Math.Max(1, (int)op.dialog3);
-                                    talkId24 = (uint)op.dialog2 | (highByte << 16);
                                 }
                             }
                         }
@@ -677,6 +672,7 @@ namespace Game.Maps
             bool isGatheringNode = (mapNpc != null && (mapNpc.TemplateID == 19039 || (mapNpc.Name ?? "").ToLower().Contains("coconut") || (mapNpc.Name ?? "").ToLower().Contains("wood") || (mapNpc.Name ?? "").ToLower().Contains("ore")));
 
             // 4. New Quest / Not Started matching branch (or Respawned Gathering Node)
+            var validCandidates = new List<EventSubEntry>();
             foreach (var sub in eventEntry.SubEntry)
             {
                 if (sub == excludeSub || sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
@@ -702,10 +698,56 @@ namespace Game.Maps
                     {
                         if (sub.unknownword2 == 2)
                         {
-                            return sub;
+                            validCandidates.Add(sub);
                         }
                     }
                 }
+            }
+
+            if (validCandidates.Count > 0)
+            {
+                ushort GetBranchGrantItem(EventSubEntry s)
+                {
+                    if (s?.SubEntry == null) return 0;
+                    var grantOp = s.SubEntry.FirstOrDefault(o => o.DialogPtr == 1 && o.dialog1 == 1 && o.dialog3 > 0 && o.dialog3 < 60000);
+                    if (grantOp.dialog3 > 0) return grantOp.dialog3;
+                    int subIdx = eventEntry.SubEntry.IndexOf(s);
+                    if (subIdx >= 0 && subIdx + 2 < eventEntry.SubEntry.Count)
+                    {
+                        var itemSub = eventEntry.SubEntry[subIdx + 2];
+                        if (itemSub != null && itemSub.unknownbyte1 == 2 && itemSub.unknownword3 > 0 && itemSub.unknownword3 < 60000)
+                            return itemSub.unknownword3;
+                    }
+                    return 0;
+                }
+
+                bool HasPlayerItem(ushort iid)
+                {
+                    if (iid == 0) return true;
+                    if (player.Inv != null && (player.Inv.ContainsItem(iid) || (iid == 36002 && player.Inv.ContainsItem(32000)))) return true;
+                    return false;
+                }
+
+                // 1. First priority: branches granting items the player DOES NOT yet have (e.g. Tent 36002, Notepad 34038)
+                var unobtainedItemBranch = validCandidates.OrderByDescending(s => s.subIndex).FirstOrDefault(s =>
+                {
+                    ushort gi = GetBranchGrantItem(s);
+                    return gi > 0 && !HasPlayerItem(gi);
+                });
+
+                if (unobtainedItemBranch != null)
+                {
+                    return unobtainedItemBranch;
+                }
+
+                // 2. Second priority: non-reward dialogue branch (e.g. Sub 0 "Is there anything I can help you with?")
+                var nonItemBranch = validCandidates.FirstOrDefault(s => GetBranchGrantItem(s) == 0);
+                if (nonItemBranch != null)
+                {
+                    return nonItemBranch;
+                }
+
+                return validCandidates[0];
             }
 
             // 5. Fallback: only when excludeSub == null (initial NPC click, not looking for follow-up state transitions)
@@ -789,7 +831,7 @@ namespace Game.Maps
                                 string itemName = Game.Battle.MonsterDropManager.ResolveItemName(itemId);
                                 if (string.IsNullOrEmpty(itemName) || itemName.StartsWith("Item #"))
                                 {
-                                    itemName = (itemId == 48010 || itemId == 48016) ? "Raft" : (itemId == 32075 ? "Space Remote" : $"Item #{itemId}");
+                                    itemName = (itemId == 48010 || itemId == 48016) ? "Raft" : (itemId == 32075 ? "Space Remote" : (itemId == 36002 ? "Space Capsule" : (itemId == 34038 ? "Notebook" : $"Item #{itemId}")));
                                 }
                                 player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
                                 player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare

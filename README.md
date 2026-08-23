@@ -103,4 +103,7 @@ In the private server exe, click "Cheat" tab:
 - Native Quiz & Multi-Question Choice Event Flow Engine in [docs/native_quiz_and_multiquestion_event_flow.md](file:///d:/GitHub/Wonderland-Private-Server/docs/native_quiz_and_multiquestion_event_flow.md).
 - Immediate Player Persistence System across critical packet triggers in [docs/immediate_player_persistence_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/immediate_player_persistence_system.md).
 - PvE Battle Pet & Turn-Based Flee System in [docs/pve_battle_pet_and_flee_turn_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pve_battle_pet_and_flee_turn_system.md).
+- Pure Binary Npc.dat Decoding Engine in [docs/pure_binary_npc_dat_resolver.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pure_binary_npc_dat_resolver.md).
+- NPC Name Resolver & Template Directory GUI Studio in [docs/npc_name_resolver_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_name_resolver_gui.md).
+- Server Branding, Welcome MOTD Customization & Fast Login Optimization in [docs/server_branding_and_fast_login.md](file:///d:/GitHub/Wonderland-Private-Server/docs/server_branding_and_fast_login.md).
 

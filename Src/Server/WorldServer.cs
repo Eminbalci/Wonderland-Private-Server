@@ -546,9 +546,7 @@ namespace Server
             src.Send(Tools.FromFormat("bbbw", 24, 5, 53, 0));
             src.Send(Tools.FromFormat("bbbw", 24, 5, 52, 0));
             src.Send(Tools.FromFormat("bbbw", 24, 5, 54, 0));
-            src.Send(Tools.FromFormat("bbbswb", 70, 1, 23, "Something", 194, 0));
             src.Send(Tools.FromFormat("bbb", 20, 33, 0));
-            Thread.Sleep(5);
             src.Send(Tools.FromFormat("bbb", 14, 13, 3));
             src.Send(Tools.FromFormat("bbw", 75, 8, 0));
             src.Send(new SendPacket(new byte[] { 244, 68, 41, 0, 104, 1, 1, 0, 12, 44, 137, 1, 45, 137, 1, 25, 134, 1, 24, 134, 1, 22, 134, 1, 23, 134, 1, 76, 133, 1, 99, 133, 1, 100, 133, 1, 41, 133, 1, 91, 133, 1, 88, 133, 1 }));
@@ -561,15 +559,23 @@ namespace Server
 
             // Populate PlayerSkills list in memory (no packets yet — must precede SendAllSkills below)
             Game.SkillRelated.SkillManager.InitializePlayerSkillsNoSend(src);
+            Game.SkillRelated.SkillManager.CheckAndUnlockProgressionSkillsNoSend(src);
 
             // Load player quests from database
             Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
 
-            // Inventory, equipment, gold, settings (before map teleport)
+            // 1. AC 5:3 Base Stats and Learned Skills (must precede map teleport)
+            src.Send_5_3();
+            src.Send8_1(false);
+
+            // 2. Inventory, equipment, gold, settings (before map teleport)
             src.Send(new SendPacket(src.Inv.GetAC23_5()));
             src.Send(new SendPacket(src._23_11Data));
             src.Send(Tools.FromFormat("bbd", 26, 4, src.Gold));
             src.Send(new SendPacket(src.Settings.ToArray()));
+
+            // 3. Send all learned skills and skill tree status
+            Game.SkillRelated.SkillManager.SendAllSkills(src);
 
             //---------Map Teleport---------------------------------------------------
             GameMap target = MapManager.Instance.GetMap(src.LoginMap);
@@ -587,19 +593,11 @@ namespace Server
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.Send(Tools.FromFormat("bbb", 5, 21, src.Slot));
 
-            // Send quest journal
-            Game.QuestRelated.QuestManager.SendQuestJournal(src);
-
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));
             src.Send(Tools.FromFormat("bbbl", 25, 44, 2, DateTime.Now.ToOADate()));
             src.Send(Tools.FromFormat("bbb", 23, 160, 3));
             src.Send(Tools.FromFormat("bbb", 75, 7, 1));
-            src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Welcome to the  WLO 4 EVER Community Server :! Enjoy !!"));
-            src.Send(Tools.FromFormat("bbb", 69, 1, 71));
-            src.Send(Tools.FromFormat("bbb", 20, 60, 1));
-            src.Send(new SendPacket(new byte[] { 244, 68, 13, 0, 66, 1, 001, 012, 043, 000, 000, 000, 000, 000, 000, 000, 000 }));
-
             // Clear hotbar / quickbar slots (AC 5:24)
             for (byte a = 1; a < 11; a++)
                 src.Send(Tools.FromFormat("bbbw", 5, 24, a, 0));
@@ -611,9 +609,6 @@ namespace Server
             src.Send(Tools.FromFormat("bbbbd", 23, 208, 2, 4, 0));
             src.Send(Tools.FromFormat("bb", 1, 11));
             src.Send(Tools.FromFormat("bbbbbb", 15, 19, 4, 6, 9, 94));
-            // Authentic Item Mall Login Initialization sequence:
-            // S->C A=54 B=201: item mall catalog (dynamic, from ItemMallManager)
-            Game.PlayerRelated.ItemMallManager.SendCatalog(src);
 
             // 3. AC 35 Sub 11
             src.Send(Tools.FromFormat("bb", 35, 11));
@@ -627,16 +622,6 @@ namespace Server
             src.Send(mallUser);
 
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
-
-            // 1. Populate all qualified starter and progression skills before packing Send_5_3
-            Game.SkillRelated.SkillManager.CheckAndUnlockProgressionSkillsNoSend(src);
-
-            // 2. AC 5:3 Base Stats and Learned Skills
-            src.Send_5_3();
-            src.Send8_1(false);
-
-            // 3. Send all learned skills and skill tree status
-            Game.SkillRelated.SkillManager.SendAllSkills(src);
 
             src.Flags.Add(PlayerFlag.InMap);
 
@@ -692,6 +677,50 @@ namespace Server
             while (!killFlag);
 
             DebugSystem.Write("[AutoSave] Auto-save thread stopped");
+        }
+
+        public static void SendChatMessage(Player p, byte chatType, string message)
+        {
+            if (p == null || string.IsNullOrEmpty(message)) return;
+            SendPacket pkt = new SendPacket();
+            pkt.Pack8(2); // ActionCode 2 (Chat)
+            pkt.Pack8(chatType); // 4 = GM (Red/Orange), 1 = World (Yellow), 3 = Channel (Blue), 6 = Whisper (Pink)
+            pkt.Pack32(0); // 4-byte Sender Char ID (0 for System/GM)
+            pkt.PackStringN(message); // Raw ASCII characters without length prefix
+            p.Send(pkt);
+        }
+
+        public static void SendPopupPrompt(Player p, string message)
+        {
+            if (p == null || string.IsNullOrEmpty(message)) return;
+            SendPacket s = new SendPacket();
+            s.Pack8(23);
+            s.Pack8(57);
+            s.Pack8(0);
+            s.PackString(message);
+            p.Send(s);
+        }
+
+        public static void DispatchLoginMotd(Player src)
+        {
+            try
+            {
+                if (src == null) return;
+                var motdList = cGlobal.SrvSettings?.GetAllWelcomeMessages();
+                if (motdList != null && motdList.Count > 0)
+                {
+                    SendPopupPrompt(src, motdList[0]);
+                    foreach (var motd in motdList)
+                    {
+                        SendChatMessage(src, 4, motd); // Red / Orange (GM): <motd>
+                    }
+                    DebugSystem.Write($"[WorldServer] Dispatched {motdList.Count} MOTD line(s) to {src.CharName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error dispatching MOTD: {ex.Message}");
+            }
         }
     }
 }

@@ -122,10 +122,6 @@ namespace DataBase
                     }
                     try { db.ExecuteNonQuery("COMMIT;"); } catch { }
                 }
-                else
-                {
-                    ImportQuestsFromJson(db);
-                }
 
                 LoadAllQuests(db);
             }
@@ -133,76 +129,6 @@ namespace DataBase
             {
                 try { db.ExecuteNonQuery("ROLLBACK;"); } catch { }
                 DebugSystem.Write($"[QuestDataBase] Error reimporting clean quests: {ex.Message}");
-            }
-        }
-
-        public static void ImportQuestsFromJson(GameDataBase db)
-        {
-            string jsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "quests.json");
-            if (!File.Exists(jsonPath))
-            {
-                jsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "quests.json");
-            }
-            if (!File.Exists(jsonPath)) return;
-
-            try
-            {
-                string jsonText = File.ReadAllText(jsonPath, Encoding.UTF8);
-                var questBlocks = Regex.Matches(jsonText, @"\{[\s\S]*?\""QuestID\""\s*:\s*(\d+)[\s\S]*?\}");
-                int imported = 0;
-
-                try { db.ExecuteNonQuery("BEGIN TRANSACTION;"); } catch { }
-
-                foreach (Match match in questBlocks)
-                {
-                    string block = match.Value;
-                    uint questId = uint.Parse(match.Groups[1].Value);
-
-                    string name = GetJsonString(block, "Name") ?? $"Quest {questId}";
-                    string npcPattern = GetJsonString(block, "NpcNamePattern") ?? "";
-                    int npcTid = GetJsonInt(block, "NpcTemplateID");
-                    int type = GetJsonInt(block, "Type");
-                    string desc = GetJsonString(block, "Description") ?? "";
-                    string intro = GetJsonString(block, "IntroDialogue") ?? "";
-                    string inProgress = GetJsonString(block, "InProgressDialogue") ?? "";
-                    string complete = GetJsonString(block, "CompleteDialogue") ?? "";
-                    string alreadyDone = GetJsonString(block, "AlreadyCompletedDialogue") ?? "";
-                    int battleMonsterId = GetJsonInt(block, "BattleMonsterID");
-                    string battleMonsterName = GetJsonString(block, "BattleMonsterName") ?? "";
-                    int rewardGold = GetJsonInt(block, "RewardGold");
-                    int rewardExp = GetJsonInt(block, "RewardExp");
-                    int rewardCompanionId = GetJsonInt(block, "RewardCompanionID");
-                    string rewardCompanionName = GetJsonString(block, "RewardCompanionName") ?? "";
-                    string rewardItems = GetJsonString(block, "RewardItems") ?? "";
-                    string requiredItems = GetJsonString(block, "RequiredItems") ?? "";
-                    string prereqs = GetJsonString(block, "PrerequisiteQuests") ?? "";
-                    string stepsJson = "";
-
-                    string query = $@"
-                        INSERT OR REPLACE INTO game_quests (
-                            quest_id, name, npc_name_pattern, npc_template_id, map_id, type, description,
-                            intro_dialogue, in_progress_dialogue, complete_dialogue, already_completed_dialogue,
-                            battle_monster_id, battle_monster_name, reward_gold, reward_exp,
-                            reward_companion_id, reward_companion_name, reward_items, required_items,
-                            prerequisite_quests, steps_json
-                        ) VALUES (
-                            {questId}, '{EscapeSql(name)}', '{EscapeSql(npcPattern)}', {npcTid}, 0, {type}, '{EscapeSql(desc)}',
-                            '{EscapeSql(intro)}', '{EscapeSql(inProgress)}', '{EscapeSql(complete)}', '{EscapeSql(alreadyDone)}',
-                            {battleMonsterId}, '{EscapeSql(battleMonsterName)}', {rewardGold}, {rewardExp},
-                            {rewardCompanionId}, '{EscapeSql(rewardCompanionName)}', '{EscapeSql(rewardItems)}', '{EscapeSql(requiredItems)}',
-                            '{EscapeSql(prereqs)}', '{EscapeSql(stepsJson)}'
-                        )";
-                    db.ExecuteNonQuery(query);
-                    imported++;
-                }
-
-                try { db.ExecuteNonQuery("COMMIT;"); } catch { }
-                DebugSystem.Write($"[QuestDataBase] Successfully imported {imported} quests into game_quests table.");
-            }
-            catch (Exception ex)
-            {
-                try { db.ExecuteNonQuery("ROLLBACK;"); } catch { }
-                DebugSystem.Write($"[QuestDataBase] Error importing quests from JSON: {ex.Message}");
             }
         }
 

@@ -471,10 +471,7 @@ namespace Game
                 DebugSystem.Write($"[Map.Warp_In] Player {src.CharName} already in m_playerlist. Total players: {m_playerlist.Count}");
             }
 
-            // 1. Send AC 3 (Character Entity Spawn) to self
-            src.Send(src.ToAC3Packet());
-
-            // 2. Send AC 12 (Map Warp / Coordinate Initialization) to self and peers
+            // 1. Send AC 12 (Map Warp / Coordinate Initialization) to self and peers
             SendAc12(src, portalID, from ?? new WarpData { DstMap = (ushort)MapID, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
 
             // 3. Send AC 7 (Position sync) to player
@@ -586,7 +583,7 @@ namespace Game
                         SendPacket srcPetPkt;
                         if (srcPet != null)
                         {
-                            srcPetPkt = QuestRelated.QuestManager.CreatePetPacket(src, srcPet.PetID, srcPet.Slot, srcPet.HP, srcPet.MaxHP, srcPet.SP, srcPet.MaxSP, srcPet.Amity, srcPet.Level);
+                            srcPetPkt = QuestRelated.QuestManager.CreatePetPacket(src, srcPet.PetID, srcPet.Slot, srcPet.HP, srcPet.MaxHP, srcPet.SP, srcPet.MaxSP, srcPet.Amity, srcPet.Level, srcPet.Str, srcPet.Con, srcPet.Int, srcPet.Wis, srcPet.Agi, srcPet.Exp, srcPet.Reborn, srcPet.Job);
                         }
                         else
                         {
@@ -731,7 +728,7 @@ namespace Game
                     if (pet != null && pet.PetID > 0)
                     {
                         // Send authentic AC 15:1 pet recruit data to owner and map peers
-                        SendPacket petPkt = QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level);
+                        SendPacket petPkt = QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job);
                         src.Send(petPkt);
                         Broadcast(petPkt, "Ex", src.CharID);
                         QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
@@ -1055,11 +1052,22 @@ namespace Game
 
             if (teletype == TeleportType.Regular)
             {
-                if ((DateTime.UtcNow - sender.LastTeleportTime).TotalMilliseconds < 1000)
+                double elapsedMs = (DateTime.UtcNow - sender.LastTeleportTime).TotalMilliseconds;
+                if (elapsedMs < 2500)
                 {
-                    DebugSystem.Write($"[Teleport] Portal cooldown active (1s) for {sender.CharName}. Request ignored.");
+                    DebugSystem.Write($"[Teleport] Portal cooldown active ({elapsedMs:F0}ms / 2500ms) for {sender.CharName}. Request ignored.");
                     sender.Send(Tools.FromFormat("bb", 20, 8));
                     return false;
+                }
+                if (elapsedMs < 4000 && sender.LastSpawnX > 0 && sender.LastSpawnY > 0)
+                {
+                    double spawnDist = Math.Sqrt(Math.Pow((int)sender.CurX - (int)sender.LastSpawnX, 2) + Math.Pow((int)sender.CurY - (int)sender.LastSpawnY, 2));
+                    if (spawnDist < 120)
+                    {
+                        DebugSystem.Write($"[Teleport] Spawn proximity guard active for {sender.CharName} (dist={spawnDist:F1}px from spawn {sender.LastSpawnX},{sender.LastSpawnY}). Request ignored.");
+                        sender.Send(Tools.FromFormat("bb", 20, 8));
+                        return false;
+                    }
                 }
                 DebugSystem.Write($"[Teleport] Req: {teletype}, PortalID: {portalID}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
             }
@@ -1518,6 +1526,8 @@ namespace Game
             }*/
             tmp.Add(Tools.FromFormat("bb", 23, 102));
             tmp.Add(Tools.FromFormat("bb", 20, 8));
+            t.LastSpawnX = t.CurX;
+            t.LastSpawnY = t.CurY;
             t.LastTeleportTime = DateTime.UtcNow;
             t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
             t.Send(new SendPacket(tmp.End()));

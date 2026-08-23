@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -28,7 +28,12 @@ namespace Network.ActionCodes
         }
         void Recv2(Player r, RecievePacket p)
         {
-            r.Inv.onItemCanceled(p.Unpack8());
+            // Right-click / Pack up tent on world map
+            if (r != null && r.Tent != null)
+            {
+                r.Tent.Close();
+                DebugSystem.Write($"[AC65.Recv2] Player {r.CharName} closed / packed up tent.");
+            }
         }
         void Recv3(Player r, RecievePacket p)
         {
