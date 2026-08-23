@@ -30,6 +30,7 @@ namespace Game.Code
         public ushort Floor1Color { get { return _floorcolor; } set { _floorcolor = value; } }
         public ushort Floor1Wallpaper { get { return _wallcolor; } set { _wallcolor = value; } }
         public bool IsClosed { get { return _closed; } }
+        public bool IsDirty { get; set; } = false;
 
         // TENT ITEMS
         private List<TentItem> _tentObjects;
@@ -334,8 +335,8 @@ namespace Game.Code
                 newItem.rotate = rotation;
 
                 _tentObjects.Add(newItem);
-
-                DebugSystem.Write(DebugItemType.Error, $"[Tent] Placed item {itemID} at ({x},{y}) floor {floor} rotation {rotation}");
+                IsDirty = true;
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Placed item {itemID} at ({x},{y}) on floor {floor}");
             }
             catch (Exception ex)
             {
@@ -353,6 +354,7 @@ namespace Game.Code
             if (itemToRemove != null)
             {
                 _tentObjects.Remove(itemToRemove);
+                IsDirty = true;
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] Removed item at ({x},{y})");
                 return true;
             }
@@ -372,6 +374,7 @@ namespace Game.Code
                 item.tentY = (ushort)y;
                 item.floor = (byte)floor;
                 item.rotate = rotation;
+                IsDirty = true;
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] Moved item {index} to ({x},{y})");
             }
             else

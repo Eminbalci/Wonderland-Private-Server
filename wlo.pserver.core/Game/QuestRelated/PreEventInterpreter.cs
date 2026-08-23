@@ -74,36 +74,62 @@ namespace Game.QuestRelated
         /// </summary>
         private static bool EvaluateConditionBlock(Player player, byte[] data)
         {
-            byte op = data[0];
+            if (data == null || data.Length == 0) return true;
 
-            // Opcode 0x05: Quest Mark / Flag Condition
-            if (op == 0x05)
+            // Iterate over all 7-byte condition chunks in the 21-byte condition buffer
+            for (int offset = 0; offset + 7 <= data.Length; offset += 7)
             {
-                ushort flagId = BitConverter.ToUInt16(data, 1);
-                ushort reqValue = BitConverter.ToUInt16(data, 3);
-                ushort compType = BitConverter.ToUInt16(data, 5);
+                byte op = data[offset];
+                if (op == 0x00) break; // End of condition chunks
 
-                ushort playerValue = GetPlayerFlagValue(player, flagId);
-
-                switch (compType)
+                // Opcode 0x05: Quest Mark / Flag Condition
+                if (op == 0x05)
                 {
-                    case 1: // Equals
-                        return (playerValue == reqValue);
-                    case 2: // Greater or equal
-                        return (playerValue >= reqValue);
-                    case 3: // Less than or equal
-                        return (playerValue <= reqValue);
-                    default:
-                        return (playerValue == reqValue);
+                    ushort flagId = BitConverter.ToUInt16(data, offset + 1);
+                    ushort reqValue = BitConverter.ToUInt16(data, offset + 3);
+                    ushort compType = BitConverter.ToUInt16(data, offset + 5);
+
+                    ushort playerValue = GetPlayerFlagValue(player, flagId);
+
+                    bool chunkMatch = false;
+                    switch (compType)
+                    {
+                        case 1: chunkMatch = (playerValue == reqValue); break;
+                        case 2: chunkMatch = (playerValue >= reqValue); break;
+                        case 3: chunkMatch = (playerValue <= reqValue); break;
+                        case 4: chunkMatch = (playerValue != reqValue); break;
+                        case 5: chunkMatch = (playerValue > reqValue); break;
+                        case 6: chunkMatch = (playerValue < reqValue); break;
+                        default: chunkMatch = (playerValue == reqValue); break;
+                    }
+
+                    if (!chunkMatch) return false;
+                }
+                // Opcode 0x01: Unconditional / Always True
+                else if (op == 0x01)
+                {
+                    continue;
+                }
+                // Opcode 0x02: Companion / Pet Recruitment Check
+                else if (op == 0x02)
+                {
+                    ushort subType = BitConverter.ToUInt16(data, offset + 1);
+                    ushort count = BitConverter.ToUInt16(data, offset + 3);
+                    ushort petId = BitConverter.ToUInt16(data, offset + 5);
+
+                    if (subType == 2 && petId > 0)
+                    {
+                        // Check if player has recruited this pet
+                        bool hasPet = (player.PlayerPets != null && player.PlayerPets.Values.Any(p => p.PetID == petId || (petId == 12178 && p.PetID == 12032) || (petId == 12032 && p.PetID == 12178)))
+                                   || player.ActivePetID == petId
+                                   || (petId == 17162 && player.HasRecruitedCompanion("S.Monkey", 17162));
+
+                        if (!hasPet) return false;
+                    }
                 }
             }
-            // Opcode 0x01: Unconditional / Always True
-            else if (op == 0x01)
-            {
-                return true;
-            }
 
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -111,39 +137,33 @@ namespace Game.QuestRelated
         /// </summary>
         private static void ExecuteActionBlock(Player player, byte[] data)
         {
+            if (player == null || data == null || data.Length < 10) return;
+
             byte actionOp = data[0];
 
             // Opcode 0x02: Actor Visibility / State Control
             if (actionOp == 0x02)
             {
                 ushort clickId = BitConverter.ToUInt16(data, 1);
-                ushort actionType = BitConverter.ToUInt16(data, 3);
+                byte state1 = data[8];
+                byte state2 = data[9];
 
-                // Action Type 0x0002: Hide / Despawn Actor from Client (AC 22:10 FF FF)
-                if (actionType == 0x0002)
-                {
-                    SendPacket hidePkt = Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0xFF, (byte)0xFF);
-                    player.Send(hidePkt);
-                }
-                // Action Type 0x0000, 0x0001, 0x0003, 0x0005, 0x0007: Reveal / Show Actor (AC 22:10 00 00)
-                else
-                {
-                    SendPacket showPkt = Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0x00, (byte)0x00);
-                    player.Send(showPkt);
-                }
+                SendPacket actPkt = Tools.FromFormat("bbwbb", 22, 10, clickId, state1, state2);
+                player.Send(actPkt);
             }
         }
 
         /// <summary>
         /// Retrieves the player's current quest flag / mark value.
         /// In official Wonderland Online eve.Emg PreEvents:
-        /// 2 = Not Started / Inactive
-        /// 1 = In Progress
-        /// 3 = Completed
+        /// 0 = Not Started / Unset (Default)
+        /// 1 = In Progress / Step 1
+        /// 2 = Completed / Step 2
+        /// 3 = Post-Quest / Handed In
         /// </summary>
         private static ushort GetPlayerFlagValue(Player player, ushort flagId)
         {
-            if (player?.Quests == null || flagId == 0) return 2; // Default unstarted quest is 2 in WLO PreEvents
+            if (player?.Quests == null || flagId == 0) return 0; // Default unstarted quest is 0
 
             if (player.Quests.TryGetValue(flagId, out var pq))
             {
@@ -152,14 +172,14 @@ namespace Game.QuestRelated
                     case QuestState.InProgress:
                         return (ushort)Math.Max(1, (int)pq.Step);
                     case QuestState.Completed:
-                        return 3;
+                        return 2;
                     case QuestState.NotStarted:
                     default:
-                        return 2;
+                        return 0;
                 }
             }
 
-            return 2;
+            return 0;
         }
     }
 }

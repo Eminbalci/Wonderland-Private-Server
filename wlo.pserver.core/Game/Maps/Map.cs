@@ -1358,8 +1358,7 @@ namespace Game
                     }
                     else
                     {
-                        bool isVisible = Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
-                        state = isVisible ? (ushort)0x00FF : (ushort)0xFFFF;
+                        state = (ushort)0x0000;
                     }
 
                     npcListPkt.Pack16(state);
@@ -1371,15 +1370,14 @@ namespace Game
                 }
                 tmp.Add(npcListPkt);
 
-                // Hide already recruited companion NPCs and quest-stage actors from player's map view (AC 22:10)
+                // Hide already recruited companion NPCs and permanently broken objects from player's map view (AC 22:10)
                 foreach (var npc in this.NPCs)
                 {
                     QuestNpc qn = npc as QuestNpc;
                     if (qn != null)
                     {
                         bool isRecruited = t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
-                        bool isVisible = Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
-                        if (isRecruited || (qn.IsBroken && qn.RespawnTime == DateTime.MaxValue) || !isVisible)
+                        if (isRecruited || (qn.IsBroken && qn.RespawnTime == DateTime.MaxValue))
                         {
                             tmp.Add(Tools.FromFormat("bbwbb", 22, 10, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
                         }

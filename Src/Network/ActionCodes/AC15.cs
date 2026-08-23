@@ -26,6 +26,7 @@ namespace Network.ActionCodes
             byte sub = p.Unpack8();
             switch (sub)
             {
+                case 2:  Recv2(player, p); break;   // Dismiss / Release Companion Pet
                 case 7:  Recv7(player, p); break;   // Raft sailing confirmation
                 case 9:  Recv9(player, p); break;   // Raft board / mount placed vehicle
                 case 10: Recv10(player, p); break; // Raft dismount & break on shore (Frame 6950-6992)
@@ -36,6 +37,86 @@ namespace Network.ActionCodes
                 default:
                     DebugSystem.Write($"[AC15] Subcode {sub} received");
                     break;
+            }
+        }
+
+        /// <summary>
+        /// Handles Client Dismissing / Releasing Pet: C->S [15, 2, slot (1B)]
+        /// </summary>
+        private void Recv2(Player player, RecievePacket p)
+        {
+            try
+            {
+                byte slot = 1;
+                if (p.Buffer.Count() - p.GetPtr() >= 1)
+                {
+                    slot = p.Unpack8();
+                }
+                if (slot == 0) slot = 1;
+
+                DebugSystem.Write($"[AC15.Recv2] Player {player.CharName} requested dismissing pet at slot {slot}");
+
+                Player.PlayerPetData pet = null;
+                if (player.PlayerPets != null)
+                {
+                    if (player.PlayerPets.TryGetValue(slot, out var targetPet))
+                    {
+                        pet = targetPet;
+                    }
+                    else
+                    {
+                        pet = player.PlayerPets.Values.FirstOrDefault();
+                        if (pet != null) slot = pet.Slot;
+                    }
+                }
+
+                if (pet == null)
+                {
+                    DebugSystem.Write($"[AC15.Recv2] No pet found in slot {slot} for player {player.CharName}");
+                    return;
+                }
+
+                uint petId = pet.PetID;
+                string petName = pet.PetName;
+
+                // 1. If pet was active in battle or following on map, clear and despawn
+                if (player.ActivePetID == petId || pet.IsBattle)
+                {
+                    player.ActivePetID = 0;
+                    pet.IsBattle = false;
+                    player.UnridePet();
+
+                    // Rest / Despawn follower packets
+                    SendPacket restPkt = Tools.FromFormat("bbd", 19, 5, player.CharID);
+                    player.Send(restPkt);
+                    player.CurMap?.Broadcast(restPkt, "Ex", player.CharID);
+
+                    SendPacket petDespawn = Tools.FromFormat("bbdd", 5, 8, player.CharID, 0);
+                    player.Send(petDespawn);
+                    player.CurMap?.Broadcast(petDespawn, "Ex", player.CharID);
+                }
+
+                // 2. Remove pet from PlayerPets collection
+                player.PlayerPets.Remove(slot);
+
+                // 3. Send official AC 15:2 dismiss confirmation packet to client
+                SendPacket dp = new SendPacket();
+                dp.PackArray(new byte[] { 15, 2 });
+                dp.Pack32(player.CharID);
+                dp.Pack8(slot);
+                player.Send(dp);
+                player.CurMap?.Broadcast(dp, "Ex", player.CharID);
+
+                // 4. Delete pet from database
+                cGlobal.gCharacterDataBase?.ExecuteNonQuery($"DELETE FROM character_pets WHERE charID = '{player.CharID}' AND slot = '{slot}';");
+                player.SaveCharacterData();
+
+                player.SendSystemMessage($"👋 Released companion pet {petName} (Slot {slot}).");
+                DebugSystem.Write($"[AC15.Recv2] Successfully dismissed pet '{petName}' (TID: {petId}) from slot {slot} for {player.CharName}");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC15.Recv2] Error dismissing pet: {ex.Message}");
             }
         }
 

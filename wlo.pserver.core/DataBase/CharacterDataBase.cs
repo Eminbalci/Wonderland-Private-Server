@@ -426,58 +426,14 @@ namespace DataBase
 
             #region chartent_items Verification
             DebugSystem.Write("Checking for chartent_items table");
-        retry_tent_items:
-            if (GetDataTable("SELECT * FROM chartent_items") != null) goto exist_tent_items;
-
-            DebugSystem.Write("Setting up chartent_items table");
-            nonsqlite_prikey = "";
-            cmstr = "create table chartent_items (";
-
-            foreach (var t in chartent_items)
+            if (ServType == RCLibrary.Core.DataBaseTypes.Sqlite)
             {
-                var str = "";
-                var att = t.Value.Split('/');
-
-                switch (ServType)
-                {
-                    case RCLibrary.Core.DataBaseTypes.MySQl:
-                        foreach (var a in att)
-                            switch (a)
-                            {
-                                case "text": str += "text "; break;
-                                case "int": str += "int(11) "; break;
-                                case "NN": str += "NOT NULL "; break;
-                                case "AI": str += "AUTO_INCREMENT "; break;
-                                case "PK": nonsqlite_prikey = "PRIMARY KEY (" + t.Key + ")"; break;
-                            }
-                        break;
-                    case RCLibrary.Core.DataBaseTypes.Sqlite:
-                        foreach (var a in att)
-                            switch (a)
-                            {
-                                case "text": str += "text "; break;
-                                case "int": str += "INTEGER "; break;
-                                case "NN": str += "NOT NULL "; break;
-                                case "PK": str += "PRIMARY KEY "; break;
-                                case "AI": str += "AUTOINCREMENT "; break;
-                            }
-                        break;
-                }
-                cmstr += string.Format("{0} {1},", t.Key, str);
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS chartent_items (pri_key INTEGER PRIMARY KEY AUTOINCREMENT, charID INTEGER NOT NULL, itemID INTEGER, posX INTEGER, posY INTEGER, floor INTEGER, rotate INTEGER);");
             }
-
-            if (nonsqlite_prikey != "")
-                cmstr += string.Format("{0},", nonsqlite_prikey);
-
-            cmstr = cmstr.Substring(0, cmstr.Length - 1);
-            if (ServType == RCLibrary.Core.DataBaseTypes.MySQl)
-                cmstr += ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
-            else if (ServType == RCLibrary.Core.DataBaseTypes.Sqlite)
-                cmstr += ");";
-
-            ExecuteNonQuery(cmstr);
-
-        exist_tent_items:
+            else
+            {
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS chartent_items (pri_key INT NOT NULL AUTO_INCREMENT PRIMARY KEY, charID INT NOT NULL, itemID INT, posX INT, posY INT, floor INT, rotate INT) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+            }
             DebugSystem.Write("Found chartent_items table");
             #endregion
 
@@ -1754,9 +1710,11 @@ namespace DataBase
             }
         }
 
-        public void SaveTentData(Player player)
+        public void SaveTentData(Player player, bool force = false)
         {
             if (player == null || player.CharID == 0 || player.Tent == null) return;
+            if (!force && !player.Tent.IsDirty) return;
+
             try
             {
                 // 1. Save / Update chartent
@@ -1786,7 +1744,8 @@ namespace DataBase
                         ExecuteNonQuery(string.Format("INSERT INTO chartent_items (charID, itemID, posX, posY, floor, rotate) VALUES {0};", string.Join(",", itemRows)));
                     }
                 }
-                DebugSystem.Write($"[TentDB] Saved {player.Tent.TentObjects?.Count ?? 0} tent items for {player.CharName} (CharID={player.CharID})");
+
+                player.Tent.IsDirty = false;
             }
             catch (Exception ex)
             {

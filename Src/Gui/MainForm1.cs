@@ -4103,7 +4103,11 @@ namespace Wonderland_Private_Server
         private string FormatSubCondition(Game.DataFiles.EventSubEntry sub)
         {
             if (sub.unknownbyte1 == 1) return $"Player Level >= {sub.unknownword1}";
-            if (sub.unknownbyte1 == 2) return $"Player Has Item #{sub.unknownword3} ({GetItemDisplayName(sub.unknownword3)}) x{Math.Max(1, (int)sub.unknownword2)}";
+            if (sub.unknownbyte1 == 2)
+            {
+                ushort iid = (sub.unknownword1 >= 10000 && sub.unknownword1 <= 65000) ? sub.unknownword1 : sub.unknownword3;
+                return $"Player Has Item #{iid} ({GetItemDisplayName(iid)}) x{Math.Max(1, (int)sub.unknownword2)}";
+            }
             if (sub.unknownbyte1 == 4) return $"Player Has Companion Pet #{sub.unknownword1} ({Game.Battle.PvEBattleManager.ResolveMonsterName((uint)sub.unknownword1)})";
             if (sub.unknownbyte1 == 5)
             {

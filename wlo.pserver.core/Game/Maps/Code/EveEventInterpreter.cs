@@ -475,6 +475,14 @@ namespace Game.Maps
                 o.dialog2 == 30025 || o.dialog3 == 30025);
         }
 
+        private static bool IsTeamFullErrorBranch(EventSubEntry sub)
+        {
+            if (sub?.SubEntry == null) return false;
+            return sub.SubEntry.Any(o =>
+                o.dialog2 == 31146 || o.dialog3 == 31146 ||
+                o.dialog2 == 20048 || o.dialog3 == 20048);
+        }
+
         private static EventSubEntry GetExecutableBranch(Player player, EventsinMapEntries eventEntry, EventSubEntry sub)
         {
             if (sub.SubEntry != null && sub.SubEntry.Count > 0)
@@ -483,6 +491,10 @@ namespace Game.Maps
                 if (free >= 1 && IsInventoryFullErrorBranch(sub))
                 {
                     // Ignore error branch if player has space
+                }
+                else if (player.PlayerPets != null && player.PlayerPets.Count < 4 && IsTeamFullErrorBranch(sub))
+                {
+                    // Ignore team full error branch if player has room for pets
                 }
                 else
                 {
@@ -523,6 +535,14 @@ namespace Game.Maps
                         nextIdx++;
                         continue;
                     }
+
+                    bool isTeamFull = IsTeamFullErrorBranch(nextSub);
+                    if (isTeamFull && player.PlayerPets != null && player.PlayerPets.Count < 4)
+                    {
+                        nextIdx++;
+                        continue;
+                    }
+
                     return nextSub;
                 }
                 nextIdx++;
@@ -607,18 +627,21 @@ namespace Game.Maps
                 }
 
                 // Item Condition (unknownbyte1 == 2)
-                if (sub.unknownbyte1 == 2 && sub.unknownword3 >= 10000 && sub.unknownword3 <= 65000)
+                if (sub.unknownbyte1 == 2)
                 {
-                    ushort reqItem = sub.unknownword3;
-                    byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
-                    bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
-
-                    // (unknownword4 & 0x01) != 0 or unknownword4 == 2 or 5: Condition is Player MUST HAVE the required item
-                    bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
-                    if ((reqHave && hasItem) || (!reqHave && !hasItem))
+                    ushort reqItem = (sub.unknownword1 >= 10000 && sub.unknownword1 <= 65000) ? sub.unknownword1 : sub.unknownword3;
+                    if (reqItem > 0)
                     {
-                        var target = GetExecutableBranch(player, eventEntry, sub);
-                        if (target != null && target != excludeSub) return target;
+                        byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
+                        bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
+
+                        // (unknownword4 & 0x01) != 0 or unknownword4 == 2 or 5: Condition is Player MUST HAVE the required item
+                        bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
+                        if ((reqHave && hasItem) || (!reqHave && !hasItem))
+                        {
+                            var target = GetExecutableBranch(player, eventEntry, sub);
+                            if (target != null && target != excludeSub) return target;
+                        }
                     }
                 }
 
@@ -706,6 +729,21 @@ namespace Game.Maps
 
             if (validCandidates.Count > 0)
             {
+                // Filter out error branches when player meets capacity requirements
+                if (player.PlayerPets != null && player.PlayerPets.Count < 4)
+                {
+                    validCandidates.RemoveAll(s => IsTeamFullErrorBranch(s));
+                }
+                if (playerFreeSlots >= 1)
+                {
+                    validCandidates.RemoveAll(s => IsInventoryFullErrorBranch(s));
+                }
+
+                if (validCandidates.Count == 0)
+                {
+                    return null;
+                }
+
                 ushort GetBranchGrantItem(EventSubEntry s)
                 {
                     if (s?.SubEntry == null) return 0;
@@ -740,7 +778,14 @@ namespace Game.Maps
                     return unobtainedItemBranch;
                 }
 
-                // 2. Second priority: non-reward dialogue branch (e.g. Sub 0 "Is there anything I can help you with?")
+                // 2. Second priority: companion recruitment branches
+                var recruitBranch = validCandidates.FirstOrDefault(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 3));
+                if (recruitBranch != null)
+                {
+                    return recruitBranch;
+                }
+
+                // 3. Third priority: non-reward dialogue branch
                 var nonItemBranch = validCandidates.FirstOrDefault(s => GetBranchGrantItem(s) == 0);
                 if (nonItemBranch != null)
                 {
