@@ -1158,9 +1158,11 @@ namespace Game.Battle
 
             var allFriendly = battle.Attackers.Concat(battle.Defenders);
             var actingFighter = allFriendly.FirstOrDefault(f => f.GridX == srcX && f.GridY == srcY && (f.PlayerRef == player || f.OwnerID == player.CharID));
-            if (actingFighter == null)
+
+            // If the fighter at (srcX,srcY) has already submitted an action this round, or was not found, resolve to the player's next un-acted living fighter (e.g. Companion Pet)
+            if (actingFighter == null || battle.PendingActions.ContainsKey((actingFighter.GridX << 8) | actingFighter.GridY))
             {
-                actingFighter = allFriendly.FirstOrDefault(f => f.PlayerRef == player);
+                actingFighter = allFriendly.FirstOrDefault(f => !f.IsDead && (f.PlayerRef == player || f.OwnerID == player.CharID) && !battle.PendingActions.ContainsKey((f.GridX << 8) | f.GridY));
                 if (actingFighter != null)
                 {
                     srcX = actingFighter.GridX;
