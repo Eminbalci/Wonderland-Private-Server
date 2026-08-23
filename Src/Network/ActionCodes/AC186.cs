@@ -19,8 +19,12 @@ namespace Network.ActionCodes
         {
             switch (p.B)
             {
-                case 9: Recv9(r, p); break;
-                default: Console.WriteLine($"AC {p.A},{p.B} has not been coded"); break;
+                case 9:
+                    Recv9(r, p);
+                    break;
+                default:
+                    DebugSystem.Write($"[AC186] Subcode {p.B} received from {r.CharName}");
+                    break;
             }
         }
 
@@ -28,27 +32,52 @@ namespace Network.ActionCodes
         {
             try
             {
-                // Official PCAP (ilkgorevinanimasyonlukisimlari.pcapng Frames 1920-1941)
-                // Client sends ba 09 01 00 (Cutscene acknowledgment)
+                // ActionCode 186 Subcode 9: Cutscene / CG Animation Acknowledgment
+                // Client packet: Header (5B: F4 44 LenLo LenHi AC=186 Sub=9) + Payload [cutsceneId (2B)]
+                ushort cutsceneId = 1;
+                if (r.Buffer != null && r.Buffer.Length >= 8)
+                {
+                    cutsceneId = (ushort)(r[6] | (r[7] << 8));
+                }
+
+                // 1. Server responds with CG playback acknowledgment:
+                // [AC=186 (1B)][Sub=9 (1B)][cutsceneId (2B)][status=1 (1B)][reserved (4B)]
                 SendPacket resp = new SendPacket();
-                resp.PackArray(new byte[] { 186, 9, 1, 0, 1, 0, 0, 0, 0 }); // ba 09 01 00 01 00 00 00 00
+                resp.Pack8(186);
+                resp.Pack8(9);
+                resp.Pack16(cutsceneId);
+                resp.Pack8(1); // 1 = Active / Playing
+                resp.Pack32(0); // Reserved padding
                 p.Send(resp);
 
-                // Storm rumble / sound dialogue packet (AC 20 Sub 1 Step 3)
-                SendPacket stormSound = new SendPacket();
-                stormSound.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, 2, 0x7B, 0, 0, 0, 0, 0, 0 });
-                p.Send(stormSound);
-
-                // When storm cutscene ends (Client sends AC 20:6 after movie finishes), teleport player to Map 10035 (Shipwreck Beach)
-                p.OnInteractionComplete = () =>
+                // 2. For Cutscene 1 (Prologue Shipwreck on Starter Ship), allow animation to play fully then transition to Beach
+                if (cutsceneId == 1 && p.CurMap != null && (p.CurMap.MapID == 10017 || (p.CurMap.MapID >= 10024 && p.CurMap.MapID <= 10028)))
                 {
-                    p.PendingBeachCutscene = true;
-                    var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
-                    p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
-                    DebugSystem.Write($"[AC186] Cutscene animation completed (AC 20:6). Teleported {p.CharName} to shipwreck beach (Map 10035)");
-                };
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // Authentic CG movie playback duration (~9.5 seconds)
+                            await Task.Delay(9500);
 
-                DebugSystem.Write($"[AC186.Recv9] Acknowledged storm cutscene start on ship deck for {p.CharName}. Waiting for animation completion (AC 20:6) before teleport.");
+                            if (p.CurMap != null && (p.CurMap.MapID == 10017 || (p.CurMap.MapID >= 10024 && p.CurMap.MapID <= 10028)))
+                            {
+                                p.PendingBeachCutscene = true;
+                                var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
+                                p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
+                                DebugSystem.Write($"[AC186.Recv9] Prologue Storm Cutscene #1 completed -> Teleported {p.CharName} to shipwreck beach (Map 10035)");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write(new ExceptionData(ex));
+                        }
+                    });
+                }
+                else
+                {
+                    DebugSystem.Write($"[AC186.Recv9] Synced CG Cutscene #{cutsceneId} playback for {p.CharName}");
+                }
             }
             catch (Exception t)
             {

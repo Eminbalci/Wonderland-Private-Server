@@ -105,6 +105,5 @@ In the private server exe, click "Cheat" tab:
 - PvE Battle Pet & Turn-Based Flee System in [docs/pve_battle_pet_and_flee_turn_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pve_battle_pet_and_flee_turn_system.md).
 - Pure Binary Npc.dat Decoding Engine in [docs/pure_binary_npc_dat_resolver.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pure_binary_npc_dat_resolver.md).
 - NPC Name Resolver & Template Directory GUI Studio in [docs/npc_name_resolver_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_name_resolver_gui.md).
-- Server Branding, Welcome MOTD Customization & Fast Login Optimization in [docs/server_branding_and_fast_login.md](file:///d:/GitHub/Wonderland-Private-Server/docs/server_branding_and_fast_login.md).
 - Companion Pet Dismissal & Release System (AC 15:2) in [docs/pet_dismissal_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pet_dismissal_system.md).
-
+- NPC & Event Mapping Integrity and Teleportation Isolation in [docs/npc_event_mapping_and_teleport_isolation.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_event_mapping_and_teleport_isolation.md).

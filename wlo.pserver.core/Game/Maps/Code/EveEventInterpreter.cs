@@ -56,8 +56,8 @@ namespace Game.Maps
                     }
                 }
 
-                // Fallback: direct match on clickID if no NPC-specific event list exists
-                if (eventEntry == null && mapData.Events != null)
+                // If this is an interactive map prop / entity not registered in Npclist, check direct event match on clickID
+                if (eventEntry == null && mapData.Events != null && (npcEntry == null || (npcEntry.Events == null || npcEntry.Events.Count == 0)))
                 {
                     eventEntry = mapData.Events.FirstOrDefault(e => e.clickID == clickId);
                 }
@@ -71,6 +71,116 @@ namespace Game.Maps
                 string mMapName = Game.DataFiles.SceneDataManager.GetMapName((ushort)map.MapID);
 
                 DebugSystem.Write($"[EveEventInterpreter] Executing native Event for Map #{map.MapID} ({mMapName}), NPC #{clickId} '{nName}' (TID: {npcTid}) -> Event #{eventEntry.clickID} ('{eventEntry.Name.Trim()}'). SubEntries: {eventEntry.SubEntry.Count}");
+
+                // Special handling for S.Monkey (TID 17162 / Map 11016 Event 1):
+                // Enforces authentic 16-step dialogue sequence (TalkIDs 20038..20053), pet recruitment, and strict warp isolation
+                if (npcTid == 17162 || (map.MapID == 11016 && clickId == 1))
+                {
+                    bool hasMonkey = (player.PlayerPets != null && player.PlayerPets.Values.Any(pet => pet != null && pet.PetID == 17162)) ||
+                                     (player.Quests != null && player.Quests.TryGetValue(12002, out var mq) && mq.State == QuestState.Completed);
+
+                    if (hasMonkey)
+                    {
+                        // Already recruited: short squeak dialogue (TalkID 20042)
+                        SendPacket squeakPkt = BuildDialoguePacket((byte)clickId, 20042, 1, 3);
+                        player.OnInteractionComplete = () =>
+                        {
+                            player.Send(Tools.FromFormat("bb", 20, 8));
+                            player.Send(Tools.FromFormat("bb", 5, 4));
+                        };
+                        player.Send(squeakPkt);
+                        DebugSystem.Write($"[EveEventInterpreter] Sent S.Monkey already-recruited dialogue (TalkID 20042) to {player.CharName}");
+                        return true;
+                    }
+
+                    bool isTeamFull = player.PlayerPets != null && player.PlayerPets.Count >= 4;
+
+                    player.QueueData.Clear();
+                    var monkeySteps = new List<MonkeyDialogueStep>();
+
+                    // Authentic full dialogue sequence (Steps 1..11)
+                    monkeySteps.Add(new MonkeyDialogueStep(20038, 7, (byte)clickId)); // Player: Oh? It's a Monkey!
+                    monkeySteps.Add(new MonkeyDialogueStep(20039, 3, (byte)clickId)); // Monkey: Squeak~ Squeak~ Squeak~
+                    monkeySteps.Add(new MonkeyDialogueStep(20040, 7, (byte)clickId)); // Player: Monkey, are you ok?
+                    monkeySteps.Add(new MonkeyDialogueStep(20041, 7, (byte)clickId)); // Player: (Revive the monkey)
+                    monkeySteps.Add(new MonkeyDialogueStep(20042, 3, (byte)clickId)); // Monkey: Squeak! Squeak! Squeak!
+                    monkeySteps.Add(new MonkeyDialogueStep(20043, 7, (byte)clickId)); // Player: Ok, you have regained consciousness.
+                    monkeySteps.Add(new MonkeyDialogueStep(20044, 7, (byte)clickId)); // Player: Be careful next time! Monkey.
+                    monkeySteps.Add(new MonkeyDialogueStep(20045, 3, (byte)clickId)); // Monkey: ... ... ... ??
+                    monkeySteps.Add(new MonkeyDialogueStep(20046, 7, (byte)clickId)); // Player: Oh? Why are you following me?
+                    monkeySteps.Add(new MonkeyDialogueStep(20047, 7, (byte)clickId)); // Player: I don't have anything to eat, so don't follow me! Just stay back!
+                    monkeySteps.Add(new MonkeyDialogueStep(20048, 3, (byte)clickId)); // Monkey: Squeak~ Squeak~ Squeak~ (crying sound)
+
+                    if (isTeamFull)
+                    {
+                        monkeySteps.Add(new MonkeyDialogueStep(31146, 7, (byte)clickId)); // Player: My team is already full...
+                        monkeySteps.Add(new MonkeyDialogueStep(20048, 3, (byte)clickId)); // Monkey: Squeak~ crying
+                    }
+                    else
+                    {
+                        monkeySteps.Add(new MonkeyDialogueStep(20049, 7, (byte)clickId)); // Player: Oh? It seems that you have mistaken me for your mom?
+                        monkeySteps.Add(new MonkeyDialogueStep(20050, 3, (byte)clickId)); // Monkey: Squeak~ (Nods vigorously)
+                        monkeySteps.Add(new MonkeyDialogueStep(20051, 7, (byte)clickId)); // Player: Do I look like Female Monkey? How annoying!
+                        monkeySteps.Add(new MonkeyDialogueStep(20052, 7, (byte)clickId)); // Player: Ah! That's ok! You can accompany me! It's better to have one than none.
+                        monkeySteps.Add(new MonkeyDialogueStep(20053, 3, (byte)clickId)); // Monkey: Squeak, squeak, squeak!
+                    }
+
+                    for (int i = 0; i < monkeySteps.Count; i++)
+                    {
+                        byte sNum = (byte)(i + 1);
+                        var sInfo = monkeySteps[i];
+                        SendPacket stepPkt = BuildDialoguePacket(sInfo.Speaker, sInfo.TalkId, sNum, sInfo.Portrait);
+                        string dText = global::DataFiles.TalkResolver.Resolve(sInfo.TalkId, player.CharName, true);
+                        if (!string.IsNullOrEmpty(dText))
+                        {
+                            dText = dText.Replace("\r", " ").Replace("\n", " ");
+                            if (dText.Length > 60) dText = dText.Substring(0, 60) + "...";
+                        }
+                        if (i == 0)
+                        {
+                            player.Send(stepPkt);
+                            DebugSystem.Write($"[EveEventInterpreter] Sent S.Monkey Step 1 (TalkID: #{sInfo.TalkId}) - \"{dText}\" to {player.CharName}");
+                        }
+                        else
+                        {
+                            player.QueueData.Enqueue(stepPkt);
+                            DebugSystem.Write($"[EveEventInterpreter] Enqueued S.Monkey Step {sNum} (TalkID: #{sInfo.TalkId}) - \"{dText}\" for {player.CharName}");
+                        }
+                    }
+
+                    player.OnInteractionComplete = () =>
+                    {
+                        if (!isTeamFull)
+                        {
+                            // Despawn S.Monkey from map
+                            player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
+                            map.Broadcast(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
+
+                            // Recruit S.Monkey
+                            QuestManager.SendCompanionReward(player, 17162, "S.Monkey");
+                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "S.Monkey has joined your party!"));
+                            DebugSystem.Write($"[EveEventInterpreter] Recruited S.Monkey (TID 17162) for {player.CharName}");
+
+                            // Update Quests 12002 and 12003
+                            if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+                            player.Quests[12002] = new PlayerQuest(12002, QuestState.Completed, 1);
+                            player.Quests[12003] = new PlayerQuest(12003, QuestState.InProgress, 1);
+                            QuestManager.SavePlayerQuest(player, 12002);
+                            QuestManager.SavePlayerQuest(player, 12003);
+                            QuestManager.SendQuestUpdate(player, 12002, QuestState.Completed, 1);
+                            QuestManager.SendQuestUpdate(player, 12003, QuestState.InProgress, 1);
+
+                            // Fanfare SFX
+                            player.Send(Tools.FromFormat("bb", 20, 10));
+                        }
+
+                        player.Send(Tools.FromFormat("bb", 20, 8));
+                        player.Send(Tools.FromFormat("bb", 5, 4));
+                        player.SaveCharacterData();
+                    };
+
+                    return true;
+                }
 
                 // 2. Select matching branch based on player quest state
                 EventSubEntry selectedSub = SelectMatchingBranch(player, map, clickId, eventEntry);
@@ -406,11 +516,24 @@ namespace Game.Maps
 
                 if (firstDialogSent && player.OnDialogueChoice == null)
                 {
-                    player.OnInteractionComplete = () =>
+                    int postIdx = 0;
+                    Action executeRemainingOpcodes = null;
+
+                    executeRemainingOpcodes = () =>
                     {
-                        foreach (var postOp in postDialogueOpcodes)
+                        while (postIdx < postDialogueOpcodes.Count)
                         {
-                            ExecuteOpcode(player, map, clickId, eventEntry, selectedSub, postOp);
+                            var postOp = postDialogueOpcodes[postIdx++];
+                            if (postOp.DialogPtr == 8 && postOp.dialog4 == 31488)
+                            {
+                                // Trigger storm cutscene (AC 186:12). Client AC 186:9 will synchronize playback and transition to beach
+                                ExecuteOpcode(player, map, clickId, eventEntry, selectedSub, postOp);
+                                return;
+                            }
+                            else
+                            {
+                                ExecuteOpcode(player, map, clickId, eventEntry, selectedSub, postOp);
+                            }
                         }
 
                         // Check if newly updated quest flags activate a follow-up action branch (e.g. Sub #5 companion recruitment / despawn)
@@ -428,12 +551,14 @@ namespace Game.Maps
                             }
                         }
 
-                        if (!postDialogueOpcodes.Any(o => o.DialogPtr == 6 || o.DialogPtr == 7 || o.DialogPtr == 8 || o.DialogPtr == 9 || o.DialogPtr == 13 || o.DialogPtr == 186))
+                        if (!postDialogueOpcodes.Any(o => o.DialogPtr == 6 || o.DialogPtr == 7 || o.DialogPtr == 8 || o.DialogPtr == 9 || o.DialogPtr == 13 || o.DialogPtr == 186 || (o.DialogPtr == 1 && o.dialog1 == 3)))
                         {
                             player.Send(Tools.FromFormat("bb", 20, 8));
                             player.Send(Tools.FromFormat("bb", 5, 4));
                         }
                     };
+
+                    player.OnInteractionComplete = executeRemainingOpcodes;
                 }
                 else if (!interactiveSessionStarted)
                 {
@@ -842,8 +967,40 @@ namespace Game.Maps
 
                 switch (op.DialogPtr)
                 {
-                    // Opcode 1: Item Grant / Item Consume / Dialogue Frame
+                    // Opcode 1: Item Grant / Item Consume / Scene Transition / Dialogue Frame
                     case 1:
+                        // Scene / Chapter Transition in Eve: dptr=1, d1=3, d2=transitionType
+                        if (op.dialog1 == 3)
+                        {
+                            uint transitionType = op.dialog2;
+                            DebugSystem.Write($"[EveEventInterpreter] Opcode 1: Scene Transition (Type: {transitionType}) on Map #{map.MapID} for {player.CharName}");
+
+                            // Transition 1 from Starter Ship -> Rhode Island Shipwreck Beach
+                            if (map.MapID == 10017 || (map.MapID >= 10024 && map.MapID <= 10028))
+                            {
+                                player.OnInteractionComplete = () =>
+                                {
+                                    player.PendingBeachCutscene = true;
+                                    var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
+                                    player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
+                                    DebugSystem.Write($"[EveEventInterpreter] Prologue Shipwreck Scene Transition completed. Teleported {player.CharName} to Map 10035 (1038, 2235)");
+                                };
+                                return true;
+                            }
+                            // Transition from Shipwreck Beach to South Island
+                            else if (map.MapID == 10035)
+                            {
+                                player.OnInteractionComplete = () =>
+                                {
+                                    var warp = new WarpData() { DstMap = 11016, DstX_Axis = 402, DstY_Axis = 1035 };
+                                    player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
+                                    DebugSystem.Write($"[EveEventInterpreter] Ocean Raft Scene Transition completed. Teleported {player.CharName} to Map 11016 (402, 1035)");
+                                };
+                                return true;
+                            }
+                            return true;
+                        }
+
                         // Item Take/Give Opcode in Eve: dptr=1, d1=1, d2=count, d3=Item ID, d4=Mode
                         if (op.dialog1 == 1 && op.dialog3 > 0)
                         {
@@ -1345,15 +1502,24 @@ namespace Game.Maps
                         break;
 
 
-                    // Opcode 8: Sound Effect / Fanfare or Cinematic Cutscene Trigger (dialog4 == 31488)
+                    // Opcode 8: Sound Effect / Fanfare / CG Trigger
                     case 8:
                         {
-                            if (op.dialog4 == 31488 || op.dialog1 == 2 || (map.MapID == 10017 && clickId == 10))
+                            if (op.dialog4 == 31488) // 0x7B00 (Thunder / Storm Cutscene Trigger)
                             {
                                 SendPacket cutscenePkt = new SendPacket();
-                                cutscenePkt.PackArray(new byte[] { 186, 12, 1, 0, 0, 0, 0 });
+                                cutscenePkt.Pack8(186);
+                                cutscenePkt.Pack8(12);
+                                cutscenePkt.Pack8(1); // Cutscene ID 1
+                                cutscenePkt.Pack32(0);
                                 player.Send(cutscenePkt);
-                                DebugSystem.Write($"[EveEventInterpreter] Triggered Storm Cutscene Animation (AC 186:12) for {player.CharName}");
+
+                                byte sfxId = (byte)(op.dialog4 >> 8); // 0x7B
+                                SendPacket sfxPkt = new SendPacket();
+                                sfxPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, (byte)op.dialog1, sfxId, 0, 0, 0, 0, 0, 0 });
+                                player.Send(sfxPkt);
+
+                                DebugSystem.Write($"[EveEventInterpreter] Triggered Storm Cutscene Animation (AC 186:12, SFX 0x{sfxId:X2}) for {player.CharName}");
                                 return true;
                             }
                             else
@@ -1445,6 +1611,39 @@ namespace Game.Maps
                 DebugSystem.Write($"[EveEventInterpreter] Error executing opcode {op.DialogPtr}: {ex.Message}");
             }
             return false;
+        }
+
+        private static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3)
+        {
+            SendPacket dPkt = new SendPacket();
+            dPkt.Pack8(20);                                   // AC
+            dPkt.Pack8(1);                                    // SubCode
+            dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);     // session padding
+            dPkt.Pack8(stepNum);                             // step
+            dPkt.Pack8(1);                                    // fixed
+            dPkt.Pack8(portrait);                             // portrait (3=NPC, 7=Player)
+            dPkt.Pack8(speakerClickId);                       // npc click id
+            dPkt.Pack8(0);                                    // padding
+            dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // flags
+            dPkt.Pack8(0);                                    // padding
+            dPkt.Pack8((byte)(talkId & 0xFF));                // TalkID LSB
+            dPkt.Pack8((byte)((talkId >> 8) & 0xFF));         // TalkID MID
+            dPkt.Pack8((byte)((talkId >> 16) & 0xFF));        // TalkID MSB
+            return dPkt;
+        }
+
+        private struct MonkeyDialogueStep
+        {
+            public uint TalkId;
+            public byte Portrait;
+            public byte Speaker;
+
+            public MonkeyDialogueStep(uint talkId, byte portrait, byte speaker)
+            {
+                TalkId = talkId;
+                Portrait = portrait;
+                Speaker = speaker;
+            }
         }
     }
 }
