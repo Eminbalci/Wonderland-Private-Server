@@ -551,10 +551,29 @@ namespace Game.Maps
                             }
                         }
 
+                        if (player.CurMap != null && player.CurMap.MapID == 10035 && clickId == 1)
+                        {
+                            // Official PCAP Frame 2997: Robinson returns to normal standing posture (AC 22:12 [1, 1, 0, 6])
+                            player.Send(Tools.FromFormat("bbbbbb", 22, 12, 1, 1, 0, 6));
+                            player.CurMap?.Broadcast(Tools.FromFormat("bbbbbb", 22, 12, 1, 1, 0, 6), "Ex", player.CharID);
+                        }
+
+                        if (player.Emote == 9)
+                        {
+                            player.Emote = 0;
+                            SendPacket eReset = new SendPacket();
+                            eReset.PackArray(new byte[] { 32, 2 });
+                            eReset.Pack32(player.CharID);
+                            eReset.Pack8(0);
+                            player.Send(eReset);
+                            player.CurMap?.Broadcast(eReset, "Ex", player.CharID);
+                        }
+
                         if (!postDialogueOpcodes.Any(o => o.DialogPtr == 6 || o.DialogPtr == 7 || o.DialogPtr == 8 || o.DialogPtr == 9 || o.DialogPtr == 13 || o.DialogPtr == 186 || (o.DialogPtr == 1 && o.dialog1 == 3)))
                         {
-                            player.Send(Tools.FromFormat("bb", 20, 8));
-                            player.Send(Tools.FromFormat("bb", 5, 4));
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 0)); // Restore UI & HUD
+                            player.Send(Tools.FromFormat("bb", 20, 8));    // Screen unlock
+                            player.Send(Tools.FromFormat("bb", 5, 4));     // Movement unlock
                         }
                     };
 
@@ -562,7 +581,19 @@ namespace Game.Maps
                 }
                 else if (!interactiveSessionStarted)
                 {
+                    if (player.Emote == 9)
+                    {
+                        player.Emote = 0;
+                        SendPacket eReset = new SendPacket();
+                        eReset.PackArray(new byte[] { 32, 2 });
+                        eReset.Pack32(player.CharID);
+                        eReset.Pack8(0);
+                        player.Send(eReset);
+                        player.CurMap?.Broadcast(eReset, "Ex", player.CharID);
+                    }
+
                     // Fallback: unlock immediately if event completed with no interactive dialogues or minigames
+                    player.Send(Tools.FromFormat("bbb", 6, 2, 0)); // Restore UI & HUD
                     player.Send(Tools.FromFormat("bb", 20, 8));
                     player.Send(Tools.FromFormat("bb", 5, 4));
                 }
@@ -1507,19 +1538,18 @@ namespace Game.Maps
                         {
                             if (op.dialog4 == 31488) // 0x7B00 (Thunder / Storm Cutscene Trigger)
                             {
+                                player.PlayingStormCutscene = true;
+
+                                // 1. Official PCAP Frame 1914: CG Movie Trigger (AC 186:12 Cutscene #1)
                                 SendPacket cutscenePkt = new SendPacket();
-                                cutscenePkt.Pack8(186);
-                                cutscenePkt.Pack8(12);
-                                cutscenePkt.Pack8(1); // Cutscene ID 1
-                                cutscenePkt.Pack32(0);
+                                cutscenePkt.PackArray(new byte[] { 186, 12, 1, 0, 0, 0, 0 });
                                 player.Send(cutscenePkt);
 
-                                byte sfxId = (byte)(op.dialog4 >> 8); // 0x7B
-                                SendPacket sfxPkt = new SendPacket();
-                                sfxPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, (byte)op.dialog1, sfxId, 0, 0, 0, 0, 0, 0 });
-                                player.Send(sfxPkt);
+                                // 2. Official PCAP Frame 1942: Dialog Step 3 Cinematic Event Trigger
+                                // [AC=20][Sub=1][Step=3 (4B)][Type=5][Target=0 (4B)][Param=2 (2B)][Sound/ID=31488 (2B)][Padding=0 (4B)]
+                                player.Send(Tools.FromFormat("bbdbbwwd", 20, 1, (uint)3, (byte)5, (byte)0, (ushort)2, (ushort)31488, (uint)0));
 
-                                DebugSystem.Write($"[EveEventInterpreter] Triggered Storm Cutscene Animation (AC 186:12, SFX 0x{sfxId:X2}) for {player.CharName}");
+                                DebugSystem.Write($"[EveEventInterpreter] Dispatched Authentic Storm Cutscene Step 3 (AC 186:12 & AC 20:1) for {player.CharName} (awaiting client finish AC 20:6)");
                                 return true;
                             }
                             else

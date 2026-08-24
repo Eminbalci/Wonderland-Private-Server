@@ -40,7 +40,7 @@ namespace Network.ActionCodes
                     cutsceneId = (ushort)(r[6] | (r[7] << 8));
                 }
 
-                // 1. Server responds with CG playback acknowledgment:
+                // 1. Server responds with CG playback acknowledgment (Official PCAP Frame 1942):
                 // [AC=186 (1B)][Sub=9 (1B)][cutsceneId (2B)][status=1 (1B)][reserved (4B)]
                 SendPacket resp = new SendPacket();
                 resp.Pack8(186);
@@ -49,35 +49,7 @@ namespace Network.ActionCodes
                 resp.Pack8(1); // 1 = Active / Playing
                 resp.Pack32(0); // Reserved padding
                 p.Send(resp);
-
-                // 2. For Cutscene 1 (Prologue Shipwreck on Starter Ship), allow animation to play fully then transition to Beach
-                if (cutsceneId == 1 && p.CurMap != null && (p.CurMap.MapID == 10017 || (p.CurMap.MapID >= 10024 && p.CurMap.MapID <= 10028)))
-                {
-                    Task.Run(async () =>
-                    {
-                        try
-                        {
-                            // Authentic CG movie playback duration (~9.5 seconds)
-                            await Task.Delay(9500);
-
-                            if (p.CurMap != null && (p.CurMap.MapID == 10017 || (p.CurMap.MapID >= 10024 && p.CurMap.MapID <= 10028)))
-                            {
-                                p.PendingBeachCutscene = true;
-                                var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
-                                p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
-                                DebugSystem.Write($"[AC186.Recv9] Prologue Storm Cutscene #1 completed -> Teleported {p.CharName} to shipwreck beach (Map 10035)");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            DebugSystem.Write(new ExceptionData(ex));
-                        }
-                    });
-                }
-                else
-                {
-                    DebugSystem.Write($"[AC186.Recv9] Synced CG Cutscene #{cutsceneId} playback for {p.CharName}");
-                }
+                DebugSystem.Write($"[AC186.Recv9] Acknowledged Cutscene #{cutsceneId} playback for {p.CharName}");
             }
             catch (Exception t)
             {

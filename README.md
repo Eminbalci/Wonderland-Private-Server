@@ -1,5 +1,5 @@
 WLO Private Server CheatEngine
-=========================
+==============================
 
 Developing Tools: Visual Studio 2022
 
@@ -8,7 +8,8 @@ Database: sqlite bypass
 Private Server + CheatEngine for Wonderland Online
 
 Running steps:
-1. Client Location: `D:\garipgudubetseyler\WLRI`
+
+1. rhode island install : [drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY](https://drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY)
 2. Ensure `SERVER.INI` in the client directory is set to `127.0.0.1`
 3. Server DAT files in `./Data` are synchronized with the client data files (`Npc.dat`, `Item.dat`, `Skill.dat`, `Talk.dat`, `Eve.emg`, `Ground.MMG`, `SkillData.MBTM`, etc.).
    - Note: The large 1.42 GB sprite archive `odd.dat` can be downloaded directly from [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
@@ -17,32 +18,43 @@ Running steps:
 
 Tips:
 In the private server exe, click "Cheat" tab:
+
 - Double click the item in list:
-    > Maps : Teleports you to that ID
-    
-    > Vehicle : Ride the vehicle
-    
-    > Items : Adds the item to your inventory
-    
-    > Npc : Battle/ride the NPC or Pet
+
+  > Maps : Teleports you to that ID
+  >
+
+  > Vehicle : Ride the vehicle
+  >
+
+  > Items : Adds the item to your inventory
+  >
+
+  > Npc : Battle/ride the NPC or Pet
+  >
 - Each lists have a search textbox on top of it:
-    > Type in your search query and then hit Enter
-    
-    > To reload all, blank the search then hit Enter
+
+  > Type in your search query and then hit Enter
+  >
+
+  > To reload all, blank the search then hit Enter
+  >
 - Press `F5` key anywhere in the GUI window to automatically launch `aLogin.exe`.
 - Click the in-game PK button (sword icon) and click any monster/NPC to engage in turn-based combat. Supports attack, skills, defending, fleeing, XP/Gold rewards, and automatic battle exit.
 - Real-time NPC movement and roaming (`AC 22 Sub 2`) ported from Python server with scripted waypoints and random wandering.
 - Character skill unlocking system (`AC 5 Sub 11`, `AC 8 Sub 1`) with character-specific stunt skills, element skills, and `:skill <id> [grade]` chat command.
 - Interactive Quest & Journal System (`AC 39`, `AC 52`, `charquest` DB table) supporting multi-stage NPC dialogues, item delivery verification, automatic reward distribution (Gold, EXP, Items, Companions), and quest battle encounters.
 - In-Game GM Chat Commands:
-    > `:heal [hp] [sp]` : Fully restores character HP and SP (or specified values).
-    > `:level <1-200>` : Sets character level and recalculates stats.
-    > `:gold <amount>` : Sets character gold.
-    > `:stat <str> <con> <int> <wis> <agi>` : Sets base character stats.
-    > `:item <id> [amount]` : Adds item(s) to inventory.
-    > `:skill <id> [grade]` : Unlocks or upgrades a skill.
-    > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
-    > `:help` : Shows command help in chat.
+
+  > `:heal [hp] [sp]` : Fully restores character HP and SP (or specified values).
+  > `:level <1-200>` : Sets character level and recalculates stats.
+  > `:gold <amount>` : Sets character gold.
+  > `:stat <str> <con> <int> <wis> <agi>` : Sets base character stats.
+  > `:item <id> [amount]` : Adds item(s) to inventory.
+  > `:skill <id> [grade]` : Unlocks or upgrades a skill.
+  > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
+  > `:help` : Shows command help in chat.
+  >
 - `Src/`: Server architecture, networking handlers, action codes (AC00-AC92), database access, and GUI management.
 - `dev_scripts/`: Development and reverse-engineering diagnostic scripts and tools.
 - `docs/`: Technical specifications, reverse engineering documentation, and protocol guides.
@@ -105,5 +117,5 @@ In the private server exe, click "Cheat" tab:
 - PvE Battle Pet & Turn-Based Flee System in [docs/pve_battle_pet_and_flee_turn_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pve_battle_pet_and_flee_turn_system.md).
 - Pure Binary Npc.dat Decoding Engine in [docs/pure_binary_npc_dat_resolver.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pure_binary_npc_dat_resolver.md).
 - NPC Name Resolver & Template Directory GUI Studio in [docs/npc_name_resolver_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_name_resolver_gui.md).
-- Companion Pet Dismissal & Release System (AC 15:2) in [docs/pet_dismissal_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pet_dismissal_system.md).
 - NPC & Event Mapping Integrity and Teleportation Isolation in [docs/npc_event_mapping_and_teleport_isolation.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_event_mapping_and_teleport_isolation.md).
+- Robinson Beach Rescue Cutscene & Camera Protocol in [docs/robinson_beach_cutscene_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/robinson_beach_cutscene_protocol.md).

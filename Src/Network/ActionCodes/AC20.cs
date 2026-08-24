@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Network;
 using Network.ActionCodes;
 using Game;
+using Game.Maps;
 
 namespace Wonderland_Private_Server.ActionCodes
 {
@@ -139,6 +140,25 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv6(Player p, RecievePacket r)
         {
+            // If the player is currently watching the ship storm cutscene, client AC 20:6 signals cutscene finished -> warp to beach
+            if (p.PlayingStormCutscene)
+            {
+                p.PlayingStormCutscene = false;
+                p.PendingBeachCutscene = true;
+                p.Send(Tools.FromFormat("bb", 20, 7)); // Frame 2379: AC 20:7 Warp Out
+                var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
+                p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
+                DebugSystem.Write($"[AC20.Recv6] Storm Cutscene finished for {p.CharName} -> Warping to Beach (Map 10035)");
+                return;
+            }
+
+            // If beach cutscene timeline is actively running, absorb AC 20:6 so it does not interfere with the timeline
+            if (p.BeachCutsceneActive)
+            {
+                DebugSystem.Write($"[AC20.Recv6] Absorbed AC 20:6 during BeachCutsceneActive timeline for {p.CharName}");
+                return;
+            }
+
             if (!p.ContinueInteraction())
             {
                 // If the player is currently on an interactive choice prompt, keep the dialog open

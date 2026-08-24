@@ -1436,8 +1436,19 @@ namespace Game
         public ushort TransformedModelID { get; set; } = 0;
         public bool PendingBeachCutscene { get; set; }
         public bool BeachCutsceneActive { get; set; }
+        public bool PlayingStormCutscene { get; set; }
         public Queue<Action> StepQueue { get; set; } = new Queue<Action>();
         public int LastDialogueAdvanceTick { get; set; } = 0;
+
+        public void ClearInteraction()
+        {
+            QueueData?.Clear();
+            StepQueue?.Clear();
+            OnDialogueChoice = null;
+            OnInteractionComplete = null;
+            OnMinigameWon = null;
+            OnMinigameLost = null;
+        }
 
         public bool ContinueInteraction()
         {
@@ -1471,20 +1482,7 @@ namespace Game
                 var action = OnInteractionComplete;
                 OnInteractionComplete = null;
                 action.Invoke();
-                if (StepQueue != null && StepQueue.Count > 0)
-                {
-                    var stepAction = StepQueue.Dequeue();
-                    stepAction?.Invoke();
-                    return true;
-                }
-                if (QueueData != null && QueueData.Count > 0)
-                {
-                    var nextPkt = QueueData.Dequeue();
-                    Send(nextPkt);
-                    DebugSystem.Write($"[Player.ContinueInteraction] Dispatched next queued step after action to {CharName} (Remaining in queue: {QueueData.Count})");
-                    return true;
-                }
-                return false;
+                return true;
             }
             return false;
         }
