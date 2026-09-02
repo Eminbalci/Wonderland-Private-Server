@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -29,7 +29,10 @@ namespace Network
         void RemSock(SocketClient src)
         {
             Player tmp;
-            TryRemove(src, out tmp);
+            if (TryRemove(src, out tmp) && tmp != null)
+            {
+                tmp.OnConnectionLost();
+            }
             DebugSystem.Write("Client " + src.SockAddress() + " has disconnected");
         }
         public void TerminateAll()

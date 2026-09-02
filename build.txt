@@ -1,0 +1,14 @@
+  Geri y??klenecek projeler belirleniyor...
+  Geri y??kleme i??in t??m projeler g??ncel.
+  PhoenixData -> C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\PhoenixData\bin\Debug\net462\PhoenixData.dll
+  RCLibrary -> C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\RCLibrary\bin\Debug\net462\RCLibrary.dll
+  wlo.pserver.core -> C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\wlo.pserver.core\bin\Debug\wlo.pserver.core.dll
+C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\Src\cGlobal.cs(26,49): error CS0234: 'DataManagement' t??r veya ad alan?? ad?? 'Wonderland_Private_Server' ad alan??nda yok (bir derleme ba??vurunuz mu eksik?) [C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\Wonderland Private Server.csproj]
+
+Olu??turma BA??ARISIZ OLDU.
+
+C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\Src\cGlobal.cs(26,49): error CS0234: 'DataManagement' t??r veya ad alan?? ad?? 'Wonderland_Private_Server' ad alan??nda yok (bir derleme ba??vurunuz mu eksik?) [C:\Users\Muhammet\Documents\GitHub\Wonderland-Private-Server\Wonderland Private Server.csproj]
+    0 Uyar??
+    1 Hata
+
+Ge??en S??re 00:00:00.76

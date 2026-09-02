@@ -7,8 +7,6 @@
 /.gitignore.BASE.99844.gitignore
 /.gitignore.LOCAL.99844.gitignore
 /.gitignore.REMOTE.99844.gitignore
-[Dd]ebug*/
-/bin/Debug/database.override.txt
 /bin/Debug/EntityFramework.SqlServer.xml
 /bin/Debug/EntityFramework.xml
 /bin/Debug/Log/mylogfile.txt
@@ -18,7 +16,6 @@
 /bin/Debug/U2.txt
 /bin/Debug/update.rar
 /bin/Debug/wlophoenixlogFile8112015.txt
-/bin/Release/database.override.txt
 /bin/Release/EntityFramework.SqlServer.xml
 /bin/Release/EntityFramework.xml
 /bin/Release/wlophoenixlogFile7292015.txt
@@ -65,5 +62,6 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-
-
+odd.dat
+*.odd
+dev_scripts/

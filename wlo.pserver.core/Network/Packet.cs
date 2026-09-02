@@ -26,7 +26,7 @@ namespace Network
         /// </summary>
         /// <param name="init"> the data</param>
         /// <param name="nLength">copy a specific length of the data array </param>
-        public SendPacket(IPacket src):base(src.Buffer.ToArray())
+        public SendPacket(IPacket src) : base(src.Buffer.ToArray())
         {
         }
         /// <summary>
@@ -43,7 +43,7 @@ namespace Network
         public override void Pack16(ushort nVal)
         {
             base.Pack16(nVal);
-            BitConverter.GetBytes((UInt16)(m_buffer.Length - 4)).CopyTo(m_buffer,2);
+            BitConverter.GetBytes((UInt16)(m_buffer.Length - 4)).CopyTo(m_buffer, 2);
         }
         public override void Pack32(uint nVal)
         {
@@ -91,21 +91,34 @@ namespace Network
             BitConverter.GetBytes((UInt16)(m_buffer.Length - 4)).CopyTo(m_buffer, 2);
         }
 
-        
+        /// <summary>
+        /// Apply XOR encryption to the packet (excluding header)
+        /// Used by some Wonderland servers for packet obfuscation
+        /// </summary>
+        /// <param name="key">XOR key byte (default 0xAD)</param>
+        public void ApplyXorEncryption(byte key = 0xAD)
+        {
+            // XOR encrypt everything except the first 4 bytes (F4 44 [length])
+            for (int i = 4; i < m_buffer.Length; i++)
+            {
+                m_buffer[i] ^= key;
+            }
+        }
+
 
     }
 
     public class RecievePacket : Packet
     {
 
-         public RecievePacket(byte[] init, int initLength = -1)
-            : base(init, initLength)
+        public RecievePacket(byte[] init, int initLength = -1)
+           : base(init, initLength)
         {
-            SetPtr();  
+            SetPtr();
         }
-        public RecievePacket(IPacket src):base(src.Buffer.ToArray())
+        public RecievePacket(IPacket src) : base(src.Buffer.ToArray())
         {
-            SetPtr();  
+            SetPtr();
         }
 
         public RecievePacket()

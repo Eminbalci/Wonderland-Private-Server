@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Wonderland_Private_Server.Network;
+using Network;
 
 using Game;
 
@@ -33,8 +33,8 @@ namespace Game.Code.PlayerRelated
                 if (!CheckForStop() || isAi)
                 {
                     timer.Restart();
-                    own.CurMap.Broadcast(SendPacket.FromFormat("bbdw", 5, 5, own.CharID, id));
-                    own.SendPacket(SendPacket.FromFormat("bbbb", 23, 207, 1, 1));
+                    own.CurMap.Broadcast(new SendPacket(Tools.FromFormat("bbdw", 5, 5, own.CharID, id)));
+                    own.Send(new SendPacket(Tools.FromFormat("bbbb", 23, 207, 1, 1)));
                 }
             }
         }
@@ -46,8 +46,8 @@ namespace Game.Code.PlayerRelated
                 {
                     timer.Stop();
                     endtime -= timer.Elapsed.Seconds;
-                    own.CurMap.Broadcast(SendPacket.FromFormat("bbdw", 5, 5, own.CharID, 0));
-                    own.SendPacket(SendPacket.FromFormat("bbbb", 23, 207, 1, 2));
+                    own.CurMap.Broadcast(new SendPacket(Tools.FromFormat("bbdw", 5, 5, own.CharID, 0)));
+                    own.Send(new SendPacket(Tools.FromFormat("bbbb", 23, 207, 1, 2)));
                 }
             }
         }

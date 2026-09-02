@@ -1,0 +1,56 @@
+# WLO Item Mall Catalog Configuration
+# Format: ItemID|ItemName|Category|PointCost|Count
+# Categories: Hot, Armory, Weaponry, Grocery, Furniture
+
+# ==================== [HOT] ====================
+30025|Star|Hot|50|1
+23051|Orchid Candy|Hot|250|3
+23052|Great Syrup|Hot|120|1
+23053|Roca Perfume|Hot|120|1
+23054|Pirate's Wine|Hot|120|1
+23055|Energy Pill|Hot|120|1
+23056|Elin's Oil|Hot|120|1
+23057|Beast Pill|Hot|120|1
+30030|Redeem Voucher|Hot|50|1
+21001|Plate|Hot|250|3
+21002|Violin|Hot|250|3
+21003|Syringe|Hot|300|3
+
+# ==================== [GROCERY] ====================
+23051|Orchid Candy|Grocery|250|3
+23052|Great Syrup|Grocery|120|1
+23053|Roca Perfume|Grocery|120|1
+23054|Pirate's Wine|Grocery|120|1
+23055|Energy Pill|Grocery|120|1
+23056|Elin's Oil|Grocery|120|1
+23057|Beast Pill|Grocery|120|1
+30001|EXP Potion|Grocery|80|1
+47010|Brilliant Diamond (+42 Stats)|Grocery|250|1
+47001|+24 ATK Spar|Grocery|120|1
+47002|+24 DEF Spar|Grocery|120|1
+47003|+24 MATK Spar|Grocery|120|1
+47004|+24 MDEF Spar|Grocery|120|1
+47005|+24 SPD Spar|Grocery|120|1
+47006|+24 HP Spar|Grocery|120|1
+47007|+24 SP Spar|Grocery|120|1
+
+# ==================== [FURNITURE / VEHICLES] ====================
+48005|Jalor|Furniture|350|1
+48050|Mecha Dragon|Furniture|80|1
+48014|Robot (Vehicle)|Furniture|180|1
+48011|Cabriolet|Furniture|200|1
+36007|Submarine|Furniture|300|1
+36008|Hot-Air Balloon|Furniture|150|1
+36001|Boat|Furniture|100|1
+
+# ==================== [ARMORY] ====================
+20001|Iron Armor|Armory|100|1
+20002|Knight Armor|Armory|200|1
+20003|Dragon Shield|Armory|150|1
+20004|Speed Boots|Armory|120|1
+
+# ==================== [WEAPONRY] ====================
+10001|Fire Sword|Weaponry|250|1
+10002|Ice Wand|Weaponry|250|1
+10003|Thunder Bow|Weaponry|250|1
+10004|Plasma Gun|Weaponry|300|1

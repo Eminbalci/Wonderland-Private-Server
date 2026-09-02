@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -63,10 +63,7 @@ namespace Server.System
         public FlowLayoutPanel AppUpdtPanel { internal get; set; }
         public FlowLayoutPanel MapUpdtPanel { internal get; set; }
         gitClient GitClient;
-
-        WebClient webclient;
-
-        Octokit.Release LatestVer;
+        Octokit.Release LatestVer = null;
 
         public UpdateSystem()
         {
@@ -126,7 +123,7 @@ namespace Server.System
 
                         MainFrm.BeginInvoke(new Action(() =>
                         {
-                            AppUpdtPanel.SuspendLayout();
+                            /*AppUpdtPanel.SuspendLayout();
                             AppUpdtPanel.Controls.Clear();
 
                             LatestVer = latest;
@@ -134,7 +131,7 @@ namespace Server.System
                             foreach (var y in listofupdates.Where(c => c.TagName != null).OrderByDescending(c => new Version(c.TagName)))
                                 AppUpdtPanel.Controls.Add(new Gui.Update.GitUpdateItem(AppVer, y));
                             AppUpdtPanel.ResumeLayout();
-                            AppUpdtPanel.Refresh();
+                            AppUpdtPanel.Refresh();*/
                         }));
                     } break;
             }

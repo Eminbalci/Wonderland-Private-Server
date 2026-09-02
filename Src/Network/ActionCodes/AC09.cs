@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,11 +10,11 @@ using Game.Code;
 
 namespace Network.ActionCodes
 {
-    public class AC09:AC
+    public class AC09 : AC
     {
-         public override int ID { get { return 09; } }
+        public override int ID { get { return 09; } }
 
-         public override void ProcessPkt(Player r, RecievePacket p)
+        public override void ProcessPkt(Player r, RecievePacket p)
         {
             switch (p.Unpack8())
             {
@@ -23,7 +23,7 @@ namespace Network.ActionCodes
             }
         }
 
-         void Recv1(ref Player tp, RecievePacket e)
+        void Recv1(ref Player tp, RecievePacket e)
         {
             try
             {
@@ -41,19 +41,35 @@ namespace Network.ActionCodes
                 tp.Eqs.Con = e.Unpack8();
                 if (string.IsNullOrEmpty(tp.UserAcc.Cipher))
                 {
-
-                    tp.UserAcc.Cipher = e.UnpackString();
-                    if ((tp.UserAcc.Cipher.Length < 6) ||
-                        (tp.UserAcc.Cipher.Length > 14))
+                    try
                     {
-                        //make sure no save of data by setting values to 0
-                        tp.Clear();
-                        tp.Send( Tools.FromFormat("bb", 0, 30));
-                        return;
+                        string cipherStr = e.UnpackString();
+                        if (!string.IsNullOrEmpty(cipherStr) && cipherStr.Length >= 6 && cipherStr.Length <= 14)
+                        {
+                            tp.UserAcc.Cipher = cipherStr;
+                        }
                     }
+                    catch { /* optional cipher string not present */ }
+                }
+
+                // Determine slot: slot 1 if free, else slot 2
+                if (cGlobal.gCharacterDataBase.GetCharacterData(tp.UserAcc.Character1ID) != null)
+                {
+                    tp.Slot = 2;
+                }
+                else
+                {
+                    tp.Slot = 1;
+                }
+
+                // Fallback charName safety
+                if (string.IsNullOrEmpty(tp.CharName) || tp.CharName.Length < 4 || tp.CharName.Length > 14)
+                {
+                    tp.CharName = tp.UserAcc.UserName;
                 }
 
                 tp.SetBeginnerOutfit();
+                tp.Eqs.ApplyCharacterBaseStats();
 
                 tp.FillHP(); tp.FillSP();
                 tp.Settings.ChannelCode = (ChannelCodeType)31;
@@ -61,11 +77,12 @@ namespace Network.ActionCodes
                 tp.Settings.PKABLE = false;
                 tp.Settings.JOINABLE = true;
                 tp.Eqs.TotalExp = 6;
-                tp.LoginMap = 60000; //ship map 10017;
-                tp.CurX = 602; // ship x 1042;
-                tp.CurY = 455; //ship y 1075;
+                tp.LoginMap = 10017; //ship map 10017;
+                tp.CurX = 1042; // ship x 1042;
+                tp.CurY = 1075; //ship y 1075;
                 tp.SetGold(0);
-                //tp.Started_Quests.Add(new Quest() { QID = 1 });
+                // Give starter quest
+                tp.Started_Quests.Add(new Quest() { QID = 1 });
 
                 //tp.Info.MySkills.AddSkill(cGlobal.SkillManager.GetSkillByID(15003));
                 //create a character id for this new character
@@ -87,23 +104,23 @@ namespace Network.ActionCodes
             catch (Exception t)
             {
                 DebugSystem.Write(new ExceptionData(t));
-                tp.Send( Tools.FromFormat("bb", 0, 30));
+                tp.Send(Tools.FromFormat("bb", 0, 30));
             }
 
 
         }
 
-        void Recv2( Player tp, Packet e)
+        void Recv2(Player tp, Packet e)
         {
             int nameLen = e.Count - 2;
             string name = e.UnpackStringN();
             if ((nameLen < 4) || (nameLen > 14) || !cGlobal.gCharacterDataBase.LockName(tp.UserAcc.DataBaseID, name))
             {
-                tp.Send( Tools.FromFormat("bbb", 9, 3, 1));
+                tp.Send(Tools.FromFormat("bbb", 9, 3, 1));
                 return;
             }
             tp.CharName = name;
-            tp.Send( Tools.FromFormat("bbb", 9, 3, 0));
+            tp.Send(Tools.FromFormat("bbb", 9, 3, 0));
         }
 
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -156,7 +156,9 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
 
             try
             {
-                using (Stream fs = new FileStream(@"C:\\Program Files\\Wonderland Online\\data\\Ground.MMG", FileMode.Open, FileAccess.Read))
+                string groundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Ground.MMG");
+                if (!File.Exists(groundPath)) groundPath = "Data\\Ground.MMG";
+                using (Stream fs = new FileStream(groundPath, FileMode.Open, FileAccess.Read))
                 {
                     fs.Position = GroundNode.Offset;
 

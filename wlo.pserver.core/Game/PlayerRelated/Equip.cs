@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,13 +15,22 @@ namespace Game.Code
     {
 
         #region Properties
+        private static int ParseItemDelta(int rawStatusUp)
+        {
+            if (rawStatusUp == 0) return 0;
+            return rawStatusUp - 100;
+        }
+
         public Int32 HP
         {
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 207) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 207) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 207 || Data.StatusType[0] == 205 || Data.StatusType[0] == 25)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 207 || Data.StatusType[1] == 205 || Data.StatusType[1] == 25)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -31,8 +40,11 @@ namespace Game.Code
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 208) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 208) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 208 || Data.StatusType[0] == 206 || Data.StatusType[0] == 26)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 208 || Data.StatusType[1] == 206 || Data.StatusType[1] == 26)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -42,8 +54,11 @@ namespace Game.Code
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 210) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 210) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 210 || Data.StatusType[0] == 41 || Data.StatusType[0] == 28)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 210 || Data.StatusType[1] == 41 || Data.StatusType[1] == 28)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -53,8 +68,11 @@ namespace Game.Code
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 211) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 211) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 211 || Data.StatusType[0] == 42 || Data.StatusType[0] == 29)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 211 || Data.StatusType[1] == 42 || Data.StatusType[1] == 29)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -64,8 +82,11 @@ namespace Game.Code
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 215) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 215) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 215 || Data.StatusType[0] == 43 || Data.StatusType[0] == 27)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 215 || Data.StatusType[1] == 43 || Data.StatusType[1] == 27)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -75,8 +96,11 @@ namespace Game.Code
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 216) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 216) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 216 || Data.StatusType[0] == 44 || Data.StatusType[0] == 33)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 216 || Data.StatusType[1] == 44 || Data.StatusType[1] == 33)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -86,8 +110,11 @@ namespace Game.Code
             get
             {
                 int val = 0;
-                val += (Data.StatusType[0] == 214) ? (Int32)Data.StatusUp[0] : 0;
-                val += (Data.StatusType[1] == 214) ? (Int32)Data.StatusUp[1] : 0;
+                if (Data.StatusType != null && Data.StatusUp != null)
+                {
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 214 || Data.StatusType[0] == 45 || Data.StatusType[0] == 30)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 214 || Data.StatusType[1] == 45 || Data.StatusType[1] == 30)) val += ParseItemDelta(Data.StatusUp[1]);
+                }
                 return val;
             }
         }
@@ -206,7 +233,7 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
-                    return (Level * 6) + m_totalexp;
+                    return m_totalexp;
                 }
             }
             set
@@ -214,7 +241,6 @@ namespace Game.Code
                 lock (m_Lock)
                 {
                     m_totalexp = value;
-                    m_totalexp -= (Level * 6);
                 }
             }
         }
@@ -240,6 +266,33 @@ namespace Game.Code
                 {
                     return (uint)gold;
                 }
+            }
+            set
+            {
+                lock (m_Lock)
+                {
+                    gold = (int)value;
+                }
+            }
+        }
+
+        public void SetLevel(byte targetLvl)
+        {
+            lock (m_Lock)
+            {
+                byte oldLvl = Level;
+                long exp = 0;
+                for (int l = 1; l < targetLvl; l++)
+                {
+                    exp += (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], l);
+                }
+                m_totalexp = exp;
+                if (targetLvl > oldLvl)
+                {
+                    SkillPoints += (ushort)((targetLvl - oldLvl) * 3);
+                }
+                CurHP = FullHP;
+                CurSP = FullSP;
             }
         }
 
@@ -278,6 +331,8 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
+                    if (m_curhp <= 0 && FullHP > 0)
+                        m_curhp = FullHP;
                     return m_curhp;
                 }
             }
@@ -298,6 +353,8 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
+                    if (m_cursp <= 0 && FullSP > 0)
+                        m_cursp = FullSP;
                     return m_cursp;
                 }
             }
@@ -357,7 +414,7 @@ namespace Game.Code
                         var remainexp = exptolvl - m_currexp;
                         if (m_currexp + expgain >= exptolvl)
                         {
-                            SkillPoints += 5;
+                            SkillPoints += 3; // +3 stat points per level (matches Python server: points += levels_gained * 3)
                             m_currexp = 0;
                             TotalExp += remainexp;
                             expgain -= remainexp;
@@ -421,239 +478,113 @@ namespace Game.Code
         }
         #endregion
 
-        #region Base Stats Calculated by Character Type
-        protected UInt16 baseStr;
+        #region Base Stats & Avatar Inherent Bonuses
+        public int BonusStr
+        {
+            get
+            {
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Iris) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Lique) return 2;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Breillat) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Daniel) return 2;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Sid) return 2;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane) return 1;
+                return 0;
+            }
+        }
+
+        public int BonusCon
+        {
+            get
+            {
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Iris) return 2;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Breillat) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Daniel) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Sid) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane) return 1;
+                return 0;
+            }
+        }
+
+        public int BonusInt
+        {
+            get
+            {
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Vanessa) return 3;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Maria) return 2;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Konnotsuroko) return 2;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Jessica) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Breillat) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane) return 1;
+                if (body == BodyStyle.Small_Male && (HairStyle_SmallM)Head == HairStyle_SmallM.Rocco) return 2;
+                if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Betty) return 1;
+                if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina) return 1;
+                return 0;
+            }
+        }
+
+        public int BonusWis
+        {
+            get
+            {
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Jessica) return 2;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Konnotsuroko) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More) return 2;
+                if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina) return 1;
+                return 0;
+            }
+        }
+
+        public int BonusAgi
+        {
+            get
+            {
+                if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Betty) return 2;
+                if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina) return 1;
+                if (body == BodyStyle.Small_Male && (HairStyle_SmallM)Head == HairStyle_SmallM.Rocco) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Lique) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Maria) return 1;
+                if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin) return 1;
+                if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More) return 1;
+                return 0;
+            }
+        }
+
+        public UInt16 baseStr;
         public UInt16 Str
         {
-            get
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Iris)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Lique)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Daniel)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Sid)
-                        add = 2;
-
-                    return (ushort)(baseStr + (Level * add));
-                }
-            }
-            set
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Iris)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Lique)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Daniel)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Sid)
-                        add = 2;
-
-                    baseStr = (ushort)(value - (Level * add));
-                }
-            }
+            get { lock (m_Lock) { return (ushort)(baseStr + BonusStr); } }
+            set { lock (m_Lock) { baseStr = value; } }
         }
-        protected UInt16 baseInt;
+
+        public UInt16 baseInt;
         public UInt16 Int
         {
-            get
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Vanessa)
-                        add = 3;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Jessica)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Betty)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Maria)
-                        add = 2;
-                    else if (body == BodyStyle.Small_Male && (HairStyle_SmallM)Head == HairStyle_SmallM.Rocco)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Konnotsuroko)
-                        add = 2;
-                    return (ushort)(baseInt + (Level * add));
-                }
-
-            }
-            set
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Vanessa)
-                        add = 3;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Jessica)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Betty)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Maria)
-                        add = 2;
-                    else if (body == BodyStyle.Small_Male && (HairStyle_SmallM)Head == HairStyle_SmallM.Rocco)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Konnotsuroko)
-                        add = 2;
-
-                    baseInt = (ushort)(value - (Level * add));
-                }
-            }
+            get { lock (m_Lock) { return (ushort)(baseInt + BonusInt); } }
+            set { lock (m_Lock) { baseInt = value; } }
         }
-        protected UInt16 baseWis;
+
+        public UInt16 baseWis;
         public UInt16 Wis
         {
-            get
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Jessica)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More)
-                        add = 2;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Konnotsuroko)
-                        add = 1;
-                    return (ushort)(baseWis + (Level * add));
-                }
-            }
-            set
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Jessica)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More)
-                        add = 2;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Konnotsuroko)
-                        add = 1;
-
-                    baseWis = (ushort)(value - (Level * add));
-                }
-            }
+            get { lock (m_Lock) { return (ushort)(baseWis + BonusWis); } }
+            set { lock (m_Lock) { baseWis = value; } }
         }
-        protected UInt16 baseCon;
+
+        public UInt16 baseCon;
         public UInt16 Con
         {
-            get
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Iris)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Daniel)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Sid)
-                        add = 1;
-                    return (ushort)(baseCon + (Level * add));
-                }
-            }
-            set
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Iris)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Daniel)
-                        add = 2;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Kurogane)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.Sid)
-                        add = 1;
-
-                    baseCon = (ushort)(value - (Level * add));
-                }
-            }
+            get { lock (m_Lock) { return (ushort)(baseCon + BonusCon); } }
+            set { lock (m_Lock) { baseCon = value; } }
         }
-        protected UInt16 baseAgi;
+
+        public UInt16 baseAgi;
         public UInt16 Agi
         {
-            get
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Lique)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Betty)
-                        add = 2;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Maria)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Male && (HairStyle_SmallM)Head == HairStyle_SmallM.Rocco)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More)
-                        add = 1;
-                    return (ushort)(baseAgi + (Level * add));
-                }
-            }
-            set
-            {
-                lock (m_Lock)
-                {
-                    int add = 0;
-
-                    if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Karin)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Lique)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Betty)
-                        add = 2;
-                    else if (body == BodyStyle.Small_Female && (HairStyle_SmallF)Head == HairStyle_SmallF.Nina)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Female && (HairStyle_BigF)Head == HairStyle_BigF.Maria)
-                        add = 1;
-                    else if (body == BodyStyle.Small_Male && (HairStyle_SmallM)Head == HairStyle_SmallM.Rocco)
-                        add = 1;
-                    else if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More)
-                        add = 1;
-
-                    baseAgi = (ushort)(value - (Level * add));
-                }
-            }
+            get { lock (m_Lock) { return (ushort)(baseAgi + BonusAgi); } }
+            set { lock (m_Lock) { baseAgi = value; } }
         }
         #endregion
 
@@ -673,7 +604,7 @@ namespace Game.Code
                         break;
                 }
 
-                if (Job == RebornJob.Killer)
+                if (Job == RebornJob.Killer || Job == RebornJob.Warrior)
                     add = (UInt16)Math.Round((double)add * 1.1);
 
                 return (ushort)add;
@@ -698,23 +629,13 @@ namespace Game.Code
                     add = (UInt16)Math.Round((double)add * 1.1);
 
                 return (ushort)add;
-
             }
         }
         UInt16 Mdef
         {
             get
             {
-                int add = 0;
-                switch (Element)
-                {
-                    case Affinity.Fire:
-                        add = (UInt16)(Math.Round(((double)Level * 2.2) + ((double)Wis * 2.2)));
-                        break;
-                    default:
-                        add = (UInt16)(Math.Round(((double)Level * 2.0) + ((double)Wis * 2.2)));
-                        break;
-                }
+                int add = (UInt16)(Math.Round(((double)Level * 2.0) + ((double)Wis * 2.0)));
 
                 if (Job == RebornJob.Priest)
                     add = (UInt16)Math.Round((double)add * 1.1);
@@ -730,14 +651,14 @@ namespace Game.Code
                 switch (Element)
                 {
                     case Affinity.Earth:
-                        add = (UInt16)(Math.Round(((double)Level * 8.0) + ((double)Con * 1.75)));
+                        add = (UInt16)(Math.Round(((double)Level * 3.0) + ((double)Con * 2.0)));
                         break;
                     default:
-                        add = (UInt16)(Math.Round(((double)Level * 2.0) + ((double)Con * 1.75)));
+                        add = (UInt16)(Math.Round(((double)Level * 2.0) + ((double)Con * 2.0)));
                         break;
                 }
 
-                if (Job == RebornJob.Warrior)
+                if (Job == RebornJob.Warrior || Job == RebornJob.Knight)
                 {
                     add = (UInt16)Math.Round((double)add * 1.1);
                 }
@@ -759,7 +680,7 @@ namespace Game.Code
                         break;
                 }
 
-                if (Job == RebornJob.Knight || Job == RebornJob.Seer)
+                if (Job == RebornJob.Knight || Job == RebornJob.Seer || Job == RebornJob.Killer)
                     add = (UInt16)Math.Round((double)add * 1.1);
 
                 return (ushort)add;
@@ -802,7 +723,7 @@ namespace Game.Code
         /// <summary>
         /// Total Equipped MAXHP
         /// </summary>
-        protected Int32 EquippedMaxHP
+        public Int32 EquippedMaxHP
         {
             get
             {
@@ -818,7 +739,7 @@ namespace Game.Code
         /// <summary>
         /// Total Equipped MAXSP
         /// </summary>
-        protected Int32 EquippedMaxSP
+        public Int32 EquippedMaxSP
         {
             get
             {
@@ -929,7 +850,7 @@ namespace Game.Code
             {
                 try
                 {
-                    if (equippedItems[clothesSlot - 1].ItemID > 0)
+                    if (clothesSlot >= 1 && clothesSlot <= equippedItems.Length && equippedItems[clothesSlot - 1].ItemID > 0)
                     {
                         Item i = new Item(equippedItems[clothesSlot - 1]);
                         equippedItems[clothesSlot - 1].Clear();
@@ -948,7 +869,9 @@ namespace Game.Code
         /// <returns>the InvItem object to be placed in Inv</returns>
         public Item Wear(Item eq)
         {
-            return Wear((byte)eq.Wear_At, eq);
+            if (eq == null) return null;
+            byte slot = (byte)eq.Wear_At;
+            return Wear(slot, eq);
         }
         /// <summary>
         /// Wears a Characters Item
@@ -963,9 +886,16 @@ namespace Game.Code
                 Item i = null;
                 try
                 {
-                    if (equippedItems[clothesSlot - 1].ItemID != 0)
-                        i = unWear(clothesSlot);
-                    equippedItems[clothesSlot - 1].CopyFrom(eq);
+                    if (eq != null && clothesSlot >= 1 && clothesSlot <= equippedItems.Length)
+                    {
+                        if (equippedItems[clothesSlot - 1].ItemID != 0)
+                            i = unWear(clothesSlot);
+                        equippedItems[clothesSlot - 1].CopyFrom(eq);
+                    }
+                    else if (eq != null)
+                    {
+                        DebugSystem.Write($"[EquipManager.Wear] Invalid clothesSlot {clothesSlot} for item #{eq.ItemID}");
+                    }
                 }
                 catch (Exception e) { DebugSystem.Write(new ExceptionData(e)); i = null; }
                 return i;
@@ -1036,7 +966,7 @@ namespace Game.Code
                             {
                                 tmp.Add(this[n].ItemID);
                                 tmp.Add(this[n].Damage);
-                                tmp.Add(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                                tmp.Add(new byte[18]); // Official WLO Protocol: 18 zero padding bytes per item (21 bytes total per item)
                             }
                         }
                     }
@@ -1243,59 +1173,55 @@ namespace Game.Code
             }
         }
 
-        public void Send8_1(bool levelup = false) //this function sets the stas according to pts
+        public void SendStat(byte statId, int val)
+        {
+            Send(Tools.FromFormat("bbbbdd", 8, 1, statId, 1, val, 0));
+        }
+
+        public void SendStat64(byte statId, long val)
+        {
+            Send(Tools.FromFormat("bbbbl", 8, 1, statId, 1, val));
+        }
+
+        public void Send8_1(bool levelup = false) // sends full updated stats to client
         {
             lock (m_Lock)
             {
-                PacketBuilder tmp = new PacketBuilder();
-                tmp.Begin(null);
-
-                if (levelup)
+                if (levelup || m_curhp <= 0)
                 {
-                    tmp.Add(Tools.FromFormat("bbbbl", 8, 1, 36, 1, TotalExp));
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 35, 1, Level, 0));
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 37, 1, (Level - 1), 0));
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 38, 1, SkillPoints, 0));
                     CurHP = FullHP;
+                }
+                if (levelup || m_cursp <= 0)
+                {
                     CurSP = FullSP;
                 }
 
-                //hp
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 207, 1, EquippedMaxHP, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 25, 1, (CurHP > FullHP) ? FullHP : CurHP, 0));
-                //sp
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 208, 1, EquippedMaxSP, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 26, 1, (CurSP > FullSP) ? FullSP : CurSP, 0));
-                //str
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 210, 1, EquippedATK, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 41, 1, FullAtk, 0));
-                if (levelup) tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 28, 1, Str, 0));
-                //con
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 211, 1, EquippedDEF, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 42, 1, FullDef, 0));
-                if (levelup)
-                {
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 205, 1, FullHP, 0));
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 29, 1, Con, 0));
-                }
-                //spd
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 214, 1, EquippedSPD, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 45, 1, FullSpd, 0));
-                if (levelup) tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 30, 1, Agi, 0));
-                //int
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 215, 1, EquippedMAT, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 43, 1, FullMatk, 0));
-                if (levelup) tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 27, 1, Int, 0));
-                //wis
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 216, 1, EquippedMDF, 0));
-                tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 44, 1, FullMdef, 0));
-                if (levelup)
-                {
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 206, 1, FullSP, 0));
-                    tmp.Add(Tools.FromFormat("bbbbdd", 8, 1, 33, 1, Wis, 0));
-                }
-                
-                Send(new SendPacket(tmp.End()));
+                // Equipment & Status Bonuses followed by Derived Combat Stats:
+                SendStat(0xCF, EquippedMaxHP);
+                SendStat(0x19, FullHP);
+                SendStat(0xD0, EquippedMaxSP);
+                SendStat(0x1A, FullSP);
+                SendStat(0x29, Str * 2 + EquippedATK);
+                SendStat(0x2A, Con * 2 + EquippedDEF);
+                SendStat(0x2B, Int * 2 + EquippedMAT);
+                SendStat(0x2C, Wis * 2 + EquippedMDF);
+                SendStat(0x2D, Agi * 2 + EquippedSPD);
+
+                // Base Stats (Right column in Status Window):
+                SendStat(0x1C, Str); // Row 1: STR (0x1f8c)
+                SendStat(0x1D, Con); // Row 2: CON (0x1f8e)
+                SendStat(0x1B, Int); // Row 3: INT (0x1f8a)
+                SendStat(0x21, Wis); // Row 4: WIS (0x1f92)
+                SendStat(0x1E, Agi); // Row 5: AGI (0x1f90)
+
+                // Available Stat Points (POINT Stat 38) and Potential (Stat 37):
+                SendStat(38, SkillPoints);
+                SendStat(37, Potential);
+            }
+
+            if (this is Player player && player.hasParty)
+            {
+                player.BroadcastPartyUpdate();
             }
         }
 
@@ -1442,6 +1368,47 @@ namespace Game.Code
 
                     } break;
                 #endregion
+            }
+        }
+
+        public void ApplyCharacterBaseStats()
+        {
+            // BonusStr, BonusCon, BonusInt, BonusWis, BonusAgi dynamically provide inherent character bonuses.
+        }
+
+        public void SetBreillatOutfit()
+        {
+            lock (m_Lock)
+            {
+                // Clear all initial worn slots
+                for (byte s = 1; s <= 6; s++)
+                {
+                    if (equippedItems[s - 1].ItemID > 0)
+                    {
+                        equippedItems[s - 1].Clear();
+                        Send(Tools.FromFormat("bbb", 23, 19, s));
+                    }
+                }
+
+                // Equip Breillat Maid Dress (#21991) at Slot 2 (Body)
+                var dressInfo = _ItemManager != null ? (PhxItemInfo)_ItemManager.GetObject(21991) : null;
+                if (dressInfo != null)
+                {
+                    Wear(2, new Item(dressInfo));
+                }
+
+                // Equip Breillat Maid Shoes (#21009) at Slot 5 (Feet)
+                var shoesInfo = _ItemManager != null ? (PhxItemInfo)_ItemManager.GetObject(21009) : null;
+                if (shoesInfo != null)
+                {
+                    Wear(5, new Item(shoesInfo));
+                }
+
+                // Send AC 23:11 full equipment grid sync
+                Send(new SendPacket(_23_11Data));
+
+                // Send AC 8:1 updated stats
+                Send8_1();
             }
         }
 

@@ -51,34 +51,44 @@ public class DataBase {
 
     public DataBase() {
         try {
-            string text = "";
-            if (!File.Exists("database.override.txt")) {
-                return;
+            // Default to Sqlite ServerDataBase.db
+            ServType = DataBaseTypes.Sqlite;
+            DBFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ServerDataBase.db");
+
+            string configPath = "database.override.txt";
+            if (!File.Exists(configPath)) {
+                configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "database.override.txt");
             }
-            using StreamReader streamReader = new StreamReader("database.override.txt");
-            while ((text = streamReader.ReadLine()) != null) {
-                switch (text.Split('|')[0]) {
-                    case "Type":
-                        ServType = (DataBaseTypes)byte.Parse(text.Split('|')[1]);
-                        break;
-                    case "User":
-                        User = text.Split('|')[1];
-                        break;
-                    case "Pass":
-                        Pass = text.Split('|')[1];
-                        break;
-                    case "DB":
-                        DB = text.Split('|')[1];
-                        break;
-                    case "Port":
-                        Port = text.Split('|')[1];
-                        break;
-                    case "IP":
-                        ServerIP = text.Split('|')[1];
-                        break;
-                    case "File":
-                        DBFile = text.Split('|')[1];
-                        break;
+
+            if (File.Exists(configPath)) {
+                using StreamReader streamReader = new StreamReader(configPath);
+                string text = "";
+                while ((text = streamReader.ReadLine()) != null) {
+                    if (string.IsNullOrWhiteSpace(text) || !text.Contains("|")) continue;
+                    var parts = text.Split('|');
+                    switch (parts[0]) {
+                        case "Type":
+                            ServType = (DataBaseTypes)byte.Parse(parts[1]);
+                            break;
+                        case "User":
+                            User = parts[1];
+                            break;
+                        case "Pass":
+                            Pass = parts[1];
+                            break;
+                        case "DB":
+                            DB = parts[1];
+                            break;
+                        case "Port":
+                            Port = parts[1];
+                            break;
+                        case "IP":
+                            ServerIP = parts[1];
+                            break;
+                        case "File":
+                            DBFile = Path.IsPathRooted(parts[1]) ? parts[1] : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, parts[1]);
+                            break;
+                    }
                 }
             }
         } catch {

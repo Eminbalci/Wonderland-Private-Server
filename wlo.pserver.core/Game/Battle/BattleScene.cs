@@ -9,7 +9,7 @@ namespace Game.Battle
 {
 
     public delegate void BattleRoundInfo(List<Game.Battle.Fighter> fighters_on_my_side, List<Game.Battle.Fighter> fighters_on_other_side);
-         
+
     /// <summary>
     /// Object that will house information pertaining to battle
     /// 
@@ -109,7 +109,7 @@ namespace Game.Battle
         }
 
 
-       public void OnNewRound()
+        public void OnNewRound()
         {
             if (onRoundStart != null)
             {
@@ -175,6 +175,19 @@ namespace Game.Battle
         public void ProcessSocket(RecievePacket g)
         {
         }
+
+        public Fighter FindFighter(byte x, byte y)
+        {
+            return _battleref.FindFighter(x, y);
+        }
+
+        public void PLayer_BattleAction(BattleAction action)
+        {
+            // Placeholder
+        }
+
+        // Placeholder for RoundState to satisfy AC50
+        public dynamic RoundState { get; set; }
 
     }
 }

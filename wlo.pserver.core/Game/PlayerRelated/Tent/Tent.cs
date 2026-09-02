@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using DataFiles;
 using Game.Maps;
 using Network;
+
 
 namespace Game.Code
 {
@@ -26,6 +27,15 @@ namespace Game.Code
 
         ushort _floorcolor = 39062, _wallcolor = 39064;
 
+        public ushort Floor1Color { get { return _floorcolor; } set { _floorcolor = value; } }
+        public ushort Floor1Wallpaper { get { return _wallcolor; } set { _wallcolor = value; } }
+        public bool IsClosed { get { return _closed; } }
+        public bool IsDirty { get; set; } = false;
+
+        // TENT ITEMS
+        private List<TentItem> _tentObjects;
+        public List<TentItem> TentObjects { get { return _tentObjects; } }
+
         public Tent(Game.Player src)
         {
             _owner = src;
@@ -33,6 +43,15 @@ namespace Game.Code
             //_floors = new List<TentFloor>();
             //_floors.Add(new TentFloor() { MapID = (ushort)_floors.Count });
             _closed = true;
+
+            // Initialize items collection
+            _tentObjects = new List<TentItem>();
+
+            // Assign unique MapID for this tent instance
+            // Using 100000 + CharID to ensure unique MapID per player
+            this.MapID = 100000 + src.CharID;
+
+            InitializeDefaultItems();
         }
 
         public uint X { get { return _mapx; } }
@@ -43,49 +62,55 @@ namespace Game.Code
             if (!_closed) return;
             _mapx = _owner.CurX;
             _mapy = _owner.CurY;
-            _ownerMap = (GameMap)_owner.CurMap;
+
+            // Fix: Cast explicitly
+            if (_owner.CurMap is GameMap)
+                _ownerMap = (GameMap)_owner.CurMap;
+            else
+                _ownerMap = null;
+
+            if (_ownerMap == null) return;
+
+            // Create/Update Exit Portal (ID 1) to return player to where they came from
+            WarpPortal exitPortal;
+            if (this.Portals.ContainsKey(1))
+            {
+                exitPortal = this.Portals[1];
+            }
+            else
+            {
+                exitPortal = new WarpPortal();
+                this.Portals.Add(1, exitPortal);
+            }
+
+            exitPortal.DstID = (int)_ownerMap.MapID;
+            exitPortal.x = (int)_mapx;
+            exitPortal.y = (int)_mapy;
+            exitPortal.accessBy = AccessFlags.Any;
+
             _ownerMap.onTentOpened(this);
             _owner.Send(Tools.FromFormat("bbb", 62, 59, 2));
+
+            // Send items immediately upon opening/entering
+            SendTentItemsToPlayer(_owner);
+
             _closed = false;
         }
         public void Close()
         {
             if (_closed) return;
-            _ownerMap.onTentClosing(this);
-            WarpData warp = new WarpData();
-            warp.DstMap = (ushort)_ownerMap.MapID;
-            warp.DstX_Axis = (ushort)_mapx;
-            warp.DstY_Axis = (ushort)_mapy;
-            //warp Players  out
-            //foreach (var f in Floors)
-            //{
-
-            //    for (int a = 0; a < Players.Values.Count; a++)
-            //    {
-            //        Players.Values.ToList()[a].DataOut = SendType.Multi;
-            //        SendPacket warpConf = new SendPacket();
-            //        warpConf.PackArray(new byte[] { 20, 7 });
-            //        SendPacket tmp = new SendPacket();
-            //        tmp.PackArray(new byte[] { 23, 32 });
-            //        tmp.Pack(Players.Values.ToList()[a].ID);
-            //        Players.Values.ToList()[a].SendPacket(tmp);
-            //        tmp = new SendPacket();
-            //        tmp.PackArray(new byte[] { 23, 112 });
-            //        tmp.Pack(p.ID);
-            //        Players.Values.ToList()[a].SendPacket(tmp);
-            //        tmp = new SendPacket();
-            //        tmp.PackArray(new byte[] { 23, 132 });
-            //        tmp.Pack(p.ID);
-            //        Players.Values.ToList()[a].SendPacket(tmp);
-
-            //        onWarp_Out(f.Key, ref Players.Values.ToList()[a], warp, false);// warp out of map
-            //        p.X = warp.DstX_Axis;//switch x
-            //        p.Y = warp.DstY_Axis;//switch y
-            //        cGlobal.WLO_World.onTelePort(f.Key, warp, ref p);
-            //        p.DataOut = SendType.Normal;
-
-            //    }
-            //}
+            if (_ownerMap != null)
+            {
+                _ownerMap.onTentClosing(this);
+                if (_owner != null && (_owner.CurMap == this || _owner.CurMap?.Type == MapType.Tent))
+                {
+                    WarpData warp = new WarpData();
+                    warp.DstMap = (ushort)_ownerMap.MapID;
+                    warp.DstX_Axis = (ushort)_mapx;
+                    warp.DstY_Axis = (ushort)_mapy;
+                    _owner.CurMap.Teleport(TeleportType.CmD, _owner, 0, warp);
+                }
+            }
             _closed = true;
         }
 
@@ -138,11 +163,21 @@ namespace Game.Code
 
             //build queue
             //storeroom
-            #region TentItems (62,4)
+            #region TentItems Send
+            // REVERTING: SubCmd 3 was showing items (even if outside tent)
+            // Using SubCmd 3 format that worked before
+            SendPacket initPacket = new SendPacket();
+            initPacket.Pack8(23);
+            initPacket.Pack8(3);
+            t.Send(initPacket);
+
+            DebugSystem.Write(DebugItemType.Error, $"[Tent] SendMapInfo called - sending items to {t.CharName}");
+            SendTentItemsToPlayer(t);
             #endregion
 
-            t.Send(Tools.FromFormat("bbw", 62, 14, _floorcolor));//floor
-            t.Send(Tools.FromFormat("bbw", 62, 15, _wallcolor));//wallpaper
+            // TEMPORARILY DISABLED FOR TESTING
+            //t.Send(Tools.FromFormat("bbw", 62, 14, _floorcolor));//floor
+            //t.Send(Tools.FromFormat("bbw", 62, 15, _wallcolor));//wallpaper
 
             //65,11 ???
 
@@ -268,36 +303,121 @@ namespace Game.Code
 
             base.Process(src, data);
         }
+
+        #region Tent Item Management
+
+        /// <summary>
+        /// Initialize default tent items (Resource Recycling and Work Platform)
+        /// </summary>
+        void InitializeDefaultItems()
+        {
+            // Default beginner crafting furniture in Wonderland Online
+            PlaceItem(38027, 43, 42, 0, 0); // Coconut Basin (38027)
+            PlaceItem(38049, 45, 42, 0, 0); // Work Platform / Low Workbench (38049)
+        }
+
+        /// <summary>
+        /// Place an item in the tent
+        /// </summary>
+        public void PlaceItem(ushort itemID, int x, int y, int floor, byte rotation)
+        {
+            try
+            {
+                TentItem newItem = new TentItem(); // Default constructor
+
+                PhxItemInfo info = new PhxItemInfo();
+                info.ItemID = itemID;
+                newItem.CopyFrom(info); // Use CopyFrom inheriting from Item
+
+                newItem.tentX = (ushort)x; // camelCase
+                newItem.tentY = (ushort)y;
+                newItem.floor = (byte)floor;
+                newItem.rotate = rotation;
+
+                _tentObjects.Add(newItem);
+                IsDirty = true;
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Placed item {itemID} at ({x},{y}) on floor {floor}");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Error placing item: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Remove an item from the tent at specific coordinates
+        /// </summary>
+        public bool RemoveItem(int x, int y, int floor)
+        {
+            var itemToRemove = _tentObjects.FirstOrDefault(i => i.tentX == x && i.tentY == y && i.floor == floor);
+
+            if (itemToRemove != null)
+            {
+                _tentObjects.Remove(itemToRemove);
+                IsDirty = true;
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Removed item at ({x},{y})");
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Move an item in the tent (identified by index)
+        /// </summary>
+        public void MoveItem(ushort index, int x, int y, int floor, byte rotation)
+        {
+            if (index < _tentObjects.Count)
+            {
+                var item = _tentObjects[index];
+                item.tentX = (ushort)x;
+                item.tentY = (ushort)y;
+                item.floor = (byte)floor;
+                item.rotate = rotation;
+                IsDirty = true;
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Moved item {index} to ({x},{y})");
+            }
+            else
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Move failed: Index {index} out of range (Count: {_tentObjects.Count})");
+            }
+        }
+
+        /// <summary>
+        /// Send all tent items to the player using discovered protocol
+        /// </summary>
+        public void SendTentItemsToPlayer(Player player)
+        {
+            if (player == null) return;
+            try
+            {
+                int sentCount = 0;
+                foreach (var item in _tentObjects)
+                {
+                    if (item.ItemID == 0) continue;
+
+                    SendPacket pkt = new SendPacket();
+                    pkt.Pack8(23);
+                    pkt.Pack8(3);
+                    pkt.Pack16(item.ItemID);
+                    pkt.Pack32((uint)item.tentX);
+                    pkt.Pack32((uint)item.tentY);
+                    pkt.Pack32((uint)item.floor);
+                    pkt.Pack8(1);
+                    pkt.Pack8(item.rotate);
+                    pkt.Pack16(0);
+                    player.Send(pkt);
+                    sentCount++;
+                }
+
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] ✓ Sent {sentCount} items via AC 23:3 to {player.CharName} (MapID={this.MapID})");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Error sending items to player: {ex.Message}");
+            }
+        }
+        #endregion
+
     }
-    
-
-    public class ItemBuild
-    {
-        //public delegate void TimerTick();
-        //public event TimerTick TimerEventHandler;
-        //public Item item;               
-        public ushort CurTimer;
-        public ushort TimerTotal;
-        public byte qnt;
-       // public bool End { get { return End; } }
-
-       // System.Windows.Forms.Timer t;
-
-        //public void start()
-        //{
-        //    t = new System.Windows.Forms.Timer();
-        //    t.Interval = 15000; // specify interval time as you want
-        //    t.Tick += new EventHandler(timer_Tick);
-
-        //    t.Init();
-        //}
-        //public void timer_Tick(object sender, EventArgs e)
-        //{
-        //    t.Stop();
-        //    if (TimerEventHandler != null)
-        //        TimerEventHandler();
-        //}
-        
-    }    
-    
 }

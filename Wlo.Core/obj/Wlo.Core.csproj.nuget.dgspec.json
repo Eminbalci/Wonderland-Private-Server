@@ -1,21 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Aviv\\Desktop\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {}
+    "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Aviv\\Desktop\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {
+    "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Aviv\\Desktop\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+        "projectUniqueName": "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
         "projectName": "Wlo.Core",
-        "projectPath": "C:\\Users\\Aviv\\Desktop\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
-        "packagesPath": "C:\\Users\\Aviv\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Aviv\\Desktop\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
+        "projectPath": "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\Wlo.Core.csproj",
+        "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
+        "outputPath": "d:\\GitHub\\Wonderland-Private-Server\\Wlo.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Aviv\\Desktop\\Wonderland-Private-Server\\.nuget\\NuGet.Config",
-          "C:\\Users\\Aviv\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -23,11 +22,11 @@
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net462": {
+            "framework": "net462",
             "targetAlias": "net462",
             "projectReferences": {}
           }
@@ -41,12 +40,26 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        }
+        },
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net462": {
+          "framework": "net462",
           "targetAlias": "net462",
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.403\\RuntimeIdentifierGraph.json"
+          "dependencies": {
+            "Microsoft.NETFramework.ReferenceAssemblies": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[1.0.3, )"
+            },
+            "System.Resources.Extensions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.303\\RuntimeIdentifierGraph.json"
         }
       }
     }

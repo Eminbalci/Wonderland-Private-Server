@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,9 +17,6 @@ namespace Server
     /// </summary>
     public class LoginServer : RCLibrary.Core.Networking.TcpServer
     {
-        private TcpListener listener;
-
-
         /// <summary>
         /// Event used to forward new player to the actual game loop
         /// </summary>
@@ -27,6 +24,7 @@ namespace Server
 
 
         List<LoginClient> ClientList;
+        public Player privatePlayer;
 
         public LoginServer()
         {
@@ -36,6 +34,26 @@ namespace Server
 
         public int Count { get { return ClientList.Count; } }
 
+        public List<Player> GetAllPlayers()
+        {
+            List<Player> list = new List<Player>();
+            lock (ClientList)
+            {
+                foreach (var c in ClientList)
+                {
+                    if (c == null) continue;
+                    try
+                    {
+                        foreach (var p in c.Values)
+                        {
+                            if (p != null) list.Add(p);
+                        }
+                    }
+                    catch { }
+                }
+            }
+            return list;
+        }
 
         public override void ListenThread()
         {
@@ -74,13 +92,28 @@ namespace Server
                             LoginClient tmp = new LoginClient();
                             Player p;
                             if ((p = tmp.AddSock(client)) != null)
+                            {
                                 ClientList.Add(tmp);
+                                privatePlayer = p; DebugSystem.Write("Attached new private player");
+                            }
                             else
                             {
                                 client.Disconnect();
                                 continue;
                             }
-                            if (OnNewPlayer != null) OnNewPlayer(this, p);
+                            if (OnNewPlayer != null)
+                            {
+                                try
+                                {
+                                    DebugSystem.Write("Triggering OnNewPlayer event...");
+                                    OnNewPlayer(this, p);
+                                    DebugSystem.Write("OnNewPlayer event returned successfully.");
+                                }
+                                catch (Exception ex)
+                                {
+                                    DebugSystem.Write($"ERROR inside OnNewPlayer event: {ex.Message}\n{ex.StackTrace}");
+                                }
+                            }
                         }
                     }
                     catch (SocketException ex)

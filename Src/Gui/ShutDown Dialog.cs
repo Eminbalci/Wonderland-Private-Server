@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -15,7 +15,6 @@ namespace Wonderland_Private_Server.UI
 {
     public partial class ShutDown_Dialog : Form
     {
-        bool isupdating;
         ManualResetEvent block = new ManualResetEvent(false);
         string dispMsg = "";
         int perct = 0,maxperct = 100;
@@ -26,7 +25,7 @@ namespace Wonderland_Private_Server.UI
             timer1.Start();
         }
 
-        private async void ShutDown_Dialog_Load(object sender, EventArgs e)
+        private void ShutDown_Dialog_Load(object sender, EventArgs e)
         {
             dispMsg = "Preparing to Shutdown";
 
@@ -36,16 +35,40 @@ namespace Wonderland_Private_Server.UI
 
             Task shutdwn = new Task(new Action(() =>
             {
-                int cnt = 0;
                 dispMsg = "Saving Settings";
                 cGlobal.SrvSettings.SaveSettings(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo");
 
                 dispMsg = "Stopping Tcp Listener";
-                cGlobal.gLoginServer.Kill();
+                cGlobal.gLoginServer?.Kill();
+                cGlobal.gItemMallServer?.Stop();
                 dispMsg = "Disconnecting and saving Player info Remaining..";
 
+                try
+                {
+                    var onlinePlayers = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                    if (onlinePlayers != null && onlinePlayers.Count > 0)
+                    {
+                        foreach (var player in onlinePlayers)
+                        {
+                            try
+                            {
+                                cGlobal.gCharacterDataBase.WritePlayer(player.CharID, player);
+                                DebugSystem.Write($"[Shutdown] Saved character {player.CharName} (CharID: {player.CharID})");
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[Shutdown] Error saving player {player.CharName}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[Shutdown] Exception during player save: {ex.Message}");
+                }
+
                 dispMsg = "Shutting Down Server";
-                cGlobal.gWorld.Kill();
+                cGlobal.gWorld?.Kill();
                 perct += 10;
                 //foreach (var t in cGlobal.ThreadManager.Values.ToList())
                 //{

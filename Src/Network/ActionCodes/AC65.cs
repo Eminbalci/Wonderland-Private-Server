@@ -1,34 +1,48 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Wonderland_Private_Server.Network;
-using Wonderland_Private_Server.Code.Objects;
-using Wonderland_Private_Server.Code.Enums;
-using Wlo.Core;
+using Network;
+using Game;
+using Wonderland_Private_Server.Utilities;
 
-namespace Wonderland_Private_Server.ActionCodes
+namespace Network.ActionCodes
 {
-    public class AC65:AC
+    public class AC65 : AC
     {
         public override int ID { get { return 65; } }
-        public override void ProcessPkt(ref Player r, RecvPacket p)
+        public override void ProcessPkt(Player r, RecievePacket p)
         {
             switch (p.B)
             {
-                case 1: Recv1(ref r, p); break;
-                case 2: Recv2(ref r, p); break;
-                default: Utilities.LogServices.Log("AC " + p.A + "," + p.B + " has not been coded"); break;
+                case 1: Recv1(r, p); break; // Enter tent
+                case 2: Recv2(r, p); break; // Item canceled
+                case 3: Recv3(r, p); break; // Exit tent
+                default: Console.WriteLine("AC " + p.A + "," + p.B + " has not been coded"); break;
             }
         }
-        void Recv1(ref Player r, RecvPacket p)
+        void Recv1(Player r, RecievePacket p)
         {
-            r.CurrentMap.onEnterTent(p.Unpack32(), r);
+            ((GameMap)r.CurMap).onEnterTent(p.Unpack32(), r);
         }
-        void Recv2(ref Player r, RecvPacket p)
+        void Recv2(Player r, RecievePacket p)
         {
-            r.Inv.onItemCanceled(p.Unpack8());
+            // Right-click / Pack up tent on world map
+            if (r != null && r.Tent != null)
+            {
+                r.Tent.Close();
+                DebugSystem.Write($"[AC65.Recv2] Player {r.CharName} closed / packed up tent.");
+            }
+        }
+        void Recv3(Player r, RecievePacket p)
+        {
+            // Exit tent - warp player back to main map
+            if (r.Tent != null)
+            {
+                r.Tent.Close();
+                DebugSystem.Write(DebugItemType.Error, "[AC65] Player exiting tent");
+            }
         }
     }
 }

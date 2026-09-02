@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -38,7 +38,7 @@ namespace System
                         len += 2;
                         break;
                     case 'w':
-                        ret = ret.Concat(BitConverter.GetBytes(Convert.ToInt16(list[idx])));
+                        ret = ret.Concat(BitConverter.GetBytes(Convert.ToUInt16(list[idx])));
                         len += 2;
                         break;
                     case 'B':
@@ -100,7 +100,7 @@ namespace System
                         len += 2;
                         break;
                     case 'w':
-                        ret = ret.Concat(BitConverter.GetBytes(Convert.ToInt16(list[idx])));
+                        ret = ret.Concat(BitConverter.GetBytes(Convert.ToUInt16(list[idx])));
                         len += 2;
                         break;
                     case 'B':

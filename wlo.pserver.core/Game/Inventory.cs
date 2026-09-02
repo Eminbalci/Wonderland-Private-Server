@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -13,14 +13,14 @@ namespace Game.Code
 {
     public class Inventory
     {
-        DataFiles.PhxItemDat ItemDat;
+        global::DataFiles.PhxItemDat ItemDat;
 
 
         Player owner;
         private readonly object mylock;
         private InvItem[] m_Items;
 
-        public Inventory(Player src,DataFiles.PhxItemDat ItemDat)
+        public Inventory(Player src, global::DataFiles.PhxItemDat ItemDat)
         {
             owner = src;
             this.ItemDat = ItemDat;
@@ -72,6 +72,23 @@ namespace Game.Code
         {
             return (AddItem(item) > 0);
         }
+
+        public ushort GetItemIdAtSlot(byte loc)
+        {
+            if (loc > 0 && loc <= 50)
+            {
+                lock (mylock) return this[loc].ItemID;
+            }
+            return 0;
+        }
+
+        public void RemoveItemAtSlot(byte loc, byte ammt = 1)
+        {
+            if (loc > 0 && loc <= 50)
+            {
+                RemoveItem(loc, ammt);
+            }
+        }
         #endregion
 
 
@@ -107,6 +124,73 @@ namespace Game.Code
                 }
                 slot = 0;
                 return false;
+            }
+        }
+
+        public int GetItemCount(ushort ItemID)
+        {
+            lock (mylock)
+            {
+                int total = 0;
+                for (byte a = 1; a < 51; a++)
+                {
+                    if (this[a].ItemID == ItemID)
+                    {
+                        total += Math.Max(1, (int)this[a].Ammt);
+                    }
+                }
+                return total;
+            }
+        }
+
+        public bool RemoveItemById(ushort itemId, byte ammt = 1)
+        {
+            if (ContainsItem(itemId, out byte slot))
+            {
+                RemoveItem(slot, ammt);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Applies durability damage / wear to the active vehicle in inventory on movement.
+        /// </summary>
+        public void ApplyVehicleWear(ushort vehicleItemId, byte wearAmount = 1)
+        {
+            lock (mylock)
+            {
+                if (ContainsItem(vehicleItemId, out byte slot))
+                {
+                    var item = this[slot];
+                    if (item != null && item.ItemID > 0)
+                    {
+                        int newDmg = item.Damage + wearAmount;
+                        if (newDmg >= 100)
+                        {
+                            item.Damage = 100;
+                            RemoveItem(slot, 1);
+
+                            // Send Raft Wreck Animation (AC 15:15)
+                            SendPacket wreck = new SendPacket();
+                            wreck.Pack8(15);
+                            wreck.Pack8(15);
+                            wreck.Pack32(owner.CharID);
+                            wreck.Pack16(vehicleItemId);
+                            owner.Send(wreck);
+                            owner.CurMap?.Broadcast(wreck);
+
+                            // Dismount player
+                            owner.RideVehicle("");
+                            owner.SendSystemMessage("⚠️ Your raft broke into pieces from wear and tear!");
+                        }
+                        else
+                        {
+                            item.Damage = (byte)newDmg;
+                            owner.Send(new SendPacket(GetAC23_5()));
+                        }
+                    }
+                }
             }
         }
         /// <summary>
@@ -162,7 +246,7 @@ namespace Game.Code
                                 else
                                     this[slot].Clear();
                             }
-                        if (senddata) owner.Send( Tools.FromFormat("bbbb", 23, 9, at, ammt));
+                        if (senddata) owner.Send(Tools.FromFormat("bbbb", 23, 9, at, ammt));
                         return remItem;
                     }
                 }
@@ -170,12 +254,45 @@ namespace Game.Code
                 return null;
             }
         }
+        public bool RemoveItem(ushort itemId, byte count = 1)
+        {
+            lock (mylock)
+            {
+                byte needed = count;
+                for (byte a = 1; a < 51; a++)
+                {
+                    if (this[a].ItemID == itemId)
+                    {
+                        byte toTake = Math.Min(this[a].Ammt, needed);
+                        RemoveItem(a, toTake);
+                        needed -= toTake;
+                        if (needed == 0) break;
+                    }
+                }
+                owner?.Send(new SendPacket(GetAC23_5()));
+                return needed == 0;
+            }
+        }
         public void AddItem(ushort ID, byte amt)
         {
+            PhxItemInfo baseItem = null;
+            try
+            {
+                if (ItemDat != null)
+                {
+                    baseItem = ItemDat.GetItemByID(ID);
+                }
+            }
+            catch { }
+
+            if (baseItem == null)
+            {
+                baseItem = new PhxItemInfo() { ItemID = ID, ItemName = Encoding.ASCII.GetBytes("Item " + ID), cellwidth = 1, cellheight = 1 };
+            }
             InvItem i = new InvItem();
-            i.CopyFrom(ItemDat.GetItemByID(ID));
+            i.CopyFrom(baseItem);
             i.Ammt = amt;
-            AddItem(i);
+            AddItem(i, 0, true);
         }
         /// <summary>
         /// Adds an item to the Inventory
@@ -235,19 +352,15 @@ namespace Game.Code
                         else
                             goto end;
 
-                end:
-                    if (ammt > 0 && sendData)
+                        end:
+                    if (ammt > 0 && sendData && owner != null)
                     {
                         addammt -= ammt;
                         tmp.Pack8(ammt);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack32(0);
-                        tmp.Pack16(0);
+                        tmp.PackArray(new byte[28]);
                         owner.Send(tmp);
+                        owner.Send(new SendPacket(GetAC23_5()));
+                        DebugSystem.Write($"[Inventory.AddItem] Sent AC 23:6 + AC 23:5 item #{item.ItemID} x{ammt} to slot {a} for {owner.CharName}");
                     }
                     if (totalammt == item.Ammt || at != 0)
                         return ammt;
@@ -307,7 +420,8 @@ namespace Game.Code
 
                         if (((src > 0) && (src < 51)) && ((dst > 0) && (dst < 51)) && ((ammt > 0) && (ammt < 51)))
                             MoveItem(src, dst, ammt);
-                    } break;
+                    }
+                    break;
                 #endregion
                 #region item being used
                 case 15:
@@ -323,7 +437,7 @@ namespace Game.Code
                     break;
                 #endregion
                 #region destroy an item
-                case 124:
+                case 3:// drop item to floor 124:
                     {
                         byte pos = p.Unpack8();
                         byte qnt = p.Unpack8();
@@ -332,11 +446,12 @@ namespace Game.Code
                         if (this[pos].ItemID > 0)
                         {
                             // test confirm destroy item
-                            owner.Send( Tools.FromFormat("bbwb", 23, 26, this[pos].ItemID, qnt));
+                            owner.Send(Tools.FromFormat("bbWb", 23, 26, this[pos].ItemID, qnt));
                             RemoveItem(pos, qnt);
                         }
-                    } break;
-                #endregion
+                    }
+                    break;
+                    #endregion
             }
         }
 
@@ -389,6 +504,29 @@ namespace Game.Code
             }
         }
 
+        public byte[] GetAC30_5(byte actionCode = 30, byte subCode = 5)
+        {
+            lock (mylock)
+            {
+                SendPacket tmp = new SendPacket();
+                tmp.Pack8(actionCode);
+                tmp.Pack8(subCode);
+                if (FilledCount > 0)
+                {
+                    for (byte a = 1; a < 51; a++)
+                        if (this[a].ItemID != 0)
+                        {
+                            tmp.Pack8(a);
+                            tmp.Pack16(this[a].ItemID);
+                            tmp.Pack8(this[a].Ammt);
+                            tmp.Pack8(this[a].Damage);
+                            tmp.PackArray(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                        }
+                }
+                return tmp.Buffer;
+            }
+        }
+
         public Dictionary<byte, uint[]> InventoryDBData
         {
             get
@@ -397,7 +535,7 @@ namespace Game.Code
                 {
                     Dictionary<byte, uint[]> tmp = new Dictionary<byte, uint[]>();
 
-                    for(byte a =1;a<51;a++)
+                    for (byte a = 1; a < 51; a++)
                         tmp.Add(a, new uint[] { this[a].ItemID, this[a].Damage, this[a].Ammt, a, 0, 0, 0, 0 });
                     return tmp;
                 }
@@ -470,8 +608,8 @@ namespace Game.Code
     public class TentInventoryManager : Inventory
     {
 
-        public TentInventoryManager(Player src, DataFiles.PhxItemDat ItemDat)
-            : base(src,ItemDat)
+        public TentInventoryManager(Player src, global::DataFiles.PhxItemDat ItemDat)
+            : base(src, ItemDat)
         {
 
         }

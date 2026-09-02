@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="packages\EntityFramework.6.5.1\build\EntityFramework.props" Condition="Exists('packages\EntityFramework.6.5.1\build\EntityFramework.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -27,12 +27,26 @@
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">.\</SolutionDir>
-    <RestorePackages>true</RestorePackages>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">.</SolutionDir>
+    <RestorePackages>false</RestorePackages>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
     <TargetFrameworkProfile />
+    <GenerateResourceMSBuildArchitecture>CurrentArchitecture</GenerateResourceMSBuildArchitecture>
+    <DisableMSBuildAssemblyResolution>true</DisableMSBuildAssemblyResolution>
+    <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.3.1" />
+    <PackageReference Include="Octokit" Version="0.4.1" />
+  </ItemGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
@@ -98,17 +112,10 @@
       <HintPath>packages\System.Configuration.ConfigurationManager.8.0.0\lib\net462\System.Configuration.ConfigurationManager.dll</HintPath>
     </Reference>
     <Reference Include="System.Core" />
-    <Reference Include="System.Data.SQLite, Version=1.0.97.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>packages\System.Data.SQLite.Core.1.0.97.0\lib\net45\System.Data.SQLite.dll</HintPath>
+    <Reference Include="System.Data.SQLite">
+      <HintPath>DLLS\System.Data.SQLite.dll</HintPath>
     </Reference>
-    <Reference Include="System.Data.SQLite.EF6">
-      <HintPath>packages\System.Data.SQLite.EF6.1.0.97.0\lib\net45\System.Data.SQLite.EF6.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Data.SQLite.Linq, Version=1.0.97.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>bin\Debug\System.Data.SQLite.Linq.dll</HintPath>
-    </Reference>
+
     <Reference Include="System.Diagnostics.DiagnosticSource, Version=8.0.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\System.Diagnostics.DiagnosticSource.8.0.1\lib\net462\System.Diagnostics.DiagnosticSource.dll</HintPath>
     </Reference>
@@ -142,6 +149,9 @@
     <Reference Include="ZstdSharp, Version=0.8.0.0, Culture=neutral, PublicKeyToken=8d151af33a4ad5cf, processorArchitecture=MSIL">
       <HintPath>packages\ZstdSharp.Port.0.8.0\lib\net462\ZstdSharp.dll</HintPath>
     </Reference>
+    <Reference Include="System.Resources.Extensions">
+      <HintPath>$(NuGetPackageRoot)system.resources.extensions\8.0.0\lib\net462\System.Resources.Extensions.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -153,6 +163,13 @@
     <Compile Include="Src\Gui\MainForm1.Designer.cs">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Src\Gui\CharacterDataEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Src\Gui\CharacterDataEditorForm.Designer.cs">
+      <DependentUpon>CharacterDataEditorForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Src\DataFiles\Compound2Dat.cs" />
     <Compile Include="Src\Gui\ShutDown Dialog.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -173,13 +190,45 @@
     </Compile>
     <Compile Include="Src\Network\ActionCodes\AC0.cs" />
     <Compile Include="Src\Network\ActionCodes\AC02.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC05.cs" />
     <Compile Include="Src\Network\ActionCodes\AC06.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC08.cs" />
     <Compile Include="Src\Network\ActionCodes\AC09.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Src\Network\ActionCodes\AC11.cs" />
     <Compile Include="Src\Network\ActionCodes\AC12.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC13.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC14.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC15.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC19.cs" />
     <Compile Include="Src\Network\ActionCodes\AC20.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC21.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC23.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC29.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC30.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC31.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC32.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC33.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC34.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC35.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC39.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC50.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC57.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC62.cs" />
     <Compile Include="Src\Network\ActionCodes\AC63.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC64.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC65.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC75.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC82.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC85.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC89.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC91.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC92.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC104.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC183.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC186.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC226.cs" />
     <Compile Include="Src\Network\Client.cs" />
     <Compile Include="Src\Program.cs" />
     <Compile Include="Src\Server\Bots\Cupid.cs" />
@@ -190,6 +239,8 @@
     <Compile Include="Src\Server\Config\Update.cs" />
     <Compile Include="Src\Server\GM\BigLetterLogo.cs" />
     <Compile Include="Src\Server\LoginServer.cs" />
+    <Compile Include="Src\Server\ItemMallServer.cs" />
+    <Compile Include="Src\Server\API\RegistrationServer.cs" />
     <Compile Include="Src\Server\Plugin\Plugin.cs" />
     <Compile Include="Src\Server\System\MapSystem.cs" />
     <Compile Include="Src\Server\System\TaskSystem\TaskManager.cs" />
@@ -199,6 +250,7 @@
     <Compile Include="Src\Server\Utilities\Request\RequestManager.cs" />
     <Compile Include="Src\Server\Utilities\Request\requests.cs" />
     <Compile Include="Src\Server\WorldServer.cs" />
+    <Compile Include="Src\Server\WloWorldNode.cs" />
     <Compile Include="Tutorials\Creating Dll for Database Connection.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -300,14 +352,25 @@
       <Name>wlo.pserver.core</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="x64\SQLite.Interop.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>x64\SQLite.Interop.dll</Link>
+    </Content>
+    <Content Include="x86\SQLite.Interop.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>x86\SQLite.Interop.dll</Link>
+    </Content>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
       <UserProperties BuildVersion_UpdateFileVersion="True" BuildVersion_UpdateAssemblyVersion="True" BuildVersion_BuildVersioningStyle="None.None.None.Increment" />
     </VisualStudio>
   </ProjectExtensions>
-  <Import Project="$(SolutionDir)\.nuget\nuget.targets" />
-  <Import Project="packages\System.Data.SQLite.Core.1.0.97.0\build\net45\System.Data.SQLite.Core.targets" Condition="Exists('packages\System.Data.SQLite.Core.1.0.97.0\build\net45\System.Data.SQLite.Core.targets')" />
+  <!-- <Import Project="$(SolutionDir)\.nuget\nuget.targets" /> -->
+
+  <!--
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
@@ -316,6 +379,7 @@
     <Error Condition="!Exists('packages\EntityFramework.6.5.1\build\EntityFramework.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\EntityFramework.6.5.1\build\EntityFramework.props'))" />
     <Error Condition="!Exists('packages\EntityFramework.6.5.1\build\EntityFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\EntityFramework.6.5.1\build\EntityFramework.targets'))" />
   </Target>
+  -->
   <Import Project="packages\EntityFramework.6.5.1\build\EntityFramework.targets" Condition="Exists('packages\EntityFramework.6.5.1\build\EntityFramework.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

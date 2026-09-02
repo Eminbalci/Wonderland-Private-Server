@@ -1,12 +1,12 @@
-﻿using System;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
 using System.Net.Sockets;
-using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Game;
 using Game.Code;
 using Game.Maps;
@@ -19,9 +19,9 @@ namespace Server
     /// <summary>
     /// Handles the Recv and SendPacket Proccesing of all clients
     /// </summary>
-    public class WorldServer:MapSystem,WorldServerHost,MapHost
+    public class WorldServer : MapSystem, WorldServerHost, MapHost
     {
-        Thread Mainthrd,Eventthrd;
+        Thread Mainthrd, Eventthrd, AutoSaveThread, MapTickThread;
         bool killFlag;
         readonly ManualResetEvent mylock;
         //readonly Semaphore ProcessLock,SendLock;
@@ -38,8 +38,8 @@ namespace Server
         /// <summary>
         /// Maps loaded into the world
         /// </summary>
-        ConcurrentDictionary<ushort, GameMap> MapList;
-               
+        new ConcurrentDictionary<ushort, GameMap> MapList;
+
         // System.Diagnostics.Stopwatch exptimer = new System.Diagnostics.Stopwatch();
         /// <summary>
         /// Clients that are in the Process of Logging into the Server
@@ -50,13 +50,15 @@ namespace Server
         ///// </summary>
         //public int Clients_inGame { get { int a = 0; ConnectedPlayers.Values.ToList().ForEach(c => a += c.Values.Count(n => n.inGame)); return a; } }
 
-        public WorldServer(PluginManager src):base(src)
+        public WorldServer(PluginManager src) : base(src)
         {
             mylock = new ManualResetEvent(false);
             QueuedPlayerLogin = new Queue<Player>();
             MapList = new ConcurrentDictionary<ushort, GameMap>();
+            new MapManager(); // Initialize Singleton
+            Game.PlayerRelated.Friendlist.IsPlayerOnlineHandler = (charId) => cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.Any(pl => pl.CharID == charId) == true;
         }
-        
+
         public void OnLogin(Player client)
         {
             QueuedPlayerLogin.Enqueue(client);
@@ -79,7 +81,7 @@ namespace Server
             //    ConnectedPlayers.TryAdd(p.ClientIP, tmp);     
             //    mylock.Set();          
             //}
-            
+
         }
 
         public void Initialize()
@@ -91,6 +93,14 @@ namespace Server
             Eventthrd = new Thread(new ThreadStart(Eventwrk));
             Eventthrd.Name = "World Manager Event Thread";
             Eventthrd.Init();
+            AutoSaveThread = new Thread(new ThreadStart(AutoSaveLoop));
+            AutoSaveThread.Name = "Auto-Save Thread";
+            AutoSaveThread.Init();
+            DebugSystem.Write("[WorldServer] Auto-save thread started (saves every 1 second)");
+            MapTickThread = new Thread(new ThreadStart(MapTickLoop));
+            MapTickThread.Name = "Map & NPC Tick Thread";
+            MapTickThread.Init();
+            DebugSystem.Write("[WorldServer] Map & NPC Tick Thread started (500ms cycle)");
         }
 
         public void Kill()
@@ -101,6 +111,10 @@ namespace Server
             Mainthrd = null;
             while (Eventthrd != null && Eventthrd.IsAlive) { Thread.Sleep(1); }
             Eventthrd = null;
+            while (AutoSaveThread != null && AutoSaveThread.IsAlive) { Thread.Sleep(1); }
+            AutoSaveThread = null;
+            while (MapTickThread != null && MapTickThread.IsAlive) { Thread.Sleep(1); }
+            MapTickThread = null;
         }
 
         void MainLoop()
@@ -114,10 +128,25 @@ namespace Server
 
                 if (QueuedPlayerLogin.Count > 0)
                 {
-                    Player src;
+                    Player src = QueuedPlayerLogin.Dequeue();
+                    DebugSystem.Write($"[WorldServer] Dequeued player: {src.UserAcc?.UserName ?? "Unknown"}. Disconnected? {src.isDisconnected()}");
 
-                    if (!(src = QueuedPlayerLogin.Dequeue()).isDisconnected())
-                        CommenceLogin(src);
+                    if (!src.isDisconnected())
+                    {
+                        try
+                        {
+                            DebugSystem.Write($"[WorldServer] Processing login queue for client...");
+                            CommenceLogin(src);
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write($"[WorldServer] Critical Error in CommenceLogin: {ex.Message}\n{ex.StackTrace}");
+                        }
+                    }
+                    else
+                    {
+                        DebugSystem.Write($"[WorldServer] Player dropped because isDisconnected() is TRUE.");
+                    }
                 }
                 #endregion
                 Thread.Sleep(2);
@@ -199,10 +228,41 @@ namespace Server
 
         //    MapList.Clear();
         //}
+        void MapTickLoop()
+        {
+            while (!killFlag)
+            {
+                try
+                {
+                    if (MapManager.Instance != null)
+                    {
+                        var maps = MapManager.Instance.ActiveMaps.ToList();
+                        foreach (var map in maps)
+                        {
+                            try
+                            {
+                                map.Process();
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[WorldServer] Error processing map {map.MapID}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WorldServer] Error in MapTickLoop: {ex.Message}");
+                }
+
+                Thread.Sleep(500);
+            }
+        }
+
         void Mapwrk()// processes tick
         {
             do
-            {               
+            {
 
                 //foreach (var map in MapList.Values.ToList())
                 //    map.UpdateMap();
@@ -315,7 +375,7 @@ namespace Server
         //    }
         //}
 
-        public GameMap GetMap(ushort ID)
+        public new GameMap GetMap(ushort ID)
         {
             GameMap tmp = null;
 
@@ -334,10 +394,10 @@ namespace Server
             else
                 return MapList.Values.Single(c => c.MapID == ID);
         }
-        
+
         //public bool onTelePort(TeleportType teletype, byte portalID, WarpData map, Player target)
         //{
-             
+
         //    if (MapList.Values.Count(c => c.MapID == map.DstMap) == 0)
         //    {
         //        //Create Map
@@ -355,7 +415,7 @@ namespace Server
         //    MapList.Values.Single(c => c.MapID == map.DstMap).Teleport(teletype, target, portalID, map);
         //    return true;
         //}
-       
+
         /// <summary>
         /// Broadcasts a packet to all
         /// </summary>
@@ -473,6 +533,11 @@ namespace Server
 
         public void CommenceLogin(Player src)
         {
+            DebugSystem.Write("[WorldServer] CommenceLogin started.");
+
+            cGlobal.gCharacterDataBase.OnCharacterJoin(src);
+            src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
+            src.Disconnected += (s) => Network.ActionCodes.AC14.NotifyFriendsStatus(s, false);
 
             src.Flags.Add(PlayerFlag.Logging_into_Map);
 
@@ -481,91 +546,59 @@ namespace Server
             src.Send(Tools.FromFormat("bbbw", 24, 5, 53, 0));
             src.Send(Tools.FromFormat("bbbw", 24, 5, 52, 0));
             src.Send(Tools.FromFormat("bbbw", 24, 5, 54, 0));
-            src.Send(Tools.FromFormat("bbbswb", 70, 1, 23, "Something", 194, 0));
             src.Send(Tools.FromFormat("bbb", 20, 33, 0));
-            //-----Player Stats values--------
-            src.Send8_1(false);
-            Thread.Sleep(5);
             src.Send(Tools.FromFormat("bbb", 14, 13, 3));
-            //-----Im Mall List
-            // //g.ac75.Send_1(g.gImMall_Manager.Get_75IM);
             src.Send(Tools.FromFormat("bbw", 75, 8, 0));
-            SendPacket d = new SendPacket(new byte[] { 244, 68, 41, 0, 104, 1, 1, 0, 12, 44, 137, 1, 45, 137, 1, 25, 134, 1, 24, 134, 1, 22, 134, 1, 23, 134, 1, 76, 133, 1, 99, 133, 1, 100, 133, 1, 41, 133, 1, 91, 133, 1, 88, 133, 1 });
-
-            src.Send(d);
+            src.Send(new SendPacket(new byte[] { 244, 68, 41, 0, 104, 1, 1, 0, 12, 44, 137, 1, 45, 137, 1, 25, 134, 1, 24, 134, 1, 22, 134, 1, 23, 134, 1, 76, 133, 1, 99, 133, 1, 100, 133, 1, 41, 133, 1, 91, 133, 1, 88, 133, 1 }));
 
             //------Player Base Info------------------
+            DebugSystem.Write("[WorldServer] Loading Final Data...");
             cGlobal.gGameDataBase.LoadFinalData(src);
             src.SendCharacterData();
-            cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
-            cGlobal.gCharacterDataBase.OnCharacterJoin(src);
-            src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
-            //-----------send sidebar---------------------
-            //------------Player Data---------------------
+            Network.ActionCodes.AC14.NotifyFriendsStatus(src, true);
+
+            // Populate PlayerSkills list in memory (no packets yet — must precede SendAllSkills below)
+            Game.SkillRelated.SkillManager.InitializePlayerSkillsNoSend(src);
+            Game.SkillRelated.SkillManager.CheckAndUnlockProgressionSkillsNoSend(src);
+
+            // Load player quests from database
+            Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
+
+            // 1. AC 5:3 Base Stats and Learned Skills (must precede map teleport)
             src.Send_5_3();
+            src.Send8_1(false);
+
+            // 2. Inventory, equipment, gold, settings (before map teleport)
             src.Send(new SendPacket(src.Inv.GetAC23_5()));
             src.Send(new SendPacket(src._23_11Data));
-            ////SendQuest----------------------
-            // SendPacket g = new SendPacket();
-            // //    g.PackArray(new byte[]{(24, 6);
-            // //    g.PackArray(new byte[] { 001, 008, 047, 001, 002, 244, 050, 001, 003, 012, 043, 001 });
-            // //    g.SetSize();
-            // //    Send(g);
-            // //    g = new SPacket();
-            // //    g.PackArray(new byte[]{(53, 10);
-            // //    g.PackArray(new byte[] { 032, 164, 036, 002, 037, 240, 038, 041, 058, 048, 083, 015 });
-            // //    g.SetSize();
-            // //    Send(g);
-            // //    g = new SPacket();
-            // //    g.PackArray(new byte[]{(26, 7);
-            // //    g.PackArray(new byte[] { 001, 002, 002, 128, 003, 002, 004, 128 ,008,
-            // //                066, 009, 096, 010, 008, 011, 010 ,013, 001 });
-            // //    g.SetSize();
-            // //    Send(g);
             src.Send(Tools.FromFormat("bbd", 26, 4, src.Gold));
             src.Send(new SendPacket(src.Settings.ToArray()));
-            //src.MyFriends.SendFriendList();
 
-            // //pets
-            // //-----------------------------------   
-            //---------Warp Info---------------------------------------------------
-            // //put me in my maps list
-            
-            GameMap target = null;
+            // 3. Send all learned skills and skill tree status
+            Game.SkillRelated.SkillManager.SendAllSkills(src);
 
-            if((target = GetMap(src.LoginMap)) == null)
+            //---------Map Teleport---------------------------------------------------
+            GameMap target = MapManager.Instance.GetMap(src.LoginMap);
+            if (target == null)
             {
-                var ex = new Exception("Map " + src.LoginMap + " not found for player");
+                var ex = new Exception("Map " + src.LoginMap + " not found for player " + src.CharName);
                 DebugSystem.Write(new ExceptionData(ex));
                 src.Disconnect();
                 throw ex;
-                
             }
+            DebugSystem.Write($"[WorldServer] Teleporting {src.CharName} to Map {src.LoginMap} (instance: {target.GetHashCode()})");
+            target.Teleport(TeleportType.Login, src, 0, new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
 
-            target.Teleport(TeleportType.Login,src,0,new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY });
-           
             src.Send(Tools.FromFormat("bbb", 5, 15, 0));
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.Send(Tools.FromFormat("bbb", 5, 21, src.Slot));
-            src.Send(Tools.FromFormat("bbdw", 5, 11, 15085, 5000));
-            // //g.ac5.Send_11(15085, 0);//244, 68, 8, 0, 5, 11, 237, 58, 0, 0, 0, 0, 
-            //---------------------------------
-            //g.ac62.Send_4(g.packet.cCharacter.cCharacterID); //tent items
-            //--------------------------------------
+
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
-            src.Send(Tools.FromFormat("bbb", 5, 16, 0));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));
             src.Send(Tools.FromFormat("bbbl", 25, 44, 2, DateTime.Now.ToOADate()));
-            // //g.ac23.Send_106(1, 1);
             src.Send(Tools.FromFormat("bbb", 23, 160, 3));
             src.Send(Tools.FromFormat("bbb", 75, 7, 1));
-            src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Welcome to the  WLO 4 EVER Community Server :! Enjoy !!"));
-            src.Send(Tools.FromFormat("bbb", 69, 1, 71));
-            src.Send(Tools.FromFormat("bbb", 20, 60, 1));
-            src.Send(new SendPacket(new byte[] { 244,68,13,0,66, 1, 001, 012, 043, 000, 000, 000, 000, 000, 000, 000, 000 }));
-
-            for (byte a = 1; a < 11; a++)
-                src.Send(Tools.FromFormat("bbbw", 5, 13, a, 0));
+            // Clear hotbar / quickbar slots (AC 5:24)
             for (byte a = 1; a < 11; a++)
                 src.Send(Tools.FromFormat("bbbw", 5, 24, a, 0));
 
@@ -576,14 +609,118 @@ namespace Server
             src.Send(Tools.FromFormat("bbbbd", 23, 208, 2, 4, 0));
             src.Send(Tools.FromFormat("bb", 1, 11));
             src.Send(Tools.FromFormat("bbbbbb", 15, 19, 4, 6, 9, 94));
-            src.Send(new SendPacket(new byte[] { 244,68,19,0,54, 89, 2, 2, 90, 2, 1, 91, 2, 1, 189, 2, 2, 190, 2, 1, 191, 2, 1 }));
-            src.Send(Tools.FromFormat("bbdddd", 35, 4, 0, 0, 0, 0));//first 0 is im
+
+            // 3. AC 35 Sub 11
+            src.Send(Tools.FromFormat("bb", 35, 11));
+
+            // 4. AC 35 Sub 12 (CharID + 00)
+            SendPacket mallUser = new SendPacket();
+            mallUser.Pack8(35);
+            mallUser.Pack8(12);
+            mallUser.Pack32(src.CharID);
+            mallUser.Pack8(0);
+            src.Send(mallUser);
+
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
-            src.Send(Tools.FromFormat("bb", 5, 4));
-            //src.SetSendMode(SendMode.Normal);
+
             src.Flags.Add(PlayerFlag.InMap);
 
+            // Map-level player presence and visual synchronization is handled cleanly by Map.Warp_In with authentic AC 3 packet
+            // cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
+            // cGlobal.gCharacterDataBase.BroadcastNewPlayer(src);
+        }
 
+
+
+        void AutoSaveLoop()
+        {
+            int saveCounter = 0;
+            do
+            {
+                try
+                {
+                    // Save all online players every second
+                    var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                    if (onlinePlayers != null && onlinePlayers.Count > 0)
+                    {
+                        saveCounter++;
+                        foreach (var player in onlinePlayers)
+                        {
+                            try
+                            {
+                                cGlobal.gCharacterDataBase.WritePlayer(player.CharID, player);
+                                if (player.UserAccount != null && player.UserAccount.DataBaseID != 0)
+                                {
+                                    cGlobal.gUserDataBase?.SetIMPoints(player.UserAccount.DataBaseID, player.UserAccount.IM);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[AutoSave] Error saving player {player.CharName}: {ex.Message}");
+                            }
+                        }
+
+                        // Log every 60 seconds (once per minute)
+                        if (saveCounter % 60 == 0)
+                        {
+                            DebugSystem.Write($"[AutoSave] Saved {onlinePlayers.Count} online players (total saves: {saveCounter})");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[AutoSave] Critical error in auto-save loop: {ex.Message}");
+                }
+
+                Thread.Sleep(1000); // 1 second
+            }
+            while (!killFlag);
+
+            DebugSystem.Write("[AutoSave] Auto-save thread stopped");
+        }
+
+        public static void SendChatMessage(Player p, byte chatType, string message)
+        {
+            if (p == null || string.IsNullOrEmpty(message)) return;
+            SendPacket pkt = new SendPacket();
+            pkt.Pack8(2); // ActionCode 2 (Chat)
+            pkt.Pack8(chatType); // 4 = GM (Red/Orange), 1 = World (Yellow), 3 = Channel (Blue), 6 = Whisper (Pink)
+            pkt.Pack32(0); // 4-byte Sender Char ID (0 for System/GM)
+            pkt.PackStringN(message); // Raw ASCII characters without length prefix
+            p.Send(pkt);
+        }
+
+        public static void SendPopupPrompt(Player p, string message)
+        {
+            if (p == null || string.IsNullOrEmpty(message)) return;
+            SendPacket s = new SendPacket();
+            s.Pack8(23);
+            s.Pack8(57);
+            s.Pack8(0);
+            s.PackString(message);
+            p.Send(s);
+        }
+
+        public static void DispatchLoginMotd(Player src)
+        {
+            try
+            {
+                if (src == null) return;
+                var motdList = cGlobal.SrvSettings?.GetAllWelcomeMessages();
+                if (motdList != null && motdList.Count > 0)
+                {
+                    SendPopupPrompt(src, motdList[0]);
+                    foreach (var motd in motdList)
+                    {
+                        SendChatMessage(src, 4, motd); // Red / Orange (GM): <motd>
+                    }
+                    DebugSystem.Write($"[WorldServer] Dispatched {motdList.Count} MOTD line(s) to {src.CharName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error dispatching MOTD: {ex.Message}");
+            }
         }
     }
 }

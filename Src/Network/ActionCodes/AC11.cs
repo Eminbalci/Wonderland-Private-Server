@@ -1,110 +1,183 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Wonderland_Private_Server.Code.Objects;
-using Wonderland_Private_Server.Network;
-using Wonderland_Private_Server.Utilities;
-using Wonderland_Private_Server.DataManagement.DataFiles;
-using Wonderland_Private_Server.Code.Interface;
-using Wlo.Core;
+using Game;
+using Game.Code;
+using Game.Maps;
+using Network;
+using RCLibrary.Core.Networking;
 
-namespace Wonderland_Private_Server.ActionCodes
+namespace Network.ActionCodes
 {
-    public class AC11:AC
+    public class AC11 : AC
     {
         public override int ID { get { return 11; } }
-        public override void ProcessPkt(ref Player r, RecvPacket p)
-        {
-            switch (p.B)
-            {
-                case 1: Recv_1(ref r, p); break;
-                case 2: Recv_2(ref r, p); break; //a pk was initiated
 
-                default: LogServices.Log(p.A + "," + p.B + " Has not been coded"); break;
+        public override void ProcessPkt(Player p, RecievePacket r)
+        {
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK Mode. Sub: {r.B}");
+            switch (r.B)
+            {
+                case 1: Recv1(ref p, r); break; // Battle escape/run away
+                case 2: Recv2(ref p, r); break; // PK initiated
+                case 4: Recv4(ref p, r); break; // Join battle
+                case 5: Recv5(ref p, r); break; // Watch battle
+                default:
+                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Unknown SubAction: {r.B}");
+                    break;
             }
         }
-        public void Recv_1(ref Player r, RecvPacket p)
+
+        void Recv1(ref Player p, RecievePacket r)
         {
-            switch (p.Unpack8())
+            // Battle escape/run away
+            try
             {
-                case 3: r.BattleScene.RemFighter(Code.Enums.eBattleLeaveType.RunAway, r); break;
+                byte escapeType = r.Unpack8();
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv1 Escape. Type: {escapeType}");
+
+                switch (escapeType)
+                {
+                    case 3: // Run away from battle
+                        Game.Battle.PvEBattleManager.HandleFlee(p);
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] {p.CharName} fleeing battle");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv1 Exception: {ex.Message}");
             }
         }
-        public void Recv_2(ref Player r, RecvPacket p) //pk
+
+        void Recv2(ref Player p, RecievePacket r)
         {
-            //check if gm
-            //if (!r.GM)
-            //{
-            //    SendPacket t = new SendPacket();
-            //    t = new SendPacket();
-            //    t.Pack(new byte[] { 2, 3 });
-            //    t.Pack(100);
-            //    t.PackNString("Only GMs can start PK Battles %#");
-            //    r.Send(t);
-            //    return;
-            //}
-
-            byte pkType = p.Unpack8(); //pk type
-            UInt32 targetID = p.Unpack32(); //id of player that was attacked
-            UInt16 clickID = p.Unpack16(); //npc, or pc's index (not sure if used on pc pks)
-
-            switch (pkType)
+            // PK initiated
+            try
             {
-                case 2: //pk against other pc
-                    {
-                        if (r.CurrentMap.Players[targetID] != null)
+                byte pkType = r.Unpack8();
+                uint rawTargetID = r.Unpack32();
+                uint targetID = (rawTargetID > 0xFFFF) ? (rawTargetID >> 8) : rawTargetID;
+                if (targetID == 0) targetID = rawTargetID & 0xFFFF;
+                ushort clickID = r.Unpack16();
+
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv2 PK. Type: {pkType}, TargetID: {targetID}, ClickID: {clickID}");
+
+                switch (pkType)
+                {
+                    case 3: // PK against other player (PvP)
+                        if (p.CurMap is GameMap gMap && gMap.PlayersList.Any(x => x.CharID == rawTargetID))
                         {
-                            //also check to see if both chars have their pk turned on TODO
-                            if (r.Settings.PKABLE && r.CurrentMap.Players[targetID].Settings.PKABLE)
-                                r.CurrentMap.onPk_Started(r, r.CurrentMap.Players[targetID]);
+                            HandlePlayerPK(p, rawTargetID);
                         }
-                    } break;
-                case 3: //pk againts npc
-                    {
-                        Npc target = cGlobal.gNpcManager.GetNpc((ushort)targetID);
-                        target.ClickID = clickID;
-                        if (r.CurrentMap != null)
-                            r.CurrentMap.onNpcPk(r, target);
-
-                    } break;
-                case 4: //join
-                    {
-                        //cCharacter t = g.gDataManager.cCharacterManager.getByID(targetID);
-                        //if (t != null && t.battle != null)
-                        //{
-                        //    cFighter w = new cFighter(g);
-                        //    w.SetFrom(c);
-                        //    t.battle.FighterWatch(w);
-                        //    cSendPacket watchstate = new cSendPacket(g);
-                        //    watchstate.Header(11, 4);
-                        //    watchstate.AddByte(2);
-                        //    watchstate.AddDWord(c.characterID);
-                        //    watchstate.AddWord(0);
-                        //    watchstate.AddByte(4);
-                        //    watchstate.SetSize();
-                        //    g.gDataManager.MapManager.GetMapByID(c.mapLoc).SendtocCharactersEx(watchstate, c);
-                        //}
-
-                    } break;
-                case 5: //watch
-                    {
-                        //cCharacter t = g.gDataManager.cCharacterManager.getByID(targetID);
-                        //if (t != null && t.battle != null)
-                        //{
-                        //    cFighter w = new cFighter(g);
-                        //    w.SetFrom(c);
-                        //    w.Position = t.battle.FindFighterbyID((int)targetID).Position;
-                        //    t.battle.FighterJoin(w);
-
-
-                        //}
-
-                    } break;
+                        else
+                        {
+                            HandleNpcPK(p, rawTargetID & 0xFFFF, clickID);
+                        }
+                        break;
+                    case 2: // PK against NPC / Monster (PvE)
+                    case 1:
+                    default:
+                        HandleNpcPK(p, rawTargetID & 0xFFFF, clickID);
+                        break;
+                    case 4: // Join existing battle
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Join battle request from {p.CharName}");
+                        break;
+                    case 5: // Watch existing battle
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Watch battle request from {p.CharName}");
+                        break;
+                }
             }
-            //get the cCharacter file for target
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv2 Exception: {ex.Message}");
+            }
         }
 
+        void HandlePlayerPK(Player attacker, uint targetID)
+        {
+            GameMap map = attacker.CurMap as GameMap;
+            if (map == null)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK failed: Attacker not in a map");
+                return;
+            }
+
+            Player target = map.PlayersList.FirstOrDefault(x => x.CharID == targetID);
+            if (target == null)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK failed: Target {targetID} not found");
+                return;
+            }
+
+            // Check if both players have PK enabled
+            if (!attacker.Settings.PKABLE)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK failed: {attacker.CharName} has PK disabled");
+                SendPKError(attacker, "PK modunuz kapalı!");
+                return;
+            }
+
+            if (!target.Settings.PKABLE)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK failed: {target.CharName} has PK disabled");
+                SendPKError(attacker, $"{target.CharName} PK modunu kapatmış!");
+                return;
+            }
+
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK initiated: {attacker.CharName} vs {target.CharName}");
+            Game.Battle.PvEBattleManager.StartPvPBattle(attacker, target);
+        }
+
+        void HandleNpcPK(Player attacker, uint npcID, ushort clickID)
+        {
+            // In Wonderland Online, wild roaming monsters do not initiate battles via click.
+            // Battles are triggered authentically by walking near them (proximity encounter) or stepping in wild zones.
+            DebugSystem.Write($"[AC11] Clicked NPC {npcID} (ClickID: {clickID}) - wild encounters trigger via movement proximity.");
+        }
+
+        void SendPKError(Player p, string message)
+        {
+            // Send error message to player
+            SendPacket pkt = new SendPacket();
+            pkt.PackArray(new byte[] { 2, 3 });
+            pkt.Pack32(100); // Error code
+            pkt.PackString(message);
+            p.Send(pkt);
+        }
+
+        void Recv4(ref Player p, RecievePacket r)
+        {
+            // Join battle
+            try
+            {
+                uint rawTargetID = r.Unpack32();
+                uint targetID = rawTargetID >> 8;
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv4 Join Battle. Target: {targetID}");
+                // TODO: Implement battle join logic
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv4 Exception: {ex.Message}");
+            }
+        }
+
+        void Recv5(ref Player p, RecievePacket r)
+        {
+            // Watch battle
+            try
+            {
+                uint rawTargetID = r.Unpack32();
+                uint targetID = rawTargetID >> 8;
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv5 Watch Battle. Target: {targetID}");
+                // TODO: Implement battle watch logic
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Recv5 Exception: {ex.Message}");
+            }
+        }
     }
 }

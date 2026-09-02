@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,11 +25,14 @@ namespace Game
         UInt16 m_skinColor; public UInt16 SkinColor { get { lock (c_lock)return m_skinColor; } set { lock (c_lock)m_skinColor = value; } }
         UInt16 m_clothingColor; public UInt16 ClothingColor { get { lock (c_lock)return m_clothingColor; } set { lock (c_lock)m_clothingColor = value; } }
         UInt16 m_eyeColor; public UInt16 EyeColor { get { lock (c_lock)return m_eyeColor; } set { lock (c_lock)m_eyeColor = value; } }
-        UInt32 m_colorcode1; public UInt32 ColorCode1 { get { lock (c_lock)return m_colorcode1; } set { lock (c_lock)m_colorcode1 = value; } }
-        UInt32 m_colorcode2; public UInt32 ColorCode2 { get { lock (c_lock)return m_colorcode2; } set { lock (c_lock)m_colorcode2 = value; } }
+        UInt32 m_colorcode1; public UInt32 ColorCode1 { get { lock (c_lock) return m_colorcode1 != 0 ? m_colorcode1 : (((uint)m_skinColor << 16) | (uint)m_hairColor); } set { lock (c_lock)m_colorcode1 = value; } }
+        UInt32 m_colorcode2; public UInt32 ColorCode2 { get { lock (c_lock) return m_colorcode2 != 0 ? m_colorcode2 : (((uint)m_eyeColor << 16) | (uint)m_clothingColor); } set { lock (c_lock)m_colorcode2 = value; } }
         UInt32 m_charID = 0; public virtual UInt32 CharID { get { lock (c_lock)return m_charID; } set { lock (c_lock)m_charID = value; } }
         string m_name; public String CharName { get { lock (c_lock)return m_name; } set { lock (c_lock)m_name = value; } }
         string m_nickname; public String NickName { get { lock (c_lock)return m_nickname; } set { lock (c_lock)m_nickname = value; } }
+        public uint SpouseID { get; set; } = 0;
+        public string SpouseName { get; set; } = string.Empty;
+        public bool IsMarried => SpouseID > 0;
         UInt16 m_x; public UInt16 CurX { get { lock (c_lock)return m_x; } set { lock (c_lock)m_x = value; } }
         UInt16 m_y; public UInt16 CurY { get { lock (c_lock)return m_y; } set { lock (c_lock)m_y = value; } }
         IMap curMap;
@@ -74,67 +77,50 @@ namespace Game
 
         public void SendCharacterData()
         {
-            PacketBuilder p = new PacketBuilder();
-            p.Begin();
-            p.Add((byte)3);
-            p.Add(CharID);
-            p.Add((byte)Body);
-            p.Add((ushort)LoginMap);
-            p.Add((ushort)CurX);
-            p.Add((ushort)CurY);
-            p.Add((byte)0);
-            p.Add((ushort)Head);
-            p.Add((ushort)HairColor);
-            p.Add((ushort)SkinColor);
-            p.Add((ushort)ClothingColor);
-            p.Add((ushort)EyeColor);
-            p.Add((byte)WornCount);//clothesAmmt); // ammt of clothes
-            p.Add(Worn_Equips);
-            p.Add(0);
-            p.Add(CharName);
-            p.Add(NickName);
-            p.Add(0);
-            Send( new SendPacket(p.End()));
+            var pkt = this.ToAC3Packet();
+            if (pkt != null) Send(pkt);
         }
-        public void Send_5_3() //logging in player info
+        public virtual void Send_5_3() //logging in player info
         {
             PacketBuilder p = new PacketBuilder();
             p.Begin();
-            p.Add((byte)5);
-            p.Add((byte)3);
-            p.Add((byte)Element);
-            p.Add(CurHP);
-            p.Add((ushort)CurSP);
-            p.Add(Str); //base str
-            p.Add(Con); //base con
-            p.Add(Int); //base int
-            p.Add(Wis); //base wis
-            p.Add(Agi); //base agi
-            p.Add(Level); //lvl
-            p.Add(TotalExp); //exp ???
-            //p.Add(Level -1); //lvl -1
-            p.Add(FullHP); //max hp
-            p.Add((ushort)FullSP); //max sp
-            //-------------- 7 DWords
-            p.Add(417);
-            p.Add(0);
-            p.Add(0);
-            p.Add(240);
-            p.Add(0);
-            p.Add(0);
-            p.Add(0);
+            p.Add((byte)5);                              // Offset 0: ActionCode (byte)
+            p.Add((byte)3);                              // Offset 1: SubCode (byte)
+            p.Add((byte)Element);                        // Offset 2: Element (byte)
+            p.Add((uint)CurHP);                          // Offset 3..6: CurHP (uint, 4B)
+            p.Add((ushort)CurSP);                        // Offset 7..8: CurSP (ushort, 2B)
+            p.Add((ushort)Con);                          // Offset 9..10: CON (ushort, 2B)
+            p.Add((ushort)Int);                          // Offset 11..12: INT (ushort, 2B)
+            p.Add((ushort)Str);                          // Offset 13..14: STR (ushort, 2B)
+            p.Add((ushort)Agi);                          // Offset 15..16: AGI (ushort, 2B)
+            p.Add((ushort)Wis);                          // Offset 17..18: WIS (ushort, 2B)
+            p.Add((byte)(Level > 0 ? Level : 1));        // Offset 19: Level (byte, 1B)
+            p.Add((uint)TotalExp);                       // Offset 20..23: TotalExp (uint, 4B)
+            p.Add((ushort)FullHP);                       // Offset 24..25: FullHP (ushort, 2B)
+            p.Add((ushort)FullSP);                       // Offset 26..27: FullSP (ushort, 2B)
+            
+            // Client internal static state offsets (0x1c .. 0x3d = 34 bytes)
+            p.Add((uint)417);                            // Offset 28..31: DWord (4B)
+            p.Add((ushort)0);                            // Offset 32..33: Word (2B)
+            p.Add((uint)0);                              // Offset 34..37: DWord (4B)
+            p.Add((uint)240);                            // Offset 38..41: DWord (4B)
+            p.Add((uint)0);                              // Offset 42..45: DWord (4B)
+            p.Add((uint)0);                              // Offset 46..49: DWord (4B)
+            p.Add((uint)0);                              // Offset 50..53: DWord (4B)
+            p.Add((uint)0);                              // Offset 54..57: DWord (4B)
+            p.Add((uint)0);                              // Offset 58..61: DWord (4B)
 
-            //--------------- Skills
-            p.Add((ushort)0/*(ushort)MySkills.Count*/);
-            //if (MySkills.Count > 0)
-            //    p.PackArray(MySkills.GetSkillData());
-            //p.Pack16(1); //ammt of skills
-            //p.Pack16(188); p.Pack16(1); p.Pack16(0); p.Pack((byte)0); //skill data
-            //--------------- table with rebirth and job
-            p.Add(0);
-            p.Add(Reborn);
-            p.Add((byte)Job);
-            p.Add((byte)Potential);
+            // Offset 62..63 (0x3E..0x3F): SkillCount (ushort)
+            p.Add((ushort)0);
+
+            // Post-skill trailer offsets
+            p.Add((ushort)SkillPoints);                  // 2 bytes: Available Stat Points (StatusUp)
+            p.Add((ushort)Potential);                    // 2 bytes: Potential
+            p.Add((byte)0);                              // 1 byte: Padding
+            p.Add((byte)(Reborn ? 1 : 0));               // 1 byte: Reborn flag
+            p.Add((byte)Potential);                      // 1 byte: Potential byte
+            p.Add((byte)Job);                            // 1 byte: Reborn Job
+
             Send(new SendPacket(p.End()));
         }
 
@@ -162,62 +148,83 @@ namespace Game
         public static IEnumerable<Byte> ToArray(this Character src)
         {
             if (src == null) return null;
-             PacketBuilder temp = new PacketBuilder();
+            PacketBuilder temp = new PacketBuilder();
             temp.Begin(null);
-            temp.Add((byte)src.Slot);// data[at] = slot; at++;//PackSend->Pack((byte)1);
-            temp.Add(src.CharName);// data[at] = nameLen; at++;
-            temp.Add((byte)src.Level);// data[at] = level; at++;//	PackSend->Pack((byte)tmp1.level);					// Level 
-            temp.Add((byte)src.Element);// data[at] = element; at++;//	PackSend->Pack((byte)3);  					// element
-            temp.Add(src.FullHP);// putDWord(maxHP, data + at); at += 4;//	PackSend->Pack(tmp1.maxHP); 			// max hp
-            temp.Add(src.CurHP);// putDWord(curHP, data + at); at += 4;//	PackSend->Pack(tmp1.curHP); 			// cur hp
-            temp.Add(src.FullSP);// putDWord(maxSP, data + at); at += 4;//	PackSend->Pack(tmp1.maxSP); 			// max sp
-            temp.Add(src.CurSP);// putDWord(curSP, data + at); at += 4;//	PackSend->Pack(tmp1.curSP); 			// cur sp
-            temp.Add((uint)src.TotalExp);// putDWord(experience, data + at); at += 4;//	PackSend->Pack(tmp1.exp);			// exp
-            temp.Add(src.Gold);// putDWord(gold, data + at); at += 4;//	PackSend->Pack(tmp1.gold); 			// gold
-            temp.Add((ushort)src.Body);// data[at] = body; at++;//	PackSend->Pack((byte)tmp1.body); 					// body style
+            temp.Add((byte)src.Slot);
+            temp.Add(src.CharName);
+            temp.Add((byte)src.Level);
+            temp.Add((byte)src.Element);
+            temp.Add((uint)src.CurHP);
+            temp.Add((uint)src.FullHP);
+            temp.Add((uint)src.CurSP);
+            temp.Add((uint)src.FullSP);
+            temp.Add((ulong)src.TotalExp);
+            temp.Add((ushort)src.Body);
             temp.Add((ushort)src.Head);
-            temp.Add((ushort)src.HairColor);// putDWord(color1, data + at); at += 4;//	PackSend->Pack(tmp1.colors1);
-            temp.Add((ushort)src.SkinColor);
-            temp.Add((ushort)src.ClothingColor);
-            temp.Add((ushort)src.EyeColor);
-            temp.Add(src.Reborn);
-            temp.Add((byte)src.Job);// data[at] = rebirth; data[at + 1] = job; at += 2;//PackSend->Pack((byte)tmp1.rebirth);PackSend->Pack((byte)tmp1.rebirthJob); 				// rebirth flag, job skill
+            temp.Add((uint)src.ColorCode1);
+            temp.Add((uint)src.ColorCode2);
 
             for (byte a = 1; a < 7; a++)
-                temp.Add((ushort)src[a].ItemID);
+                temp.Add((ushort)(src[a] != null ? src[a].ItemID : 0));
+            temp.Add((ushort)0); // slot 7
 
             return temp.End();
-
         }
         public static SendPacket ToAC3Packet(this Character src)
         {
             if (src == null) return null;
-            PacketBuilder p = new PacketBuilder();
-            p.Begin();
-            p.Add((byte)3);
-            p.Add(src.CharID);
-            p.Add((byte)src.Body);
-            p.Add((byte)src.Element);
-            p.Add((byte)src.Level);
-            p.Add((ushort)src.CurMap.MapID);
-            p.Add((ushort)src.CurX);
-            p.Add((ushort)src.CurY);
-            p.Add((byte)0);
-            p.Add((ushort)src.Head);
-            p.Add((ushort)src.HairColor);
-            p.Add((ushort)src.SkinColor);
-            p.Add((ushort)src.ClothingColor);
-            p.Add((ushort)src.EyeColor);
-            p.Add((byte)src.WornCount);//clothesAmmt); // ammt of clothes
-            p.Add(src.Worn_Equips);
-            p.Add(0);
-            p.Add((byte)0);
-            p.Add(src.Reborn);
-            p.Add((byte)src.Job);
-            p.Add(src.CharName);
-            p.Add(src.NickName);
-            p.Add(255);
-            return new SendPacket(p.End());
+            SendPacket p = new SendPacket();
+            p.Pack8(3);
+            p.Pack32(src.CharID);
+            p.Pack8((byte)src.Body);
+            p.Pack16((ushort)(src.CurMap != null ? src.CurMap.MapID : src.LoginMap));
+            p.Pack16(src.CurX);
+            p.Pack16(src.CurY);
+            p.Pack8(0);
+            p.Pack8(src.Head);
+            p.Pack8(0);
+            p.Pack16(src.HairColor);
+            p.Pack16(src.SkinColor);
+            p.Pack16(src.ClothingColor);
+            p.Pack16(src.EyeColor);
+            p.Pack8(src.WornCount);
+            p.PackArray(src.Worn_Equips ?? new byte[0]);
+            p.Pack32(0);
+            p.PackString(src.CharName ?? "");
+            p.PackString(src.NickName ?? "");
+            p.Pack32(0);
+            return p;
+        }
+
+        public static SendPacket ToAC4Packet(this Character src)
+        {
+            if (src == null) return null;
+            SendPacket p = new SendPacket();
+            p.Pack8(4);
+            p.Pack32(src.CharID);
+            p.Pack8((byte)src.Body);
+            p.Pack8((byte)src.Element);
+            p.Pack8(src.Level > 0 ? src.Level : (byte)1);
+            p.Pack16((ushort)(src.CurMap != null ? src.CurMap.MapID : src.LoginMap));
+            p.Pack16(src.CurX);
+            p.Pack16(src.CurY);
+            p.Pack8(0);
+            p.Pack8(src.Head);
+            p.Pack8(0);
+            p.Pack16(src.HairColor);
+            p.Pack16(src.SkinColor);
+            p.Pack16(src.ClothingColor);
+            p.Pack16(src.EyeColor);
+            p.Pack8(src.WornCount);
+            p.PackArray(src.Worn_Equips ?? new byte[0]);
+            p.Pack32(0);
+            p.Pack8(0);
+            p.PackBool(src.Reborn);
+            p.Pack8((byte)src.Job);
+            p.PackString(src.CharName ?? "");
+            p.PackString(src.NickName ?? "");
+            p.Pack8(255);
+            return p;
         }
     }
 }

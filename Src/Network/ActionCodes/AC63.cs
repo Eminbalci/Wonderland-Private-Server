@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,18 +9,22 @@ using Game;
 
 namespace Network.ActionCodes
 {
-    public class AC63:AC
+    public class AC63 : AC
     {
         public override int ID { get { return 63; } }
 
-        public override void ProcessPkt(Player p,  RecievePacket r)
+        public override void ProcessPkt(Player p, RecievePacket r)
         {
-            switch (r.Unpack8())
+            byte subCommand = r.Unpack8();
+            DebugSystem.Write($"[AC63] Received sub-command: {subCommand}");
+
+            switch (subCommand)
             {
                 case 0:
                 //case 3: Recv3(ref p, r); break;
                 case 2: Recv2(ref p, r); break;
                 case 4: Recv4(ref p, r); break;
+                default: DebugSystem.Write($"[AC63] Unknown sub-command: {subCommand}"); break;
             }
 
         }
@@ -38,19 +42,20 @@ namespace Network.ActionCodes
 
         void Recv2(ref Player p, RecievePacket e)
         {
+            DebugSystem.Write($"[AC63.Recv2] Client selected a character slot");
             try
             {
                 byte charNum = e.Unpack8();
 
                 if ((charNum < 1) || (charNum > 2))//by userid
                 {
-                    p.Send( Tools.FromFormat("bb", 0, 32));
+                    p.Send(Tools.FromFormat("bb", 0, 32));
                     return;
                 }
 
                 p.Slot = charNum;
 
-                if (!cGlobal.gCharacterDataBase.GetCharacterData( (p.Slot == 1)?p.UserAcc.Character1ID:p.UserAcc.Character2ID,ref p)) // char is not created
+                if (!cGlobal.gCharacterDataBase.GetCharacterData((p.Slot == 1) ? p.UserAcc.Character1ID : p.UserAcc.Character2ID, ref p)) // char is not created
                 {
                     #region Create Character
                     //cGlobal.gUserDataBase.Update_Player_ID(p.UserAcc.DataBaseID, p.CharID, charNum);
@@ -66,13 +71,7 @@ namespace Network.ActionCodes
                 else
                 {
                     #region Login
-                    SendPacket tmp = new SendPacket();
-                    tmp.Pack8(63);
-                    tmp.Pack8(2);
-                    tmp.Pack32(p.UserAcc.UserID);
-                    p.Send(tmp);
                     cGlobal.gWorld.OnLogin(p);
-                    //NormalLog(p);
                     #endregion
                 }
             }
@@ -88,69 +87,78 @@ namespace Network.ActionCodes
         {
             try
             {
+                DebugSystem.Write("[AC63.Recv4] Starting login validation");
                 int loginState = 0; //0-good login  1-bad un/pw  2-dup log 3-wrong version 4-need update
+
+                // Check if client sent 2-byte version prefix (e.g. 1205)
+                int startPtr = r.GetPtr();
+                ushort checkVer = r.Unpack16();
+                if (checkVer < 1000 || checkVer > 2000)
+                {
+                    r.SetPtr(startPtr);
+                }
 
                 //sending username and password
                 string name = r.UnpackString();
                 string password = r.UnpackString();
                 name = name.ToLower();
 
-                string[] userdata = null;//data of user
+                DebugSystem.Write($"[AC63.Recv4] Username: '{name}', Password length: {password.Length}");
 
-                UInt16 version = r.Unpack16();
-                byte lcLen = r.Unpack8();
-                byte key = r.Unpack8();
-                char[] lCode = new char[20];
-                Array.Copy(r.Buffer, r.GetPtr(), lCode, 0, lcLen);
-                for (int n = 0; n < lcLen; n++)
-                    lCode[n] = (char)((byte)lCode[n] ^ (byte)key);
-                r.SetPtr((int)(r.GetPtr() + lcLen));
+                string[] userdata = null; // data of user
 
+
+                // Validate username and password length
                 if ((name.Length < 4) || (name.Length > 14))
                 {
+                    DebugSystem.Write($"[AC63.Recv4] Invalid username length: {name.Length}");
                     loginState = 1;
                 }
                 else if ((password.Length < 4) || (password.Length > 14))
                 {
+                    DebugSystem.Write($"[AC63.Recv4] Invalid password length: {password.Length}");
                     loginState = 1;
                 }
-                else if (version < 1096)//bad aloign version
+                else if (loginState == 0)
                 {
-                    loginState = 3;
-                }
-                else if ((lcLen < 2) || (lcLen > 15))//bad login code length
-                {
-                    loginState = 4;
-                }
-
-                //at this point we have no use, and only an empty cCharacter object
-                //check to see if we are still in the clear for loggin ing
-                if (loginState == 0)
-                {
-                    //should have correct version if at this point
-
+                    DebugSystem.Write("[AC63.Recv4] Calling GetUserData...");
                     uint dbid = 0;
-                    //check if user exist on wloforever
                     #region Validate Account
 
                     if (cGlobal.gUserDataBase.GetUserData(name, password, out dbid, out userdata))
                     {
+                        DebugSystem.Write($"[AC63.Recv4] GetUserData SUCCESS! dbid={dbid}");
                         if ((p.UserAcc.DataBaseID = dbid) != 0)
                         {
                             if (cGlobal.gLoginServer.IsOnline(p.UserAcc.UserID))
+                            {
+                                DebugSystem.Write($"[AC63.Recv4] User already online! UserID={p.UserAcc.UserID}");
                                 loginState = 2;
+                            }
                             else if (userdata != null)
                             {
                                 p.UserAcc.UserName = userdata[0];
                                 p.UserAcc.Cipher = userdata[1];
                                 p.UserAcc.IM = int.Parse(userdata[2]);
+                                DebugSystem.Write($"[AC63] User '{name}' logged in successfully. DataBaseID={dbid}, UserID={p.UserAcc.UserID}");
                             }
                             else
+                            {
+                                DebugSystem.Write("[AC63.Recv4] userdata is null!");
                                 loginState = 1;
+                            }
+                        }
+                        else
+                        {
+                            DebugSystem.Write($"[AC63.Recv4] dbid is 0!");
+                            loginState = 1;
                         }
                     }
                     else
+                    {
+                        DebugSystem.Write($"[AC63.Recv4] GetUserData FAILED for user '{name}'");
                         loginState = 1;
+                    }
                     #endregion
                 }
                 //if (userdata != null)
@@ -174,58 +182,156 @@ namespace Network.ActionCodes
                             tmp = new SendPacket();
                             tmp.Pack8(63);
                             tmp.Pack8(1);
-                            tmp.PackArray(cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character1ID).ToArray());
-                            tmp.PackArray(cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character2ID).ToArray());
-                            p.Send(tmp);
+                            DebugSystem.Write("[AC63] Encrypting Character List Packet");
+
+                            var char1 = cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character1ID);
+                            DebugSystem.Write($"[AC63] GetCharacterData({p.UserAcc.Character1ID}) returned: {(char1 == null ? "NULL" : $"CharID={char1.CharID}, Name={char1.CharName}")}");
+
+                            // Always send character 1 data (create empty if null)
+                            if (char1 == null)
+                            {
+                                DebugSystem.Write("[AC63] Creating empty Character 1...");
+                                // Don't send empty character - just skip it
+                                // Client expects only existing characters
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    var char1Data = char1.ToArray();
+                                    if (char1Data == null)
+                                    {
+                                        DebugSystem.Write("[AC63] ERROR: char1.ToArray() returned NULL!");
+                                    }
+                                    else
+                                    {
+                                        tmp.PackArray(char1Data);
+                                        DebugSystem.Write($"[AC63] Character 1 data packed ({char1Data.Count()} bytes)");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    DebugSystem.Write($"[AC63] ERROR packing Character 1: {ex.Message}\n{ex.StackTrace}");
+                                }
+                            }
+
+                            var char2 = cGlobal.gCharacterDataBase.GetCharacterData(p.UserAcc.Character2ID);
+                            DebugSystem.Write($"[AC63] GetCharacterData({p.UserAcc.Character2ID}) returned: {(char2 == null ? "NULL" : $"CharID={char2.CharID}, Name={char2.CharName}")}");
+
+                            // Always send character 2 data (create empty if null)
+                            if (char2 == null)
+                            {
+                                DebugSystem.Write("[AC63] Creating empty Character 2...");
+                                // Don't send empty character - just skip it
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    var char2Data = char2.ToArray();
+                                    if (char2Data == null)
+                                    {
+                                        DebugSystem.Write("[AC63] ERROR: char2.ToArray() returned NULL!");
+                                    }
+                                    else
+                                    {
+                                        tmp.PackArray(char2Data);
+                                        DebugSystem.Write($"[AC63] Character 2 data packed ({char2Data.Count()} bytes)");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    DebugSystem.Write($"[AC63] ERROR packing Character 2: {ex.Message}\n{ex.StackTrace}");
+                                }
+                            }
+
+                            try
+                            {
+                                p.Send(tmp);
+                                DebugSystem.Write("[AC63] Character List Sent successfully");
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[AC63] ERROR sending character list: {ex.Message}\n{ex.StackTrace}");
+                            }
 
                             //p.State = PlayerState.Connected_CharacterSelection;
-                            p.Send( Tools.FromFormat("bb", 35, 11));
+                            p.Send(Tools.FromFormat("bb", 35, 11));
+                            DebugSystem.Write("[AC63] Sent packet 35,11 - Waiting for client response...");
 
-                        } break;
+                            // Start 5-second timeout for character selection
+                            Player playerCopy = p; // Create local copy for lambda
+                            Task.Run(async () =>
+                            {
+                                await Task.Delay(60000); // 60 seconds
+
+                                // Check if player is still waiting for character selection
+                                if (!playerCopy.isDisconnected() && playerCopy.Slot == 0)
+                                {
+                                    DebugSystem.Write($"[AC63] Player {playerCopy.UserAcc?.UserName ?? "Unknown"} timeout - no character selected in 60 seconds. Disconnecting...");
+                                    try
+                                    {
+                                        playerCopy.Disconnect();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        DebugSystem.Write($"[AC63] Error disconnecting timed-out player: {ex.Message}");
+                                    }
+                                }
+                            });
+
+                        }
+                        break;
                     case 1:
                         {
-                            p.Send( Tools.FromFormat("bb", 63, 2));
-                            p.Send( Tools.FromFormat("bb", 1, 6));
-                        } break;
+                            p.Send(Tools.FromFormat("bb", 63, 2));
+                            p.Send(Tools.FromFormat("bb", 1, 6));
+                        }
+                        break;
                     case 2:
                         {
                             //if (status != null) status("Server", "Already logged in. ( " + p.UserName + " )");
-                            p.Send( Tools.FromFormat("bb", 63, 2));
-                            p.Send( Tools.FromFormat("bb", 0, 19));
+                            p.Send(Tools.FromFormat("bb", 63, 2));
+                            p.Send(Tools.FromFormat("bb", 0, 19));
                             cGlobal.gLoginServer.Disconnect(p.UserAcc.UserID);
-                        } break;
+                        }
+                        break;
                     case 3:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 0, 17));
+                            p.Send(Tools.FromFormat("bb", 0, 17));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                     case 4:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 0, 65));
+                            p.Send(Tools.FromFormat("bb", 0, 65));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                     case 5:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 1, 7));
+                            p.Send(Tools.FromFormat("bb", 1, 7));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                     case 6:
                         {
                             SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
                             //PackSend->Clear();
-                            p.Send( Tools.FromFormat("bb", 0, 79));
+                            p.Send(Tools.FromFormat("bb", 0, 79));
                             p.Send(sp);
-                        } break;
+                        }
+                        break;
                 }
                 #endregion
             }
-            catch (Exception t) { throw; }
+            catch { throw; }
         }
 
         #region wlo methods
@@ -357,7 +463,7 @@ namespace Network.ActionCodes
         //        p = new SendPacket(true);
         //        p.Pack(new byte[] { 0, 7 });
         //        c.Send(p);
-                
+
         //        return;
         //    }
 

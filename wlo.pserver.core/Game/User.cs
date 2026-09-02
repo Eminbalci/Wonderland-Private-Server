@@ -9,11 +9,11 @@ namespace Game.Code
     public class User
     {
         readonly object mlock = new object();
-        
+
         string username, cipher;
         uint databaseID;
         int im;
-        int gmlvl; public int GMlvl { private get { return gmlvl; } set { lock (mlock)gmlvl = value; } }
+        int gmlvl; public int GMlvl { get { return gmlvl; } set { lock (mlock) gmlvl = value; } }
 
         //public GMStatus GMRank
         //{
@@ -49,26 +49,26 @@ namespace Game.Code
 
         public string Cipher
         {
-            get { lock (mlock)return cipher; }
-            set { lock (mlock)cipher = value; }
+            get { lock (mlock) return cipher; }
+            set { lock (mlock) cipher = value; }
         }
 
         public string UserName
         {
-            get { lock (mlock)return username; }
-            set { lock (mlock)username = value; }
+            get { lock (mlock) return username; }
+            set { lock (mlock) username = value; }
         }
 
         public int IM
         {
-            get { lock (mlock)return im; }
-            set { lock (mlock)im = value; }
+            get { lock (mlock) return im; }
+            set { lock (mlock) im = value; }
         }
 
         public uint DataBaseID
         {
-            get { lock (mlock)return databaseID; }
-            set { lock (mlock)databaseID = value; }
+            get { lock (mlock) return databaseID; }
+            set { lock (mlock) databaseID = value; }
         }
 
         public void Clear()

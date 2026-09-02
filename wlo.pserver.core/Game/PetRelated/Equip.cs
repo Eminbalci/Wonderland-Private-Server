@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -849,12 +849,13 @@ namespace Game.Code.PetRelated
                 PacketBuilder tmp = new PacketBuilder();
                 tmp.Begin(false);
 
+                tmp.Add(SendPacket.FromFormat("bbbbl", 8, 2, 36, 1, TotalExp));
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 35, 1, Level, 0));
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 37, 1, Math.Max(0, Level - 1), 0));
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 38, 1, SkillPoints, 0));
+
                 if (levelup)
                 {
-                    tmp.Add(SendPacket.FromFormat("bbbbl", 8, 2, 36, 1, TotalExp));
-                    tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 35, 1, Level, 0));
-                    tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 37, 1, (Level - 1), 0));
-                    tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 38, 1, SkillPoints, 0));
                     CurHP = FullHP;
                     CurSP = FullSP;
                 }
@@ -868,19 +869,16 @@ namespace Game.Code.PetRelated
                 //str
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 210, 1, EquippedATK, 0));
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 41, 1, FullAtk, 0));
-                if (levelup) tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 28, 1, Str, 0));
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 28, 1, Str, 0));
                 //con
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 211, 1, EquippedDEF, 0));
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 2, 42, 1, FullDef, 0));
-                if (levelup)
-                {
-                    tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 205, 1, FullHP, 0));
-                    tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 29, 1, Con, 0));
-                }
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 205, 1, FullHP, 0));
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 29, 1, Con, 0));
                 //spd
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 214, 1, EquippedSPD, 0));
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 45, 1, FullSpd, 0));
-                if (levelup) tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 30, 1, Agi, 0));
+                tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 30, 1, Agi, 0));
                 //int
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 215, 1, EquippedMAT, 0));
                 tmp.Add(SendPacket.FromFormat("bbbbdd", 8, 1, 43, 1, FullMatk, 0));

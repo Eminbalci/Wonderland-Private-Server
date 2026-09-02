@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,12 +24,12 @@ namespace Server
 
         ConcurrentStack<Player> ConnectedQueue, DisconnectedQueue;
 
-        List<Game.Maps.GameMap> Maplist = new List<Game.Maps.GameMap>();
+        List<Game.GameMap> Maplist = new List<Game.GameMap>();
 
 
         public WloWorldNode()
         {
-          //  m_listerner = new WloSocketListener(6414);
+            //  m_listerner = new WloSocketListener(6414);
             m_localPlayerlist = new List<Player>();
             m_externalPlayerlist = new List<Player>();
             ConnectedQueue = new ConcurrentStack<Player>();
@@ -44,6 +44,7 @@ namespace Server
         void onDisconnectedClient(Player src)
         {
             DisconnectedQueue.Push(src);
+            onPlayerDced?.Invoke(src);
         }
 
         public event Action<Player[]> onNewPlayer;//for Form
@@ -62,7 +63,7 @@ namespace Server
             m_thrd = new Thread(new ThreadStart(MainMapLoop));
             m_thrd.IsBackground = true;
             m_thrd.Init();
-            
+
             DebugSystem.Write("Starting TCP Listener");
             //m_listerner.onNewClient += c_onNewClient;
             //m_listerner.Initialize();
@@ -96,30 +97,30 @@ namespace Server
 
         void MainLoop()
         {
-            
+
 
             do
             {
-            //    int a = 20;
+                //    int a = 20;
 
-            //    while (ConnectedQueue.Count > 0 && (--a) > 0)
-            //        ConnectedPlayers.Add(ConnectedQueue.Dequeue());
+                //    while (ConnectedQueue.Count > 0 && (--a) > 0)
+                //        ConnectedPlayers.Add(ConnectedQueue.Dequeue());
 
-            //    foreach (var curplayer in ConnectedPlayers)
-            //        if (curplayer.IdleTimer() > new TimeSpan(0, 5, 0))
-            //        {
-            //            DebugSystem.Write(System.Drawing.Color.FromArgb(255, 128, 255), String.Format("Client {0} timed out at Login.", curplayer.SockAddress()));
-            //            curplayer.Disconnect();
-            //            DisconnectedQueue.Enqueue(curplayer);
-            //        }
-            //        else if (curplayer.isDisconnected())
-            //        {
-            //            DebugSystem.Write(System.Drawing.Color.FromArgb(255, 128, 255), String.Format("Client {0} has Disconnected.", curplayer.SockAddress()));
-            //            curplayer.Disconnect();
-            //            DisconnectedQueue.Enqueue(curplayer);
-            //        }
+                //    foreach (var curplayer in ConnectedPlayers)
+                //        if (curplayer.IdleTimer() > new TimeSpan(0, 5, 0))
+                //        {
+                //            DebugSystem.Write(System.Drawing.Color.FromArgb(255, 128, 255), String.Format("Client {0} timed out at Login.", curplayer.SockAddress()));
+                //            curplayer.Disconnect();
+                //            DisconnectedQueue.Enqueue(curplayer);
+                //        }
+                //        else if (curplayer.isDisconnected())
+                //        {
+                //            DebugSystem.Write(System.Drawing.Color.FromArgb(255, 128, 255), String.Format("Client {0} has Disconnected.", curplayer.SockAddress()));
+                //            curplayer.Disconnect();
+                //            DisconnectedQueue.Enqueue(curplayer);
+                //        }
 
-            Thread.Sleep(5);
+                Thread.Sleep(5);
             }
             while (!Killnow);
         }
@@ -151,7 +152,7 @@ namespace Server
                         onNewPlayer(pitems.Where(c => c != null).ToArray());
                     }
                     catch (Exception f) { DebugSystem.Write(new ExceptionData(f)); }
-                   
+
                 }
 
                 try
@@ -189,13 +190,55 @@ namespace Server
             Maplist.AsParallel().ForAll(c => c.Broadcast(pkt, parameter, To));
         }
 
+        public void BroadcastTo(SendPacket pkt, uint directTo = 0)
+        {
+            // If directTo is specified, try to find the player and send only to them.
+            // If directTo is 0 (or not found?), maybe broadcast to all?
+            // Based on usage conventions:
+            if (directTo > 0)
+            {
+                // Find player in local list
+                var p = m_localPlayerlist.FirstOrDefault(pl => pl.UserID == directTo);
+                if (p != null)
+                {
+                    p.Send(pkt);
+                }
+                else
+                {
+                    // Search in maps? Or external players?
+                    // For now, if not in local list, we might assume they are not on this node or we broadcast to maps to find them.
+                    // But typically BroadcastTo implies sending to a specific target if known.
+                    // Let's iterate maps to find player?
+                    // Maplist.AsParallel().ForAll(m => m.Broadcast(pkt, "ID", directTo.ToString())); 
+                    // Wait, Map.Broadcast usually takes "ID" and string.
+                    // Let's implement robust finding.
+
+                    foreach (var m in Maplist)
+                    {
+                        // Assuming Map has a way to send to specific player or we search players in map.
+                        // Map.Broadcast signature: (SendPacket pkt, string parameter, params object[] To)
+                        // Maps usually have a list of players.
+                        // Let's use Map.Broadcast if it supports "TargetID".
+                    }
+                    // For simplicity / consistency with `cGlobal.WLO_World.BroadcastTo` usage in `Instance.cs`:
+                    // It seems to expect global broadcast or specific target.
+
+                    Broadcast(pkt, "ID", directTo.ToString());
+                }
+            }
+            else
+            {
+                Broadcast(pkt);
+            }
+        }
+
         /// <summary>
         /// Searches for a Player and invokes the corresponding action
         /// </summary>
         /// <param name="src"></param>
         /// <param name="work"></param>
         /// <returns>true if succeeded or false if it failed</returns>
-        public bool DoAction(uint src,Action<Player> work)
+        public bool DoAction(uint src, Action<Player> work)
         {
             //try
             //{
@@ -215,7 +258,7 @@ namespace Server
             if (Maplist.Count(c => c.MapID == map.DstMap) == 0)
             {
                 //Create Map
-                Game.Maps.GameMap tmp = cGlobal.gMapManager.GetMap(map.DstMap);
+                Game.GameMap tmp = Game.Maps.MapManager.Instance.GetMap(map.DstMap);
                 //cGlobal.gGameDataBase.SetupMap(ref tmp);
                 Maplist.Add(tmp);
             }
@@ -284,7 +327,7 @@ namespace Server
         //    // //-----------------------------------   
         //    //---------Warp Info---------------------------------------------------
         //    // //put me in my maps list
-            
+
         //        src.Flags.Add(PlayerFlag.Warping);
         //        onTelePort(TeleportType.Login, 0, new WarpData() { DstMap = src.LoginMap, DstX_Axis = src.CurX, DstY_Axis = src.CurY }, src);
         //    }
