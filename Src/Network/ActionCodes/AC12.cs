@@ -47,7 +47,7 @@ namespace Wonderland_Private_Server.ActionCodes
 
                     DebugSystem.Write($"[AC12.Recv1] Warping=true -> MapID={p.CurMap?.MapID} PendingBeach={p.PendingBeachCutscene} BeachActive={p.BeachCutsceneActive} Quest12040={p.Quests?.ContainsKey(12040)}");
 
-                    if ((p.PendingBeachCutscene || (p.CurMap != null && p.CurMap.MapID == 10035 && p.Quests != null && !p.Quests.ContainsKey(12040))) && !p.BeachCutsceneActive)
+                    if ((p.PendingBeachCutscene || (p.CurMap != null && (p.CurMap.MapID == 10035 || p.CurMap.MapID == 10039) && p.Quests != null && !p.Quests.ContainsKey(12040))) && !p.BeachCutsceneActive)
                     {
                         DebugSystem.Write($"[AC12] Beach cutscene block ENTERED for {p.CharName}");
                         p.PendingBeachCutscene = false;
@@ -67,7 +67,7 @@ namespace Wonderland_Private_Server.ActionCodes
                             {
                                 // Frame 2408: Camera Pan & Cinema Mode (300ms delay)
                                 await Task.Delay(300);
-                                if (p.CurMap?.MapID != 10035) return;
+                                if (p.CurMap?.MapID != 10035 && p.CurMap?.MapID != 10039) return;
 
                                 p.Send(Tools.FromFormat("bb", 20, 8));
                                 p.Send(Tools.FromFormat("bbbbbb", 22, 11, 6, 0, 0xFF, 0xFF)); // AC 22:11 camera pan
@@ -78,7 +78,7 @@ namespace Wonderland_Private_Server.ActionCodes
 
                                 // Frame 2414: Robinson approaches & bends over player (1200ms delay)
                                 await Task.Delay(1200);
-                                if (p.CurMap?.MapID != 10035) return;
+                                if (p.CurMap?.MapID != 10035 && p.CurMap?.MapID != 10039) return;
 
                                 p.Send(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5));       // AC 22:12 Robinson approach
                                 p.CurMap?.Broadcast(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5), "Ex", p.CharID);
@@ -87,7 +87,7 @@ namespace Wonderland_Private_Server.ActionCodes
 
                                 // Frame 2436: Trigger Robinson dialogue (1500ms delay)
                                 await Task.Delay(1500);
-                                if (p.CurMap is GameMap gMap && p.CurMap.MapID == 10035)
+                                if (p.CurMap is GameMap gMap && (p.CurMap.MapID == 10035 || p.CurMap.MapID == 10039))
                                 {
                                     p.BeachCutsceneActive = false;
                                     EveEventInterpreter.TryExecute(p, gMap, 1);

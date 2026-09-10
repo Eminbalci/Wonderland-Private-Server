@@ -52,6 +52,15 @@ namespace Game.PlayerRelated
             try
             {
                 RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS starter_items (id INTEGER PRIMARY KEY AUTOINCREMENT, order_idx INT DEFAULT 1, item_id INT NOT NULL, item_name TEXT, count INT DEFAULT 1, description TEXT);");
+
+                // Check for obsolete or non-existent starter item IDs and resync with authentic items
+                var dt = RCLibrary.Core.DataBase.Query("SELECT COUNT(*) as cnt FROM starter_items WHERE item_id IN (23050, 23051, 48050, 57001, 34542, 21742, 34330, 34258);");
+                if (dt != null && dt.Rows.Count > 0 && Convert.ToInt32(dt.Rows[0]["cnt"]) > 0)
+                {
+                    DebugSystem.Write("[StarterPackManager] Detected obsolete or invalid starter item IDs in SQLite. Reseeding authentic starter pack...");
+                    RCLibrary.Core.DataBase.Execute("DELETE FROM starter_items;");
+                    SeedDatabase();
+                }
             }
             catch (Exception ex)
             {
@@ -166,20 +175,18 @@ namespace Game.PlayerRelated
             }
             catch { }
 
-            if (defaultList == null || defaultList.Count == 0)
+            if (defaultList == null || defaultList.Count == 0 || defaultList.Any(i => i.ItemID == 23050 || i.ItemID == 34542 || i.ItemID == 21742))
             {
                 defaultList = new List<StarterItemEntry>
                 {
-                    new StarterItemEntry(1, 34038, "Starter Gift 1", 1, "Beginner gift package"),
-                    new StarterItemEntry(2, 34058, "Remote Control", 1, "Auto-combat and assistant remote control"),
-                    new StarterItemEntry(3, 34332, "Mini Dragonfly", 5, "Starter flying mount vehicle"),
-                    new StarterItemEntry(4, 32176, "Spicy Hot Pot", 50, "Full recovery food"),
-                    new StarterItemEntry(5, 34026, "Protective Exp Pill", 10, "Prevents EXP loss upon death"),
-                    new StarterItemEntry(6, 34542, "Substitute Doll", 1, "Prevents companion amity drop upon death"),
-                    new StarterItemEntry(7, 21742, "Goddess Robe", 1, "Starter protective equipment"),
-                    new StarterItemEntry(8, 34330, "Mini HP Potion", 1, "Starter HP healing potions"),
-                    new StarterItemEntry(9, 34190, "10x Holy EXP Potion", 5, "Boosts experience gain"),
-                    new StarterItemEntry(10, 34258, "Training Ticket", 5, "Instant training island pass")
+                    new StarterItemEntry(1, 34038, "Notepad", 1, "Beginner guide and notepad"),
+                    new StarterItemEntry(2, 34058, "Remote Control", 1, "Auto-combat assistant controller"),
+                    new StarterItemEntry(3, 32176, "Fugu Hot Pot", 50, "Full recovery food"),
+                    new StarterItemEntry(4, 34014, "Tao Rice Ball", 10, "Pet and character food"),
+                    new StarterItemEntry(5, 34026, "Protective EXP Pill", 5, "Prevents EXP loss upon death"),
+                    new StarterItemEntry(6, 34169, "Bamboo Dragonfly", 1, "Starter flying mount vehicle"),
+                    new StarterItemEntry(7, 34190, "10X Holy EXP Potion", 3, "Boosts experience gain"),
+                    new StarterItemEntry(8, 34253, "Training Ticket", 5, "Training island pass")
                 };
             }
 

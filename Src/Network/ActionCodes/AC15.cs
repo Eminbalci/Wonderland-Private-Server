@@ -204,38 +204,7 @@ namespace Network.ActionCodes
 
                 DebugSystem.Write($"[AC15.Recv10] Player {player.CharName} landing on shore from raft {vehicleId}");
 
-                // 1. Send AC 15 Sub 14: Final state
-                SendPacket statePkt = new SendPacket();
-                statePkt.PackArray(new byte[] { 15, 14, vehicleType });
-                statePkt.Pack32(player.CharID);
-                statePkt.PackArray(new byte[] { 0xD6, 0x01, 0, 0, 0, 0 });
-                player.Send(statePkt);
-                player.CurMap?.Broadcast(statePkt);
-
-                // 2. Send AC 23 Sub 9: Raft Break Notice
-                SendPacket breakNotice = new SendPacket();
-                breakNotice.PackArray(new byte[] { 23, 9, vehicleType, 1 });
-                player.Send(breakNotice);
-
-                // 3. Send AC 15 Sub 15: Destroy / Remove vehicle
-                SendPacket destroyPkt = new SendPacket();
-                destroyPkt.PackArray(new byte[] { 15, 15 });
-                destroyPkt.Pack32(player.CharID);
-                destroyPkt.Pack16(vehicleId);
-                player.Send(destroyPkt);
-                player.CurMap?.Broadcast(destroyPkt);
-
-                // 4. Send AC 15 Sub 11: Reset to walking on foot
-                SendPacket walkPkt = new SendPacket();
-                walkPkt.PackArray(new byte[] { 15, 11, vehicleType });
-                walkPkt.Pack32(player.CharID);
-                player.Send(walkPkt);
-                player.CurMap?.Broadcast(walkPkt);
-
-                player.ActiveVehicleID = 0;
-                player.RideVehicle("");
-
-                player.SendSystemMessage("🏖️ The wooden raft broke apart upon landing on the shore. You are now walking on foot.");
+                Game.PlayerRelated.VehicleManager.WreckVehicle(player, vehicleId, vehicleType);
             }
             catch (Exception ex)
             {

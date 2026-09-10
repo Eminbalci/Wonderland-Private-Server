@@ -508,10 +508,19 @@ namespace Game
                         gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
                     }
 
-                    // Send pickup result to player (AC 23:2, itemID, 1 = success)
-                    src.Send(Tools.FromFormat("bbwb", 23, 2, gi.ItemID, 1));
-                    // Broadcast item removal to others on map (AC 23:2, itemID, 0)
-                    Broadcast(Tools.FromFormat("bbwb", 23, 2, gi.ItemID, 0), "Ex", src.CharID);
+                    // Send pickup result to player (AC 23:2, slot, 1 = success - Official PCAP Frame 75)
+                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
+                    // Broadcast item removal to others on map (AC 23:2, slot, 0)
+                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
+
+                    // Send AC 23:6 Gold Item Banner popup (Official PCAP Frame 75)
+                    SendPacket bannerPkt = new SendPacket();
+                    bannerPkt.PackArray(new byte[] { 23, 6 });
+                    bannerPkt.Pack16(gi.ItemID);
+                    bannerPkt.Pack8(1);
+                    bannerPkt.PackArray(new byte[28]);
+                    src.Send(bannerPkt);
+
                     src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Picked up {gi.Name}!"));
                     src.SaveCharacterData();
                     DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item {gi.Name} (#{gi.ItemID}) from slot {gi.Slot}. Respawns in {gi.RespawnSeconds}s");
@@ -1450,6 +1459,10 @@ namespace Game
                         }
                         state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
                     }
+                    else if (!Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID))
+                    {
+                        state = 0xFFFF; // Hidden by map PreEvents (e.g. Lost Dog clickID 28 before quest completion)
+                    }
                     else
                     {
                         state = (ushort)0x0000;
@@ -1464,25 +1477,24 @@ namespace Game
                 }
                 tmp.Add(npcListPkt);
 
-                // Hide already recruited companion NPCs and permanently broken objects from player's map view (AC 22:10)
+                // Hide already recruited companion NPCs, PreEvent-hidden entities, and permanently broken objects from player's map view (AC 22:10 & AC 22:11)
                 foreach (var npc in this.NPCs)
                 {
                     QuestNpc qn = npc as QuestNpc;
                     if (qn != null)
                     {
                         bool isRecruited = t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
-                        if (isRecruited || (qn.IsBroken && qn.RespawnTime == DateTime.MaxValue))
+                        bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)qn.CickID);
+                        if (isRecruited || isHiddenByPreEvent || (qn.IsBroken && qn.RespawnTime == DateTime.MaxValue))
                         {
                             tmp.Add(Tools.FromFormat("bbwbb", 22, 10, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
+                            tmp.Add(Tools.FromFormat("bbwbb", 22, 11, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
                         }
                     }
                 }
-
-                // Evaluate native map PreEvents
-                Game.QuestRelated.PreEventInterpreter.EvaluateMapPreEvents(t, (ushort)this.MapID);
             }
             #endregion
-            #region Send Item (AC 23:4)
+            #region Send Ground Items (AC 23:4)
             if (GroundItems != null && GroundItems.Count > 0)
             {
                 var activeItems = GroundItems.Where(g => !g.IsPickedUp).ToList();
@@ -1492,8 +1504,9 @@ namespace Game
                     itemPkt.PackArray(new byte[] { 23, 4 });
                     foreach (var gi in activeItems)
                     {
+                        itemPkt.Pack8(3);
                         itemPkt.Pack16((ushort)gi.Slot);
-                        itemPkt.Pack16((ushort)gi.ItemID);
+                        itemPkt.Pack32(gi.ItemID);
                         itemPkt.Pack16((ushort)gi.X);
                         itemPkt.Pack16((ushort)gi.Y);
                         itemPkt.Pack32(0);

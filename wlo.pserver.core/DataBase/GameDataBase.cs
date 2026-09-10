@@ -289,6 +289,7 @@ namespace DataBase
                                         data.CopyFrom(baseItem);
                                         data.Ammt = Math.Max((byte)1, qty);
                                         data.Damage = dmg;
+                                        data.Parent = 0;
                                         c.Inv[pos].CopyFrom(data);
                                     }
                                     break;

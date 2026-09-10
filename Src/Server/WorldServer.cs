@@ -564,10 +564,10 @@ namespace Server
             // Load player quests from database
             Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
 
-            // Starter item pack fallback delivery for level 1 players with empty inventory
-            if (src.Inv.FilledCount == 0 && (src.Eqs?.Level ?? 1) <= 1 && !Game.PlayerRelated.StarterPackManager.HasAnyStarterItem(src))
+            // Starter item pack fallback delivery for level 1 players without starter items
+            if ((src.Eqs?.Level ?? 1) <= 1 && !Game.PlayerRelated.StarterPackManager.HasAnyStarterItem(src))
             {
-                DebugSystem.Write($"[WorldServer] Level 1 player {src.CharName} has empty inventory. Delivering starter item pack fallback...");
+                DebugSystem.Write($"[WorldServer] Level 1 player {src.CharName} is missing starter items. Delivering starter item pack fallback...");
                 Game.PlayerRelated.StarterPackManager.DeliverToPlayer(src, sendData: false);
                 try { cGlobal.gCharacterDataBase.WritePlayer(src.CharID, src); } catch { }
             }

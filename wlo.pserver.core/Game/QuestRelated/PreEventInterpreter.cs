@@ -65,16 +65,68 @@ namespace Game.QuestRelated
         /// </summary>
         public static bool ShouldNpcBeVisible(Player player, ushort mapId, ushort clickId)
         {
-            // All native map NPCs defined in eve.Emg are visible by default unless toggled by PreEvents
+            if (player == null) return true;
+
+            try
+            {
+                var eveDat = DataBase.GameDataBase.GlobalInstance?.EveDat;
+                if (eveDat == null) return true;
+
+                var mapData = eveDat.GetMapData(mapId);
+                if (mapData?.PreEvents == null || mapData.PreEvents.Count == 0) return true;
+
+                foreach (var preEvent in mapData.PreEvents)
+                {
+                    if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
+
+                    foreach (var sub in preEvent.subentry1)
+                    {
+                        if (sub.unknown == null || sub.unknown.Count < 7) continue;
+
+                        byte[] condData = sub.unknown.ToArray();
+                        if (EvaluateConditionBlock(player, condData))
+                        {
+                            if (sub.subentry2 != null)
+                            {
+                                foreach (var act in sub.subentry2)
+                                {
+                                    if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
+                                    {
+                                        ushort targetClickId = BitConverter.ToUInt16(act.unknown.ToArray(), 1);
+                                        byte state1 = act.unknown[8];
+                                        byte state2 = act.unknown[9];
+
+                                        if (targetClickId == clickId && state1 == 0xFF && state2 == 0xFF)
+                                        {
+                                            return false; // Dynamic PreEvent dictates NPC is hidden
+                                        }
+                                    }
+                                }
+                            }
+                            break; // First matching branch for this PreEvent applies
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PreEventInterpreter] Error checking visibility for map {mapId}, click {clickId}: {ex.Message}");
+            }
+
             return true;
         }
 
         /// <summary>
         /// Evaluates a single bytecode condition block from eve.Emg PreEvents.
+        /// In official Wonderland Online Eve files, quest conditions (op 5) define:
+        /// Chunk 0: flagId (offset 1), reqState (offset 3; 1: InProgress, 2: NotStarted, 3: Completed), compType (offset 5)
+        /// Chunk 7: reqStep (offset 8), stepCompType (offset 12)
         /// </summary>
         private static bool EvaluateConditionBlock(Player player, byte[] data)
         {
             if (data == null || data.Length == 0) return true;
+
+            ushort activeFlagId = 0;
 
             // Iterate over all 7-byte condition chunks in the 21-byte condition buffer
             for (int offset = 0; offset + 7 <= data.Length; offset += 7)
@@ -85,25 +137,53 @@ namespace Game.QuestRelated
                 // Opcode 0x05: Quest Mark / Flag Condition
                 if (op == 0x05)
                 {
-                    ushort flagId = BitConverter.ToUInt16(data, offset + 1);
-                    ushort reqValue = BitConverter.ToUInt16(data, offset + 3);
-                    ushort compType = BitConverter.ToUInt16(data, offset + 5);
-
-                    ushort playerValue = GetPlayerFlagValue(player, flagId);
-
-                    bool chunkMatch = false;
-                    switch (compType)
+                    if (offset == 0)
                     {
-                        case 1: chunkMatch = (playerValue == reqValue); break;
-                        case 2: chunkMatch = (playerValue >= reqValue); break;
-                        case 3: chunkMatch = (playerValue <= reqValue); break;
-                        case 4: chunkMatch = (playerValue != reqValue); break;
-                        case 5: chunkMatch = (playerValue > reqValue); break;
-                        case 6: chunkMatch = (playerValue < reqValue); break;
-                        default: chunkMatch = (playerValue == reqValue); break;
-                    }
+                        activeFlagId = BitConverter.ToUInt16(data, offset + 1);
+                        ushort reqState = BitConverter.ToUInt16(data, offset + 3);
+                        ushort compType = BitConverter.ToUInt16(data, offset + 5);
 
-                    if (!chunkMatch) return false;
+                        ushort playerState = GetPlayerQuestState(player, activeFlagId);
+
+                        bool chunkMatch = false;
+                        switch (compType)
+                        {
+                            case 1: chunkMatch = (playerState == reqState); break;
+                            case 2: chunkMatch = (playerState >= reqState); break;
+                            case 3: chunkMatch = (playerState <= reqState); break;
+                            case 4: chunkMatch = (playerState != reqState); break;
+                            default: chunkMatch = (playerState == reqState); break;
+                        }
+
+                        if (!chunkMatch) return false;
+                    }
+                    else if (offset == 7)
+                    {
+                        // Chunk 7: Step condition for InProgress quest
+                        ushort reqStep = BitConverter.ToUInt16(data, offset + 1);
+                        ushort stepComp = BitConverter.ToUInt16(data, offset + 5);
+
+                        if (reqStep > 0 && activeFlagId > 0)
+                        {
+                            byte playerStep = 0;
+                            if (player?.Quests != null && player.Quests.TryGetValue(activeFlagId, out var pq) && pq.State == QuestState.InProgress)
+                            {
+                                playerStep = (byte)Math.Max(1, (int)pq.Step);
+                            }
+
+                            bool stepMatch = false;
+                            switch (stepComp)
+                            {
+                                case 1: stepMatch = (playerStep == reqStep); break;
+                                case 2: stepMatch = (playerStep >= reqStep); break;
+                                case 3: stepMatch = (playerStep <= reqStep); break;
+                                case 4: stepMatch = (playerStep != reqStep); break;
+                                default: stepMatch = (playerStep == reqStep); break;
+                            }
+
+                            if (!stepMatch) return false;
+                        }
+                    }
                 }
                 // Opcode 0x01: Unconditional / Always True
                 else if (op == 0x01)
@@ -122,7 +202,8 @@ namespace Game.QuestRelated
                         // Check if player has recruited this pet
                         bool hasPet = (player.PlayerPets != null && player.PlayerPets.Values.Any(p => p.PetID == petId || (petId == 12178 && p.PetID == 12032) || (petId == 12032 && p.PetID == 12178)))
                                    || player.ActivePetID == petId
-                                   || (petId == 17162 && player.HasRecruitedCompanion("S.Monkey", 17162));
+                                   || (petId == 17162 && player.HasRecruitedCompanion("S.Monkey", 17162))
+                                   || player.HasRecruitedCompanion(petId);
 
                         if (!hasPet) return false;
                     }
@@ -145,41 +226,49 @@ namespace Game.QuestRelated
             if (actionOp == 0x02)
             {
                 ushort clickId = BitConverter.ToUInt16(data, 1);
+                ushort p1 = BitConverter.ToUInt16(data, 3);
                 byte state1 = data[8];
                 byte state2 = data[9];
 
-                SendPacket actPkt = Tools.FromFormat("bbwbb", 22, 10, clickId, state1, state2);
-                player.Send(actPkt);
+                // Send AC 22:10 (standard actor state update)
+                SendPacket actPkt10 = Tools.FromFormat("bbwbb", 22, 10, clickId, state1, state2);
+                player.Send(actPkt10);
+
+                // Send AC 22:11 (authentic PreEvent scene isolate hide packet)
+                if (p1 == 3 || (state1 == 0xFF && state2 == 0xFF))
+                {
+                    SendPacket actPkt11 = Tools.FromFormat("bbwbb", 22, 11, clickId, state1, state2);
+                    player.Send(actPkt11);
+                }
             }
         }
 
         /// <summary>
-        /// Retrieves the player's current quest flag / mark value.
-        /// In official Wonderland Online eve.Emg PreEvents:
-        /// 0 = Not Started / Unset (Default)
-        /// 1 = In Progress / Step 1
-        /// 2 = Completed / Step 2
-        /// 3 = Post-Quest / Handed In
+        /// Retrieves the player's quest lifecycle state matching authentic WLO Eve.emg bytecode:
+        /// 1 = InProgress
+        /// 2 = NotStarted (default for unaccepted / unstarted quests)
+        /// 3 = Completed
         /// </summary>
-        private static ushort GetPlayerFlagValue(Player player, ushort flagId)
+        private static ushort GetPlayerQuestState(Player player, ushort flagId)
         {
-            if (player?.Quests == null || flagId == 0) return 0; // Default unstarted quest is 0
+            if (player?.Quests == null || flagId == 0) return 2; // Default unstarted quest is 2 (NotStarted)
 
             if (player.Quests.TryGetValue(flagId, out var pq))
             {
                 switch (pq.State)
                 {
                     case QuestState.InProgress:
-                        return (ushort)Math.Max(1, (int)pq.Step);
-                    case QuestState.Completed:
-                        return 2;
+                        return 1;
                     case QuestState.NotStarted:
+                        return 2;
+                    case QuestState.Completed:
+                        return 3;
                     default:
-                        return 0;
+                        return 2;
                 }
             }
 
-            return 0;
+            return 2; // Unregistered quest is NotStarted
         }
     }
 }

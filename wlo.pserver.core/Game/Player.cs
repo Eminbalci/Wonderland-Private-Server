@@ -257,6 +257,8 @@ namespace Game
             return false;
         }
 
+        public bool HasRecruitedCompanion(ushort templateId) => HasRecruitedCompanion("", templateId);
+
         public Action<Player> OnDisconnect { get; set; }
 
         public Player(SocketClient src, global::DataFiles.PhxItemDat itemdat)

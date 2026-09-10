@@ -426,7 +426,12 @@ namespace Game.Maps
                                             {
                                                 foreach (var postOp in postDialogueOpcodes)
                                                 {
-                                                    ExecuteOpcode(player, map, clickId, eventEntry, choiceSub, postOp);
+                                                    bool res = ExecuteOpcode(player, map, clickId, eventEntry, choiceSub, postOp);
+                                                    if (!res && postOp.DialogPtr == 1 && postOp.dialog1 == 1 && postOp.dialog3 > 0)
+                                                    {
+                                                        DebugSystem.Write($"[EveEventInterpreter] Choice post-dialogue item grant failed for {player.CharName}. Aborting.");
+                                                        break;
+                                                    }
                                                 }
                                                 player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                                                 player.Send(Tools.FromFormat("bb", 20, 8));
@@ -438,7 +443,12 @@ namespace Game.Maps
                                         {
                                             foreach (var postOp in postDialogueOpcodes)
                                             {
-                                                ExecuteOpcode(player, map, clickId, eventEntry, choiceSub, postOp);
+                                                bool res = ExecuteOpcode(player, map, clickId, eventEntry, choiceSub, postOp);
+                                                if (!res && postOp.DialogPtr == 1 && postOp.dialog1 == 1 && postOp.dialog3 > 0)
+                                                {
+                                                    DebugSystem.Write($"[EveEventInterpreter] Choice post-dialogue item grant failed for {player.CharName}. Aborting.");
+                                                    break;
+                                                }
                                             }
                                             player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                                             player.Send(Tools.FromFormat("bb", 20, 8));
@@ -534,6 +544,11 @@ namespace Game.Maps
                                 {
                                     interactiveSessionStarted = true;
                                 }
+                                if (!res && op.DialogPtr == 1 && op.dialog1 == 1 && op.dialog3 > 0)
+                                {
+                                    DebugSystem.Write($"[EveEventInterpreter] Item grant failed for {player.CharName} (Inventory full). Aborting subsequent opcodes in Sub #{sub.subIndex} to protect quest/chest flags.");
+                                    return;
+                                }
                             }
                         }
                     }
@@ -570,7 +585,12 @@ namespace Game.Maps
                             }
                             else
                             {
-                                ExecuteOpcode(player, map, clickId, eventEntry, selectedSub, postOp);
+                                bool res = ExecuteOpcode(player, map, clickId, eventEntry, selectedSub, postOp);
+                                if (!res && postOp.DialogPtr == 1 && postOp.dialog1 == 1 && postOp.dialog3 > 0)
+                                {
+                                    DebugSystem.Write($"[EveEventInterpreter] Post-dialogue item grant failed for {player.CharName} (Inventory full). Aborting to protect quest/chest flags.");
+                                    return;
+                                }
                             }
                         }
 
@@ -657,8 +677,7 @@ namespace Game.Maps
             for (byte s = 1; s <= 50; s++)
             {
                 var slot = player.Inv[s];
-                // Exclude child slots of multi-cell items: ItemID==0 but Parent!=0 means slot is physically occupied
-                if (slot == null || (slot.ItemID == 0 && slot.Parent == 0)) free++;
+                if (slot == null || slot.ItemID == 0) free++;
             }
             return free;
         }
@@ -1085,6 +1104,17 @@ namespace Game.Maps
                         {
                             continue;
                         }
+                        if (sub.unknownbyte1 == 3)
+                        {
+                            uint chestKey = (uint)(map.MapID * 1000 + (eventEntry != null ? eventEntry.clickID : 1));
+                            if (player.Quests != null && player.Quests.TryGetValue(chestKey, out var cpq) && cpq.State == QuestState.Completed)
+                                continue;
+                        }
+                        if (sub.SubEntry.Any(o => o.DialogPtr == 5 && o.dialog1 > 0 &&
+                            player.Quests != null && player.Quests.TryGetValue(o.dialog1, out var pq2) && pq2.State == QuestState.Completed))
+                        {
+                            continue;
+                        }
                         if (sub.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2 || o.DialogPtr == 4 || o.DialogPtr == 6))
                         {
                             return sub;
@@ -1138,41 +1168,72 @@ namespace Game.Maps
                             return true;
                         }
 
-                        // Item Take/Give Opcode in Eve: dptr=1, d1=1, d2=count, d3=Item ID, d4=Mode
+                        // Scene transition / cutscene fade opcode: ptr=1, d1=3 (Official PCAP Frame 2378)
+                        if (op.dialog1 == 3)
+                        {
+                            player.Send(Tools.FromFormat("bb", 20, 7)); // Black screen fade
+                            player.PendingBeachCutscene = true;
+
+                            ushort targetMap = 10035;
+                            ushort targetX = 1038;
+                            ushort targetY = 2235;
+
+                            var warpData = new WarpData { DstMap = targetMap, DstX_Axis = targetX, DstY_Axis = targetY };
+                            player.CurMap?.Teleport(TeleportType.CmD, player, 0, warpData);
+                            DebugSystem.Write($"[EveEventInterpreter] Opcode 1 (Scene Transition d1=3): Faded screen and transitioned {player.CharName} to beach Map {targetMap} ({targetX}, {targetY})");
+                            return true;
+                        }
+
+                        // Item Take/Give Opcode in Eve: dptr=1, d1=1, d3=Item ID, d4=Encoded signed 16-bit count/mode
                         if (op.dialog1 == 1 && op.dialog3 > 0)
                         {
                             ushort itemId = op.dialog3;
-                            byte count = (byte)Math.Max(1, (int)op.dialog2);
+                            short signedMode = (short)op.dialog4;
+                            int countHigh = signedMode >> 8;
 
-                            // dialog4 == 65280 (0xFF00) -> Take / Remove Item from player (e.g. Honeycomb #30034)
-                            if (op.dialog4 == 65280 || (op.dialog4 & 0xFF00) == 0xFF00)
+                            // dialog4 high byte negative (e.g. 0xFF00 = -1, 0xFE00 = -2) -> Take / Remove Item from player
+                            if (countHigh < 0 || op.dialog4 == 65280 || (op.dialog4 & 0xFF00) == 0xFF00)
                             {
+                                byte takeCount = (byte)(countHigh < 0 ? -countHigh : (op.dialog2 > 0 ? op.dialog2 : 1));
                                 if (player.Inv != null && player.Inv.ContainsItem(itemId))
                                 {
-                                    player.Inv.RemoveItem(itemId, count);
+                                    player.Inv.RemoveItem(itemId, takeCount);
                                     string remName = Game.Battle.MonsterDropManager.ResolveItemName(itemId) ?? $"Item #{itemId}";
-                                    player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Lost {remName}"));
+                                    string msg = takeCount > 1 ? $"Lost {remName} x{takeCount}" : $"Lost {remName}";
+                                    player.Send(Tools.FromFormat("bbbs", 23, 57, 0, msg));
                                     player.SaveCharacterData();
-                                    DebugSystem.Write($"[EveEventInterpreter] Opcode 1: Consumed / Removed Item {remName} (#{itemId}) x{count} from {player.CharName}");
+                                    DebugSystem.Write($"[EveEventInterpreter] Opcode 1: Consumed / Removed Item {remName} (#{itemId}) x{takeCount} from {player.CharName}");
                                 }
                                 return true;
                             }
-                            else // dialog4 == 256 (0x0100) or positive -> Give / Grant Item to player
+                            else // Positive -> Give / Grant Item to player (authentic quantity in dialog4 >> 8)
                             {
+                                byte giveCount = (byte)(countHigh > 0 ? countHigh : Math.Max(1, (int)op.dialog2));
                                 int freeSlots = GetPlayerFreeSlots(player);
-                                if (freeSlots < 1)
+                                bool canStack = player.Inv != null && player.Inv.ContainsItem(itemId);
+                                if (freeSlots < 1 && !canStack)
                                 {
                                     player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
                                     DebugSystem.Write($"[EveEventInterpreter] Inventory full — could not grant Item #{itemId} to {player.CharName}");
                                     return false;
                                 }
-                                player.Inv.AddItem(itemId, count);
+                                player.Inv.AddItem(itemId, giveCount);
                                 string itemName = Game.Battle.MonsterDropManager.ResolveItemName(itemId);
                                 if (string.IsNullOrEmpty(itemName) || itemName.StartsWith("Item #"))
                                 {
                                     itemName = (itemId == 48010 || itemId == 48016) ? "Raft" : (itemId == 32075 ? "Space Remote" : (itemId == 36002 ? "Space Capsule" : (itemId == 34038 ? "Notebook" : $"Item #{itemId}")));
                                 }
-                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
+                                string msg = giveCount > 1 ? $"Obtain {itemName} x{giveCount}" : $"Obtain {itemName}";
+                                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, msg));
+
+                                // Send AC 23:6 Gold Item Banner popup (Official PCAP Frame 1070 / 1113)
+                                SendPacket bannerPkt = new SendPacket();
+                                bannerPkt.PackArray(new byte[] { 23, 6 });
+                                bannerPkt.Pack16(itemId);
+                                bannerPkt.Pack8(giveCount);
+                                bannerPkt.PackArray(new byte[28]);
+                                player.Send(bannerPkt);
+
                                 player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
                                 if (sub != null && sub.unknownbyte1 == 3)
                                 {
@@ -1182,7 +1243,7 @@ namespace Game.Maps
                                     QuestManager.SavePlayerQuest(player, chestKey);
                                 }
                                 player.SaveCharacterData();
-                                DebugSystem.Write($"[EveEventInterpreter] Opcode 1: Granted Item {itemName} (#{itemId}) x{count} to {player.CharName}");
+                                DebugSystem.Write($"[EveEventInterpreter] Opcode 1: Granted Item {itemName} (#{itemId}) x{giveCount} to {player.CharName}");
                                 return true;
                             }
                         }
@@ -1247,22 +1308,39 @@ namespace Game.Maps
                             return true;
                         }
 
-                        // Gathering Node Despawn Animation: dialog2 == 2 (e.g. Coconut, Wood, Ore)
-                        if (op.dialog2 == 2)
+                        // Dynamic Actor Visibility / Despawn / Gathering Node (dialog2 == 2 or dialog2 == 3)
+                        if (op.dialog2 == 2 || op.dialog2 == 3)
                         {
-                            ushort propClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
-                            SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, propClickId, (byte)0xFF, (byte)0xFF);
-                            player.Send(anim);
-                            map?.Broadcast(anim);
+                            ushort targetClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
+                            byte st1 = (byte)((op.dialog4 >> 8) & 0xFF);
+                            byte st2 = (byte)(op.dialog4 & 0xFF);
+                            if (op.dialog4 == 65280 || op.dialog4 == 0xFFFF)
+                            {
+                                st1 = 0xFF;
+                                st2 = 0xFF;
+                            }
+                            else if (op.dialog4 == 0)
+                            {
+                                st1 = 0x00;
+                                st2 = 0x00;
+                            }
 
-                            var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == propClickId) as QuestNpc;
-                            if (qn != null)
+                            SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, targetClickId, st1, st2);
+                            player.Send(anim);
+                            if (op.dialog2 == 3 || (st1 == 0xFF && st2 == 0xFF))
+                            {
+                                player.Send(Tools.FromFormat("bbwbb", 22, 11, targetClickId, st1, st2));
+                            }
+
+                            var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == targetClickId) as QuestNpc;
+                            if (qn != null && qn.IsStaticNpc())
                             {
                                 qn.IsBroken = true;
                                 qn.RespawnTime = DateTime.Now.AddSeconds(60);
+                                map?.Broadcast(anim);
                             }
 
-                            DebugSystem.Write($"[EveEventInterpreter] Gathering Node ClickID {propClickId} gathered/despawned for {player.CharName}");
+                            DebugSystem.Write($"[EveEventInterpreter] Dynamic Actor State (AC 22:10/11) for ClickID {targetClickId} -> ({st1:X2}, {st2:X2}) for {player.CharName}");
                             return true;
                         }
 
@@ -1361,6 +1439,10 @@ namespace Game.Maps
                             }
                             else
                             {
+                                if (state == QuestState.InProgress && op.dialog2 == 1 && player.Quests[questId].State == QuestState.InProgress && (op.dialog3 <= 1 || op.dialog3 == player.Quests[questId].Step))
+                                {
+                                    step = (byte)(player.Quests[questId].Step + 1);
+                                }
                                 player.Quests[questId].Step = step;
                                 player.Quests[questId].State = state;
                             }
@@ -1373,6 +1455,10 @@ namespace Game.Maps
                             QuestManager.SavePlayerQuest(player, questId);
                             QuestManager.SendQuestUpdate(player, questId, state, step);
 
+                            if (map != null)
+                            {
+                                PreEventInterpreter.EvaluateMapPreEvents(player, (ushort)map.MapID);
+                            }
 
                             DebugSystem.Write($"[EveEventInterpreter] Opcode 5: Updated Quest/Flag #{questId} -> Step {step} ({state}) for {player.CharName}");
                             return true;
@@ -1662,9 +1748,10 @@ namespace Game.Maps
                                 cutscenePkt.PackArray(new byte[] { 186, 12, 1, 0, 0, 0, 0 });
                                 player.Send(cutscenePkt);
 
-                                // 2. Official PCAP Frame 1942: Dialog Step 3 Cinematic Event Trigger
-                                // [AC=20][Sub=1][Step=3 (4B)][Type=5][Target=0 (4B)][Param=2 (2B)][Sound/ID=31488 (2B)][Padding=0 (4B)]
-                                player.Send(Tools.FromFormat("bbdbbwwd", 20, 1, (uint)3, (byte)5, (byte)0, (ushort)2, (ushort)31488, (uint)0));
+                                // 2. Official PCAP Frame 1941: Dialog Step 3 Cinematic Event Trigger (Exact 18 bytes)
+                                SendPacket step3Pkt = new SendPacket();
+                                step3Pkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, 2, 0x7B, 0, 0, 0, 0, 0, 0 });
+                                player.Send(step3Pkt);
 
                                 DebugSystem.Write($"[EveEventInterpreter] Dispatched Authentic Storm Cutscene Step 3 (AC 186:12 & AC 20:1) for {player.CharName} (awaiting client finish AC 20:6)");
                                 return true;

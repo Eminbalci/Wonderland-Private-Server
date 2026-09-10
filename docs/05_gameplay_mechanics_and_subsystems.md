@@ -79,21 +79,27 @@ The 4 elements interact with strict damage bonuses:
 - All 224 items, prices, discounts, and category IDs are dynamically loaded from SQLite table `item_mall`.
 
 ### Starter Pack Welcome Package
-- When any newly created character completes intro ship dialogue, [`StarterPackManager.DeliverStarterPack(player)`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/PlayerRelated/StarterPackManager.cs) auto-injects essential consumables from SQLite `starter_items`:
-  - 50x Novice Recovery Potions (ID 23050)
-  - 50x Novice Mana Water (ID 23051)
-  - 1x Magic Repair Wrench (ID 48050)
-  - 10x Rice Balls (ID 30025)
-  - 1x Novice Adventurer Badge (ID 57001)
+- When any character is created or a level 1 player without starter items logs in, [`StarterPackManager.DeliverToPlayer(player)`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/PlayerRelated/StarterPackManager.cs) auto-injects the authentic 8-piece starter bundle from SQLite `starter_items`:
+  - 1x Notepad (ID 34038, Type 25)
+  - 1x Remote Control (ID 34058, Type 25)
+  - 50x Fugu Hot Pot (ID 32176, Type 23, stackable)
+  - 10x Tao Rice Ball (ID 34014, Type 25, stackable)
+  - 5x Protective EXP Pill (ID 34026, Type 25, stackable)
+  - 1x Bamboo Dragonfly (ID 34169, Type 25, flight mount)
+  - 3x 10X Holy EXP Potion (ID 34190, Type 25, stackable)
+  - 5x Training Ticket (ID 34253, Type 25, stackable)
+- All 8 items occupy strictly 8 slots, leaving 42 bag slots free for adventure loot.
 
-### Alchemy & Synthesis
-- Players combine two raw materials using the Alchemy skill to produce higher-tier items.
-- Configured in SQLite table `alchemy_recipes` with success probability rates (`rate`).
+### Character Bag Inventory Model & Dimensions
+- Player inventory contains 50 slots (1 to 50).
+- All character inventory items occupy strictly 1x1 slots. Multi-cell `cellwidth` and `cellheight` attributes from `itemDat.wpdat` apply exclusively to housing tent furniture (`TentItem`).
+- [`Inventory.AddItem`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Inventory.cs) aggregates stackable items into existing stacks with space left (up to 50 items per slot) before consuming free empty slots.
 
 ### Gathering Nodes & Map Chests
 - Map gathering nodes (Ore veins, wood trunks, coconut palms) drop authentic materials.
-- Gathering cooldowns and timed node respawns are managed asynchronously without blocking the main game loop.
-- Map chests loot tables are configured via SQLite `chest_drops`.
+- Map chests loot tables and Eve event scripts are synchronized with [`EveEventInterpreter`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventInterpreter.cs):
+  - When opened, the chest executes opening animation (Opcode 2), item grant (Opcode 1), and completion flag registration (Opcode 5).
+  - If inventory capacity is exhausted, the interpreter dispatches an "Inventory is full!" system notification and aborts execution immediately, preventing premature flag completion so chests remain unopened until space is cleared.
 
 ---
 
@@ -151,11 +157,9 @@ Each collectible item on a map is managed via [`MapGroundItem`](file:///D:/GitHu
 
 ### Network Protocol Specification
 
-| Packet | Direction | Opcode / Sub | Wire Layout | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| Initial Items Sync | S -> C | `AC 23:4` | `[23, 4, count:byte, ...items]`<br>Item: `slot:b, item_id:w, x:w, y:w, respawn:d, 0:b` | Sent during [`Map.SendMapInfo`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) upon map entry. |
+| Initial Items Sync | S -> C | `AC 23:3` | `[23, 3, item_id:w, x:w, y:w, 0:w, 0:d, slot:b]` | Sent individually per active item during [`Map.SendMapInfo`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) upon map entry. |
 | Pickup Request | C -> S | `AC 23:2` | `[23, 2, slot:byte]` | Triggered when player walks up to and clicks a ground item. |
-| Pickup Response | S -> C | `AC 23:2` | `[23, 2, slot:byte, 0:byte]` | Acknowledges inventory grant to picking player. |
-| Removal Broadcast | S -> C | `AC 23:1` | `[23, 1, slot:byte]` | Broadcast to all map players to despawn the visual sprite. |
-| Respawn Broadcast | S -> C | `AC 23:3` | `[23, 3, slot:b, item_id:w, x:w, y:w, respawn:d, 0:b]` | Broadcast by [`Map.Process`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) when respawn timer expires. |
+| Pickup Response | S -> C | `AC 23:2` | `[23, 2, item_id:w, 1:b]` | Acknowledges inventory grant to picking player. |
+| Removal Broadcast | S -> C | `AC 23:2` | `[23, 2, item_id:w, 0:b]` | Broadcast to other players on map to remove the visual sprite. |
+| Respawn Broadcast | S -> C | `AC 23:3` | `[23, 3, item_id:w, x:w, y:w, 0:w, 0:d, slot:b]` | Broadcast by [`Map.Process`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) when respawn timer expires. |
 

@@ -15,16 +15,17 @@ A high-performance, modular private server emulator and cheat/administration eng
 - **Complete 88 Action Code Protocol (AC 1 - AC 186)**: Full support for turn-based battles (`AC 11`/`AC 50`/`AC 51`), vehicle/mount system (`AC 15`), tent housing (`AC 12`), quests (`AC 39`/`AC 52`), and cinematic cutscenes (`AC 186`).
 - **Authentic Asset Parsing**: In-memory decryption and caching of `Npc.dat` (4,928 NPCs via XOR `0x5209`), `Item.dat`, `Skill.dat`, `Talk.dat`, `Mark.dat`, and `Eve.emg` event scripts.
 - **Comprehensive GUI Management Suite**: Live player monitoring, map inspector, NPC/Mob editor, quest manager, Item Mall studio, chest drop editor, and firewall security center.
-- **Dynamic Ground Items Lifecycle (`AC 23`)**: Automatic map loading of native terrain resources from `Eve.emg` `ItemAreas` (209 items across 77 maps). Real-time inventory pickups (`AC 23:2`), removal broadcasts (`AC 23:1`), and asynchronous heartbeat respawning (`AC 23:3`).
+- **Dynamic Ground Items Lifecycle (`AC 23`)**: Automatic map loading of native terrain resources from `Eve.emg` `ItemAreas` (209 items across 77 maps). Real-time authentic batched spawning (`AC 23:4`), terrain slot pickups (`AC 23:2`), gold item banner acquisition popups (`AC 23:6`), and asynchronous heartbeat respawning.
 - **Robust NPC Spatial AI & Wander Boundaries**: Authentic signed bounding-box roaming (`WalkBehavior == 3`), waypoint patrol oscillation (`WalkBehavior == 2 / 5`), and static anchors (`WalkBehavior == 1`) preventing map boundary drift or corner teleports.
 - **State-Verified Dialogue & Quest Safeguards**: Multi-event evaluation prioritizing post-quest resolution over completed stages, Quest State Condition decoding, and irreversible completion locks preventing quest demotion loops.
+- **Authentic Starter Pack, Multi-Quantity Chests & Vehicle Lifecycle**: 8-piece authentic beginner equipment package (Notepad, Remote Control, Fugu Hot Pot x50, Tao Rice Ball x10, Protective EXP Pill x5, Bamboo Dragonfly, Holy EXP Potion x3, Training Ticket x5) occupying strictly 8/50 slots (42 free slots). Complete 1x1 bag inventory grid integrity, stackable item aggregation, bytecode-decoded multi-quantity chest loot (from `Eve.emg` opcode `dialog4 >> 8`), and guaranteed vehicle/raft inventory deletion and AC 23 synchronization upon shore wrecking or durability loss.
 - **Graceful Shutdown & Diagnostic Countdown**: Non-immediate shutdown saves all player, inventory, and server data, displays the exact canonical log file location on the console, and executes a 10-second countdown with second-by-second updates before exit.
 
 ---
 
 ## Technical Documentation (`docs/`)
 
-The documentation is organized into 10 authoritative master technical specifications:
+The documentation is organized into 12 authoritative master technical specifications:
 
 1. [**01 - Architecture and Core Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_architecture_and_core_engine.md): Multi-server socket topology, dynamic pathing, threading model, and project hierarchy.
 2. [**02 - Database Persistence and Schema Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_persistence_and_schema.md): Complete 32-table SQLite schema catalog, automated startup verification, seeders, and character persistence lifecycle.
@@ -36,6 +37,8 @@ The documentation is organized into 10 authoritative master technical specificat
 8. [**08 - English Localization and Internationalization**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_localization_and_internationalization.md): Complete audit and dictionary of English GUI controls, chat broadcast channels, and network action messages.
 9. [**09 - Logging Subsystem and Diagnostic Timestamps**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_logging_subsystem_and_diagnostics.md): Canonical `[yyyy-MM-dd HH:mm:ss]` timestamping, thread-safe UI async dispatch, and persistent disk logging.
 10. [**10 - Dialogue and Quest Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_dialogue_and_quest_engine.md): Wire framing, 24-bit talk IDs, dialogue queues, choice callback delegates, and quest state progression.
+11. [**11 - Inventory, Starter Pack & Chest Loot Subsystem**](file:///D:/GitHub/Wonderland-Private-Server/docs/11_inventory_and_chest_subsystem.md): Character bag 50-slot 1x1 grid model, authentic starter pack seeder, and chest loot grant safeguards.
+12. [**12 - Map Ground Items and Pre-Event NPC Visibility Subsystem**](file:///D:/GitHub/Wonderland-Private-Server/docs/12_map_ground_items_and_npc_visibility.md): Ground items network protocol (AC 23:4 / AC 23:2 / AC 23:6), terrain slot pickup lifecycle, and dual AC 22:10 / AC 22:11 PreEvent entity suppression.
 
 ---
 

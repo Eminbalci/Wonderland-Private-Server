@@ -87,3 +87,15 @@ odd.dat
 *.odd
 update.rar
 dev_scripts/
+
+# ==============================================================================
+# Screenshots & Downloaded Media
+# ==============================================================================
+screenshot.png
+*.png
+!Resources/**
+*.jpg
+*.jpeg
+*.bmp
+*.webp
+

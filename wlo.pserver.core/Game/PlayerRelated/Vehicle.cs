@@ -131,14 +131,15 @@ namespace Game.PlayerRelated
             DebugSystem.Write($"[VehicleManager] Player {player.CharName} dismounted vehicle #{prevVid}.");
         }
 
-        public static void WreckVehicle(Player player)
+        public static void WreckVehicle(Player player, ushort vehicleId = 0, byte vehicleType = 0x10)
         {
-            if (player == null || player.ActiveVehicleID == 0) return;
+            if (player == null) return;
 
-            ushort vid = (ushort)player.ActiveVehicleID;
+            ushort vid = vehicleId > 0 ? vehicleId : (ushort)player.ActiveVehicleID;
+            if (vid == 0) vid = 48016;
+
             player.ActiveVehicleID = 0;
-
-            byte vehicleType = 0x10; // 0x10 = Wooden Raft
+            player.RideVehicle("");
 
             // 1. Send AC 15 Sub 14: Final state
             SendPacket statePkt = new SendPacket();
@@ -148,10 +149,29 @@ namespace Game.PlayerRelated
             player.Send(statePkt);
             player.CurMap?.Broadcast(statePkt);
 
-            // 2. Send AC 23 Sub 9: Raft Break Notice
-            SendPacket breakNotice = new SendPacket();
-            breakNotice.PackArray(new byte[] { 23, 9, vehicleType, 1 });
-            player.Send(breakNotice);
+            // 2. Locate and remove vehicle item from inventory
+            byte foundSlot = 0;
+            if (player.Inv != null)
+            {
+                for (byte s = 1; s <= 50; s++)
+                {
+                    var it = player.Inv[s];
+                    if (it != null && (it.ItemID == vid || it.ItemID == 48016 || it.ItemID == 48010))
+                    {
+                        foundSlot = s;
+                        break;
+                    }
+                }
+
+                if (foundSlot > 0)
+                {
+                    player.Inv.RemoveItem(foundSlot, 1, senddata: true);
+                }
+                else
+                {
+                    player.Inv.RemoveItemById(vid, 1);
+                }
+            }
 
             // 3. Vehicle wreck packet (AC 15:15)
             SendPacket wreckPkt = new SendPacket();
@@ -169,25 +189,12 @@ namespace Game.PlayerRelated
             player.Send(unmountPkt);
             player.CurMap?.Broadcast(unmountPkt);
 
-            player.RideVehicle("");
-
-            // 5. Remove 1 vehicle item from inventory
-            if (player.Inv != null)
-            {
-                for (byte s = 1; s <= 50; s++)
-                {
-                    var it = player.Inv[s];
-                    if (it != null && it.ItemID == vid)
-                    {
-                        player.Inv.RemoveItem(s, 1);
-                        break;
-                    }
-                }
-            }
-
-            // 6. Movement refresh
+            // 5. Movement refresh & persistence
             player.Send(Tools.FromFormat("bb", 5, 4));
-            DebugSystem.Write($"[VehicleManager] Player {player.CharName}'s vehicle #{vid} wrecked upon reaching shore.");
+            player.SendSystemMessage("The wooden raft broke apart upon landing on the shore. You are now walking on foot.");
+            player.SaveCharacterData();
+
+            DebugSystem.Write($"[VehicleManager] Player {player.CharName}'s vehicle #{vid} wrecked upon reaching shore (removed from slot {foundSlot}).");
         }
 
         public static void ConsumeFuel(Player player, ushort amount = 1)

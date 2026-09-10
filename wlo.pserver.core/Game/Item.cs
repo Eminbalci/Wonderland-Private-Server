@@ -151,6 +151,9 @@ namespace Game.Code
         public byte pick; // item without space
         public byte floor; // 1 = 2 floor 0 = 1 floor
 
+        public override int Height => (Data != null && Data.cellheight > 0) ? Data.cellheight : 1;
+        public override int Width => (Data != null && Data.cellwidth > 0) ? Data.cellwidth : 1;
+
         public TentItem()
         {
         }
@@ -198,8 +201,8 @@ namespace Game.Code
         protected PhxItemInfo Data { get { return data ?? new PhxItemInfo(); } }
         public string Name { get { return ASCIIEncoding.ASCII.GetString(Data.ItemName); } }
         public UInt16 ItemID { get { return (Data != null) ? Data.ItemID : (ushort)0; } }
-        public int Height { get { return (Data != null && Data.cellheight > 0) ? Data.cellheight : 1; } }
-        public int Width { get { return (Data != null && Data.cellwidth > 0) ? Data.cellwidth : 1; } }
+        public virtual int Height => 1;
+        public virtual int Width => 1;
         //public ushort Control { get { return Data.Control; } }
         public eWearSlot Wear_At { get { return (eWearSlot)Data.Equippos; } }
         public byte Level { get { return (byte)Data.level; } }

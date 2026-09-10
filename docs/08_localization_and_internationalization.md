@@ -15,12 +15,12 @@ The Wonderland Private Server administration supervisor and network action code 
 | Client Selector Dialog | `WLO Client Klasörünü Seçin` | `Select Wonderland Online Client Directory` | FolderBrowserDialog title during initial setup |
 | Client Validation Success | `Client klasörü başarıyla ayarlandı.` | `Client directory set successfully.` | Informational modal upon locating game assets |
 | Client Validation Warning | `Lütfen geçerli bir WLO Client klasörü seçin!` | `Please select a valid WLO Client folder containing game data files!` | Error dialog when missing `data` or `ini` files |
-| Broadcast Red Option | `🔴 Kırmızı (GM Duyurusu)` | `🔴 Red (GM Announcement)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:4) |
-| Broadcast Yellow Option | `🟡 Sarı (Dünya Sohbeti)` | `🟡 Yellow (World Chat)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:1) |
-| Broadcast Blue Option | `🔵 Mavi (Lonca Sohbeti)` | `🔵 Blue (Guild Chat)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:6) |
-| Broadcast Pink Option | `🟣 Pembe (Fısıltı)` | `🟣 Pink (Whisper)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:3) |
-| Status Traffic Panel | `🌐 Server Listesi Trafik Işığı (Port 6416)` | `🌐 Server List Traffic Indicator / Cluster Load (Port 6416)` | Cluster status control panel |
-| Status ComboBox Items | `🟢 Yeşil (Boş / Akıcı)`, `🟡 Sarı (Kalabalık)`, `🔴 Kırmızı (Dolu)`, `⚫ Kapalı (Bakım)`, `⚡ Otomatik (Canlı Oyuncu)` | `🟢 Green (Smooth / Empty)`, `🟡 Yellow (Crowded)`, `🔴 Red (Full)`, `⚫ Offline / Maintenance`, `⚡ Auto (Live Population)` | Manual/Automatic cluster load setting |
+| Broadcast Red Option | `Kırmızı (GM Duyurusu)` | `Red (GM Announcement)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:4) |
+| Broadcast Yellow Option | `Sarı (Dünya Sohbeti)` | `Yellow (World Chat)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:1) |
+| Broadcast Blue Option | `Mavi (Lonca Sohbeti)` | `Blue (Guild Chat)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:6) |
+| Broadcast Pink Option | `Pembe (Fısıltı)` | `Pink (Whisper)` | Broadcast dropdown `cmbBroadcastColor` (AC 2:3) |
+| Status Traffic Panel | `Server Listesi Trafik Işığı (Port 6416)` | `Server List Traffic Indicator / Cluster Load (Port 6416)` | Cluster status control panel |
+| Status ComboBox Items | `Yeşil (Boş / Akıcı)`, `Sarı (Kalabalık)`, `Kırmızı (Dolu)`, `Kapalı (Bakım)`, `Otomatik (Canlı Oyuncu)` | `Green (Smooth / Empty)`, `Yellow (Crowded)`, `Red (Full)`, `Offline / Maintenance`, `Auto (Live Population)` | Manual/Automatic cluster load setting |
 | Safe Shutdown Initial | `Kapatılıyor...` | `Shutting down...` | Button state immediately after clicking shutdown |
 | Countdown Ticks | `Kapanıyor ({i}s)...` | `Closing ({i}s)...` | Real-time button text during 10-second countdown |
 
