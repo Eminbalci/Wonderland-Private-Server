@@ -147,11 +147,12 @@ namespace Network.ActionCodes
         {
             try
             {
-                // Dispatch catalog and point balance so client flag 0x5698 is active
-                ItemMallManager.SendCatalog(p);
+                // Dispatch catalogs and point balance so client flag 0x5698 is active
+                ItemMallManager.SendCatalog(p, isBonus: false);
+                ItemMallManager.SendCatalog(p, isBonus: true);
                 ItemMallManager.SendPointBalance(p);
 
-                DebugSystem.Write($"[AC23.Recv54] Item Mall catalog and balance dispatched to {p.CharName}");
+                DebugSystem.Write($"[AC23.Recv54] Item Mall catalogs and balance dispatched to {p.CharName}");
             }
             catch (Exception t) { Console.WriteLine(t); }
         }

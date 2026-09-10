@@ -266,6 +266,7 @@ namespace Wonderland_Private_Server
             DebugSystem.Write("[Init] - Initializing DataBase Objects");
             cGlobal.gUserDataBase = new DataBase.UserDataBase();
             Game.PlayerRelated.ItemMallManager.OnPointsChanged = (uid, pts) => cGlobal.gUserDataBase?.SetIMPoints(uid, pts);
+            Game.PlayerRelated.ItemMallManager.OnBonusPointsChanged = (uid, pts) => cGlobal.gUserDataBase?.SetIMBonusPoints(uid, pts);
             cGlobal.gCharacterDataBase = new DataBase.CharacterDataBase();
             cGlobal.gCharacterDataBase.ItemDat = cGlobal.ItemDatManager;
             cGlobal.gGameDataBase = new DataBase.GameDataBase();
@@ -2418,18 +2419,29 @@ namespace Wonderland_Private_Server
         private void RefreshMallGrid()
         {
             if (dgvMallCatalog == null) return;
-            var list = Game.PlayerRelated.ItemMallManager.GetCatalog();
+            var pointsList = Game.PlayerRelated.ItemMallManager.GetCatalog(isBonus: false);
+            var bonusList = Game.PlayerRelated.ItemMallManager.GetCatalog(isBonus: true);
 
             System.Data.DataTable dt = new System.Data.DataTable();
             dt.Columns.Add("ItemID", typeof(ushort));
             dt.Columns.Add("ItemName", typeof(string));
             dt.Columns.Add("Category", typeof(string));
             dt.Columns.Add("PointCost", typeof(int));
+            dt.Columns.Add("OriginalPrice", typeof(int));
+            dt.Columns.Add("Discount", typeof(byte));
+            dt.Columns.Add("Badge", typeof(string));
             dt.Columns.Add("Count", typeof(byte));
+            dt.Columns.Add("MallType", typeof(string));
 
-            foreach (var item in list)
+            foreach (var item in pointsList)
             {
-                dt.Rows.Add(item.ItemID, item.ItemName, item.Category, item.PointCost, item.Count);
+                string badgeStr = item.Badge == 1 ? "NEW" : (item.Badge == 2 ? "HOT" : (item.Badge == 3 ? "LIMITED" : "Normal"));
+                dt.Rows.Add(item.ItemID, item.ItemName, item.Category, item.PointCost, item.OriginalPrice, item.Discount, badgeStr, item.Count, "Points");
+            }
+            foreach (var item in bonusList)
+            {
+                string badgeStr = item.Badge == 1 ? "NEW" : (item.Badge == 2 ? "HOT" : (item.Badge == 3 ? "LIMITED" : "Normal"));
+                dt.Rows.Add(item.ItemID, item.ItemName, item.Category, item.PointCost, item.OriginalPrice, item.Discount, badgeStr, item.Count, "Bonus");
             }
 
             dgvMallCatalog.DataSource = dt;

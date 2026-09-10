@@ -623,6 +623,9 @@ namespace Server
 
             src.Send(Tools.FromFormat("bbbbbb", 90, 1, 0, 2, 2, 3));
 
+            // Dispatches authentic Item Mall initial synchronization sequence (AC 75:1, AC 75:10, AC 75:8, AC 75:7, AC 75:3)
+            Game.PlayerRelated.ItemMallManager.SendInitialMallSync(src);
+
             src.Flags.Add(PlayerFlag.InMap);
 
             // Map-level player presence and visual synchronization is handled cleanly by Map.Warp_In with authentic AC 3 packet

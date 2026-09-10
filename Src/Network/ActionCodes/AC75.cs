@@ -18,35 +18,53 @@ namespace Network.ActionCodes
             byte subcode = p.Unpack8();
             switch (subcode)
             {
-                case 1: // Catalog request
+                case 1: // Points Mall Catalog request
                     Recv1(r, p);
                     break;
-                case 2: // Bonus Catalog request
-                    Recv1(r, p);
+                case 2: // Bonus Mall Catalog request
+                    Recv2(r, p);
                     break;
                 case 3: // Balance request
                     Recv3(r, p);
                     break;
-                case 4: // Category Switch or Purchase from Bonus Mall (AC 75 Sub 4)
-                case 5: // Purchase from Points Mall (AC 75 Sub 5)
-                    int rem = p.Buffer.Count() - p.GetPtr();
-                    if (rem == 1)
+                case 4: // Category Switch OR Points Mall Purchase
+                    int rem4 = p.Buffer.Count() - p.GetPtr();
+                    if (rem4 == 1)
                     {
                         byte categoryId = p.Unpack8();
                         // AC 57 Sub 1: Category ACK (Frame 4497 / 4606: 39 01 [catId] 00 00 00)
                         SendPacket ack = new SendPacket();
                         ack.PackArray(new byte[] { 57, 1, categoryId, 0, 0, 0 });
                         r.Send(ack);
-                        ItemMallManager.SendCatalog(r);
+
+                        // Sync AC 34:1 Points & AC 75:3 Points for Minigames (Slot Machine / Claw Crane)
+                        uint points = (uint)ItemMallManager.GetUserPoints(r);
+                        SendPacket p34 = new SendPacket();
+                        p34.Pack8(34);
+                        p34.Pack8(1);
+                        p34.Pack32(points);
+                        r.Send(p34);
+
+                        ItemMallManager.SendPointBalance(r);
+
+                        // If categoryId > 0, re-send Points Mall catalog; if categoryId == 0 (Exit minigame), DO NOT send catalog to prevent trap loop
+                        if (categoryId > 0)
+                        {
+                            ItemMallManager.SendCatalog(r, isBonus: false);
+                        }
+
                         DebugSystem.Write($"[AC75.Recv4] Client switched to Item Mall Category {categoryId}");
                     }
                     else
                     {
-                        RecvBuy(r, p, subcode);
+                        RecvBuy(r, p, subcode, isBonus: false);
                     }
                     break;
+                case 5: // Bonus Mall Purchase
+                    RecvBuy(r, p, subcode, isBonus: true);
+                    break;
                 default:
-                    DebugSystem.Write($"[AC75] Subcode {subcode} received");
+                    DebugSystem.Write($"[AC75] Subcode {subcode} received, payload: {p.Buffer.Length} bytes");
                     break;
             }
         }
@@ -55,12 +73,25 @@ namespace Network.ActionCodes
         {
             try
             {
-                ItemMallManager.SendCatalog(p);
+                ItemMallManager.SendCatalog(p, isBonus: false);
                 ItemMallManager.SendPointBalance(p);
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC75.Recv1] Error: {ex.Message}");
+            }
+        }
+
+        void Recv2(Player p, RecievePacket r)
+        {
+            try
+            {
+                ItemMallManager.SendCatalog(p, isBonus: true);
+                ItemMallManager.SendPointBalance(p);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC75.Recv2] Error: {ex.Message}");
             }
         }
 
@@ -76,7 +107,7 @@ namespace Network.ActionCodes
             }
         }
 
-        void RecvBuy(Player p, RecievePacket r, byte subcode)
+        void RecvBuy(Player p, RecievePacket r, byte subcode, bool isBonus)
         {
             try
             {
@@ -88,12 +119,11 @@ namespace Network.ActionCodes
                 }
                 catch { quantity = 1; }
 
-                var catalog = ItemMallManager.GetCatalog();
-                var entry = catalog.FirstOrDefault(i => i.ItemID == itemId);
+                var entry = ItemMallManager.GetItem(itemId, isBonus);
                 int cost = (entry != null ? entry.PointCost : 0) * quantity;
 
-                bool success = ItemMallManager.PurchaseItem(p, itemId, quantity);
-                uint remPoints = (uint)(p.UserAccount != null ? p.UserAccount.IM : 0);
+                bool success = ItemMallManager.PurchaseItem(p, itemId, quantity, isBonus);
+                uint remPoints = (uint)(isBonus ? ItemMallManager.GetUserBonusPoints(p) : ItemMallManager.GetUserPoints(p));
                 uint spentPoints = (uint)(success ? cost : 0);
 
                 // Authentic Buy Response (aLogin.exe FUN_0025b5ec / 0x25b62f):
@@ -111,7 +141,7 @@ namespace Network.ActionCodes
                 // Synchronize balance
                 ItemMallManager.SendPointBalance(p);
 
-                DebugSystem.Write($"[AC75.RecvBuy] Subcode {subcode} Purchase #{itemId} ({entry?.ItemName ?? "Unknown"}) x{quantity} by {p.CharName}: {(success ? "Success" : "Failed")}");
+                DebugSystem.Write($"[AC75.RecvBuy] Subcode {subcode} ({(isBonus ? "Bonus" : "Points")}) Purchase #{itemId} ({entry?.ItemName ?? "Unknown"}) x{quantity} by {p.CharName}: {(success ? "Success" : "Failed")}");
             }
             catch (Exception ex)
             {

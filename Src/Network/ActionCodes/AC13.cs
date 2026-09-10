@@ -44,10 +44,12 @@ namespace Network.ActionCodes
                 s.Pack32(p.CharID);
                 p.Send(s);
 
-                // Open Web Item Mall Portal with Point Balance & Shop
+                // Open In-Game Item Mall with Point Balance & Full Catalog
                 Game.PlayerRelated.ItemMallManager.SendPointBalance(p);
+                Game.PlayerRelated.ItemMallManager.SendCatalog(p, isBonus: false);
+                Game.PlayerRelated.ItemMallManager.SendCatalog(p, isBonus: true);
 
-                DebugSystem.Write(DebugItemType.Error, $"[AC13.Recv238] Item Mall query confirmed (13:42) and Web Shop opened for {p.CharName}.");
+                DebugSystem.Write(DebugItemType.Error, $"[AC13.Recv238] Item Mall query confirmed (13:42) and catalogs dispatched to {p.CharName}.");
             }
             catch (Exception ex)
             {
