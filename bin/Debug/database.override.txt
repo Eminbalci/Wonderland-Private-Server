@@ -1,7 +1,0 @@
-Type|1
-User|
-Pass|
-DB|
-Port|
-IP|
-File|ServerDataBase.db
