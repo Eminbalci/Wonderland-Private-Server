@@ -461,7 +461,7 @@ namespace Game.Maps
                             dPkt.Pack8(0);                                    // padding
                             dPkt.Pack8((byte)(talkId24 & 0xFF));             // TalkID LSB
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));      // TalkID MID
-                            dPkt.Pack8((byte)(sub != null ? sub.subIndex : 1)); // SubEntry index
+                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));     // TalkID MSB
 
                             string diagText = "";
                             try
@@ -528,7 +528,7 @@ namespace Game.Maps
                     }
                 }
 
-                if (firstDialogSent && player.OnDialogueChoice == null)
+                if (firstDialogSent)
                 {
                     int postIdx = 0;
                     Action executeRemainingOpcodes = null;
@@ -591,7 +591,10 @@ namespace Game.Maps
                         }
                     };
 
-                    player.OnInteractionComplete = executeRemainingOpcodes;
+                    if (player.OnDialogueChoice == null)
+                    {
+                        player.OnInteractionComplete = executeRemainingOpcodes;
+                    }
                 }
                 else if (!interactiveSessionStarted)
                 {
@@ -1118,7 +1121,7 @@ namespace Game.Maps
                             dPkt.Pack8(0);
                             dPkt.Pack8((byte)(talkId24 & 0xFF));
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
-                            dPkt.Pack8((byte)(sub != null ? sub.subIndex : 1));
+                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));
 
                             player.OnInteractionComplete = () =>
                             {
@@ -1218,7 +1221,7 @@ namespace Game.Maps
                             dPkt.Pack8(0);
                             dPkt.Pack8((byte)(talkId24 & 0xFF));
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
-                            dPkt.Pack8((byte)(sub != null ? sub.subIndex : 1));
+                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));
 
                             player.OnInteractionComplete = () =>
                             {
@@ -1677,7 +1680,7 @@ namespace Game.Maps
             dPkt.Pack8(0);                                    // padding
             dPkt.Pack8((byte)(talkId & 0xFF));                // TalkID LSB
             dPkt.Pack8((byte)((talkId >> 8) & 0xFF));         // TalkID MID
-            dPkt.Pack8(subIndex);                             // SubEntry index
+            dPkt.Pack8((byte)((talkId >> 16) & 0xFF));        // TalkID MSB
             return dPkt;
         }
 

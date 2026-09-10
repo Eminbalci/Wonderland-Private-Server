@@ -345,16 +345,13 @@
     <None Include="Src\packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="bin\Debug\Data\" />
-    <Folder Include="bin\Release\Data\" />
     <Folder Include="Src\Server\Database\Editor\" />
     <Folder Include="Src\Server\Database\Migration\" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="bin\Debug\UnRar.exe" />
-    <Content Include="bin\Debug\WloPSrvUpdater.exe" />
-    <Content Include="bin\Release\UnRar.exe" />
-    <Content Include="bin\Release\WloPSrvUpdater.exe" />
+    <None Include="listdata\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <EmbeddedResource Include="Resources\1383936576_refresh.png" />
     <EmbeddedResource Include="Resources\bullet_green.png" />
     <EmbeddedResource Include="Resources\bullet_red.png" />

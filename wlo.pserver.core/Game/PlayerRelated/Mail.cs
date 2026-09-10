@@ -298,6 +298,22 @@ namespace Game.PlayerRelated
         {
             try
             {
+                bool needsRecreate = false;
+                try
+                {
+                    var testDt = RCLibrary.Core.DataBase.Query("SELECT mail_id FROM mails LIMIT 1;");
+                    if (testDt == null) needsRecreate = true;
+                }
+                catch
+                {
+                    needsRecreate = true;
+                }
+
+                if (needsRecreate)
+                {
+                    RCLibrary.Core.DataBase.Execute("DROP TABLE IF EXISTS mails;");
+                }
+
                 RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS mails (
                     mail_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     sender_id INT DEFAULT 0,

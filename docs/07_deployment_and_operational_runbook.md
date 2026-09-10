@@ -92,3 +92,21 @@ If hosting for external friends or an online private server community, forward t
 
 ### Issue 4: Safe Server Shutdown & Data Integrity
 - When clicking the **"Shutdown"** button (`btnSafeShutdown`) in the GUI Dashboard or closing the application, the server will not exit abruptly. It flushes all player data, drop tables, and configs, outputs the exact canonical log file path to the console, performs a 10-second countdown with second-by-second updates, and then terminates cleanly.
+
+---
+
+## 6. Source Control, Git Tracking, and Build Artifact Hygiene
+
+To maintain repository cleanliness and avoid pushing volatile compilation artifacts:
+
+### Excluded from Version Control (`.gitignore`)
+1. **Compilation Outputs**: `bin/`, `obj/`, `Debug/`, `Release/`, and all project-specific build subdirectories.
+2. **Debug Symbols & Assemblies**: `*.pdb`, `*.ilk`, `*.exp`, and build-generated `.dll`/`.exe` binaries.
+3. **User & IDE Files**: `.vs/`, `.vscode/`, `.idea/`, `*.suo`, `*.user`, `*.userosscache`, `*.sln.docstates`.
+4. **Runtime Logs**: `Logs/`, `*.log`, `*logFile*.txt`.
+5. **Runtime Database Locks**: SQLite temporary files (`*.db-shm`, `*.db-wal`, `*.db-journal`, `bin/**/ServerDataBase.db`).
+
+### Preserved Source Data
+- **Asset Templates**: Master database template [`Data/ServerDataBase.db`](file:///D:/GitHub/Wonderland-Private-Server/Data/ServerDataBase.db) and DAT files reside in [`Data/`](file:///D:/GitHub/Wonderland-Private-Server/Data).
+- **Lookup Tables**: [`listdata/`](file:///D:/GitHub/Wonderland-Private-Server/listdata) CSV files (`items.csv`, `maps.csv`, `npc.csv`, `vehicles.csv`) are tracked at the repository root and copied to `bin/Debug/listdata/` on build via `PreserveNewest`.
+

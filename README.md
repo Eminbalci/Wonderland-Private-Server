@@ -21,7 +21,7 @@ A high-performance, modular private server emulator and cheat/administration eng
 
 ## Technical Documentation (`docs/`)
 
-The documentation is organized into 9 authoritative master technical specifications:
+The documentation is organized into 10 authoritative master technical specifications:
 
 1. [**01 - Architecture and Core Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_architecture_and_core_engine.md): Multi-server socket topology, dynamic pathing, threading model, and project hierarchy.
 2. [**02 - Database Persistence and Schema Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_persistence_and_schema.md): Complete 32-table SQLite schema catalog, automated startup verification, seeders, and character persistence lifecycle.
@@ -32,6 +32,7 @@ The documentation is organized into 9 authoritative master technical specificati
 7. [**07 - Deployment and Operational Runbook**](file:///D:/GitHub/Wonderland-Private-Server/docs/07_deployment_and_operational_runbook.md): Portable setup guide, client synchronization, port mapping, compilation instructions, and troubleshooting.
 8. [**08 - English Localization and Internationalization**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_localization_and_internationalization.md): Complete audit and dictionary of English GUI controls, chat broadcast channels, and network action messages.
 9. [**09 - Logging Subsystem and Diagnostic Timestamps**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_logging_subsystem_and_diagnostics.md): Canonical `[yyyy-MM-dd HH:mm:ss]` timestamping, thread-safe UI async dispatch, and persistent disk logging.
+10. [**10 - Dialogue and Quest Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_dialogue_and_quest_engine.md): Wire framing, 24-bit talk IDs, dialogue queues, choice callback delegates, and quest state progression.
 
 ---
 

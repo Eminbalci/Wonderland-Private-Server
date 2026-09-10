@@ -1,67 +1,89 @@
 ################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+# .gitignore - Wonderland Online Private Server (.NET Framework / C#)
 ################################################################################
 
-/GupdtSrv
-/.gitignore.BACKUP.99844.gitignore
-/.gitignore.BASE.99844.gitignore
-/.gitignore.LOCAL.99844.gitignore
-/.gitignore.REMOTE.99844.gitignore
-/bin/Debug/EntityFramework.SqlServer.xml
-/bin/Debug/EntityFramework.xml
-/bin/Debug/Log/mylogfile.txt
-/bin/Debug/mylogfile.txt
-/bin/Debug/Octokit.xml
-/bin/Debug/U1.txt
-/bin/Debug/U2.txt
-/bin/Debug/update.rar
-/bin/Debug/wlophoenixlogFile8112015.txt
-/bin/Release/EntityFramework.SqlServer.xml
-/bin/Release/EntityFramework.xml
-/bin/Release/wlophoenixlogFile7292015.txt
-/BuildLog.txt
-/packages/
-/obj/Debug/Gui.TaskItem.resources
-/obj/Debug/Gui.Update.GitUpdateItem.resources
-/wlo.pserver.Bot/obj/Debug/TemporaryGeneratedFile_036C0B5B-1481-4323-8D20-8F5ADCB23D92.cs
-/wlo.pserver.Bot/obj/Debug/TemporaryGeneratedFile_5937a670-0e60-4077-877b-f7221da3dda1.cs
-/wlo.pserver.Bot/obj/Debug/TemporaryGeneratedFile_E7A71F73-0F8D-4B9B-B56E-8E70B10BC5D3.cs
-/wlo.pserver.Bot/obj/Debug/wlo.pserver.Bot.csproj.FileListAbsolute.txt
-/wlo.pserver.core/bin/Debug/log4net.xml
-/wlo.pserver.core/bin/Debug/wlo.pserver.core.dll.config
-/wlo.pserver.maps/obj/Debug/TemporaryGeneratedFile_036C0B5B-1481-4323-8D20-8F5ADCB23D92.cs
-/wlo.pserver.maps/obj/Debug/TemporaryGeneratedFile_5937a670-0e60-4077-877b-f7221da3dda1.cs
-/wlo.pserver.maps/obj/Debug/TemporaryGeneratedFile_E7A71F73-0F8D-4B9B-B56E-8E70B10BC5D3.cs
-/wlo.pserver.maps/obj/Debug/wlo.pserver.maps.csproj.FileListAbsolute.txt
-/Wonderland Private Server.psess
-/Wonderland Private Server150802.vspx
-/Wonderland-Online-Private-Server
+# ==============================================================================
+# Visual Studio / IDE / User-specific files
+# ==============================================================================
 .vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.ide/
+*.psess
+*.vsp
+*.vspx
 
-# NuGet
+# ==============================================================================
+# Build outputs and compilation binaries (All projects)
+# ==============================================================================
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/Debug/
+x64/Release/
+x86/Debug/
+x86/Release/
+bld/
+[Bb]uild[Ll]og.txt
+
+# Debug symbols & compiler artifacts
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.ipch
+*.pch
+
+# Build output binaries
+# Note: Third-party dependencies in DLLS/ and unmanaged Interop DLLs are kept
+bin/
+*/bin/
+*/obj/
+
+# ==============================================================================
+# NuGet Packages & Cache
+# ==============================================================================
 *.nupkg
 *.snupkg
 **/packages/*
 !**/packages/build/
 *.nuget.props
 *.nuget.targets
-**/obj/**/*.nuget.dgspec.json
-**/obj/**/*.nuget.g.props
-**/obj/**/*.nuget.g.targets
+**/project.assets.json
+**/project.nuget.cache
+**/DesignTimeResolveAssemblyReferencesInput.cache
+**/obj/**/*.nuget.*
 
-# Build results
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
+# ==============================================================================
+# Logs & Diagnostic Outputs
+# ==============================================================================
 [Ll]og/
 [Ll]ogs/
+*.log
+*logFile*.txt
+*LogFile*.txt
+bin/Debug/Logs/
+
+# ==============================================================================
+# Runtime Databases & Temporary Storage
+# ==============================================================================
+*.db-shm
+*.db-wal
+*.db-journal
+*.db.temp
+ServerDataBase.db.temp
+bin/**/ServerDataBase.db
+
+# ==============================================================================
+# Client Archives & Development Scripts
+# ==============================================================================
 odd.dat
 *.odd
+update.rar
 dev_scripts/

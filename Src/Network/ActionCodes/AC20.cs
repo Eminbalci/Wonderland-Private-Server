@@ -111,6 +111,20 @@ namespace Wonderland_Private_Server.ActionCodes
 
             DebugSystem.Write($"[AC20.Recv1] Player {p.CharName} clicked NPC #{clickID} '{npcName}' (TID: {templateId}) on Map #{p.CurMap.MapID} ({mapName})");
 
+            // If player is already in an active multi-step dialogue with queued steps, advance dialogue
+            if ((p.QueueData != null && p.QueueData.Count > 0) || (p.StepQueue != null && p.StepQueue.Count > 0))
+            {
+                if (p.ContinueInteraction())
+                {
+                    return;
+                }
+            }
+            if (p.OnDialogueChoice != null)
+            {
+                // Active choice prompt is awaiting player selection
+                return;
+            }
+
             // Prioritize NPC interaction (dialogue, quests, battles)
             if (p.CurMap.ProcessInteraction((byte)clickID, p))
             {

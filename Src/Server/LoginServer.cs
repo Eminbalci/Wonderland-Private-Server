@@ -118,12 +118,23 @@ namespace Server
                     }
                     catch (SocketException ex)
                     {
-                        if (ex.ErrorCode != (int)SocketError.WouldBlock)
+                        if (ex.ErrorCode != (int)SocketError.WouldBlock &&
+                            ex.ErrorCode != 10004 &&
+                            ex.SocketErrorCode != SocketError.Interrupted &&
+                            ex.SocketErrorCode != SocketError.OperationAborted &&
+                            bKeepAlive && m_bKeepAlive)
+                        {
                             DebugSystem.Write(new ExceptionData(ex));
+                        }
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Expected during server shutdown
                     }
                     catch (Exception e)
                     {
-                        DebugSystem.Write(new ExceptionData(e));
+                        if (bKeepAlive && m_bKeepAlive)
+                            DebugSystem.Write(new ExceptionData(e));
                     }
 
                     lock (m_Lock)
@@ -135,15 +146,30 @@ namespace Server
             }
             catch (SocketException ex)
             {
-                DebugSystem.Write(new ExceptionData(ex));
+                if (ex.ErrorCode != 10004 &&
+                    ex.SocketErrorCode != SocketError.Interrupted &&
+                    ex.SocketErrorCode != SocketError.OperationAborted &&
+                    bKeepAlive && m_bKeepAlive)
+                {
+                    DebugSystem.Write(new ExceptionData(ex));
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected during server shutdown
             }
 
             bKeepAlive = false;
             try
             {
-                m_Socket.Shutdown(SocketShutdown.Both);
-                m_Socket.Close();
+                if (m_Socket != null && m_Socket.Connected)
+                {
+                    m_Socket.Shutdown(SocketShutdown.Both);
+                }
+                m_Socket?.Close();
             }
+            catch (ObjectDisposedException) { }
+            catch (SocketException) { }
             catch (Exception e)
             {
                 DebugSystem.Write(new ExceptionData(e));

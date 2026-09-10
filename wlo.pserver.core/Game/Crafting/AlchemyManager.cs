@@ -202,6 +202,22 @@ namespace Game.Crafting
         {
             try
             {
+                bool needsRecreate = false;
+                try
+                {
+                    var testDt = RCLibrary.Core.DataBase.Query("SELECT item1_id FROM alchemy_recipes LIMIT 1;");
+                    if (testDt == null) needsRecreate = true;
+                }
+                catch
+                {
+                    needsRecreate = true;
+                }
+
+                if (needsRecreate)
+                {
+                    RCLibrary.Core.DataBase.Execute("DROP TABLE IF EXISTS alchemy_recipes;");
+                }
+
                 RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS alchemy_recipes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     item1_id INT NOT NULL,

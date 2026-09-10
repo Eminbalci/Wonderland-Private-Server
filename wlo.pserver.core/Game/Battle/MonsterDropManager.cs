@@ -425,6 +425,22 @@ namespace Game.Battle
         {
             try
             {
+                bool needsRecreate = false;
+                try
+                {
+                    var testDt = RCLibrary.Core.DataBase.Query("SELECT monster_tid FROM monster_drops LIMIT 1;");
+                    if (testDt == null) needsRecreate = true;
+                }
+                catch
+                {
+                    needsRecreate = true;
+                }
+
+                if (needsRecreate)
+                {
+                    RCLibrary.Core.DataBase.Execute("DROP TABLE IF EXISTS monster_drops;");
+                }
+
                 RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS monster_drops (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     monster_tid INT DEFAULT 0,

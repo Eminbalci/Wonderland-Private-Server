@@ -125,6 +125,22 @@ namespace Game.Maps
         {
             try
             {
+                bool needsRecreate = false;
+                try
+                {
+                    var testDt = RCLibrary.Core.DataBase.Query("SELECT map_id FROM chest_drops LIMIT 1;");
+                    if (testDt == null) needsRecreate = true;
+                }
+                catch
+                {
+                    needsRecreate = true;
+                }
+
+                if (needsRecreate)
+                {
+                    RCLibrary.Core.DataBase.Execute("DROP TABLE IF EXISTS chest_drops;");
+                }
+
                 RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS chest_drops (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     map_id INT DEFAULT 0,

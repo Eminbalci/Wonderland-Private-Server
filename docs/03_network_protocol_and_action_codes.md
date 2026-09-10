@@ -80,6 +80,30 @@ byte targetPos  = reader.Unpack8(); // Target battle slot (0-7 enemies)
 ushort skillOrItemId = reader.Unpack16(); // Skill ID or Inventory Item ID
 ```
 
+### AC 20 Sub 1: NPC Interaction & Multi-Step Dialogue (S->C)
+```csharp
+SendPacket dPkt = new SendPacket();
+dPkt.Pack8(20);                                  // Action Code: 20
+dPkt.Pack8(1);                                   // SubCode: 1 (Dialogue Frame)
+dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);    // Session padding
+dPkt.Pack8(stepNum);                            // Dialog step number (1, 2, 3...)
+dPkt.Pack8(1);                                   // Fixed flag (1=Normal Dialogue, 6=Choice Prompt)
+dPkt.Pack8(portrait);                            // Portrait window (3=NPC, 7=Player)
+dPkt.Pack8(speakerClickId);                      // Speaker NPC Click ID (0 for player)
+dPkt.Pack8(0);                                   // Padding
+dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // Wire flags
+dPkt.Pack8(0);                                   // Padding
+dPkt.Pack8((byte)(talkId & 0xFF));               // TalkID LSB
+dPkt.Pack8((byte)((talkId >> 8) & 0xFF));        // TalkID MID
+dPkt.Pack8((byte)((talkId >> 16) & 0xFF));       // TalkID MSB (24-bit Little-Endian)
+```
+
+### AC 20 Dialogue Progression Flow
+1. **Initial NPC Click (`C->S AC 20:1`)**: Server parses native `eve.Emg` opcodes, sends Step 1 dialogue, and enqueues subsequent steps to `player.QueueData`.
+2. **Advance Next Step (`C->S AC 20:6` or `AC 20:1`)**: Server calls `player.ContinueInteraction()` to pop and transmit next step from `player.QueueData`.
+3. **Choice Selection (`C->S AC 20:9`)**: When a question prompt is active, client transmits selected option byte. Server invokes `player.OnDialogueChoice` to transition into matching choice branch.
+4. **Dialogue Finish**: Server restores player movement (`AC 5:4`), clears screen lock (`AC 20:8`), and restores UI (`AC 6:2:0`).
+
 ---
 
 ## 4. Connection State Machine

@@ -1,0 +1,5 @@
+﻿# WLO Single Server Status Color Configuration (Port 6416)
+# 1=Green (Yeşil), 2=Yellow (Sarı), 3=Red (Kırmızı), 0=Offline, 255=Auto
+CLUSTER=1
+SERVER_ID=1
+MODE=255

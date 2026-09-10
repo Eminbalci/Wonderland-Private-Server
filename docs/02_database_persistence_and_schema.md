@@ -42,16 +42,16 @@ Access is managed through [`RCLibrary.Core.DataBase`](file:///D:/GitHub/Wonderla
 | Table | Description | Primary Key / Indexes | Key Columns |
 | :--- | :--- | :--- | :--- |
 | `server_settings` | Dynamic server configuration | `key PRIMARY KEY` | `CLUSTER`, `SERVER_ID`, `MODE`, `EXP_RATE`, `DROP_RATE`, `GOLD_RATE`, `MAX_PLAYERS` |
-| `gm_accounts` | GM authorized accounts | `username UNIQUE` | `id PK`, `username`, `gm_level` (1-10), `notes` |
+| `gm_accounts` | GM authorized accounts | `username UNIQUE` | `id PK`, `name`, `username`, `gm_level` (1-10), `notes`, `added_at`, `added_by` |
 | `item_mall` | Authentic Item Mall catalog | `id PK` | `item_id`, `item_name`, `category`, `category_id`, `point_cost`, `original_price`, `gold_cost`, `count`, `is_hot`, `is_new`, `is_limited`, `on_sale`, `discount`, `badge`, `order_idx`, `is_bonus`, `subcategory_id` |
 | `starter_items` | New player welcome package | `id PK` | `order_idx`, `item_id`, `item_name`, `count`, `description` |
 | `guilds` | Player guilds | `guild_id PRIMARY KEY` | `guild_name`, `leader_char_id`, `leader_name`, `notice`, `created_date` |
 | `guild_members` | Guild membership rosters | `(guild_id, char_id) PK` | `guild_id`, `char_id`, `char_name`, `rank` (1-4), `join_date` |
-| `mails` | In-game postal mail system | `id PK` | `recipient_char_id`, `sender_name`, `title`, `content`, `item_id`, `item_count`, `gold`, `is_read`, `sent_time` |
+| `mails` | In-game postal mail system | `mail_id PK` | `sender_id`, `sender_name`, `receiver_id`, `subject`, `content`, `gold`, `item_id`, `count`, `date`, `is_read`, `is_claimed` |
 | `marriages` | Character marriage bonds | `(char_id1, char_id2) PK` | `char_id1`, `char_id2`, `marriage_date`, `rings_exchanged` |
-| `monster_drops` | Monster combat drop overrides | `id PK` | `monster_id`, `item_id`, `drop_rate` (0.0-100.0), `count` |
-| `chest_drops` | Map chest loot configurations | `id PK` | `chest_id`, `item_id`, `count`, `rate` |
-| `alchemy_recipes` | Compound crafting recipes | `id PK` | `item_id1`, `item_id2`, `result_item_id`, `rate` |
+| `monster_drops` | Monster combat drop overrides | `id PK` | `monster_tid`, `monster_pattern`, `item_id`, `item_name`, `min_count`, `max_count`, `drop_rate` (0.0-100.0) |
+| `chest_drops` | Map chest loot configurations | `id PK` | `map_id`, `category`, `item_id`, `item_name`, `count`, `chance` |
+| `alchemy_recipes` | Compound crafting recipes | `id PK` | `item1_id`, `item2_id`, `output_id`, `output_name`, `success_rate` |
 | `banned_ips` | Firewall network IP blacklist | `ip PRIMARY KEY` | `reason`, `banned_at`, `banned_by` |
 | `banned_users` | Account blacklist | `userID PRIMARY KEY` | `username`, `reason`, `banned_at`, `banned_by` |
 

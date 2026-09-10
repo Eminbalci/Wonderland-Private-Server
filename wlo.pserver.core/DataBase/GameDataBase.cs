@@ -109,6 +109,8 @@ namespace DataBase
             // Initialize and synchronize Quests database table
             QuestDataBase.Initialize(this);
 
+            MigrateLegacyTables();
+
             // Subsystem Database Tables Verification & Auto-Creation
             try
             {
@@ -133,6 +135,79 @@ namespace DataBase
             catch (Exception ex)
             {
                 DebugSystem.Write($"[GameDataBase] Error verifying subsystem database tables: {ex.Message}");
+            }
+        }
+
+        private void MigrateLegacyTables()
+        {
+            try
+            {
+                // 1. chest_drops
+                try
+                {
+                    var dt = GetDataTable("SELECT map_id FROM chest_drops LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS chest_drops;");
+                }
+
+                // 2. alchemy_recipes
+                try
+                {
+                    var dt = GetDataTable("SELECT item1_id FROM alchemy_recipes LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS alchemy_recipes;");
+                }
+
+                // 3. monster_drops
+                try
+                {
+                    var dt = GetDataTable("SELECT monster_tid FROM monster_drops LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS monster_drops;");
+                }
+
+                // 4. mails
+                try
+                {
+                    var dt = GetDataTable("SELECT mail_id FROM mails LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS mails;");
+                }
+
+                // 5. gm_accounts
+                try
+                {
+                    ExecuteNonQuery("CREATE TABLE IF NOT EXISTS gm_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, username TEXT, added_at TEXT, added_by TEXT);");
+                    var info = GetDataTable("PRAGMA table_info(gm_accounts);");
+                    var colNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (info != null)
+                    {
+                        foreach (System.Data.DataRow row in info.Rows)
+                        {
+                            colNames.Add(row["name"].ToString());
+                        }
+                    }
+                    if (!colNames.Contains("name")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN name TEXT;");
+                    if (!colNames.Contains("username")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN username TEXT;");
+                    if (!colNames.Contains("added_at")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN added_at TEXT;");
+                    if (!colNames.Contains("added_by")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN added_by TEXT;");
+
+                    ExecuteNonQuery("UPDATE gm_accounts SET name = username WHERE (name IS NULL OR name = '') AND username IS NOT NULL;");
+                    ExecuteNonQuery("UPDATE gm_accounts SET username = name WHERE (username IS NULL OR username = '') AND name IS NOT NULL;");
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error during legacy schema migration: {ex.Message}");
             }
         }
 
