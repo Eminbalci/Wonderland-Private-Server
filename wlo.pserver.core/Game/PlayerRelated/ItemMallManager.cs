@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Web.Script.Serialization;
 using Network;
 
 namespace Game.PlayerRelated
@@ -56,8 +57,8 @@ namespace Game.PlayerRelated
         private static readonly Dictionary<int, MallItemEntry> _bonusMap = new Dictionary<int, MallItemEntry>();
         private static readonly object _lock = new object();
 
-        private static readonly string JsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "item_mall.json");
-        private static readonly string TxtPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "item_mall.txt");
+        private static string JsonPath => RCLibrary.Core.PathHelper.GetDataFilePath("item_mall.json");
+        private static string TxtPath => RCLibrary.Core.PathHelper.GetDataFilePath("item_mall.txt");
 
         public static event Action OnCatalogChanged;
         public static Action<uint, int> OnPointsChanged;
@@ -516,9 +517,114 @@ namespace Game.PlayerRelated
         }
 
         // -------------------------------------------------------------
-        // File Loading & Parsing (JSON & TXT)
+        // Database Loading & Persistence
         // -------------------------------------------------------------
-        public static void LoadFromFile()
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS item_mall (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id INT NOT NULL,
+                    item_name TEXT,
+                    category TEXT,
+                    category_id INT DEFAULT 1,
+                    point_cost INT DEFAULT 0,
+                    original_price INT DEFAULT 0,
+                    gold_cost INT DEFAULT 0,
+                    count INT DEFAULT 1,
+                    is_hot INT DEFAULT 0,
+                    is_new INT DEFAULT 0,
+                    is_limited INT DEFAULT 0,
+                    on_sale INT DEFAULT 0,
+                    discount INT DEFAULT 100,
+                    badge INT DEFAULT 0,
+                    order_idx INT DEFAULT 0,
+                    is_bonus INT DEFAULT 0,
+                    subcategory_id INT DEFAULT 0,
+                    description TEXT
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ItemMall] Error verifying item_mall table: {ex.Message}");
+            }
+        }
+
+        public static void LoadFromFile() => LoadFromDatabase();
+
+        public static void LoadFromDatabase()
+        {
+            try
+            {
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM item_mall ORDER BY order_idx, item_id;");
+
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    // Table empty: seed from JSON/TXT files
+                    SeedDatabaseFromFiles();
+                    dt = RCLibrary.Core.DataBase.Query("SELECT * FROM item_mall ORDER BY order_idx, item_id;");
+                }
+
+                lock (_lock)
+                {
+                    _pointsCatalog.Clear();
+                    _bonusCatalog.Clear();
+                    _pointsMap.Clear();
+                    _bonusMap.Clear();
+
+                    if (dt != null)
+                    {
+                        foreach (System.Data.DataRow row in dt.Rows)
+                        {
+                            var entry = new MallItemEntry
+                            {
+                                ItemID = Convert.ToUInt16(row["item_id"]),
+                                ItemName = row["item_name"]?.ToString() ?? "",
+                                Category = row["category"]?.ToString() ?? "",
+                                CategoryID = Convert.ToByte(row["category_id"]),
+                                PointCost = Convert.ToInt32(row["point_cost"]),
+                                OriginalPrice = Convert.ToInt32(row["original_price"]),
+                                GoldCost = Convert.ToInt32(row["gold_cost"]),
+                                Count = Convert.ToByte(row["count"]),
+                                IsHot = Convert.ToByte(row["is_hot"]),
+                                IsNew = Convert.ToByte(row["is_new"]),
+                                IsLimited = Convert.ToByte(row["is_limited"]),
+                                OnSale = Convert.ToByte(row["on_sale"]),
+                                Discount = Convert.ToByte(row["discount"]),
+                                Badge = Convert.ToByte(row["badge"]),
+                                OrderIndex = Convert.ToUInt16(row["order_idx"]),
+                                IsBonus = Convert.ToByte(row["is_bonus"]),
+                                SubCategoryID = Convert.ToByte(row["subcategory_id"])
+                            };
+
+                            if (entry.IsBonus > 0)
+                            {
+                                _bonusCatalog.Add(entry);
+                                _bonusMap[entry.ItemID] = entry;
+                            }
+                            else
+                            {
+                                _pointsCatalog.Add(entry);
+                                _pointsMap[entry.ItemID] = entry;
+                            }
+                        }
+                    }
+
+                    _pointsCatalog.Sort((a, b) => a.OrderIndex.CompareTo(b.OrderIndex));
+                    _bonusCatalog.Sort((a, b) => a.OrderIndex.CompareTo(b.OrderIndex));
+                }
+
+                DebugSystem.Write($"[ItemMall] Successfully loaded {_pointsCatalog.Count} Points Mall items and {_bonusCatalog.Count} Bonus Mall items from SQLite database.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ItemMall] Error loading from database: {ex.Message}");
+            }
+        }
+
+        private static void SeedDatabaseFromFiles()
         {
             string candidateJson = null;
             string[] jsonPaths = new string[]
@@ -538,193 +644,117 @@ namespace Game.PlayerRelated
                 }
             }
 
+            List<MallItemEntry> parsedItems = null;
             if (candidateJson != null)
             {
                 try
                 {
                     string jsonContent = File.ReadAllText(candidateJson, Encoding.UTF8);
-                    var parsedItems = ParseJsonCatalog(jsonContent);
-
-                    if (parsedItems.Count > 0)
-                    {
-                        lock (_lock)
-                        {
-                            _pointsCatalog.Clear();
-                            _bonusCatalog.Clear();
-                            _pointsMap.Clear();
-                            _bonusMap.Clear();
-
-                            foreach (var it in parsedItems)
-                            {
-                                if (it.IsBonus > 0)
-                                {
-                                    _bonusCatalog.Add(it);
-                                    _bonusMap[it.ItemID] = it;
-                                }
-                                else
-                                {
-                                    _pointsCatalog.Add(it);
-                                    _pointsMap[it.ItemID] = it;
-                                }
-                            }
-
-                            _pointsCatalog.Sort((a, b) => a.OrderIndex.CompareTo(b.OrderIndex));
-                            _bonusCatalog.Sort((a, b) => a.OrderIndex.CompareTo(b.OrderIndex));
-                        }
-
-                        DebugSystem.Write($"[ItemMall] Successfully loaded {_pointsCatalog.Count} Points Mall items and {_bonusCatalog.Count} Bonus Mall items from '{candidateJson}'.");
-                        return;
-                    }
+                    parsedItems = ParseJsonCatalog(jsonContent);
                 }
-                catch (Exception ex)
-                {
-                    DebugSystem.Write($"[ItemMall] Warning loading JSON catalog: {ex.Message}. Falling back to TXT.");
-                }
+                catch { }
             }
 
-            // Fallback to item_mall.txt
-            LoadFromTxtFile();
-        }
-
-        private static List<MallItemEntry> ParseJsonCatalog(string json)
-        {
-            var list = new List<MallItemEntry>();
-            if (string.IsNullOrEmpty(json)) return list;
-
-            int idx = 0;
-            while ((idx = json.IndexOf('{', idx)) != -1)
+            if (parsedItems == null || parsedItems.Count == 0)
             {
-                int end = json.IndexOf('}', idx);
-                if (end == -1) break;
-                string block = json.Substring(idx + 1, end - idx - 1);
-                idx = end + 1;
-
-                var entry = new MallItemEntry();
-                var lines = block.Split(new char[] { ',', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var line in lines)
+                // Hardcoded minimum fallback
+                parsedItems = new List<MallItemEntry>
                 {
-                    int colon = line.IndexOf(':');
-                    if (colon <= 0) continue;
-                    string key = line.Substring(0, colon).Trim().Trim('"');
-                    string val = line.Substring(colon + 1).Trim().Trim('"', ' ', '\t');
-
-                    switch (key.ToLowerInvariant())
-                    {
-                        case "item_id": if (ushort.TryParse(val, out ushort id)) entry.ItemID = id; break;
-                        case "item_name": entry.ItemName = val; break;
-                        case "category": entry.Category = val; break;
-                        case "category_id": if (byte.TryParse(val, out byte cid)) entry.CategoryID = cid; break;
-                        case "point_cost": if (int.TryParse(val, out int pc)) entry.PointCost = pc; break;
-                        case "original_price": if (int.TryParse(val, out int op)) entry.OriginalPrice = op; break;
-                        case "gold_cost": if (int.TryParse(val, out int gc)) entry.GoldCost = gc; break;
-                        case "count": if (byte.TryParse(val, out byte cnt)) entry.Count = cnt; break;
-                        case "is_hot": if (byte.TryParse(val, out byte ih)) entry.IsHot = ih; break;
-                        case "is_new": if (byte.TryParse(val, out byte inw)) entry.IsNew = inw; break;
-                        case "is_limited": if (byte.TryParse(val, out byte il)) entry.IsLimited = il; break;
-                        case "on_sale": if (byte.TryParse(val, out byte os)) entry.OnSale = os; break;
-                        case "discount": if (byte.TryParse(val, out byte dc)) entry.Discount = dc; break;
-                        case "badge": if (byte.TryParse(val, out byte bd)) entry.Badge = bd; break;
-                        case "order_idx": if (ushort.TryParse(val, out ushort oi)) entry.OrderIndex = oi; break;
-                        case "is_bonus": if (byte.TryParse(val, out byte ib)) entry.IsBonus = ib; break;
-                        case "subcategory_id": if (byte.TryParse(val, out byte sc)) entry.SubCategoryID = sc; break;
-                    }
-                }
-                if (entry.ItemID > 0)
-                {
-                    if (entry.OriginalPrice <= 0) entry.OriginalPrice = entry.PointCost;
-                    if (entry.Discount <= 0) entry.Discount = 100;
-                    if (entry.CategoryID <= 0) entry.CategoryID = ResolveCategoryId(entry.Category);
-                    list.Add(entry);
-                }
+                    new MallItemEntry(47010, "Brilliant Diamond (+42 Stats)", "Gems", 250, 1),
+                    new MallItemEntry(47001, "+24 ATK Spar", "Gems", 120, 1),
+                    new MallItemEntry(47002, "+24 DEF Spar", "Gems", 120, 1),
+                    new MallItemEntry(48050, "Magic Repair Wrench", "Special", 80, 1),
+                    new MallItemEntry(36007, "Luxury Airship Ticket", "Vehicles", 500, 1),
+                    new MallItemEntry(30025, "Golden Rice Ball x10", "Pets", 50, 10)
+                };
             }
-            return list;
+
+            foreach (var it in parsedItems)
+            {
+                SaveItemToDatabase(it);
+            }
+            DebugSystem.Write($"[ItemMall] Seeded {parsedItems.Count} items into SQLite database.");
         }
 
-        private static void LoadFromTxtFile()
+        public static void SaveItemToDatabase(MallItemEntry it)
         {
+            if (it == null) return;
             try
             {
-                string dir = Path.GetDirectoryName(TxtPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                if (!File.Exists(TxtPath))
-                {
-                    lock (_lock)
-                    {
-                        _pointsCatalog.Clear();
-                        _pointsCatalog.Add(new MallItemEntry(47010, "Brilliant Diamond (+42 Stats)", "Gems", 250, 1));
-                        _pointsCatalog.Add(new MallItemEntry(47001, "+24 ATK Spar", "Gems", 120, 1));
-                        _pointsCatalog.Add(new MallItemEntry(47002, "+24 DEF Spar", "Gems", 120, 1));
-                        _pointsCatalog.Add(new MallItemEntry(47003, "+24 MATK Spar", "Gems", 120, 1));
-                        _pointsCatalog.Add(new MallItemEntry(47004, "+24 MDEF Spar", "Gems", 120, 1));
-                        _pointsCatalog.Add(new MallItemEntry(47005, "+24 SPD Spar", "Gems", 120, 1));
-                        _pointsCatalog.Add(new MallItemEntry(48050, "Magic Repair Wrench", "Special", 80, 1));
-                        _pointsCatalog.Add(new MallItemEntry(36007, "Luxury Airship Ticket", "Vehicles", 500, 1));
-                        _pointsCatalog.Add(new MallItemEntry(36008, "Space UFO Ticket", "Vehicles", 750, 1));
-                        _pointsCatalog.Add(new MallItemEntry(30025, "Golden Rice Ball x10", "Pets", 50, 10));
-                        _pointsCatalog.Add(new MallItemEntry(48033, "Zodiac Master Chest", "Special", 300, 1));
-                    }
-                    SaveToFile();
-                    return;
-                }
-
-                var lines = File.ReadAllLines(TxtPath, Encoding.UTF8);
-                lock (_lock)
-                {
-                    _pointsCatalog.Clear();
-                    _pointsMap.Clear();
-                    foreach (var rawLine in lines)
-                    {
-                        string line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
-
-                        var parts = line.Split('|');
-                        if (parts.Length >= 5)
-                        {
-                            if (ushort.TryParse(parts[0], out ushort id) &&
-                                int.TryParse(parts[3], out int cost) &&
-                                byte.TryParse(parts[4], out byte count))
-                            {
-                                string name = parts[1].Trim();
-                                string cat = parts[2].Trim();
-                                var entry = new MallItemEntry(id, name, cat, cost, count);
-                                _pointsCatalog.Add(entry);
-                                _pointsMap[id] = entry;
-                            }
-                        }
-                    }
-                }
-                DebugSystem.Write($"[ItemMall] Loaded {_pointsCatalog.Count} Mall items from TXT.");
+                VerifyTable();
+                string sql = $@"INSERT INTO item_mall 
+                    (item_id, item_name, category, category_id, point_cost, original_price, gold_cost, count, is_hot, is_new, is_limited, on_sale, discount, badge, order_idx, is_bonus, subcategory_id)
+                    VALUES ({it.ItemID}, '{it.ItemName.Replace("'", "''")}', '{it.Category.Replace("'", "''")}', {it.CategoryID}, {it.PointCost}, {it.OriginalPrice}, {it.GoldCost}, {it.Count}, {it.IsHot}, {it.IsNew}, {it.IsLimited}, {it.OnSale}, {it.Discount}, {it.Badge}, {it.OrderIndex}, {it.IsBonus}, {it.SubCategoryID});";
+                RCLibrary.Core.DataBase.Execute(sql);
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[ItemMall] Error loading catalog from TXT: {ex.Message}");
+                DebugSystem.Write($"[ItemMall] Error saving item to database: {ex.Message}");
             }
+        }
+
+        public static List<MallItemEntry> ParseJsonCatalog(string json)
+        {
+            var result = new List<MallItemEntry>();
+            if (string.IsNullOrWhiteSpace(json)) return result;
+            try
+            {
+                var serializer = new JavaScriptSerializer();
+                var items = serializer.Deserialize<List<Dictionary<string, object>>>(json);
+                if (items != null)
+                {
+                    foreach (var dict in items)
+                    {
+                        var entry = new MallItemEntry();
+                        if (dict.TryGetValue("item_id", out var idVal) && idVal != null)
+                            entry.ItemID = Convert.ToUInt16(idVal);
+                        if (dict.TryGetValue("item_name", out var nameVal) && nameVal != null)
+                            entry.ItemName = nameVal.ToString();
+                        if (dict.TryGetValue("category", out var catVal) && catVal != null)
+                            entry.Category = catVal.ToString();
+                        if (dict.TryGetValue("category_id", out var catIdVal) && catIdVal != null)
+                            entry.CategoryID = Convert.ToByte(catIdVal);
+                        if (dict.TryGetValue("point_cost", out var costVal) && costVal != null)
+                            entry.PointCost = Convert.ToInt32(costVal);
+                        if (dict.TryGetValue("original_price", out var origVal) && origVal != null)
+                            entry.OriginalPrice = Convert.ToInt32(origVal);
+                        if (dict.TryGetValue("gold_cost", out var goldVal) && goldVal != null)
+                            entry.GoldCost = Convert.ToInt32(goldVal);
+                        if (dict.TryGetValue("count", out var countVal) && countVal != null)
+                            entry.Count = Convert.ToByte(countVal);
+                        if (dict.TryGetValue("is_hot", out var hotVal) && hotVal != null)
+                            entry.IsHot = Convert.ToByte(hotVal);
+                        if (dict.TryGetValue("is_new", out var newVal) && newVal != null)
+                            entry.IsNew = Convert.ToByte(newVal);
+                        if (dict.TryGetValue("is_limited", out var limVal) && limVal != null)
+                            entry.IsLimited = Convert.ToByte(limVal);
+                        if (dict.TryGetValue("on_sale", out var saleVal) && saleVal != null)
+                            entry.OnSale = Convert.ToByte(saleVal);
+                        if (dict.TryGetValue("discount", out var discVal) && discVal != null)
+                            entry.Discount = Convert.ToByte(discVal);
+                        if (dict.TryGetValue("badge", out var badgeVal) && badgeVal != null)
+                            entry.Badge = Convert.ToByte(badgeVal);
+                        if (dict.TryGetValue("order_idx", out var ordVal) && ordVal != null)
+                            entry.OrderIndex = Convert.ToUInt16(ordVal);
+                        if (dict.TryGetValue("is_bonus", out var bonVal) && bonVal != null)
+                            entry.IsBonus = Convert.ToByte(bonVal);
+                        if (dict.TryGetValue("subcategory_id", out var subVal) && subVal != null)
+                            entry.SubCategoryID = Convert.ToByte(subVal);
+                        result.Add(entry);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ItemMall] Error parsing JSON catalog: {ex.Message}");
+            }
+            return result;
         }
 
         public static void SaveToFile()
         {
-            try
-            {
-                string dir = Path.GetDirectoryName(TxtPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                var sb = new StringBuilder();
-                sb.AppendLine("# WLO Item Mall Catalog Configuration");
-                sb.AppendLine("# Format: ItemID|ItemName|Category|PointCost|Count");
-                lock (_lock)
-                {
-                    foreach (var item in _pointsCatalog)
-                    {
-                        sb.AppendLine($"{item.ItemID}|{item.ItemName}|{item.Category}|{item.PointCost}|{item.Count}");
-                    }
-                }
-                File.WriteAllText(TxtPath, sb.ToString(), Encoding.UTF8);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[ItemMall] Error saving catalog: {ex.Message}");
-            }
+            // Backward-compatible alias for saving to database
+            LoadFromDatabase();
         }
 
         private static void SendSystemMsg(Player p, string msg)

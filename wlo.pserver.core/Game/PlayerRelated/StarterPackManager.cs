@@ -34,36 +34,29 @@ namespace Game.PlayerRelated
 
         private static string GetConfigPath()
         {
-            try
-            {
-                // 1. Check primary binary directory
-                string primaryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
-                if (File.Exists(primaryPath)) return primaryPath;
-
-                // 2. Check current working directory
-                string currentDirPath = Path.Combine(Environment.CurrentDirectory, "Data", "starter_items.json");
-                if (File.Exists(currentDirPath)) return currentDirPath;
-
-                // 3. Check development source directory fallback (bin\Debug\..\..\Data)
-                string devPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "starter_items.json");
-                if (File.Exists(devPath)) return Path.GetFullPath(devPath);
-
-                return primaryPath;
-            }
-            catch
-            {
-                return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
-            }
+            return RCLibrary.Core.PathHelper.GetDataFilePath("starter_items.json");
         }
 
         static StarterPackManager()
         {
-            LoadFromFile();
+            LoadFromDatabase();
         }
 
         public static void Initialize()
         {
-            LoadFromFile();
+            LoadFromDatabase();
+        }
+
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS starter_items (id INTEGER PRIMARY KEY AUTOINCREMENT, order_idx INT DEFAULT 1, item_id INT NOT NULL, item_name TEXT, count INT DEFAULT 1, description TEXT);");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[StarterPackManager] Error verifying starter_items table: {ex.Message}");
+            }
         }
 
         public static List<StarterItemEntry> GetItems()
@@ -79,8 +72,9 @@ namespace Game.PlayerRelated
             lock (_lock)
             {
                 int nextOrder = _items.Count > 0 ? _items.Max(i => i.OrderIdx) + 1 : 1;
-                _items.Add(new StarterItemEntry(nextOrder, itemId, name, count, desc));
-                SaveToFile();
+                var entry = new StarterItemEntry(nextOrder, itemId, name, count, desc);
+                _items.Add(entry);
+                SaveItemToDatabase(entry);
             }
         }
 
@@ -95,7 +89,7 @@ namespace Game.PlayerRelated
                     entry.ItemName = name;
                     entry.Count = Math.Max(1, count);
                     entry.Description = desc ?? string.Empty;
-                    SaveToFile();
+                    SaveToDatabase();
                     return true;
                 }
             }
@@ -109,105 +103,131 @@ namespace Game.PlayerRelated
                 int removed = _items.RemoveAll(i => i.ItemID == itemId);
                 if (removed > 0)
                 {
-                    SaveToFile();
+                    VerifyTable();
+                    RCLibrary.Core.DataBase.Execute($"DELETE FROM starter_items WHERE item_id = {itemId};");
                     return true;
                 }
             }
             return false;
         }
 
-        public static void LoadFromFile()
+        public static void LoadFromFile() => LoadFromDatabase();
+
+        public static void LoadFromDatabase()
         {
             lock (_lock)
             {
                 try
                 {
-                    string targetPath = GetConfigPath();
-                    string dir = Path.GetDirectoryName(targetPath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    VerifyTable();
+                    var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM starter_items ORDER BY order_idx, id;");
+                    if (dt == null || dt.Rows.Count == 0)
                     {
-                        Directory.CreateDirectory(dir);
+                        // Seed database
+                        SeedDatabase();
+                        dt = RCLibrary.Core.DataBase.Query("SELECT * FROM starter_items ORDER BY order_idx, id;");
                     }
 
-                    if (File.Exists(targetPath))
+                    _items.Clear();
+                    if (dt != null)
                     {
-                        string json = File.ReadAllText(targetPath, Encoding.UTF8);
-                        var serializer = new JavaScriptSerializer();
-                        var list = serializer.Deserialize<List<StarterItemEntry>>(json);
-                        if (list != null && list.Count > 0)
+                        foreach (System.Data.DataRow row in dt.Rows)
                         {
-                            _items.Clear();
-                            _items.AddRange(list);
-                            DebugSystem.Write($"[StarterPackManager] Loaded {_items.Count} starter items from {targetPath}");
-                            return;
+                            int order = Convert.ToInt32(row["order_idx"]);
+                            int itemId = Convert.ToInt32(row["item_id"]);
+                            string name = row["item_name"]?.ToString() ?? "";
+                            int count = Convert.ToInt32(row["count"]);
+                            string desc = row["description"]?.ToString() ?? "";
+
+                            _items.Add(new StarterItemEntry(order, itemId, name, count, desc));
                         }
                     }
+                    DebugSystem.Write($"[StarterPackManager] Loaded {_items.Count} starter items from SQLite database.");
                 }
                 catch (Exception ex)
                 {
-                    DebugSystem.Write($"[StarterPackManager] Error loading JSON: {ex.Message}");
+                    DebugSystem.Write($"[StarterPackManager] Error loading starter items: {ex.Message}");
                 }
+            }
+        }
 
-                if (_items.Count == 0)
+        private static void SeedDatabase()
+        {
+            List<StarterItemEntry> defaultList = null;
+            try
+            {
+                string targetPath = GetConfigPath();
+                if (File.Exists(targetPath))
                 {
-                    _items.Clear();
-                    _items.Add(new StarterItemEntry(1, 34038, "Starter Gift 1", 1, "Beginner gift package"));
-                    _items.Add(new StarterItemEntry(2, 34058, "Remote Control", 1, "Auto-combat and assistant remote control"));
-                    _items.Add(new StarterItemEntry(3, 34332, "Mini Dragonfly", 5, "Starter flying mount vehicle"));
-                    _items.Add(new StarterItemEntry(4, 32176, "Spicy Hot Pot", 50, "Full recovery food"));
-                    _items.Add(new StarterItemEntry(5, 34026, "Protective Exp Pill", 10, "Prevents EXP loss upon death"));
-                    _items.Add(new StarterItemEntry(6, 34542, "Substitute Doll", 1, "Prevents companion amity drop upon death"));
-                    _items.Add(new StarterItemEntry(7, 21742, "Goddess Robe", 1, "Starter protective equipment"));
-                    _items.Add(new StarterItemEntry(8, 34330, "Mini HP Potion", 1, "Starter HP healing potions"));
-                    _items.Add(new StarterItemEntry(9, 34190, "10x Holy EXP Potion", 5, "Boosts experience gain"));
-                    _items.Add(new StarterItemEntry(10, 34258, "Training Ticket", 5, "Instant training island pass"));
-                    SaveToFile();
+                    string json = File.ReadAllText(targetPath, Encoding.UTF8);
+                    var serializer = new JavaScriptSerializer();
+                    defaultList = serializer.Deserialize<List<StarterItemEntry>>(json);
                 }
+            }
+            catch { }
+
+            if (defaultList == null || defaultList.Count == 0)
+            {
+                defaultList = new List<StarterItemEntry>
+                {
+                    new StarterItemEntry(1, 34038, "Starter Gift 1", 1, "Beginner gift package"),
+                    new StarterItemEntry(2, 34058, "Remote Control", 1, "Auto-combat and assistant remote control"),
+                    new StarterItemEntry(3, 34332, "Mini Dragonfly", 5, "Starter flying mount vehicle"),
+                    new StarterItemEntry(4, 32176, "Spicy Hot Pot", 50, "Full recovery food"),
+                    new StarterItemEntry(5, 34026, "Protective Exp Pill", 10, "Prevents EXP loss upon death"),
+                    new StarterItemEntry(6, 34542, "Substitute Doll", 1, "Prevents companion amity drop upon death"),
+                    new StarterItemEntry(7, 21742, "Goddess Robe", 1, "Starter protective equipment"),
+                    new StarterItemEntry(8, 34330, "Mini HP Potion", 1, "Starter HP healing potions"),
+                    new StarterItemEntry(9, 34190, "10x Holy EXP Potion", 5, "Boosts experience gain"),
+                    new StarterItemEntry(10, 34258, "Training Ticket", 5, "Instant training island pass")
+                };
+            }
+
+            foreach (var item in defaultList)
+            {
+                SaveItemToDatabase(item);
+            }
+            DebugSystem.Write($"[StarterPackManager] Seeded {defaultList.Count} starter items into SQLite database.");
+        }
+
+        private static void SaveItemToDatabase(StarterItemEntry item)
+        {
+            if (item == null) return;
+            try
+            {
+                VerifyTable();
+                string sql = $"INSERT INTO starter_items (order_idx, item_id, item_name, count, description) VALUES ({item.OrderIdx}, {item.ItemID}, '{item.ItemName.Replace("'", "''")}', {item.Count}, '{item.Description.Replace("'", "''")}');";
+                RCLibrary.Core.DataBase.Execute(sql);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[StarterPackManager] Error saving item: {ex.Message}");
+            }
+        }
+
+        public static void SaveToDatabase()
+        {
+            try
+            {
+                VerifyTable();
+                lock (_lock)
+                {
+                    RCLibrary.Core.DataBase.Execute("DELETE FROM starter_items;");
+                    foreach (var it in _items)
+                    {
+                        SaveItemToDatabase(it);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[StarterPackManager] Error saving to database: {ex.Message}");
             }
         }
 
         public static void SaveToFile()
         {
-            try
-            {
-                lock (_lock)
-                {
-                    var serializer = new JavaScriptSerializer();
-                    string json = serializer.Serialize(_items);
-
-                    // Save to active path
-                    string activePath = GetConfigPath();
-                    string dir = Path.GetDirectoryName(activePath);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                    File.WriteAllText(activePath, json, Encoding.UTF8);
-
-                    // Also synchronize to primary bin directory if different
-                    string primaryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
-                    if (!string.Equals(activePath, primaryPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        string pDir = Path.GetDirectoryName(primaryPath);
-                        if (!string.IsNullOrEmpty(pDir) && !Directory.Exists(pDir)) Directory.CreateDirectory(pDir);
-                        File.WriteAllText(primaryPath, json, Encoding.UTF8);
-                    }
-
-                    // Also synchronize to project root directory if accessible
-                    string devPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "starter_items.json");
-                    try
-                    {
-                        string fullDevPath = Path.GetFullPath(devPath);
-                        string devDir = Path.GetDirectoryName(fullDevPath);
-                        if (Directory.Exists(devDir) && !string.Equals(activePath, fullDevPath, StringComparison.OrdinalIgnoreCase))
-                        {
-                            File.WriteAllText(fullDevPath, json, Encoding.UTF8);
-                        }
-                    }
-                    catch { /* Best-effort dev sync */ }
-                }
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[StarterPackManager] Error saving JSON: {ex.Message}");
-            }
+            SaveToDatabase();
         }
 
         public static bool ImportJson(string json)

@@ -44,7 +44,7 @@ namespace Game.PlayerRelated
         private static readonly Dictionary<uint, List<MailMessage>> _inboxes = new Dictionary<uint, List<MailMessage>>(); // ReceiverID -> List of mails
         private static readonly object _lock = new object();
         private static uint _nextMailId = 1;
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "mails.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("mails.txt");
 
         public static void Initialize()
         {
@@ -106,7 +106,7 @@ namespace Game.PlayerRelated
                 }
                 if (found)
                 {
-                    SaveMail(null);
+                    RCLibrary.Core.DataBase.Execute($"DELETE FROM mails WHERE mail_id = {mailId};");
                     return true;
                 }
             }
@@ -294,25 +294,49 @@ namespace Game.PlayerRelated
             p.Send(s);
         }
 
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS mails (
+                    mail_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sender_id INT DEFAULT 0,
+                    sender_name TEXT,
+                    receiver_id INT NOT NULL,
+                    subject TEXT,
+                    content TEXT,
+                    gold INT DEFAULT 0,
+                    item_id INT DEFAULT 0,
+                    count INT DEFAULT 0,
+                    date TEXT,
+                    is_read INT DEFAULT 0,
+                    is_claimed INT DEFAULT 0
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[MailSystem] Error verifying mails table: {ex.Message}");
+            }
+        }
+
         public static void LoadFromDatabase()
         {
             try
             {
-                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM mails ORDER BY mail_id;");
 
-                if (File.Exists(ConfigPath))
+                if (dt == null || dt.Rows.Count == 0)
                 {
-                    var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
-                    lock (_lock)
+                    // Check migration from mails.txt
+                    if (File.Exists(ConfigPath))
                     {
-                        _inboxes.Clear();
+                        var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
                         foreach (var rawLine in lines)
                         {
                             string line = rawLine.Trim();
                             if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
 
-                            // Format: ID|SenderID|SenderName|ReceiverID|Subject|Content|Gold|ItemID|Count|Date|Read|Claimed
                             var parts = line.Split('|');
                             if (parts.Length >= 6)
                             {
@@ -329,49 +353,73 @@ namespace Game.PlayerRelated
                                         IsRead = read,
                                         IsClaimed = claimed
                                     };
-
-                                    if (!_inboxes.TryGetValue(rId, out var list))
-                                    {
-                                        list = new List<MailMessage>();
-                                        _inboxes[rId] = list;
-                                    }
-                                    list.Add(m);
-
-                                    if (mId >= _nextMailId) _nextMailId = mId + 1;
+                                    SaveMail(m);
                                 }
                             }
                         }
                     }
+                    dt = RCLibrary.Core.DataBase.Query("SELECT * FROM mails ORDER BY mail_id;");
                 }
-                DebugSystem.Write($"[MailSystem] Loaded {_inboxes.Values.Sum(l => l.Count)} mails into system.");
+
+                lock (_lock)
+                {
+                    _inboxes.Clear();
+                    if (dt != null)
+                    {
+                        foreach (System.Data.DataRow row in dt.Rows)
+                        {
+                            uint mId = Convert.ToUInt32(row["mail_id"]);
+                            uint sId = Convert.ToUInt32(row["sender_id"]);
+                            string sName = row["sender_name"]?.ToString() ?? "";
+                            uint rId = Convert.ToUInt32(row["receiver_id"]);
+                            string subj = row["subject"]?.ToString() ?? "";
+                            string cont = row["content"]?.ToString() ?? "";
+                            uint gold = Convert.ToUInt32(row["gold"]);
+                            ushort itId = Convert.ToUInt16(row["item_id"]);
+                            byte count = Convert.ToByte(row["count"]);
+                            bool isRead = Convert.ToInt32(row["is_read"]) == 1;
+                            bool isClaimed = Convert.ToInt32(row["is_claimed"]) == 1;
+
+                            var m = new MailMessage(mId, sId, sName, rId, subj, cont, gold, itId, count)
+                            {
+                                IsRead = isRead,
+                                IsClaimed = isClaimed
+                            };
+
+                            if (!_inboxes.TryGetValue(rId, out var list))
+                            {
+                                list = new List<MailMessage>();
+                                _inboxes[rId] = list;
+                            }
+                            list.Add(m);
+                            if (mId >= _nextMailId) _nextMailId = mId + 1;
+                        }
+                    }
+                }
+
+                DebugSystem.Write($"[MailSystem] Loaded {_inboxes.Values.Sum(l => l.Count)} mails from SQLite database.");
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[MailSystem] Error loading mails: {ex.Message}");
+                DebugSystem.Write($"[MailSystem] Error loading mails from database: {ex.Message}");
             }
         }
 
         private static void SaveMail(MailMessage m)
         {
+            if (m == null) return;
             try
             {
-                lock (_lock)
-                {
-                    var sb = new StringBuilder();
-                    sb.AppendLine("# WLO Mails Database File");
-                    foreach (var list in _inboxes.Values)
-                    {
-                        foreach (var msg in list)
-                        {
-                            sb.AppendLine($"{msg.MailID}|{msg.SenderID}|{msg.SenderName}|{msg.ReceiverID}|{msg.Subject}|{msg.Content}|{msg.AttachedGold}|{msg.AttachedItemID}|{msg.AttachedItemCount}|{msg.SentDate:O}|{msg.IsRead}|{msg.IsClaimed}");
-                        }
-                    }
-                    File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
-                }
+                VerifyTable();
+                string now = m.SentDate.ToString("yyyy-MM-dd HH:mm:ss");
+                string sql = $@"INSERT OR REPLACE INTO mails 
+                    (mail_id, sender_id, sender_name, receiver_id, subject, content, gold, item_id, count, date, is_read, is_claimed)
+                    VALUES ({m.MailID}, {m.SenderID}, '{m.SenderName.Replace("'", "''")}', {m.ReceiverID}, '{m.Subject.Replace("'", "''")}', '{m.Content.Replace("'", "''")}', {m.AttachedGold}, {m.AttachedItemID}, {m.AttachedItemCount}, '{now}', {(m.IsRead ? 1 : 0)}, {(m.IsClaimed ? 1 : 0)});";
+                RCLibrary.Core.DataBase.Execute(sql);
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[MailSystem] Error saving mails: {ex.Message}");
+                DebugSystem.Write($"[MailSystem] Error saving mail to database: {ex.Message}");
             }
         }
     }

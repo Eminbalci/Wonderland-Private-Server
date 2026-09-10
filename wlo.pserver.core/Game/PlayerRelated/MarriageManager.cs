@@ -34,7 +34,7 @@ namespace Game.PlayerRelated
         private static readonly Dictionary<uint, MarriageRecord> _marriagesByCharId = new Dictionary<uint, MarriageRecord>();
         private static readonly Dictionary<uint, uint> _pendingProposals = new Dictionary<uint, uint>(); // TargetID -> ProposerID
         private static readonly object _lock = new object();
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "marriages.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("marriages.txt");
 
         public static void Initialize()
         {
@@ -311,25 +311,44 @@ namespace Game.PlayerRelated
             p.Send(s);
         }
 
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS marriages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    husband_id INT NOT NULL,
+                    husband_name TEXT,
+                    wife_id INT NOT NULL,
+                    wife_name TEXT,
+                    marriage_date TEXT,
+                    UNIQUE(husband_id, wife_id)
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[MarriageManager] Error verifying marriages table: {ex.Message}");
+            }
+        }
+
         public static void LoadFromDatabase()
         {
             try
             {
-                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM marriages;");
 
-                if (File.Exists(ConfigPath))
+                if (dt == null || dt.Rows.Count == 0)
                 {
-                    var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
-                    lock (_lock)
+                    // Check migration from marriages.txt
+                    if (File.Exists(ConfigPath))
                     {
-                        _marriagesByCharId.Clear();
+                        var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
                         foreach (var rawLine in lines)
                         {
                             string line = rawLine.Trim();
                             if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
 
-                            // Format: HUSBAND_ID|HUSBAND_NAME|WIFE_ID|WIFE_NAME|DATE
                             var parts = line.Split('|');
                             if (parts.Length >= 4)
                             {
@@ -338,15 +357,36 @@ namespace Game.PlayerRelated
                                     var record = new MarriageRecord(hId, parts[1], wId, parts[3]);
                                     if (parts.Length > 4 && DateTime.TryParse(parts[4], out DateTime d))
                                         record.MarriageDate = d;
-
-                                    _marriagesByCharId[hId] = record;
-                                    _marriagesByCharId[wId] = record;
+                                    SaveMarriage(record);
                                 }
                             }
                         }
                     }
+                    dt = RCLibrary.Core.DataBase.Query("SELECT * FROM marriages;");
                 }
-                DebugSystem.Write($"[MarriageManager] Loaded {_marriagesByCharId.Count / 2} marriage records.");
+
+                lock (_lock)
+                {
+                    _marriagesByCharId.Clear();
+                    if (dt != null)
+                    {
+                        foreach (System.Data.DataRow row in dt.Rows)
+                        {
+                            uint hId = Convert.ToUInt32(row["husband_id"]);
+                            string hName = row["husband_name"]?.ToString() ?? "";
+                            uint wId = Convert.ToUInt32(row["wife_id"]);
+                            string wName = row["wife_name"]?.ToString() ?? "";
+                            var record = new MarriageRecord(hId, hName, wId, wName);
+                            if (DateTime.TryParse(row["marriage_date"]?.ToString(), out DateTime d))
+                                record.MarriageDate = d;
+
+                            _marriagesByCharId[hId] = record;
+                            _marriagesByCharId[wId] = record;
+                        }
+                    }
+                }
+
+                DebugSystem.Write($"[MarriageManager] Loaded {_marriagesByCharId.Count / 2} marriage records from SQLite database.");
             }
             catch (Exception ex)
             {
@@ -356,28 +396,17 @@ namespace Game.PlayerRelated
 
         private static void SaveMarriage(MarriageRecord record)
         {
+            if (record == null) return;
             try
             {
-                lock (_lock)
-                {
-                    var sb = new StringBuilder();
-                    sb.AppendLine("# WLO Marriage Database File");
-                    var written = new HashSet<uint>();
-
-                    foreach (var m in _marriagesByCharId.Values)
-                    {
-                        if (!written.Contains(m.HusbandID))
-                        {
-                            written.Add(m.HusbandID);
-                            sb.AppendLine($"{m.HusbandID}|{m.HusbandName}|{m.WifeID}|{m.WifeName}|{m.MarriageDate:O}");
-                        }
-                    }
-                    File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
-                }
+                VerifyTable();
+                string sql = $@"INSERT OR REPLACE INTO marriages (husband_id, husband_name, wife_id, wife_name, marriage_date)
+                    VALUES ({record.HusbandID}, '{record.HusbandName.Replace("'", "''")}', {record.WifeID}, '{record.WifeName.Replace("'", "''")}', '{record.MarriageDate:O}');";
+                RCLibrary.Core.DataBase.Execute(sql);
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[MarriageManager] Error saving marriages: {ex.Message}");
+                DebugSystem.Write($"[MarriageManager] Error saving marriage to database: {ex.Message}");
             }
         }
 
@@ -385,29 +414,12 @@ namespace Game.PlayerRelated
         {
             try
             {
-                lock (_lock)
-                {
-                    var sb = new StringBuilder();
-                    sb.AppendLine("# WLO Marriage Database File");
-                    var written = new HashSet<uint>();
-
-                    foreach (var m in _marriagesByCharId.Values)
-                    {
-                        if (m.HusbandID != id1 && m.WifeID != id1 && m.HusbandID != id2 && m.WifeID != id2)
-                        {
-                            if (!written.Contains(m.HusbandID))
-                            {
-                                written.Add(m.HusbandID);
-                                sb.AppendLine($"{m.HusbandID}|{m.HusbandName}|{m.WifeID}|{m.WifeName}|{m.MarriageDate:O}");
-                            }
-                        }
-                    }
-                    File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
-                }
+                VerifyTable();
+                RCLibrary.Core.DataBase.Execute($"DELETE FROM marriages WHERE husband_id = {id1} OR wife_id = {id1} OR husband_id = {id2} OR wife_id = {id2};");
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[MarriageManager] Error updating marriages after divorce: {ex.Message}");
+                DebugSystem.Write($"[MarriageManager] Error deleting marriage from database: {ex.Message}");
             }
         }
     }

@@ -52,25 +52,65 @@ namespace Wonderland_Private_Server
                 RunClientProgram();
                 return true;
             }
+            if (keyData == (Keys.Shift | Keys.F5))
+            {
+                SelectClientProgramPath();
+                return true;
+            }
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void SelectClientProgramPath()
+        {
+            try
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog())
+                {
+                    ofd.Title = "Select Wonderland Online Client (aLogin.exe) Location";
+                    ofd.Filter = "Client Executable (aLogin.exe)|aLogin.exe|All Executables (*.exe)|*.exe";
+                    ofd.FileName = "aLogin.exe";
+                    string currentDir = RCLibrary.Core.PathHelper.ClientDirectory;
+                    if (!string.IsNullOrEmpty(currentDir) && Directory.Exists(currentDir))
+                    {
+                        ofd.InitialDirectory = currentDir;
+                    }
+                    if (ofd.ShowDialog(this) == DialogResult.OK && File.Exists(ofd.FileName))
+                    {
+                        RCLibrary.Core.PathHelper.ClientDirectory = Path.GetDirectoryName(ofd.FileName);
+                        DebugSystem.Write(DebugItemType.Info_Light, $"[System] Client location set to: {ofd.FileName}");
+                        MessageBox.Show($"Client location updated successfully:\n{ofd.FileName}", "Client Location", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, "[System] Client selection error: " + ex.Message);
+            }
         }
 
         private void RunClientProgram()
         {
             try
             {
-                string[] searchPaths = new string[]
+                string clientPath = RCLibrary.Core.PathHelper.GetClientExecutablePath();
+
+                if (string.IsNullOrEmpty(clientPath) || !File.Exists(clientPath))
                 {
-                    @"D:\garipgudubetseyler\WLRI\aLogin.exe",
-                    @"C:\Games\WLRI\aLogin.exe",
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "aLogin.exe"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WLRI", "aLogin.exe"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "WLRI", "aLogin.exe")
-                };
+                    // Prompt user with file dialog to locate aLogin.exe
+                    using (OpenFileDialog ofd = new OpenFileDialog())
+                    {
+                        ofd.Title = "Select Wonderland Online Client Executable (aLogin.exe)";
+                        ofd.Filter = "Client Executable (aLogin.exe)|aLogin.exe|All Executables (*.exe)|*.exe";
+                        ofd.FileName = "aLogin.exe";
+                        if (ofd.ShowDialog(this) == DialogResult.OK && File.Exists(ofd.FileName))
+                        {
+                            clientPath = ofd.FileName;
+                            RCLibrary.Core.PathHelper.ClientDirectory = Path.GetDirectoryName(clientPath);
+                        }
+                    }
+                }
 
-                string clientPath = searchPaths.FirstOrDefault(File.Exists);
-
-                if (!string.IsNullOrEmpty(clientPath))
+                if (!string.IsNullOrEmpty(clientPath) && File.Exists(clientPath))
                 {
                     ProcessStartInfo psi = new ProcessStartInfo
                     {
@@ -79,16 +119,16 @@ namespace Wonderland_Private_Server
                         UseShellExecute = true
                     };
                     Process.Start(psi);
-                    DebugSystem.Write(DebugItemType.Info_Light, "[System] F5 pressed: Client process started (" + clientPath + ")");
+                    DebugSystem.Write(DebugItemType.Info_Light, "[System] Client process started (" + clientPath + ")");
                 }
                 else
                 {
-                    DebugSystem.Write(DebugItemType.Error, "[System] F5 pressed: Client executable (aLogin.exe) not found.");
+                    DebugSystem.Write(DebugItemType.Error, "[System] Client executable (aLogin.exe) not found or selection cancelled.");
                 }
             }
             catch (Exception ex)
             {
-                DebugSystem.Write(DebugItemType.Error, "[System] F5 pressed error: " + ex.Message);
+                DebugSystem.Write(DebugItemType.Error, "[System] Client launch error: " + ex.Message);
             }
         }
 
@@ -107,8 +147,10 @@ namespace Wonderland_Private_Server
             {
                 DebugSystem.Write(DebugItemType.Info_Light, "Loading Compound/Alchemy Data...");
                 cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
-                cGlobal.gCompoundDat.Load("Data\\Compound.dat");
-                cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false); // append
+                string comp1 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound.dat");
+                if (File.Exists(comp1)) cGlobal.gCompoundDat.Load(comp1);
+                string comp2 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound2.dat");
+                if (File.Exists(comp2)) cGlobal.gCompoundDat.Load(comp2, false); // append
                 DebugSystem.Write(DebugItemType.Info_Light, "Compound Data Loaded.");
             }
             catch (Exception ex)
@@ -219,14 +261,9 @@ namespace Wonderland_Private_Server
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
             cGlobal.ItemDatManager.onDebug = (obj) => { };
-            string[] itemDatCandidates = new string[]
-            {
-                System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "itemDat.wpdat"),
-                @"Data\itemDat.wpdat",
-                @"..\..\Data\itemDat.wpdat"
-            };
-            string itemDatPath = itemDatCandidates.FirstOrDefault(System.IO.File.Exists);
-            if (!string.IsNullOrEmpty(itemDatPath))
+            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
+            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
+            if (!string.IsNullOrEmpty(itemDatPath) && System.IO.File.Exists(itemDatPath))
             {
                 cGlobal.ItemDatManager.Load(itemDatPath).Wait();
                 DebugSystem.Write($"[Init] - Loaded {cGlobal.ItemDatManager.GetItemList().Count} items from {System.IO.Path.GetFileName(itemDatPath)}");
@@ -247,16 +284,16 @@ namespace Wonderland_Private_Server
                 return null;
             };
 
-            string talkDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+            string talkDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Talk.dat");
             cGlobal.TalkDatManager = new DataFiles.PhxTalkDat(talkDatPath);
             DebugSystem.Write($"[Init] - Loaded {cGlobal.TalkDatManager.Count} authentic dialogues from Talk.dat");
 
-            string markDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Mark.dat");
+            string markDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Mark.dat");
             cGlobal.MarkDatManager = new DataFiles.PhxMarkDat(markDatPath);
             Game.QuestRelated.QuestManager.LoadAuthenticQuestsFromMarkDat(markDatPath);
             DebugSystem.Write($"[Init] - Loaded {cGlobal.MarkDatManager.Count} quest marks directly from Mark.dat (Total Quests: {Game.QuestRelated.QuestManager.AllQuests.Count})");
 
-            string npcDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Npc.dat");
+            string npcDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
             Game.Battle.MonsterDropManager.LoadFromNpcDat(npcDatPath);
 
             Game.SkillRelated.SkillManager.LoadSkillDatabase();
@@ -303,9 +340,7 @@ namespace Wonderland_Private_Server
             //cGlobal.gGameDataBase = new DataManagement.DataBase.GameDataBase();
             //cGlobal.gItemManager = new DataManagement.DataFiles.ItemManager();
             //cGlobal.gSkillManager = new DataManagement.DataFiles.SkillDataFile();
-            string compound2Path = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Compound2.dat");
-            if (!System.IO.File.Exists(compound2Path)) compound2Path = @"Data\Compound2.dat";
-            if (!System.IO.File.Exists(compound2Path)) compound2Path = @"..\..\Data\Compound2.dat";
+            string compound2Path = RCLibrary.Core.PathHelper.GetDataFilePath("Compound2.dat");
             if (System.IO.File.Exists(compound2Path))
             {
                 cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
@@ -450,7 +485,8 @@ namespace Wonderland_Private_Server
             //cGlobal.gItemManager.LoadItems("Data\\Item.dat");
             //cGlobal.gSkillManager.LoadSkills("Data\\Skill.dat");
             //cGlobal.gNpcManager.LoadNpc("Data\\Npc.dat");
-            cGlobal.gGameDataBase.EveDat.LoadFile("Data\\eve.Emg");
+            string eveEmgPath = RCLibrary.Core.PathHelper.GetDataFilePath("eve.Emg");
+            cGlobal.gGameDataBase.EveDat.LoadFile(eveEmgPath);
             //cGlobal.gCompoundDat.Load("Data\\Compound.dat");
             //cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false);
 
@@ -502,7 +538,18 @@ namespace Wonderland_Private_Server
                 {
                     if (this.IsHandleCreated && !this.IsDisposed)
                     {
-                        this.BeginInvoke(new Action(() => { this.Enabled = false; }));
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            if (btnSafeShutdown != null && !btnSafeShutdown.IsDisposed)
+                            {
+                                btnSafeShutdown.Enabled = false;
+                                btnSafeShutdown.Text = "Shutting down...";
+                            }
+                            if (btnSaveAllNow != null && !btnSaveAllNow.IsDisposed)
+                            {
+                                btnSaveAllNow.Enabled = false;
+                            }
+                        }));
                     }
                 }
                 catch { }
@@ -599,6 +646,56 @@ namespace Wonderland_Private_Server
                 }
 
                 DebugSystem.Write($"[SafeShutdown] Safe server shutdown completed successfully ({savedPlayers} players saved).");
+
+                // 6. Log File Location Display & 10-Second Countdown
+                string logPath = DebugSystem.LogFilePath;
+                DebugSystem.Flush();
+
+                string banner = "================================================================================";
+                DebugSystem.Write(banner);
+                DebugSystem.Write("[SAFE SERVER SHUTDOWN]");
+                DebugSystem.Write($"All server data, drop configurations, and {savedPlayers} players saved successfully.");
+                DebugSystem.Write($"LOG FILE LOCATION: {logPath}");
+                DebugSystem.Write("Server will close automatically in 10 seconds...");
+                DebugSystem.Write(banner);
+
+                Console.WriteLine();
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {banner}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SAFE SERVER SHUTDOWN]");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] All server data, drop configurations, and {savedPlayers} players saved successfully.");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] LOG FILE LOCATION: {logPath}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Server will close automatically in 10 seconds...");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {banner}");
+
+                for (int i = 10; i >= 1; i--)
+                {
+                    string cdMsg = $"[SafeShutdown] Application closing... Time remaining: {i} seconds (Log file: {logPath})";
+                    DebugSystem.Write(cdMsg);
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {cdMsg}");
+
+                    try
+                    {
+                        if (this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                if (btnSafeShutdown != null && !btnSafeShutdown.IsDisposed)
+                                {
+                                    btnSafeShutdown.Text = $"Closing ({i}s)...";
+                                }
+                                this.Text = $"Wonderland Private Server - Closing ({i}s)...";
+                            }));
+                        }
+                    }
+                    catch { }
+
+                    Thread.Sleep(1000);
+                }
+
+                string doneMsg = "[SafeShutdown] 10-second countdown completed. Server and application are shutting down safely.";
+                DebugSystem.Write(doneMsg);
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {doneMsg}");
+                DebugSystem.EndIntialize();
             }
             catch (Exception ex)
             {
@@ -1272,22 +1369,51 @@ namespace Wonderland_Private_Server
                 dgvSettings.Columns.Add("JOINABLE", "Join Mode");
                 dgvSettings.Columns.Add("TRADABLE", "Trade Mode");
 
+                // Ensure table exists
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
+
                 // Get online players
                 var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                var populatedChars = new HashSet<uint>();
+
                 if (onlinePlayers != null)
                 {
                     foreach (var player in onlinePlayers)
                     {
                         if (player.Settings != null)
                         {
+                            populatedChars.Add(player.CharID);
                             dgvSettings.Rows.Add(
                                 player.CharID,
-                                player.CharName,
+                                player.CharName + " (Online)",
                                 player.Settings.PKABLE ? "ON" : "OFF",
                                 player.Settings.JOINABLE ? "ON" : "OFF",
                                 player.Settings.TRADABLE ? "ON" : "OFF"
                             );
                         }
+                    }
+                }
+
+                // Also list offline characters from database
+                var dtChars = RCLibrary.Core.DataBase.Query("SELECT c.charID, c.name, COALESCE(s.pk_mode, 0) as pk, COALESCE(s.join_mode, 1) as jn, COALESCE(s.trade_mode, 1) as tr FROM characters c LEFT JOIN player_settings s ON c.charID = s.char_id;");
+                if (dtChars != null)
+                {
+                    foreach (System.Data.DataRow row in dtChars.Rows)
+                    {
+                        uint cId = Convert.ToUInt32(row["charID"]);
+                        if (populatedChars.Contains(cId)) continue;
+                        string cName = row["name"]?.ToString() ?? "";
+                        bool pk = Convert.ToInt32(row["pk"]) == 1;
+                        bool jn = Convert.ToInt32(row["jn"]) == 1;
+                        bool tr = Convert.ToInt32(row["tr"]) == 1;
+
+                        dgvSettings.Rows.Add(
+                            cId,
+                            cName + " (Offline)",
+                            pk ? "ON" : "OFF",
+                            jn ? "ON" : "OFF",
+                            tr ? "ON" : "OFF"
+                        );
                     }
                 }
 
@@ -1308,6 +1434,8 @@ namespace Wonderland_Private_Server
         {
             try
             {
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
+
                 int savedCount = 0;
                 foreach (DataGridViewRow row in dgvSettings.Rows)
                 {
@@ -1318,20 +1446,28 @@ namespace Wonderland_Private_Server
                     string joinStr = row.Cells["JOINABLE"].Value?.ToString() ?? "OFF";
                     string tradeStr = row.Cells["TRADABLE"].Value?.ToString() ?? "OFF";
 
-                    // Find online player
+                    bool pkVal = pkStr.ToUpper() == "ON" || pkStr == "1" || pkStr.ToUpper() == "TRUE";
+                    bool joinVal = joinStr.ToUpper() == "ON" || joinStr == "1" || joinStr.ToUpper() == "TRUE";
+                    bool tradeVal = tradeStr.ToUpper() == "ON" || tradeStr == "1" || tradeStr.ToUpper() == "TRUE";
+
+                    // Persist to database
+                    string sql = $"INSERT OR REPLACE INTO player_settings (char_id, pk_mode, join_mode, trade_mode) VALUES ({charID}, {(pkVal ? 1 : 0)}, {(joinVal ? 1 : 0)}, {(tradeVal ? 1 : 0)});";
+                    RCLibrary.Core.DataBase.Execute(sql);
+
+                    // If player is online, also update runtime object
                     var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
                     var player = onlinePlayers?.FirstOrDefault(p => p.CharID == charID);
 
                     if (player?.Settings != null)
                     {
-                        player.Settings.PKABLE = pkStr.ToUpper() == "ON" || pkStr == "1" || pkStr.ToUpper() == "TRUE";
-                        player.Settings.JOINABLE = joinStr.ToUpper() == "ON" || joinStr == "1" || joinStr.ToUpper() == "TRUE";
-                        player.Settings.TRADABLE = tradeStr.ToUpper() == "ON" || tradeStr == "1" || tradeStr.ToUpper() == "TRUE";
-                        savedCount++;
+                        player.Settings.PKABLE = pkVal;
+                        player.Settings.JOINABLE = joinVal;
+                        player.Settings.TRADABLE = tradeVal;
                     }
+                    savedCount++;
                 }
 
-                MessageBox.Show($"Settings saved for {savedCount} player(s).");
+                MessageBox.Show($"Settings saved to database for {savedCount} player(s).");
                 btnRefreshSettings_Click(sender, e); // Refresh view
             }
             catch (Exception ex)
@@ -1855,10 +1991,10 @@ namespace Wonderland_Private_Server
                     {
                         try
                         {
-                            byte chatType = 4; // 🔴 Kırmızı (GM Duyurusu - AC 2:4)
-                            if (colorIdx == 1) chatType = 1; // 🟡 Sarı (Dünya Sohbeti - AC 2:1)
-                            else if (colorIdx == 2) chatType = 6; // 🔵 Mavi (Lonca Sohbeti - AC 2:6)
-                            else if (colorIdx == 3) chatType = 3; // 🟣 Pembe (Fısıltı - AC 2:3)
+                            byte chatType = 4; // 🔴 Red (GM Announcement - AC 2:4)
+                            if (colorIdx == 1) chatType = 1; // 🟡 Yellow (World Chat - AC 2:1)
+                            else if (colorIdx == 2) chatType = 6; // 🔵 Blue (Guild Chat - AC 2:6)
+                            else if (colorIdx == 3) chatType = 3; // 🟣 Pink (Whisper - AC 2:3)
 
                             foreach (var line in lines)
                             {
@@ -1925,17 +2061,12 @@ namespace Wonderland_Private_Server
 
         private void btnSafeShutdown_Click(object sender, EventArgs e)
         {
-            var res = MessageBox.Show(
-                "Are you sure you want to perform a Safe Server Shutdown?\n\nThis will:\n1. Notify all online players.\n2. Save all inventories, equipment, stats, positions, and gold.\n3. Save all game settings and drop configs.\n4. Gracefully terminate server sockets and close the application.",
-                "Confirm Safe Shutdown",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning
-            );
-
-            if (res != DialogResult.Yes) return;
+            if (_isShuttingDown != 0) return;
 
             btnSafeShutdown.Enabled = false;
             btnSaveAllNow.Enabled = false;
+            btnSafeShutdown.Text = "Closing (10s)...";
+
             ThreadPool.QueueUserWorkItem(_ => PerformSafeShutdown());
         }
         #endregion
@@ -2834,7 +2965,7 @@ namespace Wonderland_Private_Server
                 };
                 btnReloadDrops.Click += (s, e) =>
                 {
-                    string npcDat = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Npc.dat");
+                    string npcDat = RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
                     Game.Battle.MonsterDropManager.LoadFromNpcDat(npcDat);
                     RefreshMonsterListGrid();
                     if (selectedMonsterTid > 0) RefreshMonsterDropsGrid(selectedMonsterTid);
@@ -2986,7 +3117,7 @@ namespace Wonderland_Private_Server
 
                 GroupBox grpServerStatus = new GroupBox
                 {
-                    Text = "🌐 Sunucu Listesi Trafik Işığı / Doluluk Rengi (Port 6416)",
+                    Text = "🌐 Server List Traffic Indicator / Cluster Load (Port 6416)",
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue,
                     Location = new System.Drawing.Point(6, 68),
@@ -2996,7 +3127,7 @@ namespace Wonderland_Private_Server
 
                 Label lblStatus = new Label
                 {
-                    Text = "Sunucu Durumu:",
+                    Text = "Server Status:",
                     Location = new System.Drawing.Point(10, 24),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
@@ -3011,11 +3142,11 @@ namespace Wonderland_Private_Server
                     Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
                 cmbServerStatus.Items.AddRange(new object[] {
-                    "🟢 Yeşil (Boş / Akıcı)",
-                    "🟡 Sarı (Kalabalık)",
-                    "🔴 Kırmızı (Dolu)",
-                    "⚫ Kapalı / Bakım",
-                    "⚡ Otomatik (Canlı Oyuncu)"
+                    "🟢 Green (Smooth / Empty)",
+                    "🟡 Yellow (Crowded)",
+                    "🔴 Red (Full)",
+                    "⚫ Offline / Maintenance",
+                    "⚡ Auto (Live Population)"
                 });
                 cmbServerStatus.SelectedIndexChanged += (s, e) =>
                 {
@@ -3035,7 +3166,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetGreen = new Button
                 {
-                    Text = "🟢 Yeşil",
+                    Text = "🟢 Green",
                     Location = new System.Drawing.Point(355, 20),
                     Size = new System.Drawing.Size(90, 26),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -3045,7 +3176,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetYellow = new Button
                 {
-                    Text = "🟡 Sarı",
+                    Text = "🟡 Yellow",
                     Location = new System.Drawing.Point(450, 20),
                     Size = new System.Drawing.Size(90, 26),
                     BackColor = System.Drawing.Color.Khaki,
@@ -3055,7 +3186,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetRed = new Button
                 {
-                    Text = "🔴 Kırmızı",
+                    Text = "🔴 Red",
                     Location = new System.Drawing.Point(545, 20),
                     Size = new System.Drawing.Size(95, 26),
                     BackColor = System.Drawing.Color.MistyRose,
@@ -3066,7 +3197,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetAuto = new Button
                 {
-                    Text = "⚡ Otomatik",
+                    Text = "⚡ Auto",
                     Location = new System.Drawing.Point(645, 20),
                     Size = new System.Drawing.Size(105, 26),
                     BackColor = System.Drawing.Color.LightCyan,
@@ -3199,7 +3330,7 @@ namespace Wonderland_Private_Server
                 };
                 btnReloadTalk.Click += (s, e) =>
                 {
-                    string talkPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                    string talkPath = RCLibrary.Core.PathHelper.GetDataFilePath("Talk.dat");
                     cGlobal.TalkDatManager = new DataFiles.PhxTalkDat(talkPath);
                     if (cGlobal.gGameDataBase != null) cGlobal.gGameDataBase.TalkDat = cGlobal.TalkDatManager;
                     PopulateTalkExplorerGrid();
@@ -3416,7 +3547,7 @@ namespace Wonderland_Private_Server
                 dtTalkExplorer.Columns.Add("Length", typeof(int));
                 dtTalkExplorer.Columns.Add("Dialogue Text", typeof(string));
 
-                string talkPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                string talkPath = RCLibrary.Core.PathHelper.GetDataFilePath("Talk.dat");
                 if (System.IO.File.Exists(talkPath))
                 {
                     byte[] bytes = System.IO.File.ReadAllBytes(talkPath);

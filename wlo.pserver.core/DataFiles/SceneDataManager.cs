@@ -22,14 +22,15 @@ namespace Game.DataFiles
             {
                 if (_initialized) return;
 
-                if (string.IsNullOrEmpty(baseDir))
-                {
-                    baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                }
+                string sceneDataPath = !string.IsNullOrEmpty(baseDir) && File.Exists(Path.Combine(baseDir, "SceneData.dat"))
+                    ? Path.Combine(baseDir, "SceneData.dat")
+                    : RCLibrary.Core.PathHelper.GetDataFilePath("SceneData.dat");
+                string npcDatPath = !string.IsNullOrEmpty(baseDir) && File.Exists(Path.Combine(baseDir, "Npc.dat"))
+                    ? Path.Combine(baseDir, "Npc.dat")
+                    : RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
 
-                string dataDir = Path.Combine(baseDir, "Data");
-                LoadSceneData(Path.Combine(dataDir, "SceneData.dat"));
-                LoadNpcNames(Path.Combine(dataDir, "Npc.dat"));
+                LoadSceneData(sceneDataPath);
+                LoadNpcNames(npcDatPath);
                 _initialized = true;
             }
         }

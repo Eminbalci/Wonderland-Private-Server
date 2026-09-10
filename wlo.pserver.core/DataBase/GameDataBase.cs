@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
 using System.Data;
+using System.IO;
 using Game;
 using RCLibrary.Core;
 
@@ -96,7 +97,8 @@ namespace DataBase
                 ExecuteNonQuery(query);
 
                 // Auto-Import Spawns from CSV
-                string spawnCsv = System.AppDomain.CurrentDomain.BaseDirectory + "listdata\\spawns.csv";
+                string spawnCsv = RCLibrary.Core.PathHelper.GetDataFilePath("spawns.csv");
+                if (!File.Exists(spawnCsv)) spawnCsv = Path.Combine(RCLibrary.Core.PathHelper.AppRootDirectory, "bin", "Debug", "listdata", "spawns.csv");
                 LoadSpawnsFromCsv(spawnCsv);
             }
             catch (Exception ex) { DebugSystem.Write($"[GameDataBase] Error setup npcs table: {ex.Message}"); }
@@ -106,6 +108,32 @@ namespace DataBase
 
             // Initialize and synchronize Quests database table
             QuestDataBase.Initialize(this);
+
+            // Subsystem Database Tables Verification & Auto-Creation
+            try
+            {
+                Server.ServerStatusManager.LoadConfig();
+                Game.PlayerRelated.GmManager.LoadFromDatabase();
+                Game.PlayerRelated.ItemMallManager.LoadFromDatabase();
+                Game.PlayerRelated.StarterPackManager.LoadFromDatabase();
+                Game.PlayerRelated.GuildManager.LoadFromDatabase();
+                Game.PlayerRelated.MailSystem.LoadFromDatabase();
+                Game.PlayerRelated.MarriageManager.LoadFromDatabase();
+                Game.Battle.MonsterDropManager.LoadFromDatabase();
+                Game.Maps.ChestDropManager.LoadFromDatabase();
+                Game.Crafting.AlchemyManager.LoadFromDatabase();
+
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_ips (ip TEXT PRIMARY KEY, reason TEXT, banned_at TEXT, banned_by TEXT);");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_users (userID INT PRIMARY KEY, username TEXT, reason TEXT, banned_at TEXT, banned_by TEXT);");
+                ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_charquest_char_quest ON charquest(charID, quest_started);");
+
+                DebugSystem.Write("[GameDataBase] All GUI and Server subsystem database tables verified & auto-seeded successfully.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error verifying subsystem database tables: {ex.Message}");
+            }
         }
 
         public void LoadSpawnsFromCsv(string path)
@@ -483,12 +511,13 @@ namespace DataBase
                     if (count == 0)
                     {
                         // Priority 1: Binary Npc.dat
-                        string datPath = System.AppDomain.CurrentDomain.BaseDirectory + "Data\\Npc.dat";
+                        string datPath = RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
                         if (ImportNpcDat(datPath) == 0)
                         {
                             // Priority 2: CSV
-                            string csvPath = System.AppDomain.CurrentDomain.BaseDirectory + "listdata\\npc.csv";
-                            // ImportNpcDataFromCsv(csvPath); // Use new method logic for csv if needed, but Dat is preferred
+                            string csvPath = RCLibrary.Core.PathHelper.GetDataFilePath("npc.csv");
+                            if (!File.Exists(csvPath)) csvPath = Path.Combine(RCLibrary.Core.PathHelper.AppRootDirectory, "bin", "Debug", "listdata", "npc.csv");
+                            // ImportNpcDataFromCsv(csvPath);
                         }
                     }
                 }

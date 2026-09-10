@@ -11,7 +11,7 @@ namespace Game.PlayerRelated
     {
         private static readonly HashSet<string> _gmNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly object _lock = new object();
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "gm_list.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("gm_list.txt");
 
         public static event Action OnGmListChanged;
 
@@ -22,7 +22,7 @@ namespace Game.PlayerRelated
 
         public static void Initialize()
         {
-            LoadFromFile();
+            LoadFromDatabase();
         }
 
         public static bool IsGm(Player player)
@@ -62,6 +62,18 @@ namespace Game.PlayerRelated
             }
         }
 
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS gm_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, added_at TEXT, added_by TEXT);");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GmManager] Error verifying gm_accounts table: {ex.Message}");
+            }
+        }
+
         public static bool AddGm(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return false;
@@ -71,9 +83,11 @@ namespace Game.PlayerRelated
             {
                 if (_gmNames.Add(name))
                 {
-                    SaveToFile();
+                    VerifyTable();
+                    string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR IGNORE INTO gm_accounts (name, added_at, added_by) VALUES ('{name.Replace("'", "''")}', '{now}', 'ServerAdmin');");
                     OnGmListChanged?.Invoke();
-                    DebugSystem.Write($"[GmManager] Added '{name}' to GM list.");
+                    DebugSystem.Write($"[GmManager] Added '{name}' to GM list database.");
                     return true;
                 }
             }
@@ -89,79 +103,68 @@ namespace Game.PlayerRelated
             {
                 if (_gmNames.Remove(name))
                 {
-                    SaveToFile();
+                    VerifyTable();
+                    RCLibrary.Core.DataBase.Execute($"DELETE FROM gm_accounts WHERE name = '{name.Replace("'", "''")}';");
                     OnGmListChanged?.Invoke();
-                    DebugSystem.Write($"[GmManager] Removed '{name}' from GM list.");
+                    DebugSystem.Write($"[GmManager] Removed '{name}' from GM list database.");
                     return true;
                 }
             }
             return false;
         }
 
-        public static void LoadFromFile()
+        public static void LoadFromFile() => LoadFromDatabase();
+        public static void SaveToFile() { }
+
+        public static void LoadFromDatabase()
         {
             try
             {
-                string dir = Path.GetDirectoryName(ConfigPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                if (!File.Exists(ConfigPath))
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT name FROM gm_accounts;");
+                if (dt == null || dt.Rows.Count == 0)
                 {
-                    // Default GM entries
-                    lock (_lock)
+                    // Seed defaults
+                    var defaults = new List<string> { "Admin", "gmone", "GM", "test" };
+                    if (File.Exists(ConfigPath))
                     {
-                        _gmNames.Clear();
-                        _gmNames.Add("Admin");
-                        _gmNames.Add("GM");
-                        _gmNames.Add("test");
+                        var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
+                        foreach (var rawLine in lines)
+                        {
+                            string line = rawLine.Trim();
+                            if (!string.IsNullOrEmpty(line) && !line.StartsWith("#"))
+                            {
+                                if (!defaults.Contains(line)) defaults.Add(line);
+                            }
+                        }
                     }
-                    SaveToFile();
-                    return;
+
+                    string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                    foreach (var gm in defaults)
+                    {
+                        RCLibrary.Core.DataBase.Execute($"INSERT OR IGNORE INTO gm_accounts (name, added_at, added_by) VALUES ('{gm.Replace("'", "''")}', '{now}', 'System');");
+                    }
+
+                    dt = RCLibrary.Core.DataBase.Query("SELECT name FROM gm_accounts;");
                 }
 
-                var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
                 lock (_lock)
                 {
                     _gmNames.Clear();
-                    foreach (var rawLine in lines)
+                    if (dt != null)
                     {
-                        string line = rawLine.Trim();
-                        if (!string.IsNullOrEmpty(line) && !line.StartsWith("#"))
+                        foreach (System.Data.DataRow row in dt.Rows)
                         {
-                            _gmNames.Add(line);
+                            string n = row["name"]?.ToString()?.Trim();
+                            if (!string.IsNullOrEmpty(n)) _gmNames.Add(n);
                         }
                     }
                 }
-                DebugSystem.Write($"[GmManager] Loaded {_gmNames.Count} GM accounts/characters.");
+                DebugSystem.Write($"[GmManager] Loaded {_gmNames.Count} GM accounts/characters from database.");
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[GmManager] Error loading GM list: {ex.Message}");
-            }
-        }
-
-        public static void SaveToFile()
-        {
-            try
-            {
-                string dir = Path.GetDirectoryName(ConfigPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                var sb = new StringBuilder();
-                sb.AppendLine("# WLO GM & Administrator List");
-                sb.AppendLine("# Format: One CharName or Username per line");
-                lock (_lock)
-                {
-                    foreach (var name in _gmNames.OrderBy(n => n))
-                    {
-                        sb.AppendLine(name);
-                    }
-                }
-                File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[GmManager] Error saving GM list: {ex.Message}");
             }
         }
     }

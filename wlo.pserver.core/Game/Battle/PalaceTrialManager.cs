@@ -32,18 +32,18 @@ namespace Game.Battle
 
         static PalaceTrialManager()
         {
-            _palaces.Add(new PalaceStage(1, "Aries Palace (Koç)", 1001, 15000, 450, 48030));
-            _palaces.Add(new PalaceStage(2, "Taurus Palace (Boğa)", 1002, 22000, 520, 48030));
-            _palaces.Add(new PalaceStage(3, "Gemini Palace (İkizler)", 1003, 30000, 600, 48030));
-            _palaces.Add(new PalaceStage(4, "Cancer Palace (Yengeç)", 1004, 38000, 680, 48031));
-            _palaces.Add(new PalaceStage(5, "Leo Palace (Aslan)", 1005, 48000, 780, 48031));
-            _palaces.Add(new PalaceStage(6, "Virgo Palace (Başak)", 1006, 58000, 850, 48031));
-            _palaces.Add(new PalaceStage(7, "Libra Palace (Terazi)", 1007, 70000, 950, 48032));
-            _palaces.Add(new PalaceStage(8, "Scorpio Palace (Akrep)", 1008, 85000, 1050, 48032));
-            _palaces.Add(new PalaceStage(9, "Sagittarius Palace (Yay)", 1009, 100000, 1200, 48032));
-            _palaces.Add(new PalaceStage(10, "Capricorn Palace (Oğlak)", 1010, 120000, 1350, 48033));
-            _palaces.Add(new PalaceStage(11, "Aquarius Palace (Kova)", 1011, 150000, 1500, 48033));
-            _palaces.Add(new PalaceStage(12, "Pisces Palace (Balık)", 1012, 200000, 1800, 48033));
+            _palaces.Add(new PalaceStage(1, "Aries Palace", 1001, 15000, 450, 48030));
+            _palaces.Add(new PalaceStage(2, "Taurus Palace", 1002, 22000, 520, 48030));
+            _palaces.Add(new PalaceStage(3, "Gemini Palace", 1003, 30000, 600, 48030));
+            _palaces.Add(new PalaceStage(4, "Cancer Palace", 1004, 38000, 680, 48031));
+            _palaces.Add(new PalaceStage(5, "Leo Palace", 1005, 48000, 780, 48031));
+            _palaces.Add(new PalaceStage(6, "Virgo Palace", 1006, 58000, 850, 48031));
+            _palaces.Add(new PalaceStage(7, "Libra Palace", 1007, 70000, 950, 48032));
+            _palaces.Add(new PalaceStage(8, "Scorpio Palace", 1008, 85000, 1050, 48032));
+            _palaces.Add(new PalaceStage(9, "Sagittarius Palace", 1009, 100000, 1200, 48032));
+            _palaces.Add(new PalaceStage(10, "Capricorn Palace", 1010, 120000, 1350, 48033));
+            _palaces.Add(new PalaceStage(11, "Aquarius Palace", 1011, 150000, 1500, 48033));
+            _palaces.Add(new PalaceStage(12, "Pisces Palace", 1012, 200000, 1800, 48033));
         }
 
         public static bool ChallengeStage(Player player, byte stage) => EnterPalaceTrial(player, stage);

@@ -502,21 +502,21 @@ namespace Game.PlayerRelated
         {
             try
             {
-                // Verify Tables Exist
                 VerifyTables();
 
-                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "guilds.txt");
-                if (File.Exists(configPath))
+                var dtGuilds = RCLibrary.Core.DataBase.Query("SELECT * FROM guilds ORDER BY guild_id;");
+                if (dtGuilds == null || dtGuilds.Rows.Count == 0)
                 {
-                    var lines = File.ReadAllLines(configPath, Encoding.UTF8);
-                    lock (_lock)
+                    // Check migration from guilds.txt
+                    string configPath = RCLibrary.Core.PathHelper.GetDataFilePath("guilds.txt");
+                    if (File.Exists(configPath))
                     {
+                        var lines = File.ReadAllLines(configPath, Encoding.UTF8);
                         foreach (var rawLine in lines)
                         {
                             string line = rawLine.Trim();
                             if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
 
-                            // Format: GUILD:<ID>|<Name>|<LeaderID>|<LeaderName>|<Icon>|<Rules>
                             var parts = line.Split('|');
                             if (parts.Length >= 4 && parts[0].StartsWith("GUILD:"))
                             {
@@ -537,15 +537,61 @@ namespace Game.PlayerRelated
                                         Icon = icon,
                                         Rules = rules
                                     };
-                                    _guilds[gid] = g;
-                                    if (gid >= _nextGuildId) _nextGuildId = (ushort)(gid + 1);
+                                    SaveGuild(g);
                                 }
+                            }
+                        }
+                    }
+                    dtGuilds = RCLibrary.Core.DataBase.Query("SELECT * FROM guilds ORDER BY guild_id;");
+                }
+
+                lock (_lock)
+                {
+                    _guilds.Clear();
+                    if (dtGuilds != null)
+                    {
+                        foreach (System.Data.DataRow row in dtGuilds.Rows)
+                        {
+                            ushort gid = Convert.ToUInt16(row["guild_id"]);
+                            var g = new Guild
+                            {
+                                GuildID = gid,
+                                GuildName = row["guild_name"]?.ToString() ?? "",
+                                LeaderID = Convert.ToUInt32(row["leader_id"]),
+                                LeaderName = row["leader_name"]?.ToString() ?? "",
+                                Icon = Convert.ToUInt32(row["icon"]),
+                                Rules = row["rules"]?.ToString() ?? ""
+                            };
+                            _guilds[gid] = g;
+                            if (gid >= _nextGuildId) _nextGuildId = (ushort)(gid + 1);
+                        }
+                    }
+
+                    // Load members
+                    var dtMembers = RCLibrary.Core.DataBase.Query("SELECT * FROM guild_members;");
+                    if (dtMembers != null)
+                    {
+                        foreach (System.Data.DataRow row in dtMembers.Rows)
+                        {
+                            ushort gid = Convert.ToUInt16(row["guild_id"]);
+                            if (_guilds.TryGetValue(gid, out var g))
+                            {
+                                var mem = new GuildMember
+                                {
+                                    CharID = Convert.ToUInt32(row["char_id"]),
+                                    CharName = row["char_name"]?.ToString() ?? "",
+                                    Rank = (GuildMemberRank)Convert.ToInt32(row["rank"]),
+                                    Level = Convert.ToInt32(row["level"]),
+                                    Job = Convert.ToByte(row["job"]),
+                                    Element = Convert.ToByte(row["element"])
+                                };
+                                g.Members[mem.CharID] = mem;
                             }
                         }
                     }
                 }
 
-                DebugSystem.Write($"[GuildManager] Loaded {_guilds.Count} guilds into memory.");
+                DebugSystem.Write($"[GuildManager] Loaded {_guilds.Count} guilds from SQLite database.");
             }
             catch (Exception ex)
             {
@@ -553,11 +599,37 @@ namespace Game.PlayerRelated
             }
         }
 
-        private static void VerifyTables()
+        public static void VerifyTables()
         {
-            // Verify and create storage folders if needed
-            string dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
-            if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
+            try
+            {
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS guilds (
+                    guild_id INTEGER PRIMARY KEY,
+                    guild_name TEXT NOT NULL,
+                    leader_id INT NOT NULL,
+                    leader_name TEXT,
+                    icon INT DEFAULT 3402,
+                    rules TEXT,
+                    created_date TEXT
+                );");
+
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS guild_members (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id INT NOT NULL,
+                    char_id INT NOT NULL,
+                    char_name TEXT,
+                    rank INT DEFAULT 0,
+                    level INT DEFAULT 1,
+                    job INT DEFAULT 0,
+                    element INT DEFAULT 0,
+                    joined_date TEXT,
+                    UNIQUE(guild_id, char_id)
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GuildManager] Error verifying tables: {ex.Message}");
+            }
         }
 
         public static void SaveGuild(Guild g)
@@ -565,17 +637,13 @@ namespace Game.PlayerRelated
             if (g == null) return;
             try
             {
-                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "guilds.txt");
-                lock (_lock)
-                {
-                    var sb = new StringBuilder();
-                    sb.AppendLine("# WLO Guilds Database File");
-                    foreach (var guild in _guilds.Values)
-                    {
-                        sb.AppendLine($"GUILD:{guild.GuildID}|{guild.GuildName}|{guild.LeaderID}|{guild.LeaderName}|{guild.Icon}|{guild.Rules}");
-                    }
-                    File.WriteAllText(configPath, sb.ToString(), Encoding.UTF8);
-                }
+                VerifyTables();
+                string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                string sql = $"INSERT OR REPLACE INTO guilds (guild_id, guild_name, leader_id, leader_name, icon, rules, created_date) VALUES ({g.GuildID}, '{g.GuildName.Replace("'", "''")}', {g.LeaderID}, '{g.LeaderName.Replace("'", "''")}', {g.Icon}, '{g.Rules.Replace("'", "''")}', '{now}');";
+                RCLibrary.Core.DataBase.Execute(sql);
+
+                // Also save leader as member
+                SaveMember(g.GuildID, g.LeaderID, g.LeaderName, GuildMemberRank.Leader, 1, 0, 0);
             }
             catch (Exception ex)
             {
@@ -585,27 +653,26 @@ namespace Game.PlayerRelated
 
         public static void SaveMember(ushort guildId, uint charId, string charName, GuildMemberRank rank, int level, byte job, byte element)
         {
-            // Auto saved on guild write
+            try
+            {
+                VerifyTables();
+                string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                string sql = $"INSERT OR REPLACE INTO guild_members (guild_id, char_id, char_name, rank, level, job, element, joined_date) VALUES ({guildId}, {charId}, '{charName?.Replace("'", "''")}', {(int)rank}, {level}, {job}, {element}, '{now}');";
+                RCLibrary.Core.DataBase.Execute(sql);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GuildManager] Error saving guild member: {ex.Message}");
+            }
         }
 
         public static void DeleteGuildFromDatabase(ushort guildId)
         {
             try
             {
-                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "guilds.txt");
-                lock (_lock)
-                {
-                    var sb = new StringBuilder();
-                    sb.AppendLine("# WLO Guilds Database File");
-                    foreach (var guild in _guilds.Values)
-                    {
-                        if (guild.GuildID != guildId)
-                        {
-                            sb.AppendLine($"GUILD:{guild.GuildID}|{guild.GuildName}|{guild.LeaderID}|{guild.LeaderName}|{guild.Icon}|{guild.Rules}");
-                        }
-                    }
-                    File.WriteAllText(configPath, sb.ToString(), Encoding.UTF8);
-                }
+                VerifyTables();
+                RCLibrary.Core.DataBase.Execute($"DELETE FROM guilds WHERE guild_id = {guildId};");
+                RCLibrary.Core.DataBase.Execute($"DELETE FROM guild_members WHERE guild_id = {guildId};");
             }
             catch (Exception ex)
             {

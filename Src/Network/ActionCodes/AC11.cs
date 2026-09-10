@@ -116,14 +116,14 @@ namespace Network.ActionCodes
             if (!attacker.Settings.PKABLE)
             {
                 DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK failed: {attacker.CharName} has PK disabled");
-                SendPKError(attacker, "PK modunuz kapalı!");
+                SendPKError(attacker, "Your PK mode is disabled!");
                 return;
             }
 
             if (!target.Settings.PKABLE)
             {
                 DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 PK failed: {target.CharName} has PK disabled");
-                SendPKError(attacker, $"{target.CharName} PK modunu kapatmış!");
+                SendPKError(attacker, $"{target.CharName} has PK mode disabled!");
                 return;
             }
 

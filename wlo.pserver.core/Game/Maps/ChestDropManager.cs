@@ -28,7 +28,7 @@ namespace Game.Maps
     {
         private static readonly Random _rng = new Random();
         private static readonly object _lock = new object();
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "chest_drops.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("chest_drops.txt");
 
         public static int DefaultRespawnSeconds { get; set; } = 60;
 
@@ -121,129 +121,126 @@ namespace Game.Maps
             }
         }
 
-        public static void SaveToFile(string path = null)
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS chest_drops (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    map_id INT DEFAULT 0,
+                    category TEXT,
+                    item_id INT NOT NULL,
+                    item_name TEXT,
+                    count INT DEFAULT 1,
+                    chance INT DEFAULT 20
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ChestDropManager] Error verifying chest_drops table: {ex.Message}");
+            }
+        }
+
+        public static void SaveToDatabase()
         {
             lock (_lock)
             {
                 try
                 {
-                    string target = path ?? ConfigPath;
-                    string dir = Path.GetDirectoryName(target);
-                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                        Directory.CreateDirectory(dir);
-
-                    StringBuilder sb = new StringBuilder();
-                    sb.AppendLine($"# RespawnSeconds={DefaultRespawnSeconds}");
+                    VerifyTable();
+                    RCLibrary.Core.DataBase.Execute("DELETE FROM chest_drops;");
 
                     foreach (var kvp in MapLootTables)
                     {
-                        sb.AppendLine($"[MAP:{kvp.Key}]");
                         foreach (var entry in kvp.Value)
                         {
-                            sb.AppendLine($"{entry.ItemID}|{entry.ItemName}|{entry.Count}|{entry.Weight}");
+                            string sql = $"INSERT INTO chest_drops (map_id, category, item_id, item_name, count, chance) VALUES ({kvp.Key}, NULL, {entry.ItemID}, '{entry.ItemName.Replace("'", "''")}', {entry.Count}, {entry.Weight});";
+                            RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }
 
                     foreach (var kvp in CategoryLootTables)
                     {
-                        sb.AppendLine($"[CAT:{kvp.Key}]");
                         foreach (var entry in kvp.Value)
                         {
-                            sb.AppendLine($"{entry.ItemID}|{entry.ItemName}|{entry.Count}|{entry.Weight}");
+                            string sql = $"INSERT INTO chest_drops (map_id, category, item_id, item_name, count, chance) VALUES (0, '{kvp.Key.Replace("'", "''")}', {entry.ItemID}, '{entry.ItemName.Replace("'", "''")}', {entry.Count}, {entry.Weight});";
+                            RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }
-
-                    File.WriteAllText(target, sb.ToString(), Encoding.UTF8);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[ChestDropManager] Error saving to database: {ex.Message}");
+                }
             }
         }
 
-        public static void LoadFromFile(string path = null)
+        public static void SaveToFile(string path = null)
+        {
+            SaveToDatabase();
+        }
+
+        public static void LoadFromFile(string path = null) => LoadFromDatabase();
+
+        public static void LoadFromDatabase()
         {
             lock (_lock)
             {
                 try
                 {
-                    string target = path ?? ConfigPath;
-                    if (!File.Exists(target))
+                    VerifyTable();
+                    var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM chest_drops;");
+
+                    if (dt == null || dt.Rows.Count == 0)
                     {
-                        SaveToFile(target);
-                        return;
+                        // Seed database
+                        SeedDatabase();
+                        dt = RCLibrary.Core.DataBase.Query("SELECT * FROM chest_drops;");
                     }
 
-                    string[] lines = File.ReadAllLines(target, Encoding.UTF8);
-                    string currentTarget = null;
-                    bool isMap = false;
-                    List<ChestLootEntry> currentList = null;
+                    MapLootTables.Clear();
+                    CategoryLootTables.Clear();
 
-                    foreach (var rawLine in lines)
+                    if (dt != null)
                     {
-                        string line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("//")) continue;
-
-                        if (line.StartsWith("# RespawnSeconds="))
+                        foreach (System.Data.DataRow row in dt.Rows)
                         {
-                            if (int.TryParse(line.Substring("# RespawnSeconds=".Length), out int sec) && sec > 0)
-                                DefaultRespawnSeconds = sec;
-                            continue;
-                        }
+                            uint mid = Convert.ToUInt32(row["map_id"]);
+                            string cat = row["category"]?.ToString();
+                            ushort itemId = Convert.ToUInt16(row["item_id"]);
+                            string itemName = row["item_name"]?.ToString() ?? "";
+                            byte count = Convert.ToByte(row["count"]);
+                            int weight = Convert.ToInt32(row["chance"]);
 
-                        if (line.StartsWith("[MAP:") && line.EndsWith("]"))
-                        {
-                            if (currentTarget != null && currentList != null)
+                            var entry = new ChestLootEntry(itemId, itemName, count, weight);
+
+                            if (mid > 0)
                             {
-                                if (isMap && uint.TryParse(currentTarget, out uint mid))
-                                    MapLootTables[mid] = currentList;
-                                else if (!isMap)
-                                    CategoryLootTables[currentTarget] = currentList;
+                                if (!MapLootTables.ContainsKey(mid)) MapLootTables[mid] = new List<ChestLootEntry>();
+                                MapLootTables[mid].Add(entry);
                             }
-
-                            currentTarget = line.Substring(5, line.Length - 6);
-                            isMap = true;
-                            currentList = new List<ChestLootEntry>();
-                            continue;
-                        }
-
-                        if (line.StartsWith("[CAT:") && line.EndsWith("]"))
-                        {
-                            if (currentTarget != null && currentList != null)
+                            else if (!string.IsNullOrEmpty(cat))
                             {
-                                if (isMap && uint.TryParse(currentTarget, out uint mid))
-                                    MapLootTables[mid] = currentList;
-                                else if (!isMap)
-                                    CategoryLootTables[currentTarget] = currentList;
-                            }
-
-                            currentTarget = line.Substring(5, line.Length - 6);
-                            isMap = false;
-                            currentList = new List<ChestLootEntry>();
-                            continue;
-                        }
-
-                        if (currentList != null && line.Contains("|"))
-                        {
-                            string[] parts = line.Split('|');
-                            if (parts.Length >= 4 && ushort.TryParse(parts[0], out ushort itemId))
-                            {
-                                string name = parts[1];
-                                byte count = byte.TryParse(parts[2], out byte c) ? c : (byte)1;
-                                int weight = int.TryParse(parts[3], out int w) ? w : 100;
-                                currentList.Add(new ChestLootEntry(itemId, name, count, weight));
+                                if (!CategoryLootTables.ContainsKey(cat)) CategoryLootTables[cat] = new List<ChestLootEntry>();
+                                CategoryLootTables[cat].Add(entry);
                             }
                         }
                     }
 
-                    if (currentTarget != null && currentList != null)
-                    {
-                        if (isMap && uint.TryParse(currentTarget, out uint mid))
-                            MapLootTables[mid] = currentList;
-                        else if (!isMap)
-                            CategoryLootTables[currentTarget] = currentList;
-                    }
+                    DebugSystem.Write($"[ChestDropManager] Loaded {MapLootTables.Count} map drop tables and {CategoryLootTables.Count} category drop tables from SQLite database.");
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[ChestDropManager] Error loading chest drops: {ex.Message}");
+                }
             }
+        }
+
+        private static void SeedDatabase()
+        {
+            // Seed defaults
+            InitializeLootTables();
+            SaveToDatabase();
         }
 
         public static List<ChestLootEntry> GetLootForTarget(string targetKey, bool isMap)

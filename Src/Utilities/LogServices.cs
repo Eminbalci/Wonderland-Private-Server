@@ -10,15 +10,15 @@ namespace Wonderland_Private_Server.Utilities
     {
         public static void Log(object message)
         {
-            Console.WriteLine(message);
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
         }
         public static void Log(string message)
         {
-            Console.WriteLine(message);
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}");
         }
         public static void Log(Exception ex)
         {
-            Console.WriteLine(ex);
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] {ex}");
         }
     }
 }

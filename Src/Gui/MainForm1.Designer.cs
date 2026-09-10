@@ -308,10 +308,10 @@ namespace Wonderland_Private_Server
             this.cmbBroadcastColor.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbBroadcastColor.FormattingEnabled = true;
             this.cmbBroadcastColor.Items.AddRange(new object[] {
-            "🔴 Kırmızı (GM Duyurusu)",
-            "🟡 Sarı (Dünya Sohbeti)",
-            "🔵 Mavi (Lonca Sohbeti)",
-            "🟣 Pembe (Fısıltı)"});
+            "🔴 Red (GM Announcement)",
+            "🟡 Yellow (World Chat)",
+            "🔵 Blue (Guild Chat)",
+            "🟣 Pink (Whisper)"});
             this.cmbBroadcastColor.Location = new System.Drawing.Point(378, 40);
             this.cmbBroadcastColor.Name = "cmbBroadcastColor";
             this.cmbBroadcastColor.Size = new System.Drawing.Size(175, 21);

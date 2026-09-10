@@ -22,7 +22,7 @@ public static class DebugSystem
 
 	private static Task loggerTask;
 
-	private static string logfold = Environment.CurrentDirectory;
+	private static string logfold = AppDomain.CurrentDomain.BaseDirectory;
 
 	private static string logfile;
 
@@ -38,15 +38,45 @@ public static class DebugSystem
 
 	public static int VerboseLvl = 0;
 
+	public static string LogFilePath
+	{
+		get
+		{
+			string folder = logfold;
+			if (string.IsNullOrEmpty(folder)) folder = AppDomain.CurrentDomain.BaseDirectory;
+			string file = logfile;
+			if (string.IsNullOrEmpty(file)) file = Path.Combine("Logs", $"wlophoenixlogFile_{DateTime.Now:yyyyMMdd}.txt");
+			string full = Path.GetFullPath(Path.Combine(folder, file));
+			EnsureLogDirectory(full);
+			return full;
+		}
+	}
+
+	public static void EnsureLogDirectory(string filePath = null)
+	{
+		try
+		{
+			string target = filePath ?? Path.Combine(logfold ?? AppDomain.CurrentDomain.BaseDirectory, logfile ?? "Logs\\server_log.txt");
+			string dir = Path.GetDirectoryName(target);
+			if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+			{
+				Directory.CreateDirectory(dir);
+			}
+		}
+		catch { }
+	}
+
 	public static void Initialize(ref TextBox src, bool output_to_file = false)
 	{
 		txtbox = src;
 		Run = true;
 		Outputlog = output_to_file;
-		logfile = "Logs\\wlophoenixlogFile" + DateTime.Now.ToShortDateString().Replace("/", "") + ".txt";
+		logfold = AppDomain.CurrentDomain.BaseDirectory;
+		logfile = Path.Combine("Logs", $"wlophoenixlogFile_{DateTime.Now:yyyyMMdd}.txt");
 		VerboseLvl = 0;
 		if (Outputlog)
 		{
+			EnsureLogDirectory();
 			loggerTask = Task.Factory.StartNew(delegate
 			{
 				Wrk();
@@ -59,10 +89,12 @@ public static class DebugSystem
 		rtfbox = src;
 		Run = true;
 		Outputlog = output_to_file;
-		logfile = "Logs\\wlophoenixlogFile" + DateTime.Now.ToShortDateString().Replace("/", "") + ".txt";
+		logfold = AppDomain.CurrentDomain.BaseDirectory;
+		logfile = Path.Combine("Logs", $"wlophoenixlogFile_{DateTime.Now:yyyyMMdd}.txt");
 		VerboseLvl = 0;
 		if (Outputlog)
 		{
+			EnsureLogDirectory();
 			loggerTask = Task.Factory.StartNew(delegate
 			{
 				Wrk();
@@ -74,10 +106,12 @@ public static class DebugSystem
 	{
 		Run = true;
 		Outputlog = output_to_file;
-		logfile = "wlophoenixlogFile" + DateTime.Now.ToShortDateString().Replace("/", "") + ".txt";
+		logfold = AppDomain.CurrentDomain.BaseDirectory;
+		logfile = Path.Combine("Logs", $"wlophoenixlogFile_{DateTime.Now:yyyyMMdd}.txt");
 		VerboseLvl = 0;
 		if (Outputlog)
 		{
+			EnsureLogDirectory();
 			loggerTask = Task.Factory.StartNew(delegate
 			{
 				Wrk();
@@ -85,16 +119,38 @@ public static class DebugSystem
 		}
 	}
 
+	public static void Flush()
+	{
+		try
+		{
+			string fullPath = LogFilePath;
+			EnsureLogDirectory(fullPath);
+			using StreamWriter streamWriter = new StreamWriter(fullPath, append: true);
+			string[] array = new string[msg_towrite.Count + 10];
+			int count = msg_towrite.TryPopRange(array);
+			if (count > 0)
+			{
+				foreach (string item in array.Where(c => c != null))
+				{
+					streamWriter.WriteLine(item);
+				}
+				streamWriter.Flush();
+			}
+		}
+		catch { }
+	}
+
 	public static void EndIntialize()
 	{
 		Run = false;
 		Outputlog = false;
-		rtfbox = null;
-		txtbox = null;
 		if (loggerTask != null)
 		{
-			loggerTask.Wait(7000);
+			try { loggerTask.Wait(3000); } catch { }
 		}
+		Flush();
+		rtfbox = null;
+		txtbox = null;
 	}
 
 	public static void OpenExtLog()
@@ -121,13 +177,55 @@ public static class DebugSystem
 		Write(data, DebugItemType.Error);
 	}
 
+	private static string FormatWithTimestamp(DateTime when, string message)
+	{
+		string timestamp = $"[{when:yyyy-MM-dd HH:mm:ss}]";
+		if (string.IsNullOrEmpty(message))
+		{
+			return timestamp;
+		}
+
+		// Prevent duplicate timestamp if already prefixed with [YYYY-MM-DD HH:mm:ss]
+		if (message.Length >= 21 && message.StartsWith("[") && message[11] == ' ' && message[20] == ']')
+		{
+			return message;
+		}
+
+		if (message.Contains("\n"))
+		{
+			string[] lines = message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+			StringBuilder sb = new StringBuilder();
+			for (int i = 0; i < lines.Length; i++)
+			{
+				if (i > 0) sb.Append("\r\n");
+				string line = lines[i];
+				if (!string.IsNullOrEmpty(line))
+				{
+					if (line.Length >= 21 && line.StartsWith("[") && line[11] == ' ' && line[20] == ']')
+					{
+						sb.Append(line);
+					}
+					else
+					{
+						sb.Append(timestamp).Append(" ").Append(line);
+					}
+				}
+			}
+			return sb.ToString();
+		}
+
+		return $"{timestamp} {message}";
+	}
+
 	public static void Write(string data, DebugItemType type = DebugItemType.Info_Light, bool newline = true)
 	{
 		DateTime now = DateTime.Now;
-		DebugItem debugItem = new DebugItem("Write", "C:\\Users\\Rommel JR\\Dropbox\\Wonderland Online Dev Group\\Pserver Core\\CServer\\RCLibrary\\Debug\\DebugSystem.cs", 159);
+		DebugItem debugItem = new DebugItem("Write", "DebugSystem.cs", 159);
 		debugItem.Type = type;
-		debugItem.When = DateTime.Now;
-		debugItem.Msg = data.ToString();
+		debugItem.When = now;
+		debugItem.Msg = data != null ? data.ToString() : "";
+		string formattedMsg = FormatWithTimestamp(debugItem.When, debugItem.Msg);
+
 		if (debugItem.VerboseReq <= VerboseLvl)
 		{
 			if (rtfbox != null && !rtfbox.IsDisposed)
@@ -139,8 +237,8 @@ public static class DebugSystem
 						rtfbox.SelectionStart = rtfbox.TextLength;
 						rtfbox.SelectionLength = 0;
 						rtfbox.SelectionColor = debugItem.Col;
-						rtfbox.AppendText(debugItem.Msg);
-						rtfbox.AppendText("\r\n");
+						rtfbox.AppendText(formattedMsg);
+						if (newline) rtfbox.AppendText("\r\n");
 						rtfbox.SelectionColor = rtfbox.ForeColor;
 						rtfbox.SelectionStart = rtfbox.TextLength;
 						rtfbox.SelectionLength = 0;
@@ -149,9 +247,23 @@ public static class DebugSystem
 				}
 				else
 				{
-					rtfbox.Invoke((MethodInvoker)delegate
+					rtfbox.BeginInvoke((MethodInvoker)delegate
 					{
-						Write(data, type, newline);
+						if (rtfbox != null && !rtfbox.IsDisposed)
+						{
+							lock (m_Lock)
+							{
+								rtfbox.SelectionStart = rtfbox.TextLength;
+								rtfbox.SelectionLength = 0;
+								rtfbox.SelectionColor = debugItem.Col;
+								rtfbox.AppendText(formattedMsg);
+								if (newline) rtfbox.AppendText("\r\n");
+								rtfbox.SelectionColor = rtfbox.ForeColor;
+								rtfbox.SelectionStart = rtfbox.TextLength;
+								rtfbox.SelectionLength = 0;
+								rtfbox.ScrollToCaret();
+							}
+						}
 					});
 				}
 			}
@@ -161,10 +273,10 @@ public static class DebugSystem
 				{
 					lock (m_Lock)
 					{
-						txtbox.SelectionStart = rtfbox.TextLength;
+						txtbox.SelectionStart = txtbox.TextLength;
 						txtbox.SelectionLength = 0;
-						txtbox.AppendText(debugItem.Msg);
-						rtfbox.AppendText("\r\n");
+						txtbox.AppendText(formattedMsg);
+						if (newline) txtbox.AppendText("\r\n");
 						txtbox.SelectionStart = txtbox.TextLength;
 						txtbox.SelectionLength = 0;
 						txtbox.ScrollToCaret();
@@ -172,35 +284,56 @@ public static class DebugSystem
 				}
 				else
 				{
-					txtbox.Invoke((MethodInvoker)delegate
+					txtbox.BeginInvoke((MethodInvoker)delegate
 					{
-						Write(data, type, newline);
+						if (txtbox != null && !txtbox.IsDisposed)
+						{
+							lock (m_Lock)
+							{
+								txtbox.SelectionStart = txtbox.TextLength;
+								txtbox.SelectionLength = 0;
+								txtbox.AppendText(formattedMsg);
+								if (newline) txtbox.AppendText("\r\n");
+								txtbox.SelectionStart = txtbox.TextLength;
+								txtbox.SelectionLength = 0;
+								txtbox.ScrollToCaret();
+							}
+						}
 					});
 				}
 			}
 			else
 			{
-				logout.Push(string.Concat(debugItem.When, " | ", debugItem.Type, " | ", debugItem.Msg, "\r\n"));
+				logout.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
 			}
 		}
+
+		if (rtfbox == null && txtbox == null)
+		{
+			try { Console.WriteLine(formattedMsg); } catch { }
+		}
+
 		if (Outputlog)
 		{
-			msg_towrite.Push(string.Concat(debugItem.When, " | ", debugItem.Type, " | ", debugItem.Msg, "\r\n"));
+			msg_towrite.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
 		}
 	}
 
 	public static void Write(ExceptionData data, DebugItemType type = DebugItemType.Info_Light, bool newline = true)
 	{
 		DateTime now = DateTime.Now;
-		DebugItem debugItem = new DebugItem("Write", "C:\\Users\\Rommel JR\\Dropbox\\Wonderland Online Dev Group\\Pserver Core\\CServer\\RCLibrary\\Debug\\DebugSystem.cs", 213);
+		DebugItem debugItem = new DebugItem("Write", "DebugSystem.cs", 213);
 		debugItem.Type = type;
-		debugItem.When = DateTime.Now;
+		debugItem.When = now;
 		debugItem.Col = Color.Red;
 		debugItem.Error = data;
 		if ((byte)data.Severity <= 0)
 		{
 			return;
 		}
+
+		string formattedMsg = FormatWithTimestamp(debugItem.When, $"[ERROR] {debugItem.Msg}");
+
 		if (rtfbox != null && !rtfbox.IsDisposed)
 		{
 			if (!rtfbox.InvokeRequired)
@@ -210,8 +343,8 @@ public static class DebugSystem
 					rtfbox.SelectionStart = rtfbox.TextLength;
 					rtfbox.SelectionLength = 0;
 					rtfbox.SelectionColor = debugItem.Col;
-					rtfbox.AppendText(debugItem.Msg);
-					rtfbox.AppendText("\r\n");
+					rtfbox.AppendText(formattedMsg);
+					if (newline) rtfbox.AppendText("\r\n");
 					rtfbox.SelectionColor = rtfbox.ForeColor;
 					rtfbox.SelectionStart = rtfbox.TextLength;
 					rtfbox.SelectionLength = 0;
@@ -220,9 +353,23 @@ public static class DebugSystem
 			}
 			else
 			{
-				rtfbox.Invoke((MethodInvoker)delegate
+				rtfbox.BeginInvoke((MethodInvoker)delegate
 				{
-					Write(data, type, newline);
+					if (rtfbox != null && !rtfbox.IsDisposed)
+					{
+						lock (m_Lock)
+						{
+							rtfbox.SelectionStart = rtfbox.TextLength;
+							rtfbox.SelectionLength = 0;
+							rtfbox.SelectionColor = debugItem.Col;
+							rtfbox.AppendText(formattedMsg);
+							if (newline) rtfbox.AppendText("\r\n");
+							rtfbox.SelectionColor = rtfbox.ForeColor;
+							rtfbox.SelectionStart = rtfbox.TextLength;
+							rtfbox.SelectionLength = 0;
+							rtfbox.ScrollToCaret();
+						}
+					}
 				});
 			}
 		}
@@ -232,10 +379,10 @@ public static class DebugSystem
 			{
 				lock (m_Lock)
 				{
-					txtbox.SelectionStart = rtfbox.TextLength;
+					txtbox.SelectionStart = txtbox.TextLength;
 					txtbox.SelectionLength = 0;
-					txtbox.AppendText(debugItem.Msg);
-					rtfbox.AppendText("\r\n");
+					txtbox.AppendText(formattedMsg);
+					if (newline) txtbox.AppendText("\r\n");
 					txtbox.SelectionStart = txtbox.TextLength;
 					txtbox.SelectionLength = 0;
 					txtbox.ScrollToCaret();
@@ -243,19 +390,37 @@ public static class DebugSystem
 			}
 			else
 			{
-				txtbox.Invoke((MethodInvoker)delegate
+				txtbox.BeginInvoke((MethodInvoker)delegate
 				{
-					Write(data, type, newline);
+					if (txtbox != null && !txtbox.IsDisposed)
+					{
+						lock (m_Lock)
+						{
+							txtbox.SelectionStart = txtbox.TextLength;
+							txtbox.SelectionLength = 0;
+							txtbox.AppendText(formattedMsg);
+							if (newline) txtbox.AppendText("\r\n");
+							txtbox.SelectionStart = txtbox.TextLength;
+							txtbox.SelectionLength = 0;
+							txtbox.ScrollToCaret();
+						}
+					}
 				});
 			}
 		}
 		else
 		{
-			logout.Push(string.Concat(debugItem.When, " | ", debugItem.Type, " | ", debugItem.Msg, "\r\n"));
+			logout.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
 		}
+
+		if (rtfbox == null && txtbox == null)
+		{
+			try { Console.WriteLine(formattedMsg); } catch { }
+		}
+
 		if (Outputlog)
 		{
-			msg_towrite.Push(string.Concat(debugItem.When, " | ", debugItem.Type, " | ", debugItem.Msg, "\r\n"));
+			msg_towrite.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
 		}
 	}
 
@@ -321,7 +486,7 @@ public static class DebugSystem
 						}
 						break;
 					}
-					using StreamWriter streamWriter = new StreamWriter(Path.Combine(logfold, logfile), append: true);
+					using StreamWriter streamWriter = new StreamWriter(LogFilePath, append: true);
 					streamWriter.AutoFlush = false;
 					foreach (string item in array.Where((string c) => c != null))
 					{

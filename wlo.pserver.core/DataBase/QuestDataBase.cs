@@ -78,11 +78,7 @@ namespace DataBase
             {
                 db.ExecuteNonQuery("DELETE FROM game_quests");
 
-                string markDatPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Mark.dat");
-                if (!File.Exists(markDatPath))
-                {
-                    markDatPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "Mark.dat");
-                }
+                string markDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Mark.dat");
 
                 if (File.Exists(markDatPath))
                 {

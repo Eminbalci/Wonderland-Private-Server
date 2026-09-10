@@ -129,15 +129,8 @@ namespace Game.SkillRelated
             if (_skillCatalog.Count > 0) return;
             try
             {
-                string[] searchPaths = new string[]
-                {
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Skill.dat"),
-                    @"Data\Skill.dat",
-                    @"..\Data\Skill.dat"
-                };
-
-                string path = searchPaths.FirstOrDefault(File.Exists);
-                if (string.IsNullOrEmpty(path)) return;
+                string path = RCLibrary.Core.PathHelper.GetDataFilePath("Skill.dat");
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
 
                 byte[] data = File.ReadAllBytes(path);
                 int recordSize = 148;

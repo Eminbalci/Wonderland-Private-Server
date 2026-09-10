@@ -44,7 +44,7 @@ namespace Game.Battle
     {
         private static readonly Random _rng = new Random();
         private static readonly object _lock = new object();
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "monster_drops.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("monster_drops.txt");
 
         // Monster Template ID -> List of drop entries
         public static readonly Dictionary<uint, List<MonsterDropEntry>> MonsterLootTables = new Dictionary<uint, List<MonsterDropEntry>>();
@@ -421,123 +421,173 @@ namespace Game.Battle
             return drops;
         }
 
-        public static void LoadFromFile()
+        public static void VerifyTable()
         {
-            if (!File.Exists(ConfigPath))
-            {
-                SaveToFile();
-                return;
-            }
-
             try
             {
-                var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS monster_drops (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    monster_tid INT DEFAULT 0,
+                    monster_pattern TEXT,
+                    item_id INT NOT NULL,
+                    item_name TEXT,
+                    min_count INT DEFAULT 1,
+                    max_count INT DEFAULT 1,
+                    drop_rate REAL DEFAULT 10.0
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[MonsterDropManager] Error verifying monster_drops table: {ex.Message}");
+            }
+        }
+
+        public static void LoadFromFile() => LoadFromDatabase();
+
+        public static void LoadFromDatabase()
+        {
+            try
+            {
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM monster_drops;");
+
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    // Table empty: seed from txt or defaults
+                    SeedDatabase();
+                    dt = RCLibrary.Core.DataBase.Query("SELECT * FROM monster_drops;");
+                }
+
                 lock (_lock)
                 {
                     MonsterLootTables.Clear();
                     PatternLootTables.Clear();
 
-                    foreach (var rawLine in lines)
+                    if (dt != null)
                     {
-                        string line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("//"))
-                            continue;
-
-                        // Format: TID:11066 | 30001,Wolf Meat,1,2,70.0 | 30015,Wolf Pelt,1,1,50.0
-                        // Or:     NAME:wolf | 30001,Wolf Meat,1,2,70.0
-                        var parts = line.Split('|');
-                        if (parts.Length < 2) continue;
-
-                        string header = parts[0].Trim();
-                        var entries = new List<MonsterDropEntry>();
-
-                        for (int i = 1; i < parts.Length; i++)
+                        foreach (System.Data.DataRow row in dt.Rows)
                         {
-                            var tokens = parts[i].Trim().Split(',');
-                            if (tokens.Length >= 2)
-                            {
-                                if (ushort.TryParse(tokens[0].Trim(), out ushort itemId))
-                                {
-                                    string itemName = tokens[1].Trim();
-                                    byte minCount = tokens.Length > 2 && byte.TryParse(tokens[2].Trim(), out byte mn) ? mn : (byte)1;
-                                    byte maxCount = tokens.Length > 3 && byte.TryParse(tokens[3].Trim(), out byte mx) ? mx : minCount;
-                                    double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), out double r) ? r : 50.0;
+                            uint tid = Convert.ToUInt32(row["monster_tid"]);
+                            string pattern = row["monster_pattern"]?.ToString();
+                            ushort itemId = Convert.ToUInt16(row["item_id"]);
+                            string itemName = row["item_name"]?.ToString() ?? "";
+                            byte minCount = Convert.ToByte(row["min_count"]);
+                            byte maxCount = Convert.ToByte(row["max_count"]);
+                            double dropRate = Convert.ToDouble(row["drop_rate"]);
 
-                                    entries.Add(new MonsterDropEntry(itemId, itemName, minCount, maxCount, rate));
-                                }
-                            }
-                        }
+                            var entry = new MonsterDropEntry(itemId, itemName, minCount, maxCount, dropRate);
 
-                        if (entries.Count > 0)
-                        {
-                            if (header.StartsWith("TID:", StringComparison.OrdinalIgnoreCase))
+                            if (tid > 0)
                             {
-                                if (uint.TryParse(header.Substring(4).Trim(), out uint tid))
-                                {
-                                    MonsterLootTables[tid] = entries;
-                                }
+                                if (!MonsterLootTables.ContainsKey(tid)) MonsterLootTables[tid] = new List<MonsterDropEntry>();
+                                MonsterLootTables[tid].Add(entry);
                             }
-                            else if (header.StartsWith("NAME:", StringComparison.OrdinalIgnoreCase))
+                            else if (!string.IsNullOrEmpty(pattern))
                             {
-                                string name = header.Substring(5).Trim();
-                                PatternLootTables[name] = entries;
+                                if (!PatternLootTables.ContainsKey(pattern)) PatternLootTables[pattern] = new List<MonsterDropEntry>();
+                                PatternLootTables[pattern].Add(entry);
                             }
                         }
                     }
                 }
+
                 OnLootTablesChanged?.Invoke();
+                DebugSystem.Write($"[MonsterDropManager] Loaded {MonsterLootTables.Count} TID tables and {PatternLootTables.Count} Pattern tables from SQLite database.");
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[MonsterDropManager] Error loading monster_drops.txt: {ex.Message}");
+                DebugSystem.Write($"[MonsterDropManager] Error loading drops from database: {ex.Message}");
+            }
+        }
+
+        private static void SeedDatabase()
+        {
+            if (File.Exists(ConfigPath))
+            {
+                try
+                {
+                    var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
+                    foreach (var rawLine in lines)
+                    {
+                        string line = rawLine.Trim();
+                        if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("//")) continue;
+
+                        var parts = line.Split('|');
+                        if (parts.Length < 2) continue;
+
+                        string header = parts[0].Trim();
+                        uint tid = 0;
+                        string pattern = null;
+
+                        if (header.StartsWith("TID:", StringComparison.OrdinalIgnoreCase))
+                            uint.TryParse(header.Substring(4).Trim(), out tid);
+                        else if (header.StartsWith("NAME:", StringComparison.OrdinalIgnoreCase))
+                            pattern = header.Substring(5).Trim();
+
+                        for (int i = 1; i < parts.Length; i++)
+                        {
+                            var tokens = parts[i].Trim().Split(',');
+                            if (tokens.Length >= 2 && ushort.TryParse(tokens[0].Trim(), out ushort itemId))
+                            {
+                                string itemName = tokens[1].Trim();
+                                byte min = tokens.Length > 2 && byte.TryParse(tokens[2].Trim(), out byte mn) ? mn : (byte)1;
+                                byte max = tokens.Length > 3 && byte.TryParse(tokens[3].Trim(), out byte mx) ? mx : min;
+                                double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), out double r) ? r : 50.0;
+
+                                string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({tid}, '{pattern?.Replace("'", "''")}', {itemId}, '{itemName.Replace("'", "''")}', {min}, {max}, {rate});";
+                                RCLibrary.Core.DataBase.Execute(sql);
+                            }
+                        }
+                    }
+                    return;
+                }
+                catch { }
+            }
+
+            // Defaults if file not found
+            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (11066, NULL, 30001, 'Wolf Meat', 1, 2, 70.0);");
+            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (11066, NULL, 30015, 'Wolf Pelt', 1, 1, 50.0);");
+            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, 'wolf', 30001, 'Wolf Meat', 1, 2, 60.0);");
+            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, 'bat', 28014, 'Fresh Fruit', 1, 1, 40.0);");
+        }
+
+        public static void SaveToDatabase()
+        {
+            try
+            {
+                VerifyTable();
+                lock (_lock)
+                {
+                    RCLibrary.Core.DataBase.Execute("DELETE FROM monster_drops;");
+
+                    foreach (var kvp in MonsterLootTables)
+                    {
+                        foreach (var e in kvp.Value)
+                        {
+                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({kvp.Key}, NULL, {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent});";
+                            RCLibrary.Core.DataBase.Execute(sql);
+                        }
+                    }
+
+                    foreach (var kvp in PatternLootTables)
+                    {
+                        foreach (var e in kvp.Value)
+                        {
+                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, '{kvp.Key.Replace("'", "''")}', {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent});";
+                            RCLibrary.Core.DataBase.Execute(sql);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[MonsterDropManager] Error saving monster drops to database: {ex.Message}");
             }
         }
 
         public static void SaveToFile()
         {
-            try
-            {
-                string dir = Path.GetDirectoryName(ConfigPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                var sb = new StringBuilder();
-                sb.AppendLine("# ========================================================");
-                sb.AppendLine("# WLO Server Monster Loot Drops Configuration");
-                sb.AppendLine("# Format: TID:<MonsterTID> | <ItemID>,<ItemName>,<MinCount>,<MaxCount>,<DropRate%> | ...");
-                sb.AppendLine("# Format: NAME:<Pattern>   | <ItemID>,<ItemName>,<MinCount>,<MaxCount>,<DropRate%> | ...");
-                sb.AppendLine("# ========================================================");
-                sb.AppendLine();
-
-                lock (_lock)
-                {
-                    foreach (var kvp in MonsterLootTables)
-                    {
-                        sb.Append($"TID:{kvp.Key}");
-                        foreach (var e in kvp.Value)
-                        {
-                            sb.Append($" | {e.ItemID},{e.ItemName},{e.MinCount},{e.MaxCount},{e.DropRatePercent:F1}");
-                        }
-                        sb.AppendLine();
-                    }
-
-                    sb.AppendLine();
-                    foreach (var kvp in PatternLootTables)
-                    {
-                        sb.Append($"NAME:{kvp.Key}");
-                        foreach (var e in kvp.Value)
-                        {
-                            sb.Append($" | {e.ItemID},{e.ItemName},{e.MinCount},{e.MaxCount},{e.DropRatePercent:F1}");
-                        }
-                        sb.AppendLine();
-                    }
-                }
-
-                File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[MonsterDropManager] Error saving monster_drops.txt: {ex.Message}");
-            }
+            SaveToDatabase();
         }
 
         /// <summary>

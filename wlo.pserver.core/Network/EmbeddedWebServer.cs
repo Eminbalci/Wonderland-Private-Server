@@ -80,21 +80,37 @@ namespace Network
         {
             try
             {
-                string[] searchDirs = new string[]
+                var candidateDirs = new System.Collections.Generic.List<string>();
+                string configuredClientDir = RCLibrary.Core.PathHelper.ClientDirectory;
+                if (!string.IsNullOrEmpty(configuredClientDir))
                 {
-                    @"D:\garipgudubetseyler\WLRI",
-                    AppDomain.CurrentDomain.BaseDirectory,
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "WLRI")
-                };
+                    candidateDirs.Add(configuredClientDir);
+                }
 
-                foreach (var dir in searchDirs)
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string currentDir = Directory.GetCurrentDirectory();
+
+                candidateDirs.Add(baseDir);
+                candidateDirs.Add(Path.Combine(baseDir, "WLRI"));
+                candidateDirs.Add(Path.Combine(baseDir, "Client"));
+                candidateDirs.Add(Path.Combine(baseDir, "..", "WLRI"));
+                candidateDirs.Add(Path.Combine(baseDir, "..", "Client"));
+                candidateDirs.Add(Path.Combine(baseDir, "..", "..", "WLRI"));
+                candidateDirs.Add(Path.Combine(baseDir, "..", "..", "Client"));
+                candidateDirs.Add(Path.Combine(currentDir, "WLRI"));
+                candidateDirs.Add(Path.Combine(currentDir, "..", "WLRI"));
+
+                foreach (var dir in candidateDirs.Distinct())
                 {
-                    if (Directory.Exists(dir))
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
                     {
                         string webDatPath = Path.Combine(dir, "web0.DAT");
-                        string content = $"Update_Server_1_(Local)      http://127.0.0.1:{port}/WLROD/  {port}  6000 anonymous\r\nUpdate_Server_2_(Local)      http://127.0.0.1:{port}/  {port}  6000 anonymous\r\nend\r\n";
-                        File.WriteAllText(webDatPath, content, Encoding.ASCII);
-                        DebugSystem.Write($"[EmbeddedWebServer] Patched {webDatPath} to port {port}.");
+                        if (File.Exists(webDatPath) || File.Exists(Path.Combine(dir, "aLogin.exe")))
+                        {
+                            string content = $"Update_Server_1_(Local)      http://127.0.0.1:{port}/WLROD/  {port}  6000 anonymous\r\nUpdate_Server_2_(Local)      http://127.0.0.1:{port}/  {port}  6000 anonymous\r\nend\r\n";
+                            File.WriteAllText(webDatPath, content, Encoding.ASCII);
+                            DebugSystem.Write($"[EmbeddedWebServer] Patched {webDatPath} to port {port}.");
+                        }
                     }
                 }
             }

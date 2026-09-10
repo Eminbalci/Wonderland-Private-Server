@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -339,11 +339,11 @@ namespace Wonderland_Private_Server.Code.Objects
 
     class CInstance
     {
-        public string Text; // descrição
-        public uint Creater; // ID Quem criou
-        public string NameCreater; // nome de quem criou
-        public int TimerElapsed; // tempo decorrido
-        public int ID; // id desta instancia Key dictionary
+        public string Text; // Description
+        public uint Creater; // Creator ID
+        public string NameCreater; // Name of creator
+        public int TimerElapsed; // Elapsed time
+        public int ID; // ID of this instance Key dictionary
         public int CountPlayer
         {
             get

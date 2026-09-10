@@ -156,8 +156,7 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
 
             try
             {
-                string groundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "Ground.MMG");
-                if (!File.Exists(groundPath)) groundPath = "Data\\Ground.MMG";
+                string groundPath = RCLibrary.Core.PathHelper.GetDataFilePath("Ground.MMG");
                 using (Stream fs = new FileStream(groundPath, FileMode.Open, FileAccess.Read))
                 {
                     fs.Position = GroundNode.Offset;
