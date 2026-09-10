@@ -273,7 +273,7 @@ namespace Game.Code
                 return needed == 0;
             }
         }
-        public void AddItem(ushort ID, byte amt)
+        public void AddItem(ushort ID, byte amt, bool sendData = true)
         {
             PhxItemInfo baseItem = null;
             try
@@ -292,7 +292,7 @@ namespace Game.Code
             InvItem i = new InvItem();
             i.CopyFrom(baseItem);
             i.Ammt = amt;
-            AddItem(i, 0, true);
+            AddItem(i, 0, sendData);
         }
         /// <summary>
         /// Adds an item to the Inventory
@@ -353,14 +353,17 @@ namespace Game.Code
                             goto end;
 
                         end:
-                    if (ammt > 0 && sendData && owner != null)
+                    if (ammt > 0)
                     {
                         addammt -= ammt;
-                        tmp.Pack8(ammt);
-                        tmp.PackArray(new byte[28]);
-                        owner.Send(tmp);
-                        owner.Send(new SendPacket(GetAC23_5()));
-                        DebugSystem.Write($"[Inventory.AddItem] Sent AC 23:6 + AC 23:5 item #{item.ItemID} x{ammt} to slot {a} for {owner.CharName}");
+                        if (sendData && owner != null)
+                        {
+                            tmp.Pack8(ammt);
+                            tmp.PackArray(new byte[28]);
+                            owner.Send(tmp);
+                            owner.Send(new SendPacket(GetAC23_5()));
+                            DebugSystem.Write($"[Inventory.AddItem] Sent AC 23:6 + AC 23:5 item #{item.ItemID} x{ammt} to slot {a} for {owner.CharName}");
+                        }
                     }
                     if (totalammt == item.Ammt || at != 0)
                         return ammt;

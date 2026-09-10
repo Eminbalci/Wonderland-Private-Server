@@ -84,10 +84,8 @@ namespace Network.ActionCodes
                 // Give starter quest
                 tp.Started_Quests.Add(new Quest() { QID = 1 });
 
-                //tp.Info.MySkills.AddSkill(cGlobal.SkillManager.GetSkillByID(15003));
-                //create a character id for this new character
-                //tp.Info.ID = tp.UserID + (byte)(tp.Slot - 1);
-                // cGlobal.GameDB.CreateInventory((sender as WloPlayer));
+                // Deliver authentic starter item pack (persisted directly into inventory DB via WriteNewPlayer)
+                Game.PlayerRelated.StarterPackManager.DeliverToPlayer(tp, sendData: false);
 
                 if (cGlobal.gCharacterDataBase.WriteNewPlayer(tp.CharID, tp))
                 {

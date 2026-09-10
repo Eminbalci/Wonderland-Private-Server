@@ -89,6 +89,27 @@ namespace Game
         public int StepsSinceLastBattle { get; set; } = 0;
         public int NextBattleSteps { get; set; } = 25;
         public DateTime LastTeleportTime { get; set; } = DateTime.MinValue;
+        public DateTime LastBattleEndTime { get; set; } = DateTime.MinValue;
+        public double BattleCooldownSeconds { get; set; } = 3.0;
+        private static readonly Random _cooldownRng = new Random();
+
+        public bool IsInBattleCooldown()
+        {
+            if (LastBattleEndTime == DateTime.MinValue) return false;
+            double elapsed = (DateTime.UtcNow - LastBattleEndTime).TotalSeconds;
+            return elapsed >= 0 && elapsed < BattleCooldownSeconds;
+        }
+
+        public void SetBattleCooldown()
+        {
+            LastBattleEndTime = DateTime.UtcNow;
+            lock (_cooldownRng)
+            {
+                // Random grace period between 2.0 and 4.0 seconds
+                BattleCooldownSeconds = 2.0 + (_cooldownRng.NextDouble() * 2.0);
+            }
+            StepsSinceLastBattle = 0;
+        }
         public ushort LastSpawnX { get; set; } = 0;
         public ushort LastSpawnY { get; set; } = 0;
         public ushort LastOriginMapID { get; set; } = 0;
@@ -175,6 +196,35 @@ namespace Game
             public ushort Eq_Special { get; set; } = 0;
         }
 
+        public static bool IsSamePetOrCompanion(uint id1, uint id2)
+        {
+            if (id1 == id2) return true;
+            if (id1 == 0 || id2 == 0) return false;
+
+            // Robinson: 12032 (NPC TID) <-> 12178 (Pet TID)
+            if ((id1 == 12032 || id1 == 12178) && (id2 == 12032 || id2 == 12178)) return true;
+            // S.Monkey: 17162 (NPC TID) <-> 10727 (Pet TID)
+            if ((id1 == 17162 || id1 == 10727) && (id2 == 17162 || id2 == 10727)) return true;
+            // Roca: 14161 <-> 14001
+            if ((id1 == 14161 || id1 == 14001) && (id2 == 14161 || id2 == 14001)) return true;
+            // Niss: 14162 <-> 14002
+            if ((id1 == 14162 || id1 == 14002) && (id2 == 14162 || id2 == 14002)) return true;
+            // Clive: 14163 <-> 14003
+            if ((id1 == 14163 || id1 == 14003) && (id2 == 14163 || id2 == 14003)) return true;
+            // Fred: 14164 <-> 14004
+            if ((id1 == 14164 || id1 == 14004) && (id2 == 14164 || id2 == 14004)) return true;
+            // Elin: 14165 <-> 14005
+            if ((id1 == 14165 || id1 == 14005) && (id2 == 14165 || id2 == 14005)) return true;
+            // Sam: 14166 <-> 14006
+            if ((id1 == 14166 || id1 == 14006) && (id2 == 14166 || id2 == 14006)) return true;
+            // Shizune: 14167 <-> 14007
+            if ((id1 == 14167 || id1 == 14007) && (id2 == 14167 || id2 == 14007)) return true;
+            // Suzan: 14168 <-> 14008
+            if ((id1 == 14168 || id1 == 14008) && (id2 == 14168 || id2 == 14008)) return true;
+
+            return false;
+        }
+
         public bool HasRecruitedCompanion(string npcName, ushort templateId)
         {
             string cleanNpcName = (npcName ?? "").Trim();
@@ -187,29 +237,7 @@ namespace Game
                     if (pet == null) continue;
                     if (pet.Amity < 20) continue; // Runaway / abandoned companion
 
-                    if (templateId > 0 && pet.PetID == templateId) return true;
-
-                    // Companion template ID mappings:
-                    // Robinson: 12032 (NPC TID) <-> 12178 (Pet TID)
-                    if ((templateId == 12032 || templateId == 12178) && (pet.PetID == 12032 || pet.PetID == 12178)) return true;
-                    // S.Monkey: 17162 (NPC TID) <-> 10727 (Pet TID)
-                    if ((templateId == 17162 || templateId == 10727) && (pet.PetID == 17162 || pet.PetID == 10727)) return true;
-                    // Roca: 14161 <-> 14001
-                    if ((templateId == 14161 || templateId == 14001) && (pet.PetID == 14161 || pet.PetID == 14001)) return true;
-                    // Niss: 14162 <-> 14002
-                    if ((templateId == 14162 || templateId == 14002) && (pet.PetID == 14162 || pet.PetID == 14002)) return true;
-                    // Clive: 14163 <-> 14003
-                    if ((templateId == 14163 || templateId == 14003) && (pet.PetID == 14163 || pet.PetID == 14003)) return true;
-                    // Fred: 14164 <-> 14004
-                    if ((templateId == 14164 || templateId == 14004) && (pet.PetID == 14164 || pet.PetID == 14004)) return true;
-                    // Elin: 14165 <-> 14005
-                    if ((templateId == 14165 || templateId == 14005) && (pet.PetID == 14165 || pet.PetID == 14005)) return true;
-                    // Sam: 14166 <-> 14006
-                    if ((templateId == 14166 || templateId == 14006) && (pet.PetID == 14166 || pet.PetID == 14006)) return true;
-                    // Shizune: 14167 <-> 14007
-                    if ((templateId == 14167 || templateId == 14007) && (pet.PetID == 14167 || pet.PetID == 14007)) return true;
-                    // Suzan: 14168 <-> 14008
-                    if ((templateId == 14168 || templateId == 14008) && (pet.PetID == 14168 || pet.PetID == 14008)) return true;
+                    if (templateId > 0 && IsSamePetOrCompanion(pet.PetID, templateId)) return true;
 
                     // Match by companion Name
                     if (!string.IsNullOrEmpty(cleanNpcName) && !string.IsNullOrEmpty(pet.PetName))
@@ -223,9 +251,7 @@ namespace Game
             // 2. Check ActivePetID
             if (ActivePetID > 0)
             {
-                if (ActivePetID == templateId) return true;
-                if ((templateId == 12032 || templateId == 12178) && (ActivePetID == 12032 || ActivePetID == 12178)) return true;
-                if ((templateId == 17162 || templateId == 10727) && (ActivePetID == 17162 || ActivePetID == 10727)) return true;
+                if (IsSamePetOrCompanion(ActivePetID, templateId)) return true;
             }
 
             return false;

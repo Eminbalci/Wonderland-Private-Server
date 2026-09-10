@@ -73,7 +73,7 @@ namespace Network.ActionCodes
                 }
 
                 // If this pet was battling / following, dismiss it
-                if (p.ActivePetID == pet.PetID || pet.IsBattle)
+                if (p.ActivePetID == pet.PetID || pet.IsBattle || Player.IsSamePetOrCompanion(p.ActivePetID, pet.PetID))
                 {
                     p.ActivePetID = 0;
                     pet.IsBattle = false;

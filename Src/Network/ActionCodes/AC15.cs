@@ -80,7 +80,7 @@ namespace Network.ActionCodes
                 string petName = pet.PetName;
 
                 // 1. If pet was active in battle or following on map, clear and despawn
-                if (player.ActivePetID == petId || pet.IsBattle)
+                if (player.ActivePetID == petId || pet.IsBattle || Player.IsSamePetOrCompanion(player.ActivePetID, petId))
                 {
                     player.ActivePetID = 0;
                     pet.IsBattle = false;

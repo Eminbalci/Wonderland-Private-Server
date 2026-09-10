@@ -46,6 +46,12 @@ namespace Network.ActionCodes
                 // Proximity and Random Encounter Step Progression
                 if (!Game.Battle.PvEBattleManager.IsInBattle(p) && p.CurMap is GameMap gMap)
                 {
+                    // Grace period after battle: prevent new encounter for 2 to 4 seconds
+                    if (p.IsInBattleCooldown())
+                    {
+                        return;
+                    }
+
                     ushort mid = (ushort)gMap.MapID;
                     if (!Game.Battle.PvEBattleManager.IsSafeTownMap(mid))
                     {

@@ -62,66 +62,74 @@ namespace Network.ActionCodes
                     petId = p.Unpack8();
                 }
 
-                // If petId is a slot number (1..4) rather than actual TemplateID
+                Player.PlayerPetData activePet = null;
+
+                // 1. If petId matches a slot number (1..4) in player's pet list
                 if (petId <= 4 && player.PlayerPets != null && player.PlayerPets.TryGetValue((byte)petId, out var slotPet))
                 {
-                    petId = slotPet.PetID;
+                    activePet = slotPet;
                 }
 
-                // If still 0, fallback to first pet in player's bag
-                if (petId == 0 && player.PlayerPets != null && player.PlayerPets.Count > 0)
+                // 2. Match by exact PetID or companion alias equivalence (e.g. 12178 <-> 12032)
+                if (activePet == null && player.PlayerPets != null)
                 {
-                    petId = player.PlayerPets.Values.FirstOrDefault()?.PetID ?? 0;
+                    activePet = player.PlayerPets.Values.FirstOrDefault(pet => Player.IsSamePetOrCompanion(pet.PetID, petId));
                 }
 
-                if (petId == 0) return;
-
-                player.ActivePetID = petId;
-
-                Player.PlayerPetData activePet = null;
-                if (player.PlayerPets != null)
+                // 3. Match by dictionary key if petId <= 255
+                if (activePet == null && petId <= 255 && player.PlayerPets != null && player.PlayerPets.ContainsKey((byte)petId))
                 {
-                    foreach (var kvp in player.PlayerPets)
+                    activePet = player.PlayerPets[(byte)petId];
+                }
+
+                // 4. Fallback to first pet in player's bag
+                if (activePet == null && player.PlayerPets != null && player.PlayerPets.Count > 0)
+                {
+                    activePet = player.PlayerPets.Values.FirstOrDefault();
+                }
+
+                if (activePet == null) return;
+
+                // Client expects 12178 for Robinson companion display
+                uint broadcastPetId = (activePet.PetID == 12032 || activePet.PetID == 12178) ? 12178 : activePet.PetID;
+                player.ActivePetID = broadcastPetId;
+
+                foreach (var kvp in player.PlayerPets)
+                {
+                    if (kvp.Value == activePet)
                     {
-                        if (kvp.Value.PetID == petId)
-                        {
-                            kvp.Value.IsBattle = true;
-                            activePet = kvp.Value;
-                        }
-                        else
-                        {
-                            kvp.Value.IsBattle = false;
-                        }
+                        kvp.Value.IsBattle = true;
+                    }
+                    else
+                    {
+                        kvp.Value.IsBattle = false;
                     }
                 }
 
                 // 1. Send authentic AC 19:1 Set Battle Pet packet and full AC 15:4, AC 15:1, AC 19:4, AC 13:5, AC 5:8 to map
-                player.Send(Tools.FromFormat("bbd", 19, 1, petId));
-                player.BroadcastPetAppearance(petId, activePet?.PetName);
+                player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
+                player.BroadcastPetAppearance(broadcastPetId, activePet.PetName);
 
                 // 2. Synchronize Pet Level & Stats so Party UI and Status Window show authentic Level and HP/SP
-                if (activePet != null)
-                {
-                    byte slot = activePet.Slot;
-                    uint petLv = (uint)Math.Max(1, (int)activePet.Level);
-                    uint petHp = (uint)Math.Max(1, (int)activePet.HP);
-                    uint petMaxHp = (uint)Math.Max(1, (int)activePet.MaxHP);
-                    uint petSp = (uint)Math.Max(0, (int)activePet.SP);
-                    uint petMaxSp = (uint)Math.Max(0, (int)activePet.MaxSP);
+                byte slot = activePet.Slot;
+                uint petLv = (uint)Math.Max(1, (int)activePet.Level);
+                uint petHp = (uint)Math.Max(1, (int)activePet.HP);
+                uint petMaxHp = (uint)Math.Max(1, (int)activePet.MaxHP);
+                uint petSp = (uint)Math.Max(0, (int)activePet.SP);
+                uint petMaxSp = (uint)Math.Max(0, (int)activePet.MaxSP);
 
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 35, slot, petLv, 0)); // Level
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 37, slot, (uint)Math.Max(0, (int)petLv - 1), 0)); // Level offset
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, slot, 0, 0)); // Potential points
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 207, slot, petMaxHp, 0)); // MaxHP
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 25, slot, petHp, 0)); // CurHP
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 2, 208, slot, petMaxSp, 0)); // MaxSP
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 26, slot, petSp, 0)); // CurSP
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 205, slot, petMaxHp, 0)); // FullHP
-                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 206, slot, petMaxSp, 0)); // FullSP
-                }
+                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 35, slot, petLv, 0)); // Level
+                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 37, slot, (uint)Math.Max(0, (int)petLv - 1), 0)); // Level offset
+                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, slot, 0, 0)); // Potential points
+                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 207, slot, petMaxHp, 0)); // MaxHP
+                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 25, slot, petHp, 0)); // CurHP
+                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 208, slot, petMaxSp, 0)); // MaxSP
+                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 26, slot, petSp, 0)); // CurSP
+                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 205, slot, petMaxHp, 0)); // FullHP
+                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 206, slot, petMaxSp, 0)); // FullSP
 
-                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Pet is now in Battle Mode!"));
-                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet ID {petId} (Lv.{activePet?.Level ?? 1})");
+                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{activePet.PetName ?? "Pet"} is now in Battle Mode!"));
+                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {slot}, Lv.{activePet.Level})");
             }
             catch (Exception ex)
             {

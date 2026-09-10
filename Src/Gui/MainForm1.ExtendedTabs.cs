@@ -2041,10 +2041,13 @@ namespace Wonderland_Private_Server
                 Button btnExport = new Button { Text = "📤 Export JSON", Location = new Point(665, 9), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
                 btnExport.Click += (s, e) => ActionExportStarterJson();
 
+                Button btnGiveOnline = new Button { Text = "🎁 Give to All Online", Location = new Point(785, 9), Size = new Size(140, 28), Font = new Font("Segoe UI", 9f) };
+                btnGiveOnline.Click += (s, e) => ActionGiveStarterPackToOnline();
+
                 ext_lblStarterSummary = new Label
                 {
                     Text = "Items: 0",
-                    Location = new Point(785, 14),
+                    Location = new Point(935, 14),
                     AutoSize = true,
                     ForeColor = Color.FromArgb(16, 185, 129),
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
@@ -2056,6 +2059,7 @@ namespace Wonderland_Private_Server
                 topPanel.Controls.Add(btnDelete);
                 topPanel.Controls.Add(btnImport);
                 topPanel.Controls.Add(btnExport);
+                topPanel.Controls.Add(btnGiveOnline);
                 topPanel.Controls.Add(ext_lblStarterSummary);
 
                 ext_dgvStarters = new DataGridView
@@ -2234,6 +2238,35 @@ namespace Wonderland_Private_Server
             catch (Exception ex)
             {
                 MessageBox.Show($"Error exporting JSON: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ActionGiveStarterPackToOnline()
+        {
+            try
+            {
+                var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                if (online == null || online.Count == 0)
+                {
+                    MessageBox.Show("No players are currently online.", "Starter Pack", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                if (MessageBox.Show($"Deliver the configured starter item pack to all {online.Count} online player(s)?", "Confirm Starter Pack Delivery", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    int count = 0;
+                    foreach (var p in online)
+                    {
+                        StarterPackManager.DeliverToPlayer(p, sendData: true);
+                        try { cGlobal.gCharacterDataBase.WritePlayer(p.CharID, p); } catch { }
+                        count++;
+                    }
+                    MessageBox.Show($"Successfully delivered starter item pack to {count} online player(s)!", "Delivery Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error delivering starter items: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         #endregion

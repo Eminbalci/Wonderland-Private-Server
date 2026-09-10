@@ -419,6 +419,7 @@ namespace Game.Battle
                     {
                         DebugSystem.Write($"[PvEBattle] Player {player.CharName} disconnected during battle. Cleaning up battle session.");
                         _activeBattles.Remove(player.CharID);
+                        player.SetBattleCooldown();
                         battle.AttackingPlayers.Remove(player);
                         battle.DefendingPlayers.Remove(player);
 
@@ -430,6 +431,7 @@ namespace Game.Battle
                             foreach (var p in battle.AllPlayers)
                             {
                                 _activeBattles.Remove(p.CharID);
+                                p.SetBattleCooldown();
                             }
                         }
                     }
@@ -460,19 +462,25 @@ namespace Game.Battle
 
             Player.PlayerPetData pet = null;
 
-            // 1. Prioritize designated ActivePetID if it is marked for battle
+            // 1. Prioritize designated ActivePetID if it is marked for battle (with companion alias and slot matching)
             if (p.ActivePetID > 0)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => x.PetID == p.ActivePetID && x.IsBattle && x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.IsBattle && x.HP > 0);
             }
 
-            // 2. Fallback to any pet explicitly marked as IsBattle
+            // 2. Fallback to any pet explicitly marked as IsBattle with positive HP
             if (pet == null)
             {
                 pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
             }
 
-            // 3. If no pet is marked for battle, do NOT force a ride mount or inactive pet into battle
+            // 3. Fallback: If ActivePetID > 0, match pet even if IsBattle flag was missed
+            if (pet == null && p.ActivePetID > 0)
+            {
+                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.HP > 0);
+            }
+
+            // 4. If no pet is marked for battle or matching ActivePetID, do NOT force an inactive mount into combat
             if (pet == null)
             {
                 return null;
@@ -537,7 +545,7 @@ namespace Game.Battle
 
         public static void CheckAndTriggerRandomEncounter(Player player)
         {
-            if (player == null || IsInBattle(player)) return;
+            if (player == null || IsInBattle(player) || player.IsInBattleCooldown()) return;
 
             GameMap map = player.CurMap as GameMap;
             if (map == null) return;
@@ -562,6 +570,11 @@ namespace Game.Battle
         public static void StartProximityEncounter(Player player, GameMap map, QuestNpc triggerMob)
         {
             if (player == null || triggerMob == null || map == null) return;
+            if (player.IsInBattleCooldown())
+            {
+                DebugSystem.Write($"[PvEBattle] Proximity encounter suppressed for {player.CharName}: post-battle cooldown active.");
+                return;
+            }
             if (IsSafeTownMap((ushort)map.MapID) || !triggerMob.IsWildMonster()) return;
 
             lock (_lock)
@@ -613,7 +626,7 @@ namespace Game.Battle
 
         private static void StartRandomEncounterFromPool(Player player, GameMap map, List<QuestNpc> pool)
         {
-            if (player == null || pool == null || pool.Count == 0) return;
+            if (player == null || pool == null || pool.Count == 0 || player.IsInBattleCooldown()) return;
 
             lock (_lock)
             {
@@ -880,16 +893,19 @@ namespace Game.Battle
                 var pet = GetActivePet(p);
                 if (pet != null)
                 {
+                    uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
+                    byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
+
                     battle.Attackers.Add(new BattleFighter
                     {
                         Side = BattleTeamSide.Attacker,
                         FighterType = BattleFighterType.Pet,
                         PetRef = pet,
                         OwnerID = p.CharID,
-                        ID = pet.PetID,
+                        ID = petTid,
                         Name = pet.PetName ?? "Pet",
                         Level = pet.Level,
-                        Element = 0,
+                        Element = petElem,
                         MaxHP = Math.Max(1, pet.MaxHP),
                         CurHP = Math.Max(1, pet.HP),
                         MaxSP = Math.Max(0, pet.MaxSP),
@@ -935,16 +951,19 @@ namespace Game.Battle
                     var pet = GetActivePet(p);
                     if (pet != null)
                     {
+                        uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
+                        byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
+
                         battle.Defenders.Add(new BattleFighter
                         {
                             Side = BattleTeamSide.Defender,
                             FighterType = BattleFighterType.Pet,
                             PetRef = pet,
                             OwnerID = p.CharID,
-                            ID = pet.PetID,
+                            ID = petTid,
                             Name = pet.PetName ?? "Pet",
                             Level = pet.Level,
-                            Element = 0,
+                            Element = petElem,
                             MaxHP = Math.Max(1, pet.MaxHP),
                             CurHP = Math.Max(1, pet.HP),
                             MaxSP = Math.Max(0, pet.MaxSP),
@@ -1998,6 +2017,7 @@ namespace Game.Battle
                         foreach (var p in battle.AllPlayers)
                         {
                             _activeBattles.Remove(p.CharID);
+                            p.SetBattleCooldown();
                         }
                     }
 
@@ -2022,6 +2042,7 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
                         p.SaveCharacterData();
                     }
                 }
@@ -2047,6 +2068,7 @@ namespace Game.Battle
                         foreach (var p in battle.AllPlayers)
                         {
                             _activeBattles.Remove(p.CharID);
+                            p.SetBattleCooldown();
                         }
                     }
 
@@ -2147,6 +2169,7 @@ namespace Game.Battle
                         // 6. Normal map mode and movement release
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
                     }
 
                     // Defending team cleanup (if PvP)
@@ -2173,6 +2196,7 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
                     }
 
                     // Check Quest Battle Completion for Leader
@@ -2206,6 +2230,7 @@ namespace Game.Battle
                         foreach (var p in battle.AllPlayers)
                         {
                             _activeBattles.Remove(p.CharID);
+                            p.SetBattleCooldown();
                         }
                     }
 
@@ -2237,6 +2262,7 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
                     }
 
                     // Defending players victory cleanup (if PvP)
@@ -2259,6 +2285,7 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
                     }
                     if (battle.QuestContext?.OnDefeat != null)
                     {

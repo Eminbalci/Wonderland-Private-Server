@@ -31,7 +31,30 @@ namespace Game.PlayerRelated
     {
         private static readonly List<StarterItemEntry> _items = new List<StarterItemEntry>();
         private static readonly object _lock = new object();
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
+
+        private static string GetConfigPath()
+        {
+            try
+            {
+                // 1. Check primary binary directory
+                string primaryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
+                if (File.Exists(primaryPath)) return primaryPath;
+
+                // 2. Check current working directory
+                string currentDirPath = Path.Combine(Environment.CurrentDirectory, "Data", "starter_items.json");
+                if (File.Exists(currentDirPath)) return currentDirPath;
+
+                // 3. Check development source directory fallback (bin\Debug\..\..\Data)
+                string devPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "starter_items.json");
+                if (File.Exists(devPath)) return Path.GetFullPath(devPath);
+
+                return primaryPath;
+            }
+            catch
+            {
+                return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
+            }
+        }
 
         static StarterPackManager()
         {
@@ -99,18 +122,23 @@ namespace Game.PlayerRelated
             {
                 try
                 {
-                    string dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
-                    if (!Directory.Exists(dataDir)) Directory.CreateDirectory(dataDir);
-
-                    if (File.Exists(ConfigPath))
+                    string targetPath = GetConfigPath();
+                    string dir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                     {
-                        string json = File.ReadAllText(ConfigPath, Encoding.UTF8);
+                        Directory.CreateDirectory(dir);
+                    }
+
+                    if (File.Exists(targetPath))
+                    {
+                        string json = File.ReadAllText(targetPath, Encoding.UTF8);
                         var serializer = new JavaScriptSerializer();
                         var list = serializer.Deserialize<List<StarterItemEntry>>(json);
                         if (list != null && list.Count > 0)
                         {
                             _items.Clear();
                             _items.AddRange(list);
+                            DebugSystem.Write($"[StarterPackManager] Loaded {_items.Count} starter items from {targetPath}");
                             return;
                         }
                     }
@@ -146,7 +174,34 @@ namespace Game.PlayerRelated
                 {
                     var serializer = new JavaScriptSerializer();
                     string json = serializer.Serialize(_items);
-                    File.WriteAllText(ConfigPath, json, Encoding.UTF8);
+
+                    // Save to active path
+                    string activePath = GetConfigPath();
+                    string dir = Path.GetDirectoryName(activePath);
+                    if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                    File.WriteAllText(activePath, json, Encoding.UTF8);
+
+                    // Also synchronize to primary bin directory if different
+                    string primaryPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "starter_items.json");
+                    if (!string.Equals(activePath, primaryPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string pDir = Path.GetDirectoryName(primaryPath);
+                        if (!string.IsNullOrEmpty(pDir) && !Directory.Exists(pDir)) Directory.CreateDirectory(pDir);
+                        File.WriteAllText(primaryPath, json, Encoding.UTF8);
+                    }
+
+                    // Also synchronize to project root directory if accessible
+                    string devPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Data", "starter_items.json");
+                    try
+                    {
+                        string fullDevPath = Path.GetFullPath(devPath);
+                        string devDir = Path.GetDirectoryName(fullDevPath);
+                        if (Directory.Exists(devDir) && !string.Equals(activePath, fullDevPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            File.WriteAllText(fullDevPath, json, Encoding.UTF8);
+                        }
+                    }
+                    catch { /* Best-effort dev sync */ }
                 }
             }
             catch (Exception ex)
@@ -188,15 +243,42 @@ namespace Game.PlayerRelated
             }
         }
 
-        public static void DeliverToPlayer(Player p)
+        public static bool HasAnyStarterItem(Player p)
         {
-            if (p == null) return;
+            if (p == null || p.Inv == null) return false;
             lock (_lock)
             {
                 foreach (var entry in _items)
                 {
-                    p.Inv.AddItem((ushort)entry.ItemID, (byte)entry.Count);
+                    if (entry.ItemID > 0 && p.Inv.ContainsItem((ushort)entry.ItemID))
+                    {
+                        return true;
+                    }
                 }
+            }
+            return false;
+        }
+
+        public static void DeliverToPlayer(Player p, bool sendData = true)
+        {
+            if (p == null || p.Inv == null) return;
+            lock (_lock)
+            {
+                if (_items.Count == 0)
+                {
+                    LoadFromFile();
+                }
+
+                int countAdded = 0;
+                foreach (var entry in _items.OrderBy(i => i.OrderIdx))
+                {
+                    if (entry.ItemID > 0 && entry.Count > 0)
+                    {
+                        p.Inv.AddItem((ushort)entry.ItemID, (byte)Math.Min(entry.Count, 255), sendData);
+                        countAdded++;
+                    }
+                }
+                DebugSystem.Write($"[StarterPackManager] Delivered {countAdded} starter pack items to {p.CharName} (CharID: {p.CharID}, sendData: {sendData})");
             }
         }
     }
