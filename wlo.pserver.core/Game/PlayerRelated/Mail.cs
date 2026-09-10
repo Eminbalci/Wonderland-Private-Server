@@ -51,6 +51,68 @@ namespace Game.PlayerRelated
             LoadFromDatabase();
         }
 
+        public static List<MailMessage> GetAllMails()
+        {
+            lock (_lock)
+            {
+                var all = new List<MailMessage>();
+                foreach (var list in _inboxes.Values)
+                {
+                    all.AddRange(list);
+                }
+                return all.OrderByDescending(m => m.MailID).ToList();
+            }
+        }
+
+        public static bool AdminDispatchMail(uint targetCharId, string senderName, string subject, string content, uint gold = 0, ushort itemId = 0, byte count = 0)
+        {
+            try
+            {
+                MailMessage msg;
+                lock (_lock)
+                {
+                    uint mailId = _nextMailId++;
+                    msg = new MailMessage(mailId, 0, string.IsNullOrWhiteSpace(senderName) ? "System GM" : senderName, targetCharId, subject, content, gold, itemId, count);
+
+                    if (!_inboxes.TryGetValue(targetCharId, out var list))
+                    {
+                        list = new List<MailMessage>();
+                        _inboxes[targetCharId] = list;
+                    }
+                    list.Add(msg);
+                }
+
+                SaveMail(msg);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[MailSystem] Error in AdminDispatchMail: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static bool AdminDeleteMail(uint mailId)
+        {
+            lock (_lock)
+            {
+                bool found = false;
+                foreach (var list in _inboxes.Values)
+                {
+                    if (list.RemoveAll(m => m.MailID == mailId) > 0)
+                    {
+                        found = true;
+                    }
+                }
+                if (found)
+                {
+                    SaveMail(null);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static bool SendMail(Player sender, uint targetCharId, string subject, string content, uint gold = 0, ushort itemId = 0, byte count = 0)
         {
             if (sender == null || string.IsNullOrWhiteSpace(subject)) return false;

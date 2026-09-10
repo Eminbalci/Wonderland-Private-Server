@@ -85,9 +85,11 @@ namespace Game.Maps
                         SendPacket squeakPkt = BuildDialoguePacket((byte)clickId, 20042, 1, 3);
                         player.OnInteractionComplete = () =>
                         {
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                             player.Send(Tools.FromFormat("bb", 20, 8));
                             player.Send(Tools.FromFormat("bb", 5, 4));
                         };
+                        player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                         player.Send(squeakPkt);
                         DebugSystem.Write($"[EveEventInterpreter] Sent S.Monkey already-recruited dialogue (TalkID 20042) to {player.CharName}");
                         return true;
@@ -138,6 +140,7 @@ namespace Game.Maps
                         }
                         if (i == 0)
                         {
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                             player.Send(stepPkt);
                             DebugSystem.Write($"[EveEventInterpreter] Sent S.Monkey Step 1 (TalkID: #{sInfo.TalkId}) - \"{dText}\" to {player.CharName}");
                         }
@@ -174,6 +177,7 @@ namespace Game.Maps
                             player.Send(Tools.FromFormat("bb", 20, 10));
                         }
 
+                        player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         player.Send(Tools.FromFormat("bb", 20, 8));
                         player.Send(Tools.FromFormat("bb", 5, 4));
                         player.SaveCharacterData();
@@ -197,6 +201,8 @@ namespace Game.Maps
                 }
 
                 // 3. Execute opcodes with dialogue multi-step queueing
+                player.OnDialogueChoice = null;
+                player.OnInteractionComplete = null;
                 player.QueueData.Clear();
                 bool firstDialogSent = false;
                 bool executedAny = false;
@@ -253,7 +259,7 @@ namespace Game.Maps
                                 if (op.dialog1 == 2)
                                 {
                                     portrait = 7; // Player portrait
-                                    speakerClickId = (byte)clickId;
+                                    speakerClickId = 0; // Official PCAP: 0 for player portrait
                                 }
                                 else if (op.dialog1 > 0)
                                 {
@@ -265,7 +271,7 @@ namespace Game.Maps
                                 if (op.dialog2 == 2)
                                 {
                                     portrait = 7; // Player portrait
-                                    speakerClickId = (byte)clickId;
+                                    speakerClickId = 0; // Official PCAP: 0 for player portrait
                                 }
                                 else
                                 {
@@ -328,7 +334,7 @@ namespace Game.Maps
                                 cPkt.Pack8(0);                                    // [14] padding
                                 cPkt.Pack8((byte)(op.dialog3 & 0xFF));            // [15] Native Choice ID from eve.Emg
                                 cPkt.Pack8((byte)((op.dialog3 >> 8) & 0xFF));     // [16] Native Choice ID MSB
-                                cPkt.Pack8((byte)(op.dialog1 > 0 ? op.dialog1 : 1)); // [17] Dialog layout byte (0x01)
+                                cPkt.Pack8((byte)(sub != null ? sub.subIndex : 1)); // [17] SubEntry index
 
                                 ushort curQuestionId = (ushort)op.dialog3;
                                 player.OnDialogueChoice = (choice) =>
@@ -358,61 +364,67 @@ namespace Game.Maps
                                     if (choiceSub != null)
                                     {
                                         firstDialogSent = false;
+                                        postDialogueOpcodes.Clear();
                                         RunSubOpcodes(choiceSub);
 
-                                        // If this choice branch does not trigger another question, run the quiz outcome branch
+                                        // If this choice branch does not trigger another question, check for dedicated quiz outcome branch
                                         if (choiceSub.SubEntry != null && !choiceSub.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 6))
                                         {
-                                            uint qId = curQuestionId;
-                                            var op5 = choiceSub.SubEntry.FirstOrDefault(o => o.DialogPtr == 5);
-                                            if (op5.DialogPtr == 5 && op5.dialog1 > 0) qId = (uint)op5.dialog1;
+                                            bool hasQuizOutcomes = eventEntry.SubEntry.Any(s => s.unknownword4 == 773 || s.unknownword4 == 769);
+                                            if (hasQuizOutcomes)
+                                            {
+                                                uint qId = curQuestionId;
+                                                var op5 = choiceSub.SubEntry.FirstOrDefault(o => o.DialogPtr == 5);
+                                                if (op5.DialogPtr == 5 && op5.dialog1 > 0) qId = (uint)op5.dialog1;
 
-                                            EventSubEntry resultBranch = null;
-                                            bool isSuccess = (targetChoiceVal == 31 || choice == 0x1F || choiceSub.SubEntry.Any(o => o.DialogPtr == 5));
-                                            if (isSuccess)
-                                            {
-                                                // Priority 1: Quest reward outcome branch (unknownword4 == 773 / 0x0305, (unknownword4 & 0xFF) == 5, or containing item reward)
-                                                resultBranch = eventEntry.SubEntry.FirstOrDefault(s => s != choiceSub && (qId == 0 || s.unknownword1 == qId || s.unknownword1 == 0) && (s.unknownword4 == 773 || (s.unknownword4 & 0xFF) == 5 || (s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 1 && o.dialog1 == 1 && o.dialog3 >= 10000))));
-                                            }
-                                            else
-                                            {
-                                                // Priority 2: Quiz failure branch (unknownword4 == 769 / 0x0301 or (unknownword4 & 0xFF) == 1)
-                                                resultBranch = eventEntry.SubEntry.FirstOrDefault(s => s != choiceSub && (qId == 0 || s.unknownword1 == qId || s.unknownword1 == 0) && (s.unknownword4 == 769 || (s.unknownword4 & 0xFF) == 1 || (s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog3 >= 10000 && !s.SubEntry.Any(i => i.DialogPtr == 1 && i.dialog1 == 1)))));
-                                            }
-
-                                            if (resultBranch == null)
-                                            {
-                                                resultBranch = SelectMatchingBranch(player, map, clickId, eventEntry, choiceSub);
-                                            }
-
-                                            if (resultBranch != null && resultBranch != choiceSub)
-                                            {
-                                                DebugSystem.Write($"[EveEventInterpreter] Running outcome branch Sub #{eventEntry.SubEntry.IndexOf(resultBranch)} for {player.CharName}");
-                                                RunSubOpcodes(resultBranch);
-                                                if (firstDialogSent && player.OnDialogueChoice == null)
+                                                EventSubEntry resultBranch = null;
+                                                bool isSuccess = (targetChoiceVal == 31 || choice == 0x1F || choiceSub.SubEntry.Any(o => o.DialogPtr == 5));
+                                                if (isSuccess)
                                                 {
-                                                    player.OnInteractionComplete = () =>
-                                                    {
-                                                        foreach (var postOp in postDialogueOpcodes)
-                                                        {
-                                                            ExecuteOpcode(player, map, clickId, eventEntry, resultBranch, postOp);
-                                                        }
-                                                        player.Send(Tools.FromFormat("bb", 20, 8));
-                                                        player.Send(Tools.FromFormat("bb", 5, 4));
-                                                    };
+                                                    resultBranch = eventEntry.SubEntry.FirstOrDefault(s => s != choiceSub && (qId == 0 || s.unknownword1 == qId || s.unknownword1 == 0) && (s.unknownword4 == 773 || (s.unknownword4 & 0xFF) == 5));
                                                 }
-                                                else if (!firstDialogSent)
+                                                else
                                                 {
-                                                    foreach (var postOp in postDialogueOpcodes)
-                                                    {
-                                                        ExecuteOpcode(player, map, clickId, eventEntry, resultBranch, postOp);
-                                                    }
+                                                    resultBranch = eventEntry.SubEntry.FirstOrDefault(s => s != choiceSub && (qId == 0 || s.unknownword1 == qId || s.unknownword1 == 0) && (s.unknownword4 == 769 || (s.unknownword4 & 0xFF) == 1));
+                                                }
+
+                                                if (resultBranch != null && resultBranch != choiceSub)
+                                                {
+                                                    DebugSystem.Write($"[EveEventInterpreter] Running quiz outcome branch Sub #{resultBranch.subIndex} for {player.CharName}");
+                                                    RunSubOpcodes(resultBranch);
                                                 }
                                             }
+                                        }
+
+                                        if (firstDialogSent && player.OnDialogueChoice == null)
+                                        {
+                                            player.OnInteractionComplete = () =>
+                                            {
+                                                foreach (var postOp in postDialogueOpcodes)
+                                                {
+                                                    ExecuteOpcode(player, map, clickId, eventEntry, choiceSub, postOp);
+                                                }
+                                                player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                                                player.Send(Tools.FromFormat("bb", 20, 8));
+                                                player.Send(Tools.FromFormat("bb", 5, 4));
+                                                player.SaveCharacterData();
+                                            };
+                                        }
+                                        else if (!firstDialogSent)
+                                        {
+                                            foreach (var postOp in postDialogueOpcodes)
+                                            {
+                                                ExecuteOpcode(player, map, clickId, eventEntry, choiceSub, postOp);
+                                            }
+                                            player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                                            player.Send(Tools.FromFormat("bb", 20, 8));
+                                            player.Send(Tools.FromFormat("bb", 5, 4));
+                                            player.SaveCharacterData();
                                         }
                                     }
                                     else
                                     {
+                                        player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                                         player.Send(Tools.FromFormat("bb", 20, 8));
                                         player.Send(Tools.FromFormat("bb", 5, 4));
                                     }
@@ -420,6 +432,7 @@ namespace Game.Maps
 
                                 if (!firstDialogSent)
                                 {
+                                    player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                                     player.Send(cPkt);
                                     firstDialogSent = true;
                                     DebugSystem.Write($"[EveEventInterpreter] Sent Choice Step {stepNum} (Talk #{choiceTalkId}) to {player.CharName} for NPC #{speakerClickId} '{nName}'");
@@ -448,7 +461,7 @@ namespace Game.Maps
                             dPkt.Pack8(0);                                    // padding
                             dPkt.Pack8((byte)(talkId24 & 0xFF));             // TalkID LSB
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));      // TalkID MID
-                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));     // TalkID MSB
+                            dPkt.Pack8((byte)(sub != null ? sub.subIndex : 1)); // SubEntry index
 
                             string diagText = "";
                             try
@@ -469,6 +482,7 @@ namespace Game.Maps
 
                             if (!firstDialogSent)
                             {
+                                player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                                 player.Send(dPkt);
                                 firstDialogSent = true;
                                 DebugSystem.Write($"[EveEventInterpreter] Sent Step {stepNum} (TalkID: #{cleanTalkId} / 0x{cleanTalkId:X4}){diagText} to {player.CharName} for NPC #{speakerClickId} '{speakerName}'");
@@ -1090,6 +1104,7 @@ namespace Game.Maps
                             }
 
                             byte portrait = (byte)(op.dialog1 > 0 ? op.dialog1 : 3);
+                            byte speakerClickId = (byte)(portrait == 7 ? 0 : clickId);
                             SendPacket dPkt = new SendPacket();
                             dPkt.Pack8(20);
                             dPkt.Pack8(1);
@@ -1097,21 +1112,23 @@ namespace Game.Maps
                             dPkt.Pack8((byte)op.subsubIndex);
                             dPkt.Pack8(1);
                             dPkt.Pack8(portrait);
-                            dPkt.Pack8((byte)clickId);
+                            dPkt.Pack8(speakerClickId);
                             dPkt.Pack8(0);
                             dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
                             dPkt.Pack8(0);
                             dPkt.Pack8((byte)(talkId24 & 0xFF));
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
-                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));
+                            dPkt.Pack8((byte)(sub != null ? sub.subIndex : 1));
 
                             player.OnInteractionComplete = () =>
                             {
+                                player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                                 player.Send(Tools.FromFormat("bb", 20, 8));
                                 player.Send(Tools.FromFormat("bb", 5, 4));
                                 player.SaveCharacterData();
                             };
 
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                             player.Send(dPkt);
                             return true;
                         }
@@ -1201,14 +1218,16 @@ namespace Game.Maps
                             dPkt.Pack8(0);
                             dPkt.Pack8((byte)(talkId24 & 0xFF));
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
-                            dPkt.Pack8((byte)((talkId24 >> 16) & 0xFF));
+                            dPkt.Pack8((byte)(sub != null ? sub.subIndex : 1));
 
                             player.OnInteractionComplete = () =>
                             {
+                                player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                                 player.Send(Tools.FromFormat("bb", 20, 8));
                                 player.Send(Tools.FromFormat("bb", 5, 4));
                             };
 
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                             player.Send(dPkt);
                             return true;
                         }
@@ -1643,7 +1662,7 @@ namespace Game.Maps
             return false;
         }
 
-        private static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3)
+        private static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3, byte subIndex = 1)
         {
             SendPacket dPkt = new SendPacket();
             dPkt.Pack8(20);                                   // AC
@@ -1652,13 +1671,13 @@ namespace Game.Maps
             dPkt.Pack8(stepNum);                             // step
             dPkt.Pack8(1);                                    // fixed
             dPkt.Pack8(portrait);                             // portrait (3=NPC, 7=Player)
-            dPkt.Pack8(speakerClickId);                       // npc click id
+            dPkt.Pack8((byte)(portrait == 7 ? 0 : speakerClickId)); // npc click id (0 for player portrait)
             dPkt.Pack8(0);                                    // padding
             dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // flags
             dPkt.Pack8(0);                                    // padding
             dPkt.Pack8((byte)(talkId & 0xFF));                // TalkID LSB
             dPkt.Pack8((byte)((talkId >> 8) & 0xFF));         // TalkID MID
-            dPkt.Pack8((byte)((talkId >> 16) & 0xFF));        // TalkID MSB
+            dPkt.Pack8(subIndex);                             // SubEntry index
             return dPkt;
         }
 

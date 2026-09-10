@@ -275,6 +275,61 @@ namespace Game.Battle
         private static readonly object _lock = new object();
         private static readonly Random _rng = new Random();
 
+        public static IReadOnlyDictionary<uint, ActiveBattle> ActiveBattles
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return new Dictionary<uint, ActiveBattle>(_activeBattles);
+                }
+            }
+        }
+
+        public static bool ForceWinBattle(uint battleId)
+        {
+            try
+            {
+                ActiveBattle target = null;
+                lock (_lock)
+                {
+                    _activeBattles.TryGetValue(battleId, out target);
+                }
+                if (target != null)
+                {
+                    EndBattleVictory(target);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PvEBattle] Error in ForceWinBattle: {ex.Message}");
+            }
+            return false;
+        }
+
+        public static bool ForceEndBattle(uint battleId)
+        {
+            try
+            {
+                ActiveBattle target = null;
+                lock (_lock)
+                {
+                    _activeBattles.TryGetValue(battleId, out target);
+                }
+                if (target != null)
+                {
+                    EndBattleFlee(target);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PvEBattle] Error in ForceEndBattle: {ex.Message}");
+            }
+            return false;
+        }
+
         // WLO Player/Attacking Team Grid Positions:
         // Slot 0 (Leader): Player (4, 2), Pet (3, 2)
         // Slot 1 (Member 1): Player (4, 3), Pet (3, 3)
@@ -402,25 +457,30 @@ namespace Game.Battle
         public static Player.PlayerPetData GetActivePet(Player p)
         {
             if (p == null || p.PlayerPets == null || p.PlayerPets.Count == 0) return null;
-            var pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
-            if (pet == null && p.ActivePetID > 0)
+
+            Player.PlayerPetData pet = null;
+
+            // 1. Prioritize designated ActivePetID if it is marked for battle
+            if (p.ActivePetID > 0)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => x.PetID == p.ActivePetID && x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault(x => x.PetID == p.ActivePetID && x.IsBattle && x.HP > 0);
             }
+
+            // 2. Fallback to any pet explicitly marked as IsBattle
             if (pet == null)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
             }
+
+            // 3. If no pet is marked for battle, do NOT force a ride mount or inactive pet into battle
             if (pet == null)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault();
+                return null;
             }
-            if (pet != null)
-            {
-                if (pet.HP <= 0) pet.HP = Math.Max(50, pet.MaxHP);
-                if (pet.SP <= 0) pet.SP = Math.Max(20, pet.MaxSP);
-                pet.IsBattle = true;
-            }
+
+            if (pet.HP <= 0) pet.HP = Math.Max(50, pet.MaxHP);
+            if (pet.SP <= 0) pet.SP = Math.Max(20, pet.MaxSP);
+            pet.IsBattle = true;
             return pet;
         }
 

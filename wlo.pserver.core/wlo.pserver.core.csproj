@@ -58,6 +58,7 @@
       <HintPath>..\packages\MySql.Data.9.1.0\lib\net462\MySql.Data.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
     </Reference>
@@ -169,6 +170,7 @@
     <Compile Include="Game\PlayerRelated\StallManager.cs" />
     <Compile Include="Game\PlayerRelated\RebornManager.cs" />
     <Compile Include="Game\PlayerRelated\Vehicle.cs" />
+    <Compile Include="Game\PlayerRelated\StarterPackManager.cs" />
     <Compile Include="Game\PetRelated\PetAmityManager.cs" />
     <Compile Include="Game\Crafting\AlchemyManager.cs" />
     <Compile Include="Game\Crafting\GatheringManager.cs" />

@@ -100,6 +100,11 @@ namespace Game
         public Game.PlayerRelated.Guild CurGuild { get; set; }
         public ushort GuildID => (ushort)(CurGuild?.GuildID ?? 0);
         public Game.PlayerRelated.Guild Guild => CurGuild;
+        public ushort MapID => (ushort)(CurMap?.MapID ?? 0);
+        public int HP { get => Eqs?.CurHP ?? 0; set { if (Eqs != null) Eqs.CurHP = (ushort)value; } }
+        public int MaxHP => Eqs?.FullHP ?? 0;
+        public int SP { get => Eqs?.CurSP ?? 0; set { if (Eqs != null) Eqs.CurSP = (ushort)value; } }
+        public int MaxSP => Eqs?.FullSP ?? 0;
         public User UserAccount => m_useracc;
         public ushort X { get => CurX; set => CurX = value; }
         public ushort Y { get => CurY; set => CurY = value; }
@@ -158,7 +163,7 @@ namespace Game
             public ushort SkillPoints { get; set; } = 0;
             public ushort Potential { get; set; } = 0;
             public byte Amity { get; set; } = 60;
-            public bool IsBattle { get; set; } = true;
+            public bool IsBattle { get; set; } = false;
             public bool IsRide { get; set; } = false;
             public bool Reborn { get; set; } = false;
             public byte Job { get; set; } = 0;
@@ -1100,19 +1105,37 @@ namespace Game
 
         public bool AddPetToPartyList(string petID)
         {
-            UnridePet();
-
-            // Dismiss previous pet - send only to owner, not broadcast
-            SendPacket dp = new SendPacket();
-            dp.PackArray(new byte[] { 15, 2 });
-            dp.Pack32(this.CharID);
-            dp.Pack8(1); // dismiss previous pet at slot1
-            Send(dp);
-
             if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return false;
 
-            ActivePetID = pid;
-            BroadcastPetAppearance(pid);
+            if (PlayerPets == null) PlayerPets = new Dictionary<byte, PlayerPetData>();
+
+            // Ensure pet is registered in PlayerPets (slots 1..4)
+            if (!PlayerPets.Values.Any(p => p.PetID == pid))
+            {
+                byte freeSlot = 1;
+                while (PlayerPets.ContainsKey(freeSlot) && freeSlot <= 4) freeSlot++;
+                if (freeSlot <= 4)
+                {
+                    string petName = QuestRelated.QuestManager.GetNpcName(pid) ?? $"Pet #{pid}";
+                    PlayerPets[freeSlot] = new PlayerPetData
+                    {
+                        Slot = freeSlot,
+                        PetID = pid,
+                        PetName = petName,
+                        Level = 10,
+                        HP = 500,
+                        MaxHP = 500,
+                        SP = 200,
+                        MaxSP = 200,
+                        Amity = 100,
+                        IsBattle = false,
+                        IsRide = false
+                    };
+                    SendPacket p = QuestRelated.QuestManager.CreatePetPacket(this, pid, freeSlot, 500, 500, 200, 200, 100, 10);
+                    Send(p);
+                }
+            }
+
             return true;
         }
 
@@ -1120,21 +1143,13 @@ namespace Game
         {
             if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return;
 
-            UnridePet();
             ActivePetID = pid;
 
             if (PlayerPets != null)
             {
                 foreach (var kvp in PlayerPets)
                 {
-                    if (kvp.Value.PetID == pid)
-                    {
-                        kvp.Value.IsBattle = true;
-                    }
-                    else
-                    {
-                        kvp.Value.IsBattle = false;
-                    }
+                    kvp.Value.IsBattle = (kvp.Value.PetID == pid);
                 }
             }
 
@@ -1149,12 +1164,28 @@ namespace Game
         {
             if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return;
 
-            ActivePetID = 0; // Un-battle
             ActiveMountID = pid;
+
+            byte slot = 1;
+            if (PlayerPets != null)
+            {
+                foreach (var kvp in PlayerPets)
+                {
+                    if (kvp.Value.PetID == pid)
+                    {
+                        kvp.Value.IsRide = true;
+                        slot = kvp.Value.Slot;
+                    }
+                    else
+                    {
+                        kvp.Value.IsRide = false;
+                    }
+                }
+            }
 
             SendPacket rp = new SendPacket();
             rp.PackArray(new byte[] { 15, 16 }); // put into ride npc mode
-            rp.Pack8(1);
+            rp.Pack8(slot);
             rp.Pack32(this.CharID);
             rp.Pack32(pid);
             for (int i = 0; i < 26; i++) rp.Pack8(0);
@@ -1177,6 +1208,14 @@ namespace Game
             urp.PackArray(new byte[] { 15, 17 }); // unride pet
             urp.Pack32(this.CharID);
             ActiveMountID = 0;
+
+            if (PlayerPets != null)
+            {
+                foreach (var kvp in PlayerPets)
+                {
+                    kvp.Value.IsRide = false;
+                }
+            }
 
             Send(urp);
             CurMap?.Broadcast(urp, "Ex", this.CharID);

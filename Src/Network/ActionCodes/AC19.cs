@@ -76,7 +76,6 @@ namespace Network.ActionCodes
 
                 if (petId == 0) return;
 
-                player.UnridePet();
                 player.ActivePetID = petId;
 
                 Player.PlayerPetData activePet = null;

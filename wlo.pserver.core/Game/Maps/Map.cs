@@ -733,7 +733,7 @@ namespace Game
                         Broadcast(petPkt, "Ex", src.CharID);
                         QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
 
-                        if (pet.IsBattle || src.ActivePetID == pet.PetID || src.ActivePetID == 0)
+                        if (pet.IsBattle || (src.ActivePetID > 0 && src.ActivePetID == pet.PetID))
                         {
                             src.ActivePetID = pet.PetID;
                             pet.IsBattle = true;

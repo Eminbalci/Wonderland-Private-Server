@@ -35,6 +35,13 @@ namespace Wonderland_Private_Server
             SetupTalkResolverTab();
             SetupMapNpcStudioTab();
             SetupNpcResolverTab();
+            SetupOnlineSessionsTab();
+            SetupGuildsTab();
+            SetupMailTab();
+            SetupSecurityTab();
+            SetupLiveBattlesTab();
+            SetupMarriagesTab();
+            SetupStarterItemsTab();
             SetupServerStatusControl();
         }
 

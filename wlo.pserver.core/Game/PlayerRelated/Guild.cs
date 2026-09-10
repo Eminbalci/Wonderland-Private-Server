@@ -322,6 +322,81 @@ namespace Game.PlayerRelated
             LoadFromDatabase();
         }
 
+        public static IReadOnlyDictionary<ushort, Guild> GetAllGuilds()
+        {
+            lock (_lock)
+            {
+                return new Dictionary<ushort, Guild>(_guilds);
+            }
+        }
+
+        public static bool AdminUpdateRules(ushort guildId, string rules)
+        {
+            lock (_lock)
+            {
+                if (_guilds.TryGetValue(guildId, out var g))
+                {
+                    g.Rules = rules ?? "";
+                    SaveGuild(g);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static bool AdminChangeLeader(ushort guildId, uint newLeaderCharId)
+        {
+            lock (_lock)
+            {
+                if (_guilds.TryGetValue(guildId, out var g) && g.Members.TryGetValue(newLeaderCharId, out var newLeader))
+                {
+                    if (g.Members.TryGetValue(g.LeaderID, out var oldLeader))
+                    {
+                        oldLeader.Rank = GuildMemberRank.Member;
+                    }
+                    newLeader.Rank = GuildMemberRank.Leader;
+                    g.LeaderID = newLeader.CharID;
+                    g.LeaderName = newLeader.CharName;
+                    SaveGuild(g);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static bool AdminKickMember(ushort guildId, uint memberCharId)
+        {
+            lock (_lock)
+            {
+                if (_guilds.TryGetValue(guildId, out var g))
+                {
+                    g.RemoveMember(memberCharId);
+                    SaveGuild(g);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static bool AdminDisbandGuild(ushort guildId)
+        {
+            lock (_lock)
+            {
+                if (_guilds.TryGetValue(guildId, out var guild))
+                {
+                    var memberIds = guild.Members.Keys.ToList();
+                    foreach (var id in memberIds)
+                    {
+                        guild.RemoveMember(id);
+                    }
+                    _guilds.Remove(guildId);
+                    DeleteGuildFromDatabase(guildId);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static Guild GetGuild(ushort guildId)
         {
             lock (_lock)

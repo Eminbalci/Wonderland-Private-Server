@@ -41,6 +41,38 @@ namespace Game.PlayerRelated
             LoadFromDatabase();
         }
 
+        public static List<MarriageRecord> GetAllMarriages()
+        {
+            lock (_lock)
+            {
+                var set = new HashSet<uint>();
+                var list = new List<MarriageRecord>();
+                foreach (var m in _marriagesByCharId.Values)
+                {
+                    if (set.Add(m.HusbandID))
+                    {
+                        list.Add(m);
+                    }
+                }
+                return list;
+            }
+        }
+
+        public static bool AdminDivorce(uint charId)
+        {
+            lock (_lock)
+            {
+                if (_marriagesByCharId.TryGetValue(charId, out var m))
+                {
+                    _marriagesByCharId.Remove(m.HusbandID);
+                    _marriagesByCharId.Remove(m.WifeID);
+                    DeleteMarriage(m.HusbandID, m.WifeID);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public static bool IsMarried(uint charId)
         {
             lock (_lock)

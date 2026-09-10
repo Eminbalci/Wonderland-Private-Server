@@ -167,6 +167,7 @@ namespace Wonderland_Private_Server.ActionCodes
                     return;
                 }
 
+                p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                 p.Send(Tools.FromFormat("bb", 20, 8));
                 p.Send(Tools.FromFormat("bb", 5, 4));
                 p.Flags.Add(PlayerFlag.InMap);
