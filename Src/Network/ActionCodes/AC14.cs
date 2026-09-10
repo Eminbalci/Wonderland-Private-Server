@@ -19,59 +19,119 @@ namespace Network.ActionCodes
         public override void ProcessPkt(Player p, RecievePacket r)
         {
             DebugSystem.Write(DebugItemType.Error, $"[AC14] ProcessPkt called. SubCmd={r.B}");
+            r.SetPtr(6);
 
             switch (r.B)
             {
-                case 1: Recv1(ref p, r); break; // Add Friend Request
-                case 2: Recv2(ref p, r); break; // Friend Request Response
-                case 3: Recv3(ref p, r); break; // Remove Friend
-                case 4: Recv4(ref p, r); break; // Friend List Request
+                case 1: Recv1(ref p, r); break; // Mail / In-game message / Friend Request by name
+                case 2: Recv2(ref p, r); break; // Friend Request Send / Friend List Request
+                case 3: Recv3(ref p, r); break; // Friend Accept
+                case 4: Recv4(ref p, r); break; // Friend Remove / Friend List Request
                 default:
                     DebugSystem.Write(DebugItemType.Error, $"[AC14] Unknown SubAction: {r.B}");
                     break;
             }
         }
 
+        /// <summary>
+        /// AC 14:1 - In-Game Mail / Direct Message (Confirmed via mailyolladimreplyyaptim.pcapng)
+        /// C->S: 0e 01 <type(1B)> <targetCharId(4B)> <mailText>
+        /// S->C: 0e 09 <targetCharId(4B)> 00 (Mail sent ACK)
+        /// S->C: 0e 01 <senderCharId(4B)> <timestamp(8B)> <mailText> (Delivered to target)
+        /// </summary>
         void Recv1(ref Player p, RecievePacket r)
         {
-            // Add Friend Request
             try
             {
-                string targetName = r.UnpackString();
-                DebugSystem.Write(DebugItemType.Error, $"[AC14] Add Friend Request from {p.CharName} to {targetName}");
-
-                // Find target player (search all online players)
-                Player target = null;
-
-                // Search in requester's current map first
-                if (p.CurMap is GameMap)
+                var buf = r.Buffer.ToArray();
+                // Check if this is a binary mail packet with target CharID (len >= 11)
+                if (buf.Length >= 11 && buf[4] == 14 && buf[5] == 1)
                 {
-                    var map = p.CurMap as GameMap;
-                    target = map.PlayersList.FirstOrDefault(x => x.CharName == targetName);
+                    byte mailType = r.Unpack8();
+                    uint targetCharID = r.Unpack32();
+
+                    string mailContent = "";
+                    int rawOffset = r.GetPtr();
+                    if (rawOffset < buf.Length)
+                    {
+                        mailContent = Encoding.GetEncoding("big5").GetString(buf, rawOffset, buf.Length - rawOffset).TrimEnd('\0');
+                    }
+
+                    DebugSystem.Write($"[AC14.Recv1] Mail from {p.CharName} (#{p.CharID}) to CharID {targetCharID}: '{mailContent}'");
+
+                    // 1. Send Mail Sent ACK to sender (AC 14:9 [14, 9, targetCharID, 0])
+                    SendPacket ack = new SendPacket();
+                    ack.Pack8(14);
+                    ack.Pack8(9);
+                    ack.Pack32(targetCharID);
+                    ack.Pack8(0);
+                    p.Send(ack);
+
+                    // 2. Deliver live to recipient if online
+                    Player target = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == targetCharID);
+                    if (target == null && p.CurMap is GameMap gMap)
+                    {
+                        target = gMap.PlayersList.FirstOrDefault(x => x.CharID == targetCharID);
+                    }
+
+                    if (target != null)
+                    {
+                        SendPacket deliv = new SendPacket();
+                        deliv.Pack8(14);
+                        deliv.Pack8(1);
+                        deliv.Pack32(p.CharID);
+                        deliv.PackDouble(DateTime.Now.ToOADate());
+                        deliv.PackString(mailContent);
+                        target.Send(deliv);
+                        DebugSystem.Write($"[AC14.Recv1] Delivered mail live to {target.CharName} (#{targetCharID})");
+                    }
+
+                    // 3. Persist mail in database
+                    try
+                    {
+                        cGlobal.gGameDataBase?.ExecuteNonQuery(@"
+                            CREATE TABLE IF NOT EXISTS Mail (
+                                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                                SenderID INTEGER NOT NULL,
+                                SenderName TEXT NOT NULL,
+                                ReceiverID INTEGER NOT NULL,
+                                Content TEXT NOT NULL,
+                                SendDate TEXT NOT NULL
+                            )");
+                        cGlobal.gGameDataBase?.ExecuteNonQuery(
+                            $"INSERT INTO Mail (SenderID, SenderName, ReceiverID, Content, SendDate) VALUES ({p.CharID}, '{p.CharName?.Replace("'", "''")}', {targetCharID}, '{mailContent?.Replace("'", "''")}', datetime('now'))");
+                    }
+                    catch { }
+
+                    return;
                 }
 
-                // If not found, could search other maps here (TODO)
+                // Fallback: Add friend request by character name
+                string targetName = r.UnpackString();
+                DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv1] Add Friend Request by name from {p.CharName} to {targetName}");
 
-                if (target != null)
+                Player nameTarget = null;
+                if (p.CurMap is GameMap map)
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Target {targetName} found. Sending friend request...");
+                    nameTarget = map.PlayersList.FirstOrDefault(x => x.CharName == targetName);
+                }
+                if (nameTarget == null)
+                {
+                    nameTarget = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharName == targetName);
+                }
 
-                    // Send friend request to target player
+                if (nameTarget != null)
+                {
                     SendPacket s = new SendPacket();
-                    s.PackArray(new byte[] { 14, 1 });
-                    s.PackString(p.CharName); // Requester name
-                    target.Send(s);
-
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend request sent to {targetName}");
+                    s.PackArray(new byte[] { 14, 2 });
+                    s.Pack32(p.CharID);
+                    nameTarget.Send(s);
                 }
                 else
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Target {targetName} NOT found");
-
-                    // Send error to requester
                     SendPacket s = new SendPacket();
                     s.PackArray(new byte[] { 14, 1 });
-                    s.Pack8(0); // Failure
+                    s.Pack8(0);
                     p.Send(s);
                 }
             }
@@ -81,53 +141,62 @@ namespace Network.ActionCodes
             }
         }
 
+        /// <summary>
+        /// AC 14:2 - Add Friend Request Send or Friend List Request (Confirmed via arkadaseklemeveonlinegozukme.pcapng)
+        /// C->S: 0e 02 <targetCharId(4B)>
+        /// S->C to target: 0e 02 <requesterCharId(4B)>
+        /// </summary>
         void Recv2(ref Player p, RecievePacket r)
         {
-            // SubCmd 2: Dual purpose - Friend List Request OR Friend Request Send
             try
             {
-                byte flag = r.Unpack8();
-                uint targetCharID = r.Unpack32();
-                string ignoredString = r.UnpackString(); // Client sends empty string
+                uint targetCharID = 0;
+                var rawBuf = r.Buffer.ToArray();
 
-                DebugSystem.Write(DebugItemType.Error, $"[AC14] Recv2 from {p.CharName}. Flag={flag:X2}, TargetCharID={targetCharID}");
+                if (rawBuf.Length >= 10)
+                {
+                    targetCharID = BitConverter.ToUInt32(rawBuf, 6);
+                }
+                else if (r.GetPtr() + 4 <= rawBuf.Length)
+                {
+                    targetCharID = r.Unpack32();
+                }
+
+                DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv2] from {p.CharName}. TargetCharID={targetCharID}");
 
                 if (targetCharID == 0)
                 {
                     // CharID = 0 means Friend List Request
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend List Request from {p.CharName}");
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv2] Friend List Request from {p.CharName}");
                     SendFriendList(p);
                 }
                 else
                 {
                     // Non-zero CharID = Friend Request Send
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend Request from {p.CharName} to CharID {targetCharID}");
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv2] Friend Request from {p.CharName} to CharID {targetCharID}");
 
-                    // Find target player by CharID
-                    Player target = null;
-
-                    if (p.CurMap is GameMap)
+                    Player target = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == targetCharID);
+                    if (target == null && p.CurMap is GameMap map)
                     {
-                        var map = p.CurMap as GameMap;
                         target = map.PlayersList.FirstOrDefault(x => x.CharID == targetCharID);
                     }
 
                     if (target != null)
                     {
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Target {target.CharName} (ID:{targetCharID}) found. Sending friend request...");
+                        DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv2] Target {target.CharName} (ID:{targetCharID}) found. Forwarding friend request...");
 
-                        // Send friend request to target player
+                        // S->C AC 14:2 <requesterCharID(4B)>
                         SendPacket s = new SendPacket();
-                        s.PackArray(new byte[] { 14, 2 });
-                        s.Pack32(p.CharID); // Requester CharID (not name!)
-                        s.PackString(""); // Empty string
+                        s.Pack8(14);
+                        s.Pack8(2);
+                        s.Pack32(p.CharID);
                         target.Send(s);
 
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend request sent to {target.CharName}");
+                        DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv2] Friend request sent to {target.CharName}");
                     }
                     else
                     {
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Target CharID {targetCharID} NOT found");
+                        DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv2] Target CharID {targetCharID} NOT found online");
                     }
                 }
             }
@@ -137,82 +206,74 @@ namespace Network.ActionCodes
             }
         }
 
+        /// <summary>
+        /// AC 14:3 - Friend Request Accepted (Confirmed via arkadaseklemeveonlinegozukme.pcapng)
+        /// C->S: 0e 03 <requesterCharId(4B)> <group(1B)>
+        /// S->C to both: 0e 03 <otherCharId(4B)> <group(1B)>
+        /// </summary>
         void Recv3(ref Player p, RecievePacket r)
         {
-            // Friend Accept - Add to friend list
             try
             {
-                byte flag = r.Unpack8();
-                uint requesterCharID = r.Unpack32();
-                string ignoredString = r.UnpackString();
+                var rawBuf = r.Buffer.ToArray();
+                if (rawBuf.Length < 10) return;
 
-                // Debug: Show packet bytes
-                string hexBytes = BitConverter.ToString(r.Buffer.ToArray()).Replace("-", " ");
-                DebugSystem.Write(DebugItemType.Error, $"[AC14] Recv3 Packet bytes: {hexBytes}");
-                DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend Accept from {p.CharName}. Requester CharID: {requesterCharID}");
+                uint requesterCharID = BitConverter.ToUInt32(rawBuf, 6);
+                byte group = rawBuf.Length > 10 ? rawBuf[10] : (byte)1;
 
-                // Find requester by CharID
-                Player requester = null;
-                if (p.CurMap is GameMap)
-                {
-                    var map = p.CurMap as GameMap;
-                    requester = map.PlayersList.FirstOrDefault(x => x.CharID == requesterCharID);
-                }
+                DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv3] Friend Accept from {p.CharName} (#{p.CharID}) for Requester CharID: {requesterCharID}, Group: {group}");
 
-                if (requester == null)
-                {
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Requester CharID {requesterCharID} not found");
-                    return;
-                }
-
-                // Add friendship to database (inline to avoid cross-project reference)
+                // Add friendship to database
                 try
                 {
-                    // Create table if it doesn't exist (fallback since VerifySetup not working)
-                    try
-                    {
-                        cGlobal.gGameDataBase.ExecuteNonQuery(@"
-                            CREATE TABLE IF NOT EXISTS Friends (
-                                CharID1 INTEGER NOT NULL,
-                                CharID2 INTEGER NOT NULL,
-                                AddedDate TEXT NOT NULL,
-                                PRIMARY KEY (CharID1, CharID2)
-                            )");
-                        DebugSystem.Write(DebugItemType.Error, "[AC14] Friends table created/verified");
-                    }
-                    catch { /* Table already exists */ }
+                    cGlobal.gGameDataBase?.ExecuteNonQuery(@"
+                        CREATE TABLE IF NOT EXISTS Friends (
+                            CharID1 INTEGER NOT NULL,
+                            CharID2 INTEGER NOT NULL,
+                            AddedDate TEXT NOT NULL,
+                            PRIMARY KEY (CharID1, CharID2)
+                        )");
 
                     uint smaller = Math.Min(p.CharID, requesterCharID);
                     uint larger = Math.Max(p.CharID, requesterCharID);
 
                     string query = $"INSERT OR IGNORE INTO Friends (CharID1, CharID2, AddedDate) VALUES ({smaller}, {larger}, datetime('now'))";
-                    cGlobal.gGameDataBase.ExecuteNonQuery(query);
+                    cGlobal.gGameDataBase?.ExecuteNonQuery(query);
 
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Friendship added: {p.CharID} <-> {requesterCharID}");
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv3] Friendship stored: {p.CharID} <-> {requesterCharID}");
 
-                    // Send success notification to requester
-                    SendPacket s = new SendPacket();
-                    s.PackArray(new byte[] { 14, 3 });
-                    s.Pack8(1); // Success
-                    s.PackString(p.CharName); // Friend name
-                    requester.Send(s);
+                    // Send AC 14:3 <otherCharID(4B)> <group(1B)> to requester if online
+                    Player requester = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == requesterCharID);
+                    if (requester == null && p.CurMap is GameMap gMap)
+                    {
+                        requester = gMap.PlayersList.FirstOrDefault(x => x.CharID == requesterCharID);
+                    }
 
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Notified {requester.CharName} of friendship");
+                    if (requester != null)
+                    {
+                        SendPacket s = new SendPacket();
+                        s.Pack8(14);
+                        s.Pack8(3);
+                        s.Pack32(p.CharID);
+                        s.Pack8(group);
+                        requester.Send(s);
+                        SendFriendList(requester);
+                    }
 
-                    // Send success to accepter
+                    // Send AC 14:3 to accepter
                     SendPacket s2 = new SendPacket();
-                    s2.PackArray(new byte[] { 14, 3 });
-                    s2.Pack8(1); // Success
+                    s2.Pack8(14);
+                    s2.Pack8(3);
+                    s2.Pack32(requesterCharID);
+                    s2.Pack8(group);
                     p.Send(s2);
 
-                    // Auto-refresh friend list for both players
-                    SendFriendList(p); // Accepter
-                    SendFriendList(requester); // Requester
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Auto-refreshed friend lists for both players");
+                    // Auto-refresh friend list for accepter
+                    SendFriendList(p);
                 }
                 catch (Exception dbEx)
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Database error: {dbEx.Message}");
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv3] Database error: {dbEx.Message}");
                 }
             }
             catch (Exception ex)
@@ -221,62 +282,56 @@ namespace Network.ActionCodes
             }
         }
 
+        /// <summary>
+        /// AC 14:4 - Friend Remove or Friend List Request (Confirmed via arkadassilme.pcapng)
+        /// C->S: 0e 04 <friendCharId(4B)>
+        /// </summary>
         void Recv4(ref Player p, RecievePacket r)
         {
-            // SubCmd 4: Friend List Request OR Friend Remove
             try
             {
-                // Try to unpack CharID - if successful, it's a friend remove request
                 uint friendCharID = 0;
-                bool hasFriendID = false;
+                var rawBuf = r.Buffer.ToArray();
 
-                try
+                if (rawBuf.Length >= 10)
                 {
-                    // Packet structure: [Header 4 bytes] [AC 1 byte] [SubCmd 1 byte] [CharID 4 bytes]
-                    if (r.Buffer.Length >= 10)
-                    {
-                        friendCharID = BitConverter.ToUInt32(r.Buffer.ToArray(), 6);
-                        hasFriendID = true;
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Parsed CharID: {friendCharID}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Failed to parse CharID: {ex.Message}");
-                    hasFriendID = false;
+                    friendCharID = BitConverter.ToUInt32(rawBuf, 6);
                 }
 
-                if (hasFriendID)
+                if (friendCharID > 0)
                 {
                     // Friend Remove
-                    string hexBytes = BitConverter.ToString(r.Buffer.ToArray()).Replace("-", " ");
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Packet bytes: {hexBytes}");
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend Remove Request from {p.CharName} for CharID {friendCharID}");
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv4] Friend Remove Request from {p.CharName} for CharID {friendCharID}");
 
                     try
                     {
-                        // Remove from database
                         uint smaller = Math.Min(p.CharID, friendCharID);
                         uint larger = Math.Max(p.CharID, friendCharID);
 
                         string deleteQuery = $"DELETE FROM Friends WHERE CharID1 = {smaller} AND CharID2 = {larger}";
-                        cGlobal.gGameDataBase.ExecuteNonQuery(deleteQuery);
+                        cGlobal.gGameDataBase?.ExecuteNonQuery(deleteQuery);
 
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Removed friendship: {p.CharID} <-> {friendCharID}");
+                        DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv4] Removed friendship: {p.CharID} <-> {friendCharID}");
 
-                        // Auto-refresh friend list
+                        // Auto-refresh friend list for current player
                         SendFriendList(p);
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Auto-refreshed friend list after removal");
+
+                        // Auto-refresh friend list for ex-friend if online
+                        Player exFriend = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == friendCharID);
+                        if (exFriend != null)
+                        {
+                            SendFriendList(exFriend);
+                        }
                     }
                     catch (Exception dbEx)
                     {
-                        DebugSystem.Write(DebugItemType.Error, $"[AC14] Database error removing friend: {dbEx.Message}");
+                        DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv4] Database error removing friend: {dbEx.Message}");
                     }
                 }
                 else
                 {
                     // Friend List Request
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Friend List Request (SubCmd 4) from {p.CharName}");
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv4] Friend List Request from {p.CharName}");
                     SendFriendList(p);
                 }
             }

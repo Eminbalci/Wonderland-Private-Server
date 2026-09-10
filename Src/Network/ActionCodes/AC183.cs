@@ -29,7 +29,15 @@ namespace Network.ActionCodes
             s183.Pack8(0);
             c.Send(s183);
 
-            DebugSystem.Write($"[AC183.Recv17] Acknowledged AC 183:17 for {c.CharName}");
+            // S->C AC 183:11 [183, 11, 9, 2] (Heartbeat status sync confirmed across all pcap captures)
+            SendPacket s11 = new SendPacket();
+            s11.Pack8(183);
+            s11.Pack8(11);
+            s11.Pack8(9);
+            s11.Pack8(2);
+            c.Send(s11);
+
+            DebugSystem.Write($"[AC183.Recv17] Acknowledged AC 183:17 & AC 183:11 for {c.CharName}");
         }
     }
 }

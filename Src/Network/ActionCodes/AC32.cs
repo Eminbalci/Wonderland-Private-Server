@@ -14,10 +14,12 @@ namespace Network.ActionCodes
         public override int ID { get { return 32; } }
         public override void ProcessPkt(Player r, RecievePacket p)
         {
+            p.SetPtr(6);
             switch (p.B)
             {
                 case 1: Recv1(r, p); break;
                 case 2: Recv2(r, p); break;
+                case 3: Recv3(r, p); break;
                 default: Console.WriteLine("AC " + p.A + "," + p.B + " has not been coded"); break;
             }
         }
@@ -53,6 +55,27 @@ namespace Network.ActionCodes
                     s.Pack8(actionCode);
                     p.CurMap?.Broadcast(s, "Ex", p.CharID);
                 }
+            }
+            catch (Exception t) { Console.WriteLine(t); }
+        }
+        void Recv3(Player p, RecievePacket r)
+        {
+            try
+            {
+                // ActionCode 32 Subcode 3: Emote/Action Stop & Dialogue/Window Close Acknowledgment (20 03)
+                // Verified across 10 official captures (brelliatlayerdegistirdim, digersandiklaritoplama, shoplarincalismamantigi, robinsonlakonusma, etc.)
+                if (p.Emote != 0)
+                {
+                    p.Emote = 0;
+                    SendPacket s = new SendPacket();
+                    s.PackArray(new byte[] { 32, 2 });
+                    s.Pack32(p.CharID);
+                    s.Pack8(0);
+                    p.CurMap?.Broadcast(s, "Ex", p.CharID);
+                }
+
+                // Cleanly dismiss any open dialogue/interaction state if active
+                p.ClearInteraction();
             }
             catch (Exception t) { Console.WriteLine(t); }
         }

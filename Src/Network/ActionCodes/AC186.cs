@@ -49,7 +49,18 @@ namespace Network.ActionCodes
                 resp.Pack8(1); // 1 = Active / Playing
                 resp.Pack32(0); // Reserved padding
                 p.Send(resp);
-                DebugSystem.Write($"[AC186.Recv9] Acknowledged Cutscene #{cutsceneId} playback for {p.CharName}");
+
+                // 2. Server completes cutscene animation sync & camera release (Official PCAP Frame 469, 470, 492):
+                // [AC=186 (1B)][Sub=12 (1B)][cutsceneId (2B)][status/padding (3B)]
+                SendPacket resp12 = new SendPacket();
+                resp12.Pack8(186);
+                resp12.Pack8(12);
+                resp12.Pack16(cutsceneId);
+                resp12.Pack8(0);
+                resp12.Pack16(0);
+                p.Send(resp12);
+
+                DebugSystem.Write($"[AC186.Recv9] Acknowledged Cutscene #{cutsceneId} playback and sent camera release (186:12) for {p.CharName}");
             }
             catch (Exception t)
             {

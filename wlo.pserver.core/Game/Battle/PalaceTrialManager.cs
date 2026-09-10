@@ -46,6 +46,8 @@ namespace Game.Battle
             _palaces.Add(new PalaceStage(12, "Pisces Palace (Balık)", 1012, 200000, 1800, 48033));
         }
 
+        public static bool ChallengeStage(Player player, byte stage) => EnterPalaceTrial(player, stage);
+
         public static bool EnterPalaceTrial(Player player, byte stage)
         {
             if (player == null) return false;

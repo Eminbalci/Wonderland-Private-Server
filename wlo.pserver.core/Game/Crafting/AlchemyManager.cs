@@ -69,6 +69,78 @@ namespace Game.Crafting
                 _recipes.Add(new AlchemyRecipe(30015, 30016, 22001, "Leather Boots", 75.0)); // Pelt + Leather -> Boots
                 _recipes.Add(new AlchemyRecipe(30016, 30013, 22005, "Leather Vest", 70.0)); // Leather + Silk -> Vest
                 _recipes.Add(new AlchemyRecipe(30018, 30013, 22010, "Tiger Fur Coat", 60.0)); // Tiger Fur + Silk -> Coat
+
+                // Load official binary recipes from Compound2.dat and Compound.dat
+                string[] searchDirs = new string[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data"),
+                    @"Data",
+                    @"..\..\Data"
+                };
+
+                foreach (var dir in searchDirs)
+                {
+                    string c2 = Path.Combine(dir, "Compound2.dat");
+                    if (File.Exists(c2)) { LoadFromCompoundDat(c2); break; }
+                }
+
+                foreach (var dir in searchDirs)
+                {
+                    string c1 = Path.Combine(dir, "Compound.dat");
+                    if (File.Exists(c1)) { LoadFromCompoundDat(c1); break; }
+                }
+            }
+        }
+
+        public static void LoadFromCompoundDat(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
+
+            try
+            {
+                byte[] data = File.ReadAllBytes(filePath);
+                int recordSize = 65;
+                int total = data.Length / recordSize;
+                int loaded = 0;
+
+                lock (_lock)
+                {
+                    for (int i = 0; i < total; i++)
+                    {
+                        int ptr = i * recordSize;
+                        if (ptr + recordSize > data.Length) break;
+
+                        ushort resultId = (ushort)((BitConverter.ToUInt16(data, ptr) ^ 0xFBBC) - 3);
+                        ushort in1 = (ushort)((BitConverter.ToUInt16(data, ptr + 11) ^ 0xFBBC) - 3);
+                        ushort in2 = (ushort)((BitConverter.ToUInt16(data, ptr + 14) ^ 0xFBBC) - 3);
+
+                        if (resultId > 0 && in1 > 0 && in2 > 0)
+                        {
+                            if (!_recipes.Any(r => (r.InputItem1 == in1 && r.InputItem2 == in2 && r.OutputItem == resultId) ||
+                                                   (r.InputItem1 == in2 && r.InputItem2 == in1 && r.OutputItem == resultId)))
+                            {
+                                string name = Battle.MonsterDropManager.ItemNameResolver?.Invoke(resultId) ?? $"Item #{resultId}";
+                                _recipes.Add(new AlchemyRecipe(in1, in2, resultId, name, 85.0));
+                                loaded++;
+                            }
+                        }
+                    }
+                }
+                DebugSystem.Write($"[AlchemyManager] Loaded {loaded} authentic recipes from {Path.GetFileName(filePath)} (Total recipes: {_recipes.Count})");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AlchemyManager] Error loading {filePath}: {ex.Message}");
+            }
+        }
+
+        public static AlchemyRecipe FindRecipe(ushort item1, ushort item2)
+        {
+            lock (_lock)
+            {
+                return _recipes.FirstOrDefault(r =>
+                    (r.InputItem1 == item1 && r.InputItem2 == item2) ||
+                    (r.InputItem1 == item2 && r.InputItem2 == item1));
             }
         }
 

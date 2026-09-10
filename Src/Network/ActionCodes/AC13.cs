@@ -17,6 +17,7 @@ namespace Network.ActionCodes
 
         public override void ProcessPkt(Player p, RecievePacket r)
         {
+            r.SetPtr(6);
             switch (r.B)
             {
                 case 1: Recv1(ref p, r); break; // Invite Request / Join Request
@@ -56,27 +57,22 @@ namespace Network.ActionCodes
 
         void Recv1(ref Player p, RecievePacket r)
         {
-            // Invite Request / Join Request
+            // Invite Request / Join Request (AC 13 Sub 1: 0d 01 <charId>)
             try
             {
-                uint rawTargetID = r.Unpack32();
-                // Client sends: (CharID << 8) | Slot
-                uint targetID = rawTargetID >> 8;
-                byte targetSlot = (byte)(rawTargetID & 0xFF);
-
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv1 Invite/Join. Raw: {rawTargetID} -> Decoded CharID: {targetID}, Slot: {targetSlot}");
-
+                uint targetID = r.Unpack32();
                 Player target = null;
                 GameMap map = p.CurMap as GameMap;
 
                 if (map != null)
                 {
-                    target = map.PlayersList.FirstOrDefault(x => x.CharID == targetID);
+                    target = map.PlayersList.FirstOrDefault(x => x.CharID == targetID)
+                             ?? map.PlayersList.FirstOrDefault(x => x.CharID == (targetID >> 8));
                 }
 
                 if (target != null)
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Target Found: {target.CharName} (ID: {target.CharID}). Forwarding request...");
+                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv1 Target Found: {target.CharName} (ID: {target.CharID}). Forwarding request...");
 
                     SendPacket s = new SendPacket();
                     s.PackArray(new byte[] { 13, 1 });
@@ -104,15 +100,13 @@ namespace Network.ActionCodes
 
         void Recv3(ref Player p, RecievePacket r)
         {
-            // Invite Response / Join Team
+            // Invite Response / Join Team (AC 13 Sub 3: 0d 03 <reply> <requesterId>)
             try
             {
                 byte reply = r.Unpack8();
-                uint rawRequesterID = r.Unpack32();
-                uint requesterID = rawRequesterID >> 8;
-                byte requesterSlot = (byte)(rawRequesterID & 0xFF);
+                uint requesterID = r.Unpack32();
 
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv3 (Join). Reply: {reply}, RawReq: {rawRequesterID} -> Decoded: {requesterID}");
+                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv3 (Join). Reply: {reply}, RequesterID: {requesterID}");
 
                 if (reply == 1 || reply == 3)
                 {
@@ -120,7 +114,10 @@ namespace Network.ActionCodes
                     GameMap map = p.CurMap as GameMap;
 
                     if (map != null)
-                        requester = map.PlayersList.FirstOrDefault(x => x.CharID == requesterID);
+                    {
+                        requester = map.PlayersList.FirstOrDefault(x => x.CharID == requesterID)
+                                    ?? map.PlayersList.FirstOrDefault(x => x.CharID == (requesterID >> 8));
+                    }
 
                     if (requester != null)
                     {
@@ -160,15 +157,16 @@ namespace Network.ActionCodes
 
         void Recv9(ref Player p, RecievePacket r)
         {
-            // Kick from Party
+            // Kick from Party (AC 13 Sub 9: 0d 09 <targetId>)
             try
             {
-                uint rawTargetID = r.Unpack32();
-                uint targetID = rawTargetID >> 8;
-                byte targetSlot = (byte)(rawTargetID & 0xFF);
+                uint targetID = r.Unpack32();
+                if (p.m_teammembers != null && !p.m_teammembers.Any(x => x.CharID == targetID))
+                {
+                    targetID = targetID >> 8;
+                }
 
                 DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv9 Kick. Leader: {p.CharName}, Target: {targetID}");
-
                 p.KickPartyMember(targetID);
             }
             catch (Exception ex)
@@ -179,21 +177,17 @@ namespace Network.ActionCodes
 
         void Recv10(ref Player p, RecievePacket r)
         {
-            // Transfer Leadership
+            // Transfer Leadership (AC 13 Sub 10: 0d 0a <newLeaderId>)
             try
             {
-                uint rawTargetID = r.Unpack32();
-                // ID appears to be double-encoded: first decode gives composite, second gives CharID
-                uint intermediateID = rawTargetID >> 8;
-                uint newLeaderID = intermediateID >> 8;
-                byte targetSlot = (byte)(intermediateID & 0xFF);
+                uint targetID = r.Unpack32();
+                uint newLeaderID = targetID;
 
-                DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv10 Transfer Leadership. From: {p.CharName}, RawID: {rawTargetID} -> Intermediate: {intermediateID} -> CharID: {newLeaderID}");
-
-                // Find new leader in party members
                 if (p.m_teammembers != null)
                 {
-                    Player newLeader = p.m_teammembers.FirstOrDefault(x => x.CharID == newLeaderID);
+                    Player newLeader = p.m_teammembers.FirstOrDefault(x => x.CharID == newLeaderID)
+                                       ?? p.m_teammembers.FirstOrDefault(x => x.CharID == (targetID >> 8));
+
                     if (newLeader != null)
                     {
                         p.TransferLeadership(newLeader);
@@ -202,10 +196,6 @@ namespace Network.ActionCodes
                     else
                     {
                         DebugSystem.Write(DebugItemType.Error, $"[DEBUG] New leader {newLeaderID} not found in party. Party size: {p.m_teammembers.Count}");
-                        foreach (var member in p.m_teammembers)
-                        {
-                            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Party member: {member.CharName} (ID: {member.CharID})");
-                        }
                     }
                 }
                 else

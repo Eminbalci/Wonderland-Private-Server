@@ -212,11 +212,17 @@ namespace Wonderland_Private_Server
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
             cGlobal.ItemDatManager.onDebug = (obj) => { };
-            string itemDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "itemDat.wpdat");
-            if (System.IO.File.Exists(itemDatPath))
+            string[] itemDatCandidates = new string[]
+            {
+                System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "itemDat.wpdat"),
+                @"Data\itemDat.wpdat",
+                @"..\..\Data\itemDat.wpdat"
+            };
+            string itemDatPath = itemDatCandidates.FirstOrDefault(System.IO.File.Exists);
+            if (!string.IsNullOrEmpty(itemDatPath))
             {
                 cGlobal.ItemDatManager.Load(itemDatPath).Wait();
-                DebugSystem.Write($"[Init] - Loaded {cGlobal.ItemDatManager.GetItemList().Count} items from itemDat.wpdat");
+                DebugSystem.Write($"[Init] - Loaded {cGlobal.ItemDatManager.GetItemList().Count} items from {System.IO.Path.GetFileName(itemDatPath)}");
             }
 
             Game.Battle.MonsterDropManager.ItemNameResolver = (iid) =>
@@ -289,7 +295,15 @@ namespace Wonderland_Private_Server
             //cGlobal.gGameDataBase = new DataManagement.DataBase.GameDataBase();
             //cGlobal.gItemManager = new DataManagement.DataFiles.ItemManager();
             //cGlobal.gSkillManager = new DataManagement.DataFiles.SkillDataFile();
-            //cGlobal.gCompoundDat = new DataManagement.DataFiles.cCompound2Dat();
+            string compound2Path = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Compound2.dat");
+            if (!System.IO.File.Exists(compound2Path)) compound2Path = @"Data\Compound2.dat";
+            if (!System.IO.File.Exists(compound2Path)) compound2Path = @"..\..\Data\Compound2.dat";
+            if (System.IO.File.Exists(compound2Path))
+            {
+                cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
+                cGlobal.gCompoundDat.Load(compound2Path);
+                DebugSystem.Write($"[Init] - Loaded {cGlobal.gCompoundDat.buildList.Count} authentic compound recipes from Compound2.dat");
+            }
             //cGlobal.gUserDataBase = new UserDataBase();
             //cGlobal.gNpcManager = new DataManagement.DataFiles.NpcDat();
 

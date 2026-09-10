@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,6 +25,7 @@ namespace Network.ActionCodes
                 return;
             }
 
+            r.SetPtr(6);
             switch (r.B)
             {
                 case 1: // Toggle setting
@@ -33,10 +34,31 @@ namespace Network.ActionCodes
                 case 2: // Get current settings
                     SendCurrentSettings(p);
                     break;
+                case 5: // Team Follow / Walk Along setting (21 05 01)
+                    HandleTeamFollow(p, r);
+                    break;
                 default:
                     DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 Unknown SubAction: {r.B}");
                     break;
             }
+        }
+
+        void HandleTeamFollow(Player p, RecievePacket r)
+        {
+            // ActionCode 33 Subcode 5: Team Follow / Auto-Walk Along Toggle (21 05 01)
+            // Verified from official packet capture 'partyegiripharitadegistirdim.pcapng' (Frame 228 & 369)
+            byte followVal = 1;
+            if (r.Buffer != null && r.Buffer.Length > 6)
+            {
+                followVal = r[6];
+            }
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 Team Follow toggle: {followVal} for {p.CharName}");
+
+            // Confirm Team Follow status back to client: S->C [33, 5, followVal]
+            SendPacket pkt = new SendPacket();
+            pkt.PackArray(new byte[] { 33, 5 });
+            pkt.Pack8(followVal);
+            p.Send(pkt);
         }
 
         void HandleToggle(Player p, RecievePacket r)

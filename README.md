@@ -55,16 +55,17 @@ In the private server exe, click "Cheat" tab:
   > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
   > `:help` : Shows command help in chat.
   >
-- `Src/`: Server architecture, networking handlers, action codes (AC00-AC92), database access, and GUI management.
+- `Src/`: Server architecture, networking handlers, complete 88 Action Code suite (AC00-AC199), database access, and GUI management.
 - `dev_scripts/`: Development and reverse-engineering diagnostic scripts and tools.
 - `docs/`: Technical specifications, reverse engineering documentation, and protocol guides.
+- Complete decompiled client Action Codes analysis and 100% server implementation specification in [docs/all_decompiled_network_action_codes.md](file:///d:/GitHub/Wonderland-Private-Server/docs/all_decompiled_network_action_codes.md).
 - Technical documentation and reverse engineering analysis of the client launcher available in [docs/alogin_decompiled_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/alogin_decompiled_analysis.md).
 - Detailed technical overview of the NPC and Quest systems available in [docs/npc_and_quest_systems_overview.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_and_quest_systems_overview.md).
 - Reverse engineering analysis of decompiled NPC and quest routines in [docs/decompiled_npc_and_quest_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_npc_and_quest_analysis.md).
 - Reverse engineering analysis of decompiled skill systems in [docs/decompiled_skill_system_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_skill_system_analysis.md).
 - Comprehensive game mechanics and mathematical formulas reference in [docs/game_systems_and_formulas_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/game_systems_and_formulas_reference.md).
 - Extended reverse engineering analysis of gameplay subsystems in [docs/decompiled_extended_systems_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_extended_systems_analysis.md).
-- Master binary packet Action Code protocol specification in [docs/master_action_codes_protocol_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/master_action_codes_protocol_reference.md).
+- Master binary packet Action Code protocol specification (88 codes) in [docs/master_action_codes_protocol_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/master_action_codes_protocol_reference.md).
 - Reverse engineering memory map, asset formats, and engine internals in [docs/decompiled_engine_internals_and_memory_map.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_engine_internals_and_memory_map.md).
 - Technical diagnosis and solution for NPC/chest blinking and state toggling in [docs/npc_blinking_and_chest_state_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_blinking_and_chest_state_fix.md).
 - Authentic map chest, prop gathering drop tables and timed respawn system in [docs/map_chest_and_gathering_drop_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/map_chest_and_gathering_drop_system.md).
@@ -119,3 +120,7 @@ In the private server exe, click "Cheat" tab:
 - NPC Name Resolver & Template Directory GUI Studio in [docs/npc_name_resolver_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_name_resolver_gui.md).
 - NPC & Event Mapping Integrity and Teleportation Isolation in [docs/npc_event_mapping_and_teleport_isolation.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_event_mapping_and_teleport_isolation.md).
 - Robinson Beach Rescue Cutscene & Camera Protocol in [docs/robinson_beach_cutscene_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/robinson_beach_cutscene_protocol.md).
+- Official Network Traffic Analysis & Packet Implementations (38 official PCAPNG captures, 44 C->S requests / 644 S->C responses, Compound Synthesis AC 23:14, Quick Refill AC 23:15, Mail Delivery AC 14:1, Trash Discard AC 27:2, Emote/Dialog Close AC 32:3, Team Follow AC 33:5, Party Management AC 13, Heartbeat AC 183, Cutscene Release AC 186) in [docs/pcap_traffic_analysis_and_packet_implementations.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pcap_traffic_analysis_and_packet_implementations.md).
+- Comprehensive DAT File & Packet Usage Audit (Npc.dat, Talk.dat, Mark.dat, Skill.dat, SceneData.dat, Compound2.dat, Item.dat, eve.Emg) in [docs/dat_file_packet_usage_audit.md](file:///d:/GitHub/Wonderland-Private-Server/docs/dat_file_packet_usage_audit.md).
+
+

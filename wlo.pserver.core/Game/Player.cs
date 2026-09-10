@@ -101,6 +101,16 @@ namespace Game
         public ushort GuildID => (ushort)(CurGuild?.GuildID ?? 0);
         public Game.PlayerRelated.Guild Guild => CurGuild;
         public User UserAccount => m_useracc;
+        public ushort X { get => CurX; set => CurX = value; }
+        public ushort Y { get => CurY; set => CurY = value; }
+        public bool AllowPK { get => Settings?.PKABLE ?? true; set { if (Settings != null) Settings.PKABLE = value; } }
+        public bool TradeLock { get => !(Settings?.TRADABLE ?? true); set { if (Settings != null) Settings.TRADABLE = !value; } }
+        public bool RejectTeam { get => !(Settings?.JOINABLE ?? true); set { if (Settings != null) Settings.JOINABLE = !value; } }
+        public byte WalkMode { get; set; } = 0;
+        public ushort Title { get; set; } = 0;
+        public uint BankGold { get; set; } = 0;
+        public byte RebornJob { get; set; } = 0;
+        public bool Fishing { get; set; } = false;
         public void SendSystemMessage(string msg)
         {
             if (string.IsNullOrEmpty(msg)) return;

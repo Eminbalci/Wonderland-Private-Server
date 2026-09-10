@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {}
+    "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {}
   },
   "projects": {
-    "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {
+    "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+        "projectUniqueName": "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
         "projectName": "RCLibrary",
-        "projectPath": "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
+        "projectPath": "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\RCLibrary.csproj",
         "packagesPath": "C:\\Users\\muham\\.nuget\\packages\\",
-        "outputPath": "d:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
+        "outputPath": "D:\\GitHub\\Wonderland-Private-Server\\RCLibrary\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\muham\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -41,7 +41,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.300"
+        "SdkAnalysisLevel": "10.0.400"
       },
       "frameworks": {
         "net462": {
@@ -67,7 +67,7 @@
               "version": "[8.0.0, )"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.303\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401\\RuntimeIdentifierGraph.json"
         }
       }
     }
