@@ -252,9 +252,11 @@ namespace Game.DataFiles
             try
             {
                 byte[] d = eveData;
-                var ptr = (int)y.offsetlist.NPC + (int)y.dataptr;
                 List<MapObjectEntries> map = new List<MapObjectEntries>();
+                if (y == null || y.offsetlist.NPC == 0)
+                    return map;
 
+                var ptr = (int)y.offsetlist.NPC + (int)y.dataptr;
                 if (ptr < 0 || ptr + 2 > d.Length)
                     return map;
 
@@ -360,8 +362,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Entry + (int)r.dataptr;
                 List<Entry_Exit_Point_Entries> map = new List<Entry_Exit_Point_Entries>();
+                if (r == null || r.offsetlist.Entry == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Entry + (int)r.dataptr;
                 #region Entry/Exit Points
                 //Entry/Exit Points
 
@@ -424,8 +429,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Mining + (int)r.dataptr;
                 List<MiningAreaEntries> map = new List<MiningAreaEntries>();
+                if (r == null || r.offsetlist.Mining == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Mining + (int)r.dataptr;
                 #region Mining Area
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -485,8 +493,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Items + (int)r.dataptr;
                 List<ItemsinMapEntries> map = new List<ItemsinMapEntries>();
+                if (r == null || r.offsetlist.Items == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Items + (int)r.dataptr;
                 #region Items in Map
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -550,8 +561,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Events + (int)r.dataptr;
                 List<EventsinMapEntries> map = new List<EventsinMapEntries>();
+                if (r == null || r.offsetlist.Events == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Events + (int)r.dataptr;
                 #region Events in Map
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -622,8 +636,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Groups + (int)r.dataptr;
                 List<GroupEntries> map = new List<GroupEntries>();
+                if (r == null || r.offsetlist.Groups == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Groups + (int)r.dataptr;
                 #region Groups
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -673,8 +690,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Warp + (int)r.dataptr;
                 List<WarpInfo> map = new List<WarpInfo>();
+                if (r == null || r.offsetlist.Warp == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Warp + (int)r.dataptr;
                 #region Warp Info
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -712,8 +732,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Interactiveinfo + (int)r.dataptr;
                 List<InteractiveInfoEntries> map = new List<InteractiveInfoEntries>();
+                if (r == null || r.offsetlist.Interactiveinfo == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Interactiveinfo + (int)r.dataptr;
                 #region Interactive info
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -762,8 +785,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.Battleinfo + (int)r.dataptr;
                 List<BattleInfoEntries> map = new List<BattleInfoEntries>();
+                if (r == null || r.offsetlist.Battleinfo == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.Battleinfo + (int)r.dataptr;
                 #region BattleInfomation
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -838,8 +864,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.PreEvent + (int)r.dataptr;
                 List<preEventEntries> map = new List<preEventEntries>();
+                if (r == null || r.offsetlist.PreEvent == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.PreEvent + (int)r.dataptr;
                 #region Pre-Event
 
                 if (ptr < 0 || ptr + 2 > d.Length)
@@ -903,8 +932,11 @@ namespace Game.DataFiles
             try
             {
                 var d = eveData;
-                var ptr = (int)r.offsetlist.groupext + (int)r.dataptr;
                 List<ExtgroupEntries> map = new List<ExtgroupEntries>();
+                if (r == null || r.offsetlist.groupext == 0)
+                    return map;
+
+                var ptr = (int)r.offsetlist.groupext + (int)r.dataptr;
                 #region Ext Group Info
 
                 if (ptr < 0 || ptr + 2 > d.Length)

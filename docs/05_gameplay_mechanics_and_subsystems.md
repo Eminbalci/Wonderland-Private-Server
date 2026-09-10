@@ -103,3 +103,59 @@ The 4 elements interact with strict damage bonuses:
 - **Friend List**: Mutual friend tracking and real-time online/offline presence alerts (`AC 9 Sub 3`) persisted in `Friends`.
 - **Postal Mail**: In-game letters with attached gold or inventory items persisted in `mails`.
 - **Marriage**: In-game wedding ceremony bonding two characters persisted in `marriages`.
+
+---
+
+## 7. Native Map Ground Items Lifecycle
+
+Wonderland Online maps feature collectible resources (e.g. Clay, Sea Water, Iron Ore, Herbs) lying directly on the terrain. These are defined within binary `Eve.emg` event scripts under the `ItemArea` data category (209 items across 77 maps).
+
+```
+        Map Initialization (ReloadSpawns)
+                       │
+                       v
+         Player Joins Map -> AC 23:4
+           (Array of active ground items)
+                       │
+                       v
+            Player Interaction (AC 23:2)
+                       │
+         ┌─────────────┴─────────────┐
+         v                           v
+  AddItem to Inv            Broadcast Removal
+    (AC 23:2)                   (AC 23:1)
+         │
+         v
+  Schedule Respawn
+  (RespawnTime = UtcNow + RespawnSeconds)
+         │
+         v
+    Map Heartbeat (Map.Process())
+  Check: UtcNow >= RespawnTime
+         │
+         v
+   Broadcast Respawn (AC 23:3)
+```
+
+### Data Structures & State Model
+
+Each collectible item on a map is managed via [`MapGroundItem`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs):
+- `Slot (byte)`: 1-based unique identifier within the map.
+- `ClickID (ushort)`: Client click targeting handle.
+- `ItemID (ushort)`: Item ID defined in `Item.dat`.
+- `Name (string)`: Display name resolved from `Item.dat`.
+- `X (ushort)`, `Y (ushort)`: Terrain spawn coordinates.
+- `RespawnSeconds (uint)`: Authentic respawn interval loaded from `Eve.emg` (defaults to 180 seconds if 0).
+- `IsPickedUp (bool)`: Runtime flag indicating availability.
+- `RespawnTime (DateTime)`: Absolute UTC timestamp when the item reappears.
+
+### Network Protocol Specification
+
+| Packet | Direction | Opcode / Sub | Wire Layout | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| Initial Items Sync | S -> C | `AC 23:4` | `[23, 4, count:byte, ...items]`<br>Item: `slot:b, item_id:w, x:w, y:w, respawn:d, 0:b` | Sent during [`Map.SendMapInfo`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) upon map entry. |
+| Pickup Request | C -> S | `AC 23:2` | `[23, 2, slot:byte]` | Triggered when player walks up to and clicks a ground item. |
+| Pickup Response | S -> C | `AC 23:2` | `[23, 2, slot:byte, 0:byte]` | Acknowledges inventory grant to picking player. |
+| Removal Broadcast | S -> C | `AC 23:1` | `[23, 1, slot:byte]` | Broadcast to all map players to despawn the visual sprite. |
+| Respawn Broadcast | S -> C | `AC 23:3` | `[23, 3, slot:b, item_id:w, x:w, y:w, respawn:d, 0:b]` | Broadcast by [`Map.Process`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) when respawn timer expires. |
+

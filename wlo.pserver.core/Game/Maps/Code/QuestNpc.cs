@@ -70,9 +70,12 @@ namespace Game.Maps
                 return;
             }
 
-            // Never move or animate static props, chests, or entities with invalid templates
-            if (IsStaticNpc() || TemplateID == 0)
+            // Static NPCs, props, chests, or entities with invalid templates never move
+            if (WalkBehavior == 1 || IsStaticNpc() || TemplateID == 0)
             {
+                this.X = this.SpawnX;
+                this.Y = this.SpawnY;
+                NextWalkTime = now.AddSeconds(300);
                 return;
             }
 
@@ -80,45 +83,109 @@ namespace Game.Maps
 
             try
             {
-                // 1. Scripted path walking from dat file (behavior 5 or has explicit walksteps)
-                if (WalkSteps != null && WalkSteps.Count > 0)
+                // 1. Behavior 3: Bounding box wandering (e.g. village pigs, ducks, chicks)
+                // WalkSteps[0] is (minDx, minDy) and WalkSteps[1] is (maxDx, maxDy) signed offsets
+                if (WalkBehavior == 3 && WalkSteps != null && WalkSteps.Count >= 2)
                 {
-                    var step = WalkSteps[CurStep % WalkSteps.Count];
+                    int minDx = unchecked((int)WalkSteps[0].x);
+                    int minDy = unchecked((int)WalkSteps[0].y);
+                    int maxDx = unchecked((int)WalkSteps[1].x);
+                    int maxDy = unchecked((int)WalkSteps[1].y);
+
+                    // Clamp bounding box offsets to sane ranges [-300, 300]
+                    minDx = Math.Max(-300, Math.Min(0, minDx));
+                    minDy = Math.Max(-300, Math.Min(0, minDy));
+                    maxDx = Math.Max(0, Math.Min(300, maxDx));
+                    maxDy = Math.Max(0, Math.Min(300, maxDy));
+
+                    int targetX = this.SpawnX + NextRandom(minDx, maxDx + 1);
+                    int targetY = this.SpawnY + NextRandom(minDy, maxDy + 1);
+
+                    ushort finalX = (ushort)Math.Max(50, Math.Min(4000, targetX));
+                    ushort finalY = (ushort)Math.Max(50, Math.Min(4000, targetY));
 
                     SendPacket pkt = new SendPacket();
                     pkt.PackArray(new byte[] { 22, 2 });
                     pkt.Pack16(this.CickID);
-                    pkt.Pack16((ushort)step.x);
-                    pkt.Pack16((ushort)step.y);
+                    pkt.Pack16(finalX);
+                    pkt.Pack16(finalY);
                     pkt.Pack8(2); // walking speed
 
                     map.Broadcast(pkt);
 
-                    this.X = (ushort)step.x;
-                    this.Y = (ushort)step.y;
+                    this.X = finalX;
+                    this.Y = finalY;
 
-                    CurStep = (CurStep + 1) % WalkSteps.Count;
-                    // Natural delay between path points (respect delay or 3-7s pause)
-                    double delaySec = (step.delay > 0) ? Math.Max(2.0, (double)step.delay / 1000.0) : NextRandomDouble(3.5, 7.5);
+                    double delaySec = NextRandomDouble(4.0, 9.0);
                     NextWalkTime = now.AddSeconds(delaySec);
                 }
-                // 2. Random roaming ONLY for wild monsters on outdoor field maps (not towns/villages/pens)
-                else if (IsWildMonster() && WalkBehavior == 4 && !IsVillageOrTownMap((int)map.MapID))
+                // 2. Behavior 2 or 5: Scripted waypoint patrol from eve.Emg
+                else if ((WalkBehavior == 2 || WalkBehavior == 5) && WalkSteps != null && WalkSteps.Count > 0)
+                {
+                    ushort targetX = this.SpawnX;
+                    ushort targetY = this.SpawnY;
+                    double delaySec = 4.0;
+
+                    if (WalkSteps.Count == 1)
+                    {
+                        // Oscillate between Spawn position and single waypoint
+                        if (CurStep % 2 == 0 && WalkSteps[0].x > 0 && WalkSteps[0].x < 10000 && WalkSteps[0].y > 0 && WalkSteps[0].y < 10000)
+                        {
+                            targetX = (ushort)WalkSteps[0].x;
+                            targetY = (ushort)WalkSteps[0].y;
+                            delaySec = (WalkSteps[0].delay > 0) ? Math.Max(2.0, (double)WalkSteps[0].delay / 1000.0) : NextRandomDouble(3.5, 7.5);
+                        }
+                        else
+                        {
+                            targetX = this.SpawnX;
+                            targetY = this.SpawnY;
+                            delaySec = NextRandomDouble(3.5, 7.5);
+                        }
+                        CurStep = (CurStep + 1) % 2;
+                    }
+                    else
+                    {
+                        var step = WalkSteps[CurStep % WalkSteps.Count];
+                        if (step.x > 0 && step.x < 10000 && step.y > 0 && step.y < 10000)
+                        {
+                            targetX = (ushort)step.x;
+                            targetY = (ushort)step.y;
+                            delaySec = (step.delay > 0) ? Math.Max(2.0, (double)step.delay / 1000.0) : NextRandomDouble(3.5, 7.5);
+                        }
+                        CurStep = (CurStep + 1) % WalkSteps.Count;
+                    }
+
+                    SendPacket pkt = new SendPacket();
+                    pkt.PackArray(new byte[] { 22, 2 });
+                    pkt.Pack16(this.CickID);
+                    pkt.Pack16(targetX);
+                    pkt.Pack16(targetY);
+                    pkt.Pack8(2); // walking speed
+
+                    map.Broadcast(pkt);
+
+                    this.X = targetX;
+                    this.Y = targetY;
+
+                    NextWalkTime = now.AddSeconds(delaySec);
+                }
+                // 3. Behavior 4 or Wild Monster: Random roaming on outdoor field maps
+                else if ((IsWildMonster() || WalkBehavior == 4) && !IsVillageOrTownMap((int)map.MapID))
                 {
                     int dx = NextRandom(-40, 41);
                     int dy = NextRandom(-40, 41);
                     int targetX = (int)this.X + dx;
                     int targetY = (int)this.Y + dy;
 
-                    // Tight leash to prevent wandering through fences or obstacles (max 60px from spawn)
+                    // Tight leash to prevent wandering through obstacles (max 60px from spawn)
                     if (Math.Abs(targetX - this.SpawnX) > 60 || Math.Abs(targetY - this.SpawnY) > 60)
                     {
                         targetX = this.SpawnX + NextRandom(-20, 21);
                         targetY = this.SpawnY + NextRandom(-20, 21);
                     }
 
-                    ushort finalX = (ushort)Math.Max(50, Math.Min(3000, targetX));
-                    ushort finalY = (ushort)Math.Max(50, Math.Min(3000, targetY));
+                    ushort finalX = (ushort)Math.Max(50, Math.Min(4000, targetX));
+                    ushort finalY = (ushort)Math.Max(50, Math.Min(4000, targetY));
 
                     SendPacket pkt = new SendPacket();
                     pkt.PackArray(new byte[] { 22, 2 });
@@ -137,7 +204,9 @@ namespace Game.Maps
                 }
                 else
                 {
-                    // Town NPCs, villagers, farm animals in pens, and static props remain at their positions
+                    // Town NPCs, villagers, farm animals in pens, and static props remain anchored
+                    this.X = this.SpawnX;
+                    this.Y = this.SpawnY;
                     NextWalkTime = now.AddSeconds(300);
                 }
             }
@@ -153,7 +222,7 @@ namespace Game.Maps
             // Kelan Village, Welling Village, Holy Village, Kyoto, Chang'an, Rome, Cornwall, South Pole, etc.
             if (mapId == 10000 || mapId == 10010 || mapId == 60001) return true;
             if (mapId >= 10001 && mapId <= 10036) return true; // Kelan interiors and residential
-            if (mapId >= 12000 && mapId <= 12030) return true; // Welling Village
+            if (mapId >= 12001 && mapId <= 12030) return true; // Welling Village (12000 is South Island wilderness)
             if (mapId >= 14000 && mapId <= 14030) return true; // Holy Village
             if (mapId >= 16000 && mapId <= 16030) return true; // Kyoto
             if (mapId >= 18000 && mapId <= 18030) return true; // Chang'an

@@ -45,14 +45,35 @@ namespace Game.Maps
                 }
 
                 EventsinMapEntries eventEntry = null;
+                EventSubEntry selectedSub = null;
 
                 if (npcEntry != null && npcEntry.Events != null && npcEntry.Events.Count > 0)
                 {
+                    // Scan registered events for this NPC to find the first event with an eligible branch
                     foreach (var evId in npcEntry.Events)
                     {
-                        eventEntry = mapData.Events?.FirstOrDefault(e => e.clickID == evId);
-                        if (eventEntry != null && eventEntry.SubEntry != null && eventEntry.SubEntry.Count > 0)
-                            break;
+                        var candidate = mapData.Events?.FirstOrDefault(e => e.clickID == evId);
+                        if (candidate != null && candidate.SubEntry != null && candidate.SubEntry.Count > 0)
+                        {
+                            var sub = SelectMatchingBranch(player, map, clickId, candidate);
+                            if (sub != null)
+                            {
+                                eventEntry = candidate;
+                                selectedSub = sub;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Fallback to first available event if no specific state branch was matched
+                    if (eventEntry == null)
+                    {
+                        foreach (var evId in npcEntry.Events)
+                        {
+                            eventEntry = mapData.Events?.FirstOrDefault(e => e.clickID == evId);
+                            if (eventEntry != null && eventEntry.SubEntry != null && eventEntry.SubEntry.Count > 0)
+                                break;
+                        }
                     }
                 }
 
@@ -186,8 +207,11 @@ namespace Game.Maps
                     return true;
                 }
 
-                // 2. Select matching branch based on player quest state
-                EventSubEntry selectedSub = SelectMatchingBranch(player, map, clickId, eventEntry);
+                // 2. Select matching branch based on player quest state (if not already resolved from candidate events)
+                if (selectedSub == null)
+                {
+                    selectedSub = SelectMatchingBranch(player, map, clickId, eventEntry);
+                }
                 if (selectedSub == null || selectedSub.SubEntry == null || selectedSub.SubEntry.Count == 0)
                 {
                     // If chest or prop is already opened / completed
@@ -813,18 +837,64 @@ namespace Game.Maps
                         if ((reqHave && hasItem) || (!reqHave && !hasItem))
                         {
                             var target = GetExecutableBranch(player, eventEntry, sub);
-                            if (target != null && target != excludeSub) return target;
+                            if (target != null && target != excludeSub)
+                            {
+                                // CRITICAL: Skip completion branch if associated quest is already completed
+                                uint tQuestId = target.unknownword1;
+                                if (tQuestId > 0 && player.Quests != null && player.Quests.TryGetValue(tQuestId, out var compPq) && compPq.State == QuestState.Completed)
+                                {
+                                    continue;
+                                }
+                                if (target.SubEntry != null)
+                                {
+                                    bool hasCompletedQuestOp = target.SubEntry.Any(o => o.DialogPtr == 5 && o.dialog1 > 0 &&
+                                        player.Quests != null && player.Quests.TryGetValue(o.dialog1, out var qPq) && qPq.State == QuestState.Completed);
+                                    if (hasCompletedQuestOp)
+                                    {
+                                        continue;
+                                    }
+                                }
+                                return target;
+                            }
                         }
                     }
                 }
 
-                // Gold Condition (unknownbyte1 == 5)
+                // Quest State Condition (unknownbyte1 == 5)
+                // w1 = questId, w2 = required state (1: InProgress, 2: NotStarted, 3: Completed), w3 = step
                 if (sub.unknownbyte1 == 5 && sub.unknownword1 > 0)
                 {
-                    if (player.Gold >= sub.unknownword1)
+                    uint qId = sub.unknownword1;
+                    ushort reqState = sub.unknownword2;
+                    ushort reqStep = sub.unknownword3;
+                    bool stateMatches = false;
+
+                    if (player.Quests != null && player.Quests.TryGetValue(qId, out var pq))
+                    {
+                        if (reqState == 1 && pq.State == QuestState.InProgress && (reqStep == 0 || reqStep == pq.Step))
+                            stateMatches = true;
+                        else if (reqState == 2 && pq.State == QuestState.NotStarted)
+                            stateMatches = true;
+                        else if (reqState == 3 && pq.State == QuestState.Completed)
+                            stateMatches = true;
+                    }
+                    else if (reqState == 2)
+                    {
+                        stateMatches = true;
+                    }
+
+                    if (stateMatches)
                     {
                         var target = GetExecutableBranch(player, eventEntry, sub);
-                        if (target != null && target != excludeSub) return target;
+                        if (target != null && target != excludeSub)
+                        {
+                            uint tQId = target.unknownword1;
+                            if (tQId > 0 && player.Quests != null && player.Quests.TryGetValue(tQId, out var targetPq) && targetPq.State == QuestState.Completed)
+                            {
+                                continue;
+                            }
+                            return target;
+                        }
                     }
                 }
             }
@@ -974,14 +1044,33 @@ namespace Game.Maps
                 bool isChestOrProp = eventEntry.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5));
                 if (!isChestOrProp)
                 {
-                    // Skip CondType=15 inventory gate branches, battle callbacks (4/7) and inventory-full error branches when player has space
-                    var generalSub = eventEntry.SubEntry.FirstOrDefault(s =>
+                    // Filter out branches whose quest is already completed!
+                    var candidateSubs = eventEntry.SubEntry.Where(s =>
                         s.SubEntry != null &&
                         s.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2 || o.DialogPtr == 4 || o.DialogPtr == 6) &&
                         s.unknownbyte1 != 15 &&
                         s.unknownbyte1 != 4 &&
                         s.unknownbyte1 != 7 &&
-                        (playerFreeSlots < 1 || !IsInventoryFullErrorBranch(s)));
+                        (playerFreeSlots < 1 || !IsInventoryFullErrorBranch(s))).ToList();
+
+                    var eligibleSubs = candidateSubs.Where(s =>
+                    {
+                        uint qId = s.unknownword1;
+                        if (qId > 0 && player.Quests != null && player.Quests.TryGetValue(qId, out var pq) && pq.State == QuestState.Completed)
+                            return false;
+
+                        if (s.SubEntry.Any(o => o.DialogPtr == 5 && o.dialog1 > 0 &&
+                            player.Quests != null && player.Quests.TryGetValue(o.dialog1, out var pq2) && pq2.State == QuestState.Completed))
+                            return false;
+
+                        return true;
+                    }).ToList();
+
+                    // Prioritize idle / greeting dialogues (unknownbyte1 == 6)
+                    var idleSub = eligibleSubs.FirstOrDefault(s => s.unknownbyte1 == 6);
+                    if (idleSub != null) return idleSub;
+
+                    var generalSub = eligibleSubs.FirstOrDefault();
                     if (generalSub != null) return generalSub;
                 }
                 else
@@ -1257,8 +1346,14 @@ namespace Game.Maps
                             byte step = (byte)Math.Max(1, (int)(op.dialog3 > 0 ? op.dialog3 : (op.dialog4 >> 8 > 0 ? op.dialog4 >> 8 : 1)));
                             // In WLO eve.Emg: dialog2 == 2 (advance/complete), dialog2 == 1 (activate/start), step >= 250 (complete)
                             QuestState state = (op.dialog2 == 2 || step >= 250) ? QuestState.Completed : QuestState.InProgress;
-
                             if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+
+                            // SAFEGUARD: Never demote an already Completed quest back to InProgress!
+                            if (player.Quests.TryGetValue(questId, out var existingQ) && existingQ.State == QuestState.Completed && state == QuestState.InProgress)
+                            {
+                                DebugSystem.Write($"[EveEventInterpreter] Opcode 5: Prevented demoting completed Quest #{questId} back to InProgress for {player.CharName}");
+                                return true;
+                            }
 
                             if (!player.Quests.ContainsKey(questId))
                             {

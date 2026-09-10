@@ -149,24 +149,51 @@ Question 7 Choice Prompt
 
 ---
 
-## 5. Technical Specifications: Parameters, Returns, and Exceptions
+## 5. Quest Progression and Completion Safeguards
+
+### 5.1 Multi-Event Candidate Resolution
+NPCs in Wonderland Online often register multiple event scripts in [`MapObjectEntries.Events`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataFiles/EveExt.cs) (e.g. NPC #12 Doll on Map 12000 has events `[14, 52, 53]`).
+- **Previous Defect**: The engine prematurely broke on the first event defined in `npcEntry.Events`, ignoring whether the player had already finished the quest.
+- **Resolution**: `EveEventInterpreter.ProcessEvent()` iterates through all registered events, calling `SelectMatchingBranch(player, map, clickId, candidateEvent)`. The engine activates the first event that yields an eligible branch for the player's active quest states, gracefully advancing to post-quest dialogue (e.g., Event 53 "Thank you for the Hill Pepper!") once the quest is done.
+
+### 5.2 Completion Demotion and Turn-In Safeguards
+1. **Item Condition Evaluation (`unknownbyte1 == 2`)**: When verifying item requirements for completion turn-ins, the interpreter verifies whether the completion branch target quest (`target.unknownword1` or Opcode 5 target) is already in `QuestState.Completed`. If already completed, the branch is skipped to prevent repeated reward distribution.
+2. **Quest State Condition (`unknownbyte1 == 5`)**: Previously misinterpreted as a player gold check (`player.Gold >= sub.unknownword1`), `unknownbyte1 == 5` is actually the authentic binary Quest State Condition (`unknownword1` = Quest ID, `unknownword2` = Required State [1: InProgress, 2: NotStarted, 3: Completed], `unknownword3` = Required Step). Corrected to check the player's actual quest records.
+3. **Opcode 5 Safeguard**: In `ExecuteOpcode` `case 5:`, incoming state updates are checked against existing quest state. An already `Completed` quest is strictly protected from being demoted back to `InProgress` (`if (player.Quests[questId].State == QuestState.Completed && state == QuestState.InProgress) return true;`).
+
+---
+
+## 6. NPC Spatial Movement and Wandering AI
+
+### 6.1 Roaming Behaviors (`WalkBehavior`)
+NPC roaming is governed by `entry.unknownbyte4` from `Eve.emg`:
+- **Behavior 1 (Static)**: Shopkeepers, quest givers, and standing villagers strictly anchor to `(SpawnX, SpawnY)` and do not wander.
+- **Behavior 2 & 5 (Scripted Waypoints)**: NPCs follow explicit coordinate waypoints (`WalkSteps`). If `WalkSteps.Count == 1`, the NPC oscillates between `(SpawnX, SpawnY)` and `WalkSteps[0]`.
+- **Behavior 3 (Bounding Box Roaming)**: Farm animals (pigs, ducks, chicks) wander inside a local signed bounding box defined by `WalkSteps[0]` (`minDx, minDy`) and `WalkSteps[1]` (`maxDx, maxDy`). Coordinates are parsed as signed integers, clamped to `[-300, 300]`, and added to `(SpawnX, SpawnY)` to prevent drifting off-map or jumping to `(123, 93)`.
+- **Behavior 4 / Wild Monsters**: Roam randomly within a 60px leash of `(SpawnX, SpawnY)` on outdoor wilderness maps.
+
+---
+
+## 7. Technical Specifications: Parameters, Returns, and Exceptions
 
 ### `EveEventInterpreter.ProcessEvent`
 - **Parameters**:
-  - `Character player`: Active player initiating event interaction.
-  - `ushort eventId`: Authentic `Eve.emg` event identifier.
-  - `int clickId`: Map click target or NPC trigger instance.
+  - `Player player`: Active player initiating event interaction.
+  - `GameMap map`: Current map instance hosting the interaction.
+  - `ushort clickId`: Map click target or NPC trigger instance.
+  - `MapObjectEntries npcEntry`: Optional NPC object metadata containing template ID and registered events.
 - **Returns**: `bool` indicating whether event opcodes executed successfully.
 - **Exceptions Handled**:
   - `KeyNotFoundException`: Handled when event ID is not defined in map EMG; logs warning and unlocks player.
   - `IndexOutOfRangeException`: Handled when binary script pointer exceeds opcode array; safely halts event.
   - `NullReferenceException`: Handled when target NPC data is null; aborts event and restores player movement.
 
-### `Character.SetQuestState`
+### `Character.SetQuestState` / `QuestManager.SavePlayerQuest`
 - **Parameters**:
-  - `ushort questId`: 16-bit quest unique identifier.
-  - `byte state`: Quest status (0 = Not Started, 1 = In Progress, 2 = Completed).
-  - `ushort step`: Quest step pointer for multi-stage objectives.
-- **Returns**: `void`. Synchronously persists state to SQLite `charquest` via parameterized `INSERT OR REPLACE INTO charquest (character_id, quest_id, step, state) VALUES (@cid, @qid, @step, @state)`.
+  - `Player player`: Character entity.
+  - `uint questId`: 32-bit quest unique identifier.
+  - `QuestState state`: Quest status (`NotStarted`, `InProgress`, `Completed`).
+  - `byte step`: Quest step counter.
+- **Returns**: `void`. Synchronously persists state to SQLite `charquest`.
 - **Edge Cases**:
-  - Character disconnect during interaction: `QueueData` and `OnDialogueChoice` are cleaned up on `ClientDisconnected` to prevent memory leaks and dangling callback delegates.
+  - Disconnect during interaction: `QueueData` and `OnDialogueChoice` are cleaned up on connection loss to avoid dangling delegates.

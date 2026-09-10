@@ -28,6 +28,19 @@ namespace Game
         Game.DataFiles.MapData mapData { get; }
     }
 
+    public class MapGroundItem
+    {
+        public byte Slot { get; set; }
+        public ushort ClickID { get; set; }
+        public ushort ItemID { get; set; }
+        public string Name { get; set; }
+        public ushort X { get; set; }
+        public ushort Y { get; set; }
+        public int RespawnSeconds { get; set; } = 120;
+        public bool IsPickedUp { get; set; } = false;
+        public DateTime RespawnTime { get; set; } = DateTime.MinValue;
+    }
+
     public class GameMap : Plugin.PluginObj, IDisposable, IMap
     {
         readonly object mlock = new object();
@@ -36,6 +49,7 @@ namespace Game
 
         protected List<Player> m_playerlist;
         protected List<Item> ItemsDropped;
+        protected List<MapGroundItem> GroundItems;
         //protected ConcurrentDictionary<int, Battle> Battles;
         protected ConcurrentDictionary<uint, Tent> Tents;
         protected Dictionary<byte, WarpDest> Destinations;
@@ -57,6 +71,7 @@ namespace Game
 
             m_playerlist = new List<Player>();
             ItemsDropped = new List<Item>(255);
+            GroundItems = new List<MapGroundItem>();
             DisconnectedQueue = new Queue<Player>(50);
             WaitingtoLogin = new Queue<KeyValuePair<DateTime, Action>>(105);
             Tents = new ConcurrentDictionary<uint, Tent>();
@@ -68,6 +83,7 @@ namespace Game
 
         public List<Player> PlayersList { get { return m_playerlist; } }
         public List<Game.Maps.InteractableObjects> NpcList { get { return NPCs; } }
+        public List<MapGroundItem> GroundItemList { get { lock (mlock) return GroundItems; } }
 
         public GameMap(Plugin.PluginHost host, System.IO.FileInfo src)
             : base(src)
@@ -76,6 +92,7 @@ namespace Game
             myhost = (Plugin.PluginHost)host;
             m_playerlist = new List<Player>();
             ItemsDropped = new List<Item>(255);
+            GroundItems = new List<MapGroundItem>();
             DisconnectedQueue = new Queue<Player>(50);
             WaitingtoLogin = new Queue<KeyValuePair<DateTime, Action>>(105);
             Tents = new ConcurrentDictionary<uint, Tent>();
@@ -289,6 +306,44 @@ namespace Game
                     catch { }
                 }
             }
+
+            // 3. Native Ground Items from eve.Emg (ItemAreas)
+            try
+            {
+                if (GroundItems == null) GroundItems = new List<MapGroundItem>();
+                else GroundItems.Clear();
+
+                var mapData = DataBase.GameDataBase.GlobalInstance.EveDat.GetMapData(Convert.ToUInt16(this.MapID));
+                if (mapData != null && mapData.ItemAreas != null && mapData.ItemAreas.Count > 0)
+                {
+                    byte slotIdx = 1;
+                    foreach (var it in mapData.ItemAreas)
+                    {
+                        if (it.itemID == 0 || (it.x == 0 && it.y == 0)) continue;
+
+                        int respawnSec = (it.unknownword1 > 0) ? (int)it.unknownword1 : 120;
+                        var gItem = new MapGroundItem
+                        {
+                            Slot = (byte)(it.clickID > 0 && it.clickID < 256 ? it.clickID : slotIdx),
+                            ClickID = it.clickID,
+                            ItemID = (ushort)it.itemID,
+                            Name = !string.IsNullOrEmpty(it.Name) ? it.Name.Trim('\0', ' ') : Game.Battle.MonsterDropManager.ResolveItemName((ushort)it.itemID),
+                            X = (ushort)it.x,
+                            Y = (ushort)it.y,
+                            RespawnSeconds = respawnSec,
+                            IsPickedUp = false,
+                            RespawnTime = DateTime.MinValue
+                        };
+                        slotIdx++;
+                        GroundItems.Add(gItem);
+                        DebugSystem.Write($"[Map {MapID}] Loaded Ground Item #{gItem.ItemID} '{gItem.Name}' at slot {gItem.Slot} ({gItem.X}, {gItem.Y}), respawn: {gItem.RespawnSeconds}s");
+                    }
+                }
+            }
+            catch (Exception itemEx)
+            {
+                DebugSystem.Write($"[Map {MapID}] Error loading ground items: {itemEx.Message}");
+            }
         }
 
 
@@ -326,6 +381,26 @@ namespace Game
                         if (NPCs[i] is Game.Maps.QuestNpc qNpc)
                         {
                             qNpc.Update(now, this);
+                        }
+                    }
+                }
+
+                // Update Ground Items respawn
+                if (GroundItems != null && GroundItems.Count > 0)
+                {
+                    DateTime now = DateTime.Now;
+                    for (int i = 0; i < GroundItems.Count; i++)
+                    {
+                        var gi = GroundItems[i];
+                        if (gi.IsPickedUp && now >= gi.RespawnTime)
+                        {
+                            gi.IsPickedUp = false;
+                            gi.RespawnTime = DateTime.MinValue;
+                            // Broadcast respawn packet AC 23:3 to all players on map
+                            // bbwwwdb: 23, 3, ItemID, X, Y, 0, 0, Slot
+                            SendPacket spawnPkt = Tools.FromFormat("bbwwwdb", 23, 3, (ushort)gi.ItemID, (ushort)gi.X, (ushort)gi.Y, (ushort)0, (uint)0, (byte)gi.Slot);
+                            Broadcast(spawnPkt);
+                            DebugSystem.Write($"[Map {MapID}] Ground item {gi.Name} (#{gi.ItemID}) respawned at slot {gi.Slot} ({gi.X}, {gi.Y})");
                         }
                     }
                 }
@@ -417,22 +492,41 @@ namespace Game
             Task dropItem = new Task(() =>
             {
                 byte loc = pos;
-                if (ItemsDropped[loc - 1].ItemID > 0)
+                // 1. Check Native Ground Items
+                MapGroundItem gi = null;
+                lock (mlock)
+                {
+                    gi = GroundItems?.FirstOrDefault(g => !g.IsPickedUp && (g.Slot == loc || g.ClickID == loc || (loc > 0 && g.Slot == loc - 1)));
+                }
+
+                if (gi != null && src.Inv != null)
+                {
+                    src.Inv.AddItem(gi.ItemID, 1);
+                    lock (mlock)
+                    {
+                        gi.IsPickedUp = true;
+                        gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+                    }
+
+                    // Send pickup result to player (AC 23:2, itemID, 1 = success)
+                    src.Send(Tools.FromFormat("bbwb", 23, 2, gi.ItemID, 1));
+                    // Broadcast item removal to others on map (AC 23:2, itemID, 0)
+                    Broadcast(Tools.FromFormat("bbwb", 23, 2, gi.ItemID, 0), "Ex", src.CharID);
+                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Picked up {gi.Name}!"));
+                    src.SaveCharacterData();
+                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item {gi.Name} (#{gi.ItemID}) from slot {gi.Slot}. Respawns in {gi.RespawnSeconds}s");
+                    return;
+                }
+
+                // 2. Fallback: Player-dropped items
+                if (loc > 0 && loc - 1 < ItemsDropped.Count && ItemsDropped[loc - 1].ItemID > 0)
                 {
                     Item res = new Item();
                     res.CopyFrom(ItemsDropped[loc - 1]);
                     ItemsDropped[loc - 1].Clear();
 
-                    if (onItemPickup_fromMap(res))
+                    if (onItemPickup_fromMap != null && onItemPickup_fromMap(res))
                     {
-                        //foreach (ItemsinMapEntries o in ItemAreas)
-                        //{
-                        //    if (DroppedItems[itemIndex].entryid == o.clickID && DroppedItems[itemIndex].Respawns)
-                        //    {
-                        //        o.pickedup = true;
-                        //        o.dropin = DateTime.Now.AddMinutes(2);
-                        //    }
-                        //}
                         src.Send(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 1));
                         Broadcast(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 0), "Ex", src.CharID);
                     }
@@ -1388,29 +1482,25 @@ namespace Game
                 Game.QuestRelated.PreEventInterpreter.EvaluateMapPreEvents(t, (ushort)this.MapID);
             }
             #endregion
-            #region Send Item
-            //if (Items_Dropped.Count > 0)
-            //{
-            //    int unk = 0;
-            //    p = new SendPacket();
-            //    p.PackArray(new byte[] { 23, 4 });
-            //    for (byte a = 0; a < Items_Dropped.ToList().Count; a++)
-            //    {
-            //        if (Items_Dropped[a].NonExpirable)
-            //        {
-            //            p.Pack((byte)3);
-            //            p.Pack((byte)1);
-            //            unk = Items_Dropped[a].Control;
-            //        }
-
-            //        p.Pack16((ushort)a);
-            //        p.Pack((ushort)Items_Dropped[a].ItemID);
-            //        p.Pack16((ushort)Items_Dropped[a].X);
-            //        p.Pack16((ushort)Items_Dropped[a].Y);
-            //        p.Pack((uint)unk);
-            //    }
-            //    t.Send(p);
-            //}
+            #region Send Item (AC 23:4)
+            if (GroundItems != null && GroundItems.Count > 0)
+            {
+                var activeItems = GroundItems.Where(g => !g.IsPickedUp).ToList();
+                if (activeItems.Count > 0)
+                {
+                    SendPacket itemPkt = new SendPacket();
+                    itemPkt.PackArray(new byte[] { 23, 4 });
+                    foreach (var gi in activeItems)
+                    {
+                        itemPkt.Pack16((ushort)gi.Slot);
+                        itemPkt.Pack16((ushort)gi.ItemID);
+                        itemPkt.Pack16((ushort)gi.X);
+                        itemPkt.Pack16((ushort)gi.Y);
+                        itemPkt.Pack32(0);
+                    }
+                    tmp.Add(itemPkt);
+                }
+            }
             #endregion
             //SendNpcs(t);
             //SendItems(t);
