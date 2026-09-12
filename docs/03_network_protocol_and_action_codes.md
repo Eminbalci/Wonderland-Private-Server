@@ -97,6 +97,7 @@ Below is the authoritative catalog of Action Codes implemented across [`Src/Netw
 | **25** | `AC25` (System Prompts) | Server -> Client | Modal popups, system notifications, banner announcements, warning dialogues. |
 | **26** | `AC26` (Currency & Gold) | Bi-directional | Character gold balances (`26:4`), bank transactions, storage gold. |
 | **27** | `AC27` (Player Titles) | Server -> Client | Achievement titles, badge unlocks, active overhead title display. |
+| **11** | `AC11` (Battle Scene Engine) | Bi-directional | Battlefield init (`11:250`), start (`11:10`), fighter spawn (`11:5`), despawn (`11:1`), window exit (`11:0`), map combat broadcast (`11:4`), victory fanfare (`11:12`). |
 | **28** | `AC28` (Production Craft) | Bi-directional | Material processing, synthesis tables, workbench operations. |
 | **29** | `AC29` (Alchemy Synthesis) | Bi-directional | Multi-item compounding, recipe validation, success/fail roll handling. |
 | **30** | `AC30` (Tent Storage Bag) | Bi-directional | Secondary inventory storage within tent containers and cabinets. |
@@ -112,16 +113,16 @@ Below is the authoritative catalog of Action Codes implemented across [`Src/Netw
 | **41** | `AC41` (Marriage System) | Bi-directional | Couple proposal, wedding ceremony triggers, relationship skill unlocks. |
 | **43** | `AC43` (Master-Apprentice) | Bi-directional | Mentorship pairing, graduate rewards, apprentice quest hand-ins. |
 | **45** | `AC45` (Daily Rewards) | Bi-directional | Consecutive login streaks, daily gift package claiming. |
-| **50** | `AC50` (Combat Actions) | Bi-directional | Battle skill execution, attack animations, damage calculation resolution. |
-| **51** | `AC51` (Combat Items) | Bi-directional | Item consumption in battle (potions, revives, elemental seals). |
-| **52** | `AC52` (Quest Dialogue) | Bi-directional | Interactive NPC dialogue selection, choice branching, quest acceptance. |
+| **50** | `AC50` (Combat Actions) | Bi-directional | Player action commands (`50:1`), action clear frames (`50:6`), action execution animations (`50:1`). |
+| **51** | `AC51` (Combat Stat Sync) | Server -> Client | Real-time combat entity HP/SP synchronization (`51:1` [GridX, GridY, StatType, NewVal]). |
+| **52** | `AC52` (Combat Turn Prompt)| Server -> Client | Turn prompt signal (`52:1`) reopening action selection menu for participating players. |
+| **53** | `AC53` (Combat Grid Events) | Server -> Client | Fighter action acknowledgment (`53:5`), fighter death frame (`53:3`), loot drops (`53:4`). |
 | **62** | `AC62` (Interface State) | Server -> Client | GUI window states, minimap markers, special icon overlays. |
 | **63** | `AC63` (Login Server Auth) | Bi-directional | Account credential handshake, slot data (`63:2`), session handoff to World. |
 | **75** | `AC75` (Item Mall Catalog) | Bi-directional | Catalog browsing, point balances, purchasing transactions. |
 | **90** | `AC90` (Client Sync) | Server -> Client | Client sync initialization, environment parameters, frame timing. |
 | **91** | `AC91` (Guild Organization) | Bi-directional | Guild creation, roster membership, guild bank, guild rank permissions. |
-| **104** | `AC104` (Battle Buffs) | Server -> Client | Status effects, debuffs, turn counters, passive aura replication. |
-| **105** | `AC105` (Battle Turn Time) | Server -> Client | Round timer, turn order sequencing, action phase initiation. |
+| **104** | `AC104` (Lucky Draw) | Bi-directional | Daily lucky draw / spin wheel minigame (`104:1`). |
 | **183** | `AC183` (Arena Ladder) | Bi-directional | Ranked PvP matchmaking, leaderboard standings, arena records. |
 | **184** | `AC184` (Guild War) | Bi-directional | Territorial war flags, stronghold capture timers, siege scoring. |
 | **186** | `AC186` (Cinematic Playback)| Server -> Client | Complex camera animation scripts, NPC stage direction sequences. |
@@ -201,3 +202,67 @@ When a player navigates a wooden raft into shore barrier boundaries:
 3. `AC 15:15` - Player dismounted to walking state.
 4. `AC 15:11` - Raft entity despawn broadcast to local map peers.
 5. `AC 5:4` - Player movement speed recalibrated to land velocity.
+
+### 4.5 Combat Protocol & Action Sequence (`AC 11`, `AC 50`, `AC 51`, `AC 52`, `AC 53`)
+
+The combat lifecycle follows the official packet capture sequence recorded in `session_20260911_150803`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant BattleManager
+    participant MapPeers
+
+    BattleManager->>Client: AC 20:12 (Enter Battle Mode)
+    BattleManager->>Client: AC 6:2 [01] (Mode Change Signal)
+    BattleManager->>MapPeers: AC 11:4 [02, CharID, 0, 0, 1] (Map Combat Indicator)
+    BattleManager->>Client: AC 11:250 (Prepare Battlefield & Self Player Record)
+    BattleManager->>Client: AC 11:10 [01] (Combat Start Frame)
+    BattleManager->>Client: AC 11:5 (Spawn Companions, Allies & Monster Fighters)
+    BattleManager->>Client: AC 51:1 (Initial Grid HP/SP Sync)
+    BattleManager->>Client: AC 50:6 [GridX, GridY, 0] + AC 52:1 (Open Action Menu)
+
+    Note over Client,BattleManager: Round Action Phase
+    Client->>BattleManager: AC 50:1 (Player Action Selection Command)
+    BattleManager->>Client: AC 53:5 [srcGridX, srcGridY] (Action Acknowledged)
+    BattleManager->>Client: AC 50:6 [srcGridX, srcGridY, 0] (Lock Input)
+    BattleManager->>Client: AC 50:1 (Execute Turn Animations - 19B per action record)
+    BattleManager->>Client: AC 53:3 [GridX, GridY] (Fighter Death Collapse Frame)
+    BattleManager->>Client: AC 51:1 [GridX, GridY, StatType, NewVal] (Commit HP/SP)
+    BattleManager->>Client: AC 52:1 (Open Next Round Menu)
+
+    Note over Client,BattleManager: Victory & Exit Phase
+    BattleManager->>Client: AC 11:12 [01] (Victory Fanfare)
+    BattleManager->>Client: AC 11:1 [GridX, GridY] (Despawn Grid Entities)
+    BattleManager->>Client: AC 11:0 [CharID, 0, 0] (Close Combat Window)
+    BattleManager->>Client: AC 6:2 [00] + AC 20:8 (Return to Normal Map Movement)
+    BattleManager->>MapPeers: AC 11:4 [02, CharID, 0, 0, 0] (Clear Combat Indicator)
+```
+
+#### 4.5.1 Combat Action Animation Record (`AC 50:1` Server -> Client)
+Each action execution entry sent by the server during turn resolution is serialized into exactly 19 bytes:
+* **Offset 0..1 (`UInt16`):** Animation Record Header (`0x0011`).
+* **Offset 2 (`Byte`):** Source Fighter Grid X.
+* **Offset 3 (`Byte`):** Source Fighter Grid Y.
+* **Offset 4..5 (`UInt16`):** Skill ID (`10001` = Basic Attack, or specific skill ID).
+* **Offset 6..7 (`UInt16`):** Animation SubType / Sequence flag (`0x0100`).
+* **Offset 8 (`Byte`):** Target Fighter Grid X.
+* **Offset 9 (`Byte`):** Target Fighter Grid Y.
+* **Offset 10..12 (`3 Bytes`):** Action hit result flags (`0x01, 0x00, 0x01`).
+* **Offset 13 (`Byte`):** Damage Type / Stat Type (`0x19` = HP Damage, `0x1A` = SP Damage).
+* **Offset 14..17 (`UInt32`):** Damage / Heal numeric value (Little Endian).
+* **Offset 18 (`Byte`):** Target status flag (`0x01` = Active, `0x00` = Defeated).
+
+#### 4.5.2 Combat State Indicator Record (`AC 11:4` Server -> Map Peers)
+Broadcast to map peers when a player enters or exits battle mode to control the overworld crossed-swords animation above the character:
+* **Offset 0 (`Byte`):** Record SubType / Category (`0x02`).
+* **Offset 1..4 (`UInt32`):** Character ID (`CharID` in Little-Endian).
+* **Offset 5 (`Byte`):** Unused / Reserved (`0x00`).
+* **Offset 6 (`Byte`):** Unused / Reserved (`0x00`).
+* **Offset 7 (`Byte`):** Battle Flag (`0x01` = In Battle / display crossed swords, `0x00` = Out of Battle / clear swords).
+
+> [!NOTE]
+> Serialized directly using strongly-typed [`SendPacket.Pack32`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Network/Packet.cs#L48) rather than `Tools.FromFormat` to avoid signed/unsigned byte conversion overflow exceptions (`System.OverflowException`) when formatting 32-bit character identifiers.
+
+

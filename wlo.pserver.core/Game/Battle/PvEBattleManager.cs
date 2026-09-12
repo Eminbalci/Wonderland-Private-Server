@@ -1040,6 +1040,9 @@ namespace Game.Battle
                 // 2. AC 6:2 [01] (mode change signal)
                 p.Send(Tools.FromFormat("bbb", 6, 2, 1));
 
+                // Broadcast AC 11:4 battle state to map peers (shows sword combat indicator)
+                BroadcastBattleState(p, true);
+
                 // 3. AC 11:250 (Prepare Battle: Pack ONLY self player)
                 var selfFighter = friendlyPlayers.FirstOrDefault(f => f.PlayerRef == p);
                 if (selfFighter == null) continue; // should not happen
@@ -1831,6 +1834,7 @@ namespace Game.Battle
 
                             if (targetFighter.IsDead)
                             {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, targetFighter.GridX, targetFighter.GridY));
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, targetFighter.GridX, targetFighter.GridY, 0));
                             }
 
@@ -1940,6 +1944,7 @@ namespace Game.Battle
 
                             if (target.IsDead)
                             {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, target.GridX, target.GridY));
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, target.GridX, target.GridY, 0));
                                 if (target.FighterType == BattleFighterType.Pet)
                                 {
@@ -2027,7 +2032,6 @@ namespace Game.Battle
                     foreach (var p in battle.AllPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 1)); // Fled
 
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
@@ -2043,6 +2047,7 @@ namespace Game.Battle
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                         p.SaveCharacterData();
                     }
                 }
@@ -2140,18 +2145,14 @@ namespace Game.Battle
 
                         // 1. AC 11:12 Combat finish
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        // 2. AC 22:6 Victory
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2));
-                        // 3. AC 22:5 Rewards
-                        p.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)Math.Min(0xFFFF, totalExp), (ushort)Math.Min(0xFFFF, totalGold)));
 
-                        // 4. Despawn pets (4-byte AC 11:1)
+                        // 2. Despawn pets (4-byte AC 11:1)
                         foreach (var f in battle.Attackers.Where(a => a.FighterType == BattleFighterType.Pet))
                         {
                             p.Send(Tools.FromFormat("bbbb", 11, 1, f.GridX, f.GridY));
                         }
 
-                        // 5. Despawn players & close battle window for each team member
+                        // 3. Despawn players & close battle window for each team member
                         foreach (var pMember in battle.AttackingPlayers)
                         {
                             var pf = battle.Attackers.FirstOrDefault(a => a.PlayerRef == pMember);
@@ -2166,17 +2167,17 @@ namespace Game.Battle
                             p.Send(p110);
                         }
 
-                        // 6. Normal map mode and movement release
+                        // 4. Normal map mode and movement release
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
 
                     // Defending team cleanup (if PvP)
                     foreach (var p in battle.DefendingPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0)); // Defeat
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
                         p110.Pack32(p.CharID);
@@ -2197,6 +2198,7 @@ namespace Game.Battle
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
 
                     // Check Quest Battle Completion for Leader
@@ -2241,7 +2243,6 @@ namespace Game.Battle
                     foreach (var p in battle.AttackingPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0)); // Defeat
 
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
@@ -2263,14 +2264,13 @@ namespace Game.Battle
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
 
                     // Defending players victory cleanup (if PvP)
                     foreach (var p in battle.DefendingPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2)); // Victory
-                        p.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)150, (ushort)100));
 
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
@@ -2286,6 +2286,7 @@ namespace Game.Battle
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
                     if (battle.QuestContext?.OnDefeat != null)
                     {
@@ -2408,6 +2409,24 @@ namespace Game.Battle
             p.Pack8(statId);
             p.Pack32(val);
             player.Send(p);
+        }
+
+        /// <summary>
+        /// Broadcasts authentic AC 11:4 combat state indicator (swords icon) to map peers matching official PCAP.
+        /// Payload: Type 2 (1B), CharID (4B), 0 (1B), 0 (1B), State (1B; 1 = enter combat, 0 = exit combat)
+        /// </summary>
+        private static void BroadcastBattleState(Player p, bool inBattle)
+        {
+            if (p == null || p.CurMap == null) return;
+            SendPacket p114 = new SendPacket();
+            p114.Pack8(11);
+            p114.Pack8(4);
+            p114.Pack8(2);
+            p114.Pack32(p.CharID);
+            p114.Pack8(0);
+            p114.Pack8(0);
+            p114.Pack8(inBattle ? (byte)1 : (byte)0);
+            p.CurMap.Broadcast(p114);
         }
     }
 }

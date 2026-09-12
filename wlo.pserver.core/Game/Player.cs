@@ -244,16 +244,24 @@ namespace Game
         {
             string cleanNpcName = (npcName ?? "").Trim();
 
-            // Resolve name from Npc.dat if generic
+            // Resolve name from QuestManager / Npc.dat if generic
             if ((string.IsNullOrEmpty(cleanNpcName) || cleanNpcName.Equals("Npc", StringComparison.OrdinalIgnoreCase) || cleanNpcName.StartsWith("NPC_", StringComparison.OrdinalIgnoreCase)) && templateId > 0)
             {
-                var npcData = DataBase.GameDataBase.GlobalInstance?.NpcDat?.GetNpcbyID(templateId);
-                if (npcData?.NpcName != null)
+                string qName = QuestRelated.QuestManager.GetNpcName(templateId);
+                if (!string.IsNullOrEmpty(qName) && !qName.StartsWith("Companion #"))
                 {
-                    string resolvedName = System.Text.Encoding.ASCII.GetString(npcData.NpcName).Trim('\0', ' ');
-                    if (!string.IsNullOrEmpty(resolvedName))
+                    cleanNpcName = qName;
+                }
+                else
+                {
+                    var npcData = DataBase.GameDataBase.GlobalInstance?.NpcDat?.GetNpcbyID(templateId);
+                    if (npcData?.NpcName != null)
                     {
-                        cleanNpcName = resolvedName;
+                        string resolvedName = System.Text.Encoding.ASCII.GetString(npcData.NpcName).Trim('\0', ' ');
+                        if (!string.IsNullOrEmpty(resolvedName))
+                        {
+                            cleanNpcName = resolvedName;
+                        }
                     }
                 }
             }

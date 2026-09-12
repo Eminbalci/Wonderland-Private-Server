@@ -55,11 +55,6 @@ namespace Game.QuestRelated
                         SendPropHide(player, 33);
                         SendPropHide(player, 35);
                     }
-                    else
-                    {
-                        SendActorShow(player, 33);
-                        SendActorShow(player, 35);
-                    }
                     handledNpcs.Add(33);
                     handledNpcs.Add(35);
 
@@ -69,11 +64,7 @@ namespace Game.QuestRelated
                     // ClickID 34 (mourning Roca) is only visible while Quest 13052 is InProgress (state 1) and not recruited.
                     // ClickID 36 (standing Roca) is hidden while Quest 13052 is NotStarted (2) or Completed (3) or recruited.
                     ushort q13052State = GetPlayerQuestState(player, 13052);
-                    if (q13052State == 1 && !hasRoca)
-                    {
-                        SendActorShow(player, 34);
-                    }
-                    else
+                    if (q13052State != 1 || hasRoca)
                     {
                         SendActorHide(player, 34);
                     }
@@ -83,19 +74,11 @@ namespace Game.QuestRelated
                     {
                         SendActorHide(player, 36);
                     }
-                    else
-                    {
-                        SendActorShow(player, 36);
-                    }
                     handledNpcs.Add(36);
 
                     if (hasRoca)
                     {
                         SendActorHide(player, 32);
-                    }
-                    else
-                    {
-                        SendActorShow(player, 32);
                     }
                     handledNpcs.Add(32);
 
@@ -111,10 +94,6 @@ namespace Game.QuestRelated
                     {
                         SendActorHide(player, 28);
                     }
-                    else
-                    {
-                        SendActorShow(player, 28);
-                    }
                     handledNpcs.Add(28);
                     handledNpcs.Add(29); // Permanent dog: always visible, never hide
 
@@ -124,10 +103,6 @@ namespace Game.QuestRelated
                     {
                         SendActorHide(player, 20);
                     }
-                    else
-                    {
-                        SendActorShow(player, 20);
-                    }
                     handledNpcs.Add(20);
 
                     // 5. Baby Bees near Honeycomb (ClickID 18 & 19):
@@ -136,11 +111,6 @@ namespace Game.QuestRelated
                     {
                         SendActorHide(player, 18);
                         SendActorHide(player, 19);
-                    }
-                    else
-                    {
-                        SendActorShow(player, 18);
-                        SendActorShow(player, 19);
                     }
                     handledNpcs.Add(18);
                     handledNpcs.Add(19);
@@ -152,21 +122,13 @@ namespace Game.QuestRelated
                     if (player.Quests != null && player.Quests.TryGetValue(12020, out var pq12020)) q12020Stp = (byte)pq12020.Step;
                     bool q12021Done = GetPlayerQuestState(player, 12021) == 1;
 
-                    if ((q12020State == 1 && q12020Stp >= 2) || q12020State == 3 || q12021Done)
-                    {
-                        SendActorShow(player, 14);
-                    }
-                    else
+                    if (!((q12020State == 1 && q12020Stp >= 2) || q12020State == 3 || q12021Done))
                     {
                         SendActorHide(player, 14);
                     }
                     handledNpcs.Add(14);
 
-                    if (q12020State == 1 && q12020Stp == 1)
-                    {
-                        SendActorShow(player, 15);
-                    }
-                    else
+                    if (!(q12020State == 1 && q12020Stp == 1))
                     {
                         SendActorHide(player, 15);
                     }
@@ -175,10 +137,6 @@ namespace Game.QuestRelated
                     if (GetPlayerQuestState(player, 13020) == 2 || GetPlayerQuestState(player, 13021) == 1)
                     {
                         SendActorHide(player, 16);
-                    }
-                    else
-                    {
-                        SendActorShow(player, 16);
                     }
                     handledNpcs.Add(16);
 
@@ -434,15 +392,16 @@ namespace Game.QuestRelated
                                         if (targetClickId == clickId)
                                         {
                                             targetsThisNpc = true;
-                                            ushort actionType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
+                                            byte s1 = act.unknown[8];
+                                            byte s2 = act.unknown[9];
 
-                                            if (actionType == 2)
+                                            if (s1 == 0xFF && s2 == 0xFF)
                                             {
-                                                return false; // Action 2 is HIDE
+                                                return false; // Action specifies complete concealment / despawn frame (FF FF)
                                             }
-                                            else if (actionType == 3)
+                                            else
                                             {
-                                                return true; // Action 3 is SHOW
+                                                return true; // Visible with custom state/animation
                                             }
                                         }
                                     }
@@ -570,109 +529,34 @@ namespace Game.QuestRelated
         }
 
         /// <summary>
-        /// Sends authentic actor hide packets (AC 22:4 Type=2 suppression, AC 22:10 actor despawn frame and AC 22:11 scene isolation frame).
+        /// Sends authentic actor hide packets (AC 22:10 actor despawn frame and AC 22:11 scene isolation frame).
+        /// Note: AC 22:4 must strictly NEVER be sent dynamically at runtime, as the client replaces entity slot 0 with length/14 records.
         /// </summary>
         public static void SendActorHide(Player player, ushort clickId)
         {
             if (player == null) return;
-            try
-            {
-                var eveData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(player.MapID);
-                var npcDef = eveData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
-                int nx = (int)(npcDef?.x ?? 0);
-                int ny = (int)(npcDef?.y ?? 0);
-                if (nx == 0 && ny == 0 && player.CurMap is GameMap gmap)
-                {
-                    var mapNpc = gmap.NPCs.FirstOrDefault(n => n.CickID == clickId);
-                    if (mapNpc != null) { nx = mapNpc.X; ny = mapNpc.Y; }
-                }
-
-                SendPacket hidePkt = new SendPacket();
-                hidePkt.Pack8(22);
-                hidePkt.Pack8(4);
-                hidePkt.Pack16(clickId);
-                hidePkt.Pack16((ushort)0x00FF);
-                hidePkt.Pack16((ushort)nx);
-                hidePkt.Pack16((ushort)ny);
-                hidePkt.Pack8(2); // Type 2 = Hidden (sets 0x1eec = 2 in client)
-                hidePkt.Pack8(0);
-                hidePkt.Pack32(0);
-                player.Send(hidePkt);
-            }
-            catch { }
-
             player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0xFF, (byte)0xFF));
             player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0xFF, (byte)0xFF));
         }
 
         /// <summary>
-        /// Sends authentic actor show packets (AC 22:4 Type=1 reveal, AC 22:10 actor spawn/reveal frame and AC 22:11 scene isolation frame).
+        /// Sends authentic actor show packets (AC 22:10 actor spawn/reveal frame and AC 22:11 scene isolation frame).
+        /// Note: AC 22:4 must strictly NEVER be sent dynamically at runtime, as the client replaces entity slot 0 with length/14 records.
         /// </summary>
         public static void SendActorShow(Player player, ushort clickId)
         {
             if (player == null) return;
-            try
-            {
-                var eveData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(player.MapID);
-                var npcDef = eveData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
-                int nx = (int)(npcDef?.x ?? 0);
-                int ny = (int)(npcDef?.y ?? 0);
-                if (nx == 0 && ny == 0 && player.CurMap is GameMap gmap)
-                {
-                    var mapNpc = gmap.NPCs.FirstOrDefault(n => n.CickID == clickId);
-                    if (mapNpc != null) { nx = mapNpc.X; ny = mapNpc.Y; }
-                }
-
-                SendPacket showPkt = new SendPacket();
-                showPkt.Pack8(22);
-                showPkt.Pack8(4);
-                showPkt.Pack16(clickId);
-                showPkt.Pack16((ushort)0x00FF);
-                showPkt.Pack16((ushort)nx);
-                showPkt.Pack16((ushort)ny);
-                showPkt.Pack8(1); // Type 1 = Visible (sets 0x1eec = 1 in client)
-                showPkt.Pack8(0);
-                showPkt.Pack32(0);
-                player.Send(showPkt);
-            }
-            catch { }
-
             player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0x00, (byte)0xFF));
             player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0x00, (byte)0xFF));
         }
 
         /// <summary>
-        /// Sends authentic prop hide packet (AC 22:4 Type=2 suppression, AC 22:10 and AC 22:11 scene isolation frames).
+        /// Sends authentic prop hide packet (AC 22:10 and AC 22:11 scene isolation frames).
+        /// Note: AC 22:4 must strictly NEVER be sent dynamically at runtime, as the client replaces entity slot 0 with length/14 records.
         /// </summary>
         public static void SendPropHide(Player player, ushort clickId)
         {
             if (player == null) return;
-            try
-            {
-                var eveData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(player.MapID);
-                var npcDef = eveData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
-                int nx = (int)(npcDef?.x ?? 0);
-                int ny = (int)(npcDef?.y ?? 0);
-                if (nx == 0 && ny == 0 && player.CurMap is GameMap gmap)
-                {
-                    var mapNpc = gmap.NPCs.FirstOrDefault(n => n.CickID == clickId);
-                    if (mapNpc != null) { nx = mapNpc.X; ny = mapNpc.Y; }
-                }
-
-                SendPacket propPkt = new SendPacket();
-                propPkt.Pack8(22);
-                propPkt.Pack8(4);
-                propPkt.Pack16(clickId);
-                propPkt.Pack16((ushort)0x0000);
-                propPkt.Pack16((ushort)nx);
-                propPkt.Pack16((ushort)ny);
-                propPkt.Pack8(2); // Type 2 = Hidden (sets 0x1eec = 2 in client)
-                propPkt.Pack8(0);
-                propPkt.Pack32(0);
-                player.Send(propPkt);
-            }
-            catch { }
-
             player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0xFF, (byte)0xFF));
             player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0xFF, (byte)0xFF));
         }
@@ -700,24 +584,15 @@ namespace Game.QuestRelated
                     return;
                 }
 
-                if (actionType == 2 || (state1 == 0xFF && state2 == 0xFF && actionType != 3))
+                if (state1 == 0xFF && state2 == 0xFF)
                 {
-                    // Action 2 is HIDE
+                    // Action specifies complete concealment / despawn frame (FF FF)
                     SendActorHide(player, clickId);
-                }
-                else if (actionType == 3)
-                {
-                    // Action 3 is SHOW
-                    byte st1 = (state1 == 0xFF && state2 == 0xFF) ? (byte)0x00 : state1;
-                    byte st2 = (state1 == 0xFF && state2 == 0xFF) ? (byte)0xFF : state2;
-                    player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, st1, st2));
-                    player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, st1, st2));
                 }
                 else
                 {
-                    // Send AC 22:10 (standard actor state/animation update)
-                    SendPacket actPkt10 = Tools.FromFormat("bbwbb", 22, 10, clickId, state1, state2);
-                    player.Send(actPkt10);
+                    // Standard actor state / animation frame update (AC 22:10)
+                    player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, state1, state2));
                 }
             }
         }

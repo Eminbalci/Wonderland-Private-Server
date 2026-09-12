@@ -146,6 +146,12 @@ Wonderland Online features four classical elemental disciplines:
 * `Shielded` / `Earth Barrier`: Absorbs 50% to 100% of incoming physical damage.
 * `HotBlooded`: Grants a `2.0x` damage amplification buff to physical attacks.
 
+### 5.5 Combat Packet Protocol & Wire Synchronization
+* **Map Presence Broadcast (`AC 11:4`):** When entering combat, the server emits `AC 11:4 [0x02, CharID, 0, 0, 1]` to map peers to display the crossed-swords combat indicator. On combat completion, `AC 11:4 [0x02, CharID, 0, 0, 0]` is broadcast to clear the indicator.
+* **Fighter Death Collapse (`AC 53:3`):** When any combat entity reaches 0 HP, `AC 53:3 [GridX, GridY]` is immediately dispatched, triggering the client-side death collapse animation before `AC 11:1` despawns the grid sprite.
+* **Stat Commit (`AC 51:1`):** Dynamic HP (`0x19`) and SP (`0x1A`) changes are committed via `AC 51:1 [GridX, GridY, StatType, Value: UInt32]`.
+* **Turn Prompting (`AC 52:1`):** Action UI selection is reopened each round via `AC 52:1` (0 payload bytes).
+
 ---
 
 ## 6. Social, Guild, and Economic Systems

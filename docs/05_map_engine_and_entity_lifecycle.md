@@ -60,8 +60,9 @@ sequenceDiagram
 ```
 
 1. **Map Ready Signal:** Server issues `AC 23:102`.
-2. **Actor Concealment (`AC 22:10` & `AC 22:11`):** Server dispatches dual concealment frames for recruited companions (e.g., Robinson on Map 11016), completed stage props, and conditional actors filtered by [`PreEventInterpreter`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/PreEventInterpreter.cs).
-3. **Input Unlock:** Server issues `AC 20:8` to grant player mobility only after actor isolation is committed.
+2. **Scene Entity Table (`AC 22:4`):** Server streams the complete 14-byte-per-record NPC table strictly once per map transition. In the client executable (`aLogin.exe`), the packet handler calculates `record_count = (packet_len - 2) / 14`. Sending single-record `AC 22:4` packets dynamically at runtime forces `record_count = 1`, overwriting entity slot 0 and truncating the client's entity list. Therefore, dynamic concealment/spawn during runtime must exclusively use `AC 22:10` and `AC 22:11`.
+3. **Actor Concealment (`AC 22:10` & `AC 22:11`):** Server dispatches dual concealment frames (`[ClickID: uint16, 0xFFFF: uint16]`) for recruited companions (e.g., Robinson on Map 11016), completed stage props, and conditional actors filtered by [`PreEventInterpreter`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/PreEventInterpreter.cs). Crucially, these frames are transmitted as independent, standalone TCP packets via `t.Send(...)` immediately after the map ready signal (`AC 23:102`), rather than concatenated inside the `AC 23:138` composite packet buffer. This architecture strictly adheres to official PCAP captures, preventing client buffer overflow or packet boundary desynchronization.
+4. **Input Unlock:** Server issues `AC 20:8` to grant player mobility only after actor isolation is committed.
 
 ---
 

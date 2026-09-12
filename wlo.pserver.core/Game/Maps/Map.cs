@@ -1402,28 +1402,30 @@ namespace Game
 
             }
             tmp.Add(Tools.FromFormat("bb", 23, 102));
-
-            // Authentic WLO protocol (Official PCAP Seq 979..1000): conceal recruited companions, PreEvent-hidden actors, and broken props via AC 22:10 & AC 22:11 after map loading signal
-            foreach (var npc in this.NPCs)
-            {
-                QuestNpc qn = npc as QuestNpc;
-                bool isRecruited = qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
-                bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
-                bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
-
-                if (isRecruited || isHiddenByPreEvent || isDead)
-                {
-                    tmp.Add(Tools.FromFormat("bbwbb", 22, 10, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
-                    tmp.Add(Tools.FromFormat("bbwbb", 22, 11, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
-                }
-            }
-
             tmp.Add(Tools.FromFormat("bb", 20, 8));
             t.LastSpawnX = t.CurX;
             t.LastSpawnY = t.CurY;
             t.LastTeleportTime = DateTime.UtcNow;
             t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
             t.Send(new SendPacket(tmp.End()));
+
+            // Authentic WLO protocol (Official PCAP Seq 979..1000): conceal recruited companions, PreEvent-hidden actors, and broken props via standalone AC 22:10 & AC 22:11 after map loading signal
+            if (this.NPCs != null && this.NPCs.Count > 0)
+            {
+                foreach (var npc in this.NPCs)
+                {
+                    QuestNpc qn = npc as QuestNpc;
+                    bool isRecruited = qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                    bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
+                    bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
+
+                    if (isRecruited || isHiddenByPreEvent || isDead)
+                    {
+                        t.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
+                        t.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
+                    }
+                }
+            }
 
             // Personal Client-Side NPC Visibility Sync (Only hides completed/recruited NPCs for this specific player)
             QuestRelated.QuestManager.SyncPerPlayerNpcVisibility(t, (ushort)this.MapID);

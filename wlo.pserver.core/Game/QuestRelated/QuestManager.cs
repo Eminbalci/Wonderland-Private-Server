@@ -987,15 +987,14 @@ namespace Game.QuestRelated
                 SendCompanionReward(player, quest.Reward.CompanionPetID, quest.Reward.CompanionName ?? "Companion");
             }
 
-            // 5. Dynamic NPC Despawn (AC 22:1 state 1) for this player upon quest completion
+            // 5. Dynamic NPC Despawn (AC 22:10 and AC 22:11) for this player upon quest completion
             if (quest.DespawnNpcClickIDs != null && quest.DespawnNpcClickIDs.Count > 0)
             {
                 foreach (var clickId in quest.DespawnNpcClickIDs)
                 {
-                    SendPacket despawnPkt = new SendPacket();
-                    despawnPkt.PackArray(new byte[] { 22, 1, (byte)clickId, 0, 1 });
-                    player.Send(despawnPkt);
-                    DebugSystem.Write($"[QuestManager] Despawned NPC (ClickID: {clickId}) via AC 22:1 for {player.CharName} following Quest '{quest.Title}' completion.");
+                    player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickId, (byte)0xFF, (byte)0xFF));
+                    player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)clickId, (byte)0xFF, (byte)0xFF));
+                    DebugSystem.Write($"[QuestManager] Despawned NPC (ClickID: {clickId}) via AC 22:10/11 for {player.CharName} following Quest '{quest.Title}' completion.");
                 }
             }
 
