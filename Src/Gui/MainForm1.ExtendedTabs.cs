@@ -45,7 +45,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabSessions = new TabPage("👥 Online Sessions");
+                TabPage tabSessions = new TabPage(" Online Sessions");
                 tabSessions.BackColor = Color.White;
 
                 // Top filter panel
@@ -58,7 +58,7 @@ namespace Wonderland_Private_Server
 
                 Label lblFilter = new Label
                 {
-                    Text = "🔍 Filter Sessions:",
+                    Text = " Filter Sessions:",
                     Location = new Point(10, 14),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
@@ -74,7 +74,7 @@ namespace Wonderland_Private_Server
 
                 Button btnRefresh = new Button
                 {
-                    Text = "🔄 Refresh Sessions",
+                    Text = " Refresh Sessions",
                     Location = new Point(365, 9),
                     Size = new Size(140, 28),
                     Font = new Font("Segoe UI", 9f)
@@ -124,7 +124,7 @@ namespace Wonderland_Private_Server
 
                 Button btnOpenCharEditor = new Button
                 {
-                    Text = "🧙 Open Deep Character Editor",
+                    Text = " Open Deep Character Editor",
                     Location = new Point(12, 75),
                     Size = new Size(290, 34),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -148,7 +148,7 @@ namespace Wonderland_Private_Server
 
                 Button btnHealPlayer = new Button
                 {
-                    Text = "💚 Heal HP/SP to 100%",
+                    Text = " Heal HP/SP to 100%",
                     Location = new Point(12, 117),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -175,7 +175,7 @@ namespace Wonderland_Private_Server
 
                 Button btnAddGold = new Button
                 {
-                    Text = "💰 Add 100,000 Gold",
+                    Text = " Add 100,000 Gold",
                     Location = new Point(12, 157),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f)
@@ -199,7 +199,7 @@ namespace Wonderland_Private_Server
 
                 Button btnGodMode = new Button
                 {
-                    Text = "🛡️ Toggle Invincible God Mode",
+                    Text = " Toggle Invincible God Mode",
                     Location = new Point(12, 197),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f)
@@ -223,7 +223,7 @@ namespace Wonderland_Private_Server
 
                 Button btnTeleportPlayer = new Button
                 {
-                    Text = "🚀 Teleport Player to Coordinates...",
+                    Text = " Teleport Player to Coordinates...",
                     Location = new Point(12, 237),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f)
@@ -249,7 +249,7 @@ namespace Wonderland_Private_Server
 
                 Button btnKickPlayer = new Button
                 {
-                    Text = "👢 Kick Selected Player",
+                    Text = " Kick Selected Player",
                     Location = new Point(12, 277),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -269,7 +269,7 @@ namespace Wonderland_Private_Server
 
                 Button btnBanAccount = new Button
                 {
-                    Text = "⛔ Ban Player Account",
+                    Text = " Ban Player Account",
                     Location = new Point(12, 317),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -292,7 +292,7 @@ namespace Wonderland_Private_Server
 
                 Button btnBanIp = new Button
                 {
-                    Text = "🌐 Ban Player IP",
+                    Text = " Ban Player IP",
                     Location = new Point(12, 357),
                     Size = new Size(290, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -457,16 +457,16 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabGuilds = new TabPage("🏰 Guilds");
+                TabPage tabGuilds = new TabPage(" Guilds");
                 tabGuilds.BackColor = Color.White;
 
                 // Top filter panel
                 Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(10, 8, 10, 8) };
 
-                Button btnRefresh = new Button { Text = "🔄 Refresh Guilds", Location = new Point(10, 9), Size = new Size(130, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnRefresh = new Button { Text = " Refresh Guilds", Location = new Point(10, 9), Size = new Size(130, 28), Font = new Font("Segoe UI", 9f) };
                 btnRefresh.Click += (s, e) => RefreshGuildsList();
 
-                Label lblFilter = new Label { Text = "🔍 Filter:", Location = new Point(155, 14), AutoSize = true, Font = new Font("Segoe UI", 9.5f) };
+                Label lblFilter = new Label { Text = " Filter:", Location = new Point(155, 14), AutoSize = true, Font = new Font("Segoe UI", 9.5f) };
                 ext_txtGuildSearch = new TextBox { Location = new Point(210, 11), Width = 200, Font = new Font("Segoe UI", 9.5f) };
                 ext_txtGuildSearch.TextChanged += (s, e) => RefreshGuildsList();
 
@@ -538,7 +538,7 @@ namespace Wonderland_Private_Server
                 Label lblRules = new Label { Text = "Guild Announcement / Rules:", Location = new Point(10, 35), AutoSize = true, Font = new Font("Segoe UI", 9f) };
                 ext_txtGuildRules = new TextBox { Location = new Point(10, 55), Width = 380, Height = 55, Multiline = true, Font = new Font("Segoe UI", 9f) };
 
-                Button btnSaveRules = new Button { Text = "💾 Save Notice", Location = new Point(10, 115), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnSaveRules = new Button { Text = " Save Notice", Location = new Point(10, 115), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
                 btnSaveRules.Click += (s, e) =>
                 {
                     if (ext_selectedGuild == null) return;
@@ -584,7 +584,7 @@ namespace Wonderland_Private_Server
                     Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
                 };
 
-                Button btnChangeLeader = new Button { Text = "👑 Change Leader", Size = new Size(115, 32), Font = new Font("Segoe UI", 9f) };
+                Button btnChangeLeader = new Button { Text = " Change Leader", Size = new Size(115, 32), Font = new Font("Segoe UI", 9f) };
                 btnChangeLeader.Click += (s, e) =>
                 {
                     if (ext_selectedGuild == null) return;
@@ -603,7 +603,7 @@ namespace Wonderland_Private_Server
                     }
                 };
 
-                Button btnKickMember = new Button { Text = "👢 Kick Member", Size = new Size(110, 32), Font = new Font("Segoe UI", 9f) };
+                Button btnKickMember = new Button { Text = " Kick Member", Size = new Size(110, 32), Font = new Font("Segoe UI", 9f) };
                 btnKickMember.Click += (s, e) =>
                 {
                     if (ext_selectedGuild == null || ext_dgvGuildMembers.SelectedRows.Count == 0) return;
@@ -619,7 +619,7 @@ namespace Wonderland_Private_Server
 
                 Button btnDisband = new Button
                 {
-                    Text = "🗑️ Disband Guild",
+                    Text = " Disband Guild",
                     Size = new Size(115, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                     BackColor = Color.FromArgb(220, 38, 38),
@@ -758,7 +758,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabMail = new TabPage("📬 In-Game Mail");
+                TabPage tabMail = new TabPage(" In-Game Mail");
                 tabMail.BackColor = Color.White;
 
                 SplitContainer split = new SplitContainer
@@ -775,7 +775,7 @@ namespace Wonderland_Private_Server
 
                 Label lblHeader = new Label
                 {
-                    Text = "📬 Send GM Mail & Gifts",
+                    Text = " Send GM Mail & Gifts",
                     Location = new Point(10, 10),
                     Size = new Size(330, 24),
                     Font = new Font("Segoe UI", 11f, FontStyle.Bold),
@@ -795,7 +795,7 @@ namespace Wonderland_Private_Server
                 ext_txtMailRecipient = new TextBox { Location = new Point(10, 112), Width = 330, Font = new Font("Segoe UI", 9.5f) };
 
                 Label lblSubject = new Label { Text = "Mail Subject:", Location = new Point(10, 142), AutoSize = true, Font = new Font("Segoe UI", 9f) };
-                ext_txtMailSubject = new TextBox { Location = new Point(10, 162), Width = 330, Text = "🎁 Server Special Gift", Font = new Font("Segoe UI", 9.5f) };
+                ext_txtMailSubject = new TextBox { Location = new Point(10, 162), Width = 330, Text = " Server Special Gift", Font = new Font("Segoe UI", 9.5f) };
 
                 Label lblBody = new Label { Text = "Message Body:", Location = new Point(10, 192), AutoSize = true, Font = new Font("Segoe UI", 9f) };
                 ext_txtMailBody = new TextBox
@@ -811,14 +811,14 @@ namespace Wonderland_Private_Server
                 // Attachments box
                 GroupBox grpAttach = new GroupBox
                 {
-                    Text = "📎 Attachments (Optional)",
+                    Text = " Attachments (Optional)",
                     Location = new Point(10, 290),
                     Width = 330,
                     Height = 135,
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold)
                 };
 
-                Label lblGold = new Label { Text = "💰 Gold:", Location = new Point(15, 25), AutoSize = true, Font = new Font("Segoe UI", 9f) };
+                Label lblGold = new Label { Text = " Gold:", Location = new Point(15, 25), AutoSize = true, Font = new Font("Segoe UI", 9f) };
                 ext_numMailGold = new NumericUpDown
                 {
                     Location = new Point(90, 22),
@@ -827,7 +827,7 @@ namespace Wonderland_Private_Server
                     Font = new Font("Segoe UI", 9f)
                 };
 
-                Label lblItemId = new Label { Text = "🎁 Item ID:", Location = new Point(15, 55), AutoSize = true, Font = new Font("Segoe UI", 9f) };
+                Label lblItemId = new Label { Text = " Item ID:", Location = new Point(15, 55), AutoSize = true, Font = new Font("Segoe UI", 9f) };
                 ext_numMailItemId = new NumericUpDown
                 {
                     Location = new Point(90, 52),
@@ -880,7 +880,7 @@ namespace Wonderland_Private_Server
 
                 Button btnDispatch = new Button
                 {
-                    Text = "🚀 Dispatch Mail to Target(s)",
+                    Text = " Dispatch Mail to Target(s)",
                     Location = new Point(10, 435),
                     Size = new Size(330, 36),
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
@@ -910,18 +910,18 @@ namespace Wonderland_Private_Server
 
                 Label lblMailHistory = new Label
                 {
-                    Text = "📜 Mailbox Records (charmail)",
+                    Text = " Mailbox Records (charmail)",
                     Location = new Point(5, 10),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 10f, FontStyle.Bold)
                 };
 
-                Button btnRefreshMail = new Button { Text = "🔄 Refresh", Location = new Point(230, 7), Size = new Size(90, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnRefreshMail = new Button { Text = " Refresh", Location = new Point(230, 7), Size = new Size(90, 28), Font = new Font("Segoe UI", 9f) };
                 btnRefreshMail.Click += (s, e) => RefreshMailHistory();
 
                 Button btnDeleteMail = new Button
                 {
-                    Text = "🗑️ Delete Mail",
+                    Text = " Delete Mail",
                     Location = new Point(330, 7),
                     Size = new Size(110, 28),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -1136,7 +1136,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabSecurity = new TabPage("🛡️ Security & Bans");
+                TabPage tabSecurity = new TabPage(" Security & Bans");
                 tabSecurity.BackColor = Color.White;
 
                 EnsureSecurityTablesExist();
@@ -1156,14 +1156,14 @@ namespace Wonderland_Private_Server
 
                 Label lblIpsHeader = new Label
                 {
-                    Text = "🌐 Banned IP Addresses (banned_ips)",
+                    Text = " Banned IP Addresses (banned_ips)",
                     Location = new Point(5, 12),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
                     ForeColor = Color.FromArgb(30, 41, 59)
                 };
 
-                Button btnRefreshIps = new Button { Text = "🔄 Refresh", Location = new Point(290, 8), Size = new Size(85, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnRefreshIps = new Button { Text = " Refresh", Location = new Point(290, 8), Size = new Size(85, 28), Font = new Font("Segoe UI", 9f) };
                 btnRefreshIps.Click += (s, e) => RefreshBannedIpsTable();
 
                 pnlLeftTop.Controls.Add(lblIpsHeader);
@@ -1195,7 +1195,7 @@ namespace Wonderland_Private_Server
 
                 Button btnAddIpBan = new Button
                 {
-                    Text = "➕ Add IP Ban",
+                    Text = " Add IP Ban",
                     Size = new Size(130, 30),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                     BackColor = Color.FromArgb(220, 38, 38),
@@ -1215,7 +1215,7 @@ namespace Wonderland_Private_Server
 
                 Button btnUnbanIp = new Button
                 {
-                    Text = "🔓 Unban Selected IP",
+                    Text = " Unban Selected IP",
                     Size = new Size(140, 30),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                     BackColor = Color.FromArgb(16, 185, 129),
@@ -1244,14 +1244,14 @@ namespace Wonderland_Private_Server
 
                 Label lblAccHeader = new Label
                 {
-                    Text = "⛔ Banned Accounts (banned_users)",
+                    Text = " Banned Accounts (banned_users)",
                     Location = new Point(5, 12),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
                     ForeColor = Color.FromArgb(30, 41, 59)
                 };
 
-                Button btnRefreshAcc = new Button { Text = "🔄 Refresh", Location = new Point(290, 8), Size = new Size(85, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnRefreshAcc = new Button { Text = " Refresh", Location = new Point(290, 8), Size = new Size(85, 28), Font = new Font("Segoe UI", 9f) };
                 btnRefreshAcc.Click += (s, e) => RefreshBannedAccountsTable();
 
                 pnlRightTop.Controls.Add(lblAccHeader);
@@ -1285,7 +1285,7 @@ namespace Wonderland_Private_Server
 
                 Button btnAddAccBan = new Button
                 {
-                    Text = "⛔ Ban Account",
+                    Text = " Ban Account",
                     Size = new Size(130, 30),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                     BackColor = Color.FromArgb(220, 38, 38),
@@ -1305,7 +1305,7 @@ namespace Wonderland_Private_Server
 
                 Button btnUnbanAcc = new Button
                 {
-                    Text = "🔓 Unban Selected Account",
+                    Text = " Unban Selected Account",
                     Size = new Size(160, 30),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
                     BackColor = Color.FromArgb(16, 185, 129),
@@ -1526,17 +1526,17 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabBattles = new TabPage("⚔️ Live Battles");
+                TabPage tabBattles = new TabPage(" Live Battles");
                 tabBattles.BackColor = Color.White;
 
                 Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(10, 8, 10, 8) };
 
-                Button btnRefresh = new Button { Text = "🔄 Refresh Battles", Location = new Point(10, 9), Size = new Size(140, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnRefresh = new Button { Text = " Refresh Battles", Location = new Point(10, 9), Size = new Size(140, 28), Font = new Font("Segoe UI", 9f) };
                 btnRefresh.Click += (s, e) => RefreshLiveBattles();
 
                 ext_lblActiveBattlesBadge = new Label
                 {
-                    Text = "⚔️ Active Battles: 0",
+                    Text = " Active Battles: 0",
                     Location = new Point(165, 14),
                     AutoSize = true,
                     ForeColor = Color.FromArgb(16, 185, 129),
@@ -1602,7 +1602,7 @@ namespace Wonderland_Private_Server
 
                 Label lblDetailsHeader = new Label
                 {
-                    Text = "⚔️ Battle Details & Overrides",
+                    Text = " Battle Details & Overrides",
                     Location = new Point(10, 8),
                     Size = new Size(300, 22),
                     Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
@@ -1640,7 +1640,7 @@ namespace Wonderland_Private_Server
 
                 Button btnForceWin = new Button
                 {
-                    Text = "🏆 Force Win (Victory)",
+                    Text = " Force Win (Victory)",
                     Location = new Point(10, 8),
                     Size = new Size(320, 34),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
@@ -1661,7 +1661,7 @@ namespace Wonderland_Private_Server
 
                 Button btnForceAbort = new Button
                 {
-                    Text = "🛑 Force End / Abort Battle",
+                    Text = " Force End / Abort Battle",
                     Location = new Point(10, 48),
                     Size = new Size(320, 34),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
@@ -1734,11 +1734,11 @@ namespace Wonderland_Private_Server
                             enemiesStr
                         );
                     }
-                    ext_lblActiveBattlesBadge.Text = $"⚔️ Active Battles: {battles.Count}";
+                    ext_lblActiveBattlesBadge.Text = $" Active Battles: {battles.Count}";
                 }
                 else
                 {
-                    ext_lblActiveBattlesBadge.Text = "⚔️ Active Battles: 0";
+                    ext_lblActiveBattlesBadge.Text = " Active Battles: 0";
                 }
             }
             catch (Exception ex)
@@ -1808,15 +1808,15 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabMarriage = new TabPage("💍 Marriages");
+                TabPage tabMarriage = new TabPage(" Marriages");
                 tabMarriage.BackColor = Color.White;
 
                 Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(10, 8, 10, 8) };
 
-                Button btnRefresh = new Button { Text = "🔄 Refresh Marriages", Location = new Point(10, 9), Size = new Size(150, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnRefresh = new Button { Text = " Refresh Marriages", Location = new Point(10, 9), Size = new Size(150, 28), Font = new Font("Segoe UI", 9f) };
                 btnRefresh.Click += (s, e) => RefreshMarriagesTable();
 
-                Label lblFilter = new Label { Text = "🔍 Filter:", Location = new Point(175, 14), AutoSize = true, Font = new Font("Segoe UI", 9.5f) };
+                Label lblFilter = new Label { Text = " Filter:", Location = new Point(175, 14), AutoSize = true, Font = new Font("Segoe UI", 9.5f) };
                 ext_txtMarriageSearch = new TextBox { Location = new Point(230, 11), Width = 220, Font = new Font("Segoe UI", 9.5f) };
                 ext_txtMarriageSearch.TextChanged += (s, e) => RefreshMarriagesTable();
 
@@ -1864,7 +1864,7 @@ namespace Wonderland_Private_Server
 
                 Button btnDivorce = new Button
                 {
-                    Text = "💔 Admin Annul / Divorce",
+                    Text = " Admin Annul / Divorce",
                     Location = new Point(10, 8),
                     Size = new Size(180, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -1891,7 +1891,7 @@ namespace Wonderland_Private_Server
 
                 Button btnTeleportTogether = new Button
                 {
-                    Text = "🚀 Teleport Spouses Together",
+                    Text = " Teleport Spouses Together",
                     Location = new Point(200, 8),
                     Size = new Size(210, 32),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -1991,17 +1991,17 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabStarter = new TabPage("🎁 Starter Items");
+                TabPage tabStarter = new TabPage(" Starter Items");
                 tabStarter.BackColor = Color.White;
 
                 Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(10, 8, 10, 8) };
 
-                Button btnReload = new Button { Text = "🔄 Reload Starters", Location = new Point(10, 9), Size = new Size(125, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnReload = new Button { Text = " Reload Starters", Location = new Point(10, 9), Size = new Size(125, 28), Font = new Font("Segoe UI", 9f) };
                 btnReload.Click += (s, e) => RefreshStarterItemsTable();
 
                 Button btnAdd = new Button
                 {
-                    Text = "➕ Add Starter Item",
+                    Text = " Add Starter Item",
                     Location = new Point(145, 9),
                     Size = new Size(140, 28),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -2013,7 +2013,7 @@ namespace Wonderland_Private_Server
 
                 Button btnEdit = new Button
                 {
-                    Text = "✏️ Edit Selected",
+                    Text = " Edit Selected",
                     Location = new Point(295, 9),
                     Size = new Size(115, 28),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -2025,7 +2025,7 @@ namespace Wonderland_Private_Server
 
                 Button btnDelete = new Button
                 {
-                    Text = "🗑️ Remove Item",
+                    Text = " Remove Item",
                     Location = new Point(420, 9),
                     Size = new Size(115, 28),
                     Font = new Font("Segoe UI", 9f, FontStyle.Bold),
@@ -2035,13 +2035,13 @@ namespace Wonderland_Private_Server
                 };
                 btnDelete.Click += (s, e) => ActionDeleteStarterItem();
 
-                Button btnImport = new Button { Text = "📥 Import JSON", Location = new Point(545, 9), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnImport = new Button { Text = " Import JSON", Location = new Point(545, 9), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
                 btnImport.Click += (s, e) => ActionImportStarterJson();
 
-                Button btnExport = new Button { Text = "📤 Export JSON", Location = new Point(665, 9), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnExport = new Button { Text = " Export JSON", Location = new Point(665, 9), Size = new Size(110, 28), Font = new Font("Segoe UI", 9f) };
                 btnExport.Click += (s, e) => ActionExportStarterJson();
 
-                Button btnGiveOnline = new Button { Text = "🎁 Give to All Online", Location = new Point(785, 9), Size = new Size(140, 28), Font = new Font("Segoe UI", 9f) };
+                Button btnGiveOnline = new Button { Text = " Give to All Online", Location = new Point(785, 9), Size = new Size(140, 28), Font = new Font("Segoe UI", 9f) };
                 btnGiveOnline.Click += (s, e) => ActionGiveStarterPackToOnline();
 
                 ext_lblStarterSummary = new Label

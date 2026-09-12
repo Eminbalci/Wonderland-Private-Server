@@ -119,8 +119,6 @@ namespace Game.Code
     public class DroppedItem : Item
     {
         public bool NonExpirable;
-        bool Expired;
-        DateTime dropped;
         public DateTime Expires;
 
         public UInt16 X = 0;

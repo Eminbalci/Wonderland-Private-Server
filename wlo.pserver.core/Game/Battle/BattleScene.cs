@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,20 +20,16 @@ namespace Game.Battle
         readonly Battle _battleref;
         readonly BattleRole role;
 
-        int round;
-
         List<Fighter> fighterlist; public IReadOnlyList<Fighter> FighterList { get { return fighterlist; } }
 
 
         public event BattleRoundInfo onRoundStart;
-        public event EventHandler onBattleOver;
 
         public BattleScene(BattleRole sideRole, Battle owner)
         {
             _battleref = owner;
             role = sideRole;
 
-            round = 0;
             fighterlist = new List<Fighter>();
         }
 

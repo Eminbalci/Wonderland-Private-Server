@@ -251,16 +251,26 @@ namespace Network.ActionCodes
 
                     if (requester != null)
                     {
+                        // 1. S->C AC 14:3 to requester: [14, 3, otherCharID:d, group:b]
                         SendPacket s = new SendPacket();
                         s.Pack8(14);
                         s.Pack8(3);
                         s.Pack32(p.CharID);
                         s.Pack8(group);
                         requester.Send(s);
+
+                        // 2. S->C AC 14:9 to requester: [14, 9, otherCharID:d, 0:b] (Add Friend Success ACK)
+                        SendPacket sAck1 = new SendPacket();
+                        sAck1.Pack8(14);
+                        sAck1.Pack8(9);
+                        sAck1.Pack32(p.CharID);
+                        sAck1.Pack8(0);
+                        requester.Send(sAck1);
+
                         SendFriendList(requester);
                     }
 
-                    // Send AC 14:3 to accepter
+                    // 3. S->C AC 14:3 to accepter: [14, 3, requesterCharID:d, group:b]
                     SendPacket s2 = new SendPacket();
                     s2.Pack8(14);
                     s2.Pack8(3);
@@ -268,7 +278,15 @@ namespace Network.ActionCodes
                     s2.Pack8(group);
                     p.Send(s2);
 
-                    // Auto-refresh friend list for accepter
+                    // 4. S->C AC 14:9 to accepter: [14, 9, requesterCharID:d, 0:b] (Add Friend Success ACK)
+                    SendPacket sAck2 = new SendPacket();
+                    sAck2.Pack8(14);
+                    sAck2.Pack8(9);
+                    sAck2.Pack32(requesterCharID);
+                    sAck2.Pack8(0);
+                    p.Send(sAck2);
+
+                    // 5. Auto-refresh friend list for accepter
                     SendFriendList(p);
                 }
                 catch (Exception dbEx)

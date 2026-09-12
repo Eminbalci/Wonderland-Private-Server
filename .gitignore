@@ -99,3 +99,6 @@ screenshot.png
 *.bmp
 *.webp
 
+ghidra/GhidraRun.java
+docs/14_packet_capture_and_session_analyzer.md
+docs/13_ghidra_mcp_automation_and_reverse_engineering.md

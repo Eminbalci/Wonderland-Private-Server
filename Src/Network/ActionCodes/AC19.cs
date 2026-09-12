@@ -90,8 +90,8 @@ namespace Network.ActionCodes
 
                 if (activePet == null) return;
 
-                // Client expects 12178 for Robinson companion display
-                uint broadcastPetId = (activePet.PetID == 12032 || activePet.PetID == 12178) ? 12178 : activePet.PetID;
+                // Resolve the broadcast-safe companion ID (e.g. Robinson: 12032 DB -> 12178 client display)
+                uint broadcastPetId = Player.GetCompanionBroadcastId(activePet.PetID);
                 player.ActivePetID = broadcastPetId;
 
                 foreach (var kvp in player.PlayerPets)

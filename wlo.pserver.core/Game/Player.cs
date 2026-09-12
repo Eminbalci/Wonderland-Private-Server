@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using Game.Code.PlayerRelated;
 
 namespace Game
@@ -43,7 +42,7 @@ namespace Game
     }
 
 
-    public class Player : Game.Character, IDisposable, INotifyPropertyChanged
+    public class Player : Game.Character, IDisposable
     {
 
         #region Events
@@ -55,20 +54,13 @@ namespace Game
         readonly object mlock = new object();
 
         SocketClient m_socket;
-        Thread net;
-
         PlayerFlagManager m_Flags;
 
         public Queue<SendPacket> QueueData;
-        SendMode m_sendMode;
 
         WarpData prevMap;
         WarpData returnSpawnMap;
         WarpData recordMap;
-        WarpData gpsMap;
-
-        int slot;
-        byte emote;
 
         User m_useracc;
         Inventory m_inv;
@@ -78,11 +70,12 @@ namespace Game
         MailManager m_Mail;
         Game.PlayerRelated.Friendlist m_friendlist;
         RiceBall m_riceball;
-        PetList m_petlist;
+        byte emote;
         Game.Code.Tent m_tent;
 
         // Active mount/pet/vehicle tracking for broadcasting to other players
         public uint ActiveVehicleID { get; set; } = 0;
+        public byte MountedVehicleSlot { get; set; } = 0; // Inventory slot of current active vehicle
         public uint ActiveMountID { get; set; } = 0; // Riding pet
         public uint ActivePetID { get; set; } = 0; // Battle pet
         public WarpData CarnieReturnMap { get; set; } = null; // Return destination when exiting Carnie (Map 11094)
@@ -205,10 +198,10 @@ namespace Game
             if ((id1 == 12032 || id1 == 12178) && (id2 == 12032 || id2 == 12178)) return true;
             // S.Monkey: 17162 (NPC TID) <-> 10727 (Pet TID)
             if ((id1 == 17162 || id1 == 10727) && (id2 == 17162 || id2 == 10727)) return true;
-            // Roca: 14161 <-> 14001
-            if ((id1 == 14161 || id1 == 14001) && (id2 == 14161 || id2 == 14001)) return true;
-            // Niss: 14162 <-> 14002
-            if ((id1 == 14162 || id1 == 14002) && (id2 == 14162 || id2 == 14002)) return true;
+            // Roca: 14161 (mourning), 14162 (standard/village), 14001 (companion)
+            if ((id1 == 14161 || id1 == 14162 || id1 == 14001) && (id2 == 14161 || id2 == 14162 || id2 == 14001)) return true;
+            // Niss: 14081 (standard), 14002 (companion)
+            if ((id1 == 14081 || id1 == 14002) && (id2 == 14081 || id2 == 14002)) return true;
             // Clive: 14163 <-> 14003
             if ((id1 == 14163 || id1 == 14003) && (id2 == 14163 || id2 == 14003)) return true;
             // Fred: 14164 <-> 14004
@@ -225,9 +218,45 @@ namespace Game
             return false;
         }
 
+        /// <summary>
+        /// Resolves the client-facing broadcast TID for a companion.
+        /// In WLO, companions are stored in character_pets with the NPC overworld TID (e.g. Robinson = 12032)
+        /// but the client expects the companion pet TID (e.g. 12178) in AC 19:1, AC 15:4, AC 19:4, and AC 13:5.
+        /// Returns petId unchanged if no alias mapping exists.
+        /// </summary>
+        public static uint GetCompanionBroadcastId(uint petId)
+        {
+            if (petId == 12032) return 12178; // Robinson
+            if (petId == 17162) return 10727; // S.Monkey
+            if (petId == 14161 || petId == 14162) return 14001; // Roca (NPC -> companion)
+            if (petId == 14081) return 14002; // Niss
+            if (petId == 14163) return 14003; // Clive
+            if (petId == 14164) return 14004; // Fred
+            if (petId == 14165) return 14005; // Elin
+            if (petId == 14166) return 14006; // Sam
+            if (petId == 14167) return 14007; // Shizune
+            if (petId == 14168) return 14008; // Suzan
+            return petId; // No alias — return as-is
+        }
+
+
         public bool HasRecruitedCompanion(string npcName, ushort templateId)
         {
             string cleanNpcName = (npcName ?? "").Trim();
+
+            // Resolve name from Npc.dat if generic
+            if ((string.IsNullOrEmpty(cleanNpcName) || cleanNpcName.Equals("Npc", StringComparison.OrdinalIgnoreCase) || cleanNpcName.StartsWith("NPC_", StringComparison.OrdinalIgnoreCase)) && templateId > 0)
+            {
+                var npcData = DataBase.GameDataBase.GlobalInstance?.NpcDat?.GetNpcbyID(templateId);
+                if (npcData?.NpcName != null)
+                {
+                    string resolvedName = System.Text.Encoding.ASCII.GetString(npcData.NpcName).Trim('\0', ' ');
+                    if (!string.IsNullOrEmpty(resolvedName))
+                    {
+                        cleanNpcName = resolvedName;
+                    }
+                }
+            }
 
             // 1. Check PlayerPets dictionary
             if (PlayerPets != null && PlayerPets.Count > 0)
@@ -252,6 +281,28 @@ namespace Game
             if (ActivePetID > 0)
             {
                 if (IsSamePetOrCompanion(ActivePetID, templateId)) return true;
+            }
+
+            // 3. Check quest completion / progress for companion recruit quests
+            if (Quests != null && Quests.Count > 0)
+            {
+                // Robinson (12032 / 12178): Quest 15283 or Quest 12040
+                if (templateId == 12032 || templateId == 12178 || cleanNpcName.IndexOf("Robinson", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (Quests.TryGetValue(15283, out var q15283) && (q15283.State == Game.QuestRelated.QuestState.InProgress || q15283.State == Game.QuestRelated.QuestState.Completed)) return true;
+                    if (Quests.TryGetValue(12040, out var q12040) && (q12040.State == Game.QuestRelated.QuestState.InProgress || q12040.State == Game.QuestRelated.QuestState.Completed)) return true;
+                }
+                // Roca (14161 / 14162 / 14001): Quest 13052 or Quest 13098
+                if (templateId == 14161 || templateId == 14162 || templateId == 14001 || cleanNpcName.IndexOf("Roca", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (Quests.TryGetValue(13052, out var q13052) && q13052.State == Game.QuestRelated.QuestState.Completed) return true;
+                    if (Quests.TryGetValue(13098, out var q13098) && (q13098.State == Game.QuestRelated.QuestState.InProgress || q13098.State == Game.QuestRelated.QuestState.Completed)) return true;
+                }
+                // S. Monkey (17162 / 10727): Quest 12018
+                if (templateId == 17162 || templateId == 10727 || cleanNpcName.IndexOf("Monkey", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (Quests.TryGetValue(12018, out var q12018) && (q12018.State == Game.QuestRelated.QuestState.InProgress || q12018.State == Game.QuestRelated.QuestState.Completed)) return true;
+                }
             }
 
             return false;
@@ -284,7 +335,6 @@ namespace Game
             m_Mail = new MailManager(this);
 
             m_teammembers = new List<Player>();
-            m_petlist = new PetList(this);
             m_riceball = new RiceBall(this);
             m_started_Quests = new List<Quest>();
 
@@ -503,7 +553,6 @@ namespace Game
         }
         public EquipManager Eqs { get { return ((EquipManager)this) ?? null; } }
         public byte Emote { get { lock (mlock) return emote; } set { lock (mlock) emote = value; } }
-        public PetList Pets { get { return m_petlist; } }
         public Game.Code.Tent Tent { get { return m_tent; } }
         public Game.Battle.BattleScene MyBattle { get { return m_battle; } set { m_battle = value; } }
         public RiceBall RiceBall { get { return m_riceball; } }
@@ -723,7 +772,7 @@ namespace Game
                 return;
             }
             p.Flags = pFlags;
-            m_socket.SendPacket(p);
+            m_socket?.SendPacket(p);
 
         }
 
@@ -777,14 +826,14 @@ namespace Game
                             chatMsg.StartsWith(":shop", StringComparison.OrdinalIgnoreCase))
                         {
                             int pts = Game.PlayerRelated.ItemMallManager.GetUserPoints(c);
-                            c.SendSystemMessage($"========== 🛍️ ITEM MALL (Balance: {pts} IM Pts) ==========");
+                            c.SendSystemMessage($"==========  ITEM MALL (Balance: {pts} IM Pts) ==========");
                             var catalog = Game.PlayerRelated.ItemMallManager.GetCatalog();
                             for (int i = 0; i < catalog.Count; i++)
                             {
                                 var it = catalog[i];
                                 c.SendSystemMessage($"[{i + 1}] {it.ItemName} (x{it.Count}) - {it.PointCost} Pts -> Type: /buy {i + 1}");
                             }
-                            c.SendSystemMessage("💡 Type /buy <number> to purchase directly into your inventory!");
+                            c.SendSystemMessage(" Type /buy <number> to purchase directly into your inventory!");
                         }
                         else if (chatMsg.StartsWith("/buy", StringComparison.OrdinalIgnoreCase) ||
                                  chatMsg.StartsWith(":buy", StringComparison.OrdinalIgnoreCase))
@@ -808,21 +857,21 @@ namespace Game
                                 {
                                     if (Game.PlayerRelated.ItemMallManager.PurchaseItem(c, targetItem.ItemID, targetItem.Count))
                                     {
-                                        c.SendSystemMessage($"🎉 Purchased {targetItem.ItemName} (x{targetItem.Count}) for {targetItem.PointCost} IM Points! Remaining: {Game.PlayerRelated.ItemMallManager.GetUserPoints(c)} Pts.");
+                                        c.SendSystemMessage($" Purchased {targetItem.ItemName} (x{targetItem.Count}) for {targetItem.PointCost} IM Points! Remaining: {Game.PlayerRelated.ItemMallManager.GetUserPoints(c)} Pts.");
                                     }
                                     else
                                     {
-                                        c.SendSystemMessage($"❌ Purchase failed! Cost: {targetItem.PointCost} Pts (Your Balance: {Game.PlayerRelated.ItemMallManager.GetUserPoints(c)} Pts).");
+                                        c.SendSystemMessage($" Purchase failed! Cost: {targetItem.PointCost} Pts (Your Balance: {Game.PlayerRelated.ItemMallManager.GetUserPoints(c)} Pts).");
                                     }
                                 }
                                 else
                                 {
-                                    c.SendSystemMessage("❌ Item not found! Type /im to see the available list.");
+                                    c.SendSystemMessage(" Item not found! Type /im to see the available list.");
                                 }
                             }
                             else
                             {
-                                c.SendSystemMessage("💡 Usage: /buy <number> (e.g. /buy 1)");
+                                c.SendSystemMessage(" Usage: /buy <number> (e.g. /buy 1)");
                             }
                         }
                         else if (chatMsg.StartsWith("/points", StringComparison.OrdinalIgnoreCase) ||
@@ -831,7 +880,7 @@ namespace Game
                                  chatMsg.StartsWith(":myim", StringComparison.OrdinalIgnoreCase))
                         {
                             int pts = Game.PlayerRelated.ItemMallManager.GetUserPoints(c);
-                            c.SendSystemMessage($"💎 Your Current Balance: {pts} IM Points.");
+                            c.SendSystemMessage($" Your Current Balance: {pts} IM Points.");
                         }
                         else if (chatMsg.StartsWith("/acceptmarry", StringComparison.OrdinalIgnoreCase))
                         {
@@ -1004,10 +1053,8 @@ namespace Game
                     m_battle.ProcessSocket(p);
                 if (m_tent != null)
                     m_tent.Process(this, p);
-
-
             }
-            catch (Exception f) { }// DebugSystem.Write(new ExceptionData(f)); DebugSystem.Write(f.StackTrace); }//m_socket.Disconnect(); }
+            catch (Exception) { }
         }
 
         public void TeleportPlayer(string mapID)
@@ -1323,93 +1370,7 @@ namespace Game
 
         #endregion
 
-        #region Game.Mail
-
-        #endregion
-
         #region Player
-        //public void onPlayerLogin(uint id)
-        //{
-        //    if (Friends.Exists(c => c.ID == id))
-        //    {
-        //        SendPacket p = new SendPacket();
-        //        p.PackArray(new byte[] { 14, 9 });
-        //        p.Pack32(id);
-        //        p.Pack8(0);
-        //        Send(p);
-        //    }
-        //    for (int a = 0; a < MailBox.Count; a++)
-        //    {
-        //        if (MailBox[a].targetid == id && MailBox[a].type == "Send" && MailBox[a].isSent)
-        //        {
-        //            MailBox[a].isSent = true;
-        //            SendMailTo(MailBox[a].targetid, MailBox[a].message);
-        //        }
-        //    }
-
-        //}
-        //public bool ContinueInteraction()
-        //{
-        //    if (DatatoSend.Count == 1)
-        //    {
-        //        var f = DatatoSend.Dequeue();
-        //        Send(f);
-        //        return (obj_interacting != null);
-        //    }
-        //    else if (DatatoSend.Count > 1)
-        //    {
-        //        Send(DatatoSend.Dequeue()); return true;
-        //    }
-        //    return false;
-        //}
-        //public void Send_3_Me()
-        //{
-        //    SendPacket p = new SendPacket();
-        //    p.Pack8(3);
-        //    p.Pack32(ID);
-        //    p.Pack8((byte)Eqs.Body);
-        //    p.Pack16(LoginMap);
-        //    p.Pack16(X);
-        //    p.Pack16(Y);
-        //    p.Pack8(0); p.Pack8(Eqs.Head); p.Pack8(0);
-        //    p.Pack16(HairColor);
-        //    p.Pack16(SkinColor);
-        //    p.Pack16(ClothingColor);
-        //    p.Pack16(EyeColor);
-        //    p.Pack8(Eqs.WornCount);//clothesAmmt); // ammt of clothes
-        //    p.PackArray(Eqs.Worn_Equips);
-        //    p.Pack32(0);
-        //    p.PackString(CharacterName);
-        //    p.PackString(Nickname);
-        //    p.Pack32(0);
-        //    Send(p);
-        //}
-        //public SendPacket _3Data()
-        //{
-        //    SendPacket p = new SendPacket();
-        //    p.Pack8(3);
-        //    p.Pack32(ID);
-        //    p.Pack8((byte)Eqs.Body);
-        //    p.Pack8((byte)Eqs.Element);
-        //    p.Pack8((byte)Eqs.Level);
-        //    p.Pack16(CurrentMap.MapID);
-        //    p.Pack16(X);
-        //    p.Pack16(Y);
-        //    p.Pack8(0); p.Pack8(Eqs.Head); p.Pack8(0);
-        //    p.Pack16(HairColor);
-        //    p.Pack16(SkinColor);
-        //    p.Pack16(ClothingColor);
-        //    p.Pack16(EyeColor);
-        //    p.Pack8(Eqs.WornCount);//clothesAmmt); // ammt of clothes
-        //    p.PackArray(Eqs.Worn_Equips);
-        //    p.Pack32(0); p.Pack8(0);
-        //    p.PackBoolean(Eqs.Reborn);
-        //    p.Pack8((byte)Eqs.Job);
-        //    p.PackString(CharacterName);
-        //    p.PackString(Nickname);
-        //    p.Pack8(255);
-        //    return p;
-        //}
         public override void Send_5_3() //logging in player info
         {
             PacketBuilder p = new PacketBuilder();
@@ -1513,6 +1474,7 @@ namespace Game
         public ushort TransformedModelID { get; set; } = 0;
         public bool PendingBeachCutscene { get; set; }
         public bool BeachCutsceneActive { get; set; }
+        public int BeachCutsceneStep { get; set; } = 0;
         public bool PlayingStormCutscene { get; set; }
         public Queue<Action> StepQueue { get; set; } = new Queue<Action>();
         public int LastDialogueAdvanceTick { get; set; } = 0;
@@ -1559,6 +1521,10 @@ namespace Game
                 var action = OnInteractionComplete;
                 OnInteractionComplete = null;
                 action.Invoke();
+                if (this.CurMap is GameMap gmap)
+                {
+                    QuestRelated.QuestManager.ReplayActorVisibility(this, gmap);
+                }
                 return true;
             }
             return false;
@@ -1586,218 +1552,6 @@ namespace Game
         }
 
         #endregion
-
-        //    #region Friends
-        //    public void SendFriendList()
-        //    {
-        //        SendPacket y = new SendPacket();
-        //        y.PackArray(new byte[] { 14, 5 });
-        //        y.PackArray(new byte[]{100, 0, 0, 0, 6, 71, 77, 164, 164, 164, 223, 200, 0,      
-        //0, 0, 0, 0, 28, 175, 125, 26, 28, 175, 125, 26, 0, 0});
-        //        foreach (Character h in Friends)
-        //        {
-        //            y.Pack32(h.ID);
-        //            y.PackString(h.CharacterName);
-        //            y.Pack8((byte)h.Level);
-        //            y.Pack8(BitConverter.GetBytes(h.Reborn)[0]);
-        //            y.Pack8((byte)h.Job);
-        //            y.Pack8((byte)h.Element);
-        //            y.Pack8((byte)h.Body);
-        //            y.Pack8(h.Head);
-        //            y.Pack16(h.HairColor);
-        //            y.Pack16(h.SkinColor);
-        //            y.Pack16(h.ClothingColor);
-        //            y.Pack16(h.EyeColor);
-        //            y.PackString(h.Nickname);
-        //            y.Pack8(0);
-        //        }
-        //        Send(y);
-        //    }
-        //    public void AddFriend(Player t)
-        //    {
-        //        if (Friends.Count == 50) return;
-        //        if (!m_friends.Exists(c => c.ID == t.ID))
-        //            m_friends.Add(t);
-        //        SendPacket s = new SendPacket();
-        //        s.PackArray(new byte[] { 14, 9 });
-        //        s.Pack32(t.ID);
-        //        s.Pack8(0);
-        //        Send(s);
-        //        s = new SendPacket();
-        //        s.PackArray(new byte[] { 14, 7 });
-        //        s.Pack32(t.ID);
-        //        s.PackString("Test");
-        //        Send(s);
-        //    }
-        //    public void DelFriend(uint t)
-        //    {
-        //        if (m_friends.Exists(c => c.ID == t))
-        //            m_friends.Remove(m_friends.Single(c => c.ID == t));
-        //        SendPacket s = new SendPacket();
-        //        s.PackArray(new byte[] { 14, 4 });
-        //        s.Pack32(t);
-        //        Send(s);
-        //    }
-        //    public bool LoadFriends(string str)
-        //    {
-        //        foreach (string y in str.Split('&'))
-        //        {
-        //            if (y.Length > 0 && y != "none")
-        //            {
-        //                string[] f = y.Split(' ');
-        //                m_friends.Add(myhost.CharDataBase.GetCharacterData(uint.Parse(f[0])));
-        //            }
-        //        }
-        //        return true;
-        //    }
-        //    public string GetFriends_Flag
-        //    {
-        //        get
-        //        {
-        //            string query = "";
-        //            for (int a = 0; a < m_friends.Count; a++)
-        //            {
-        //                query += m_friends[a].ID.ToString() + " " + m_friends[a].CharacterName;
-        //                if (a < m_friends.Count)
-        //                    query += "&";
-        //            }
-        //            if (query == "")
-        //                query += "none";
-        //            return query;
-        //        }
-        //    }
-        //    #endregion
-
-        //    #region Mail
-        //    public void SendMailTo(Player t, string msg)
-        //    {
-        //        Mail a = new Mail();
-        //        a.message = msg;
-        //        a.id = ID;
-        //        a.targetid = t.ID;
-        //        a.type = "Send";
-        //        a.isSent = true;
-        //        MailBox.Add(a);
-        //        t.RecvMailfrom(this, a.message);
-        //    }
-        //    public void SendMailTo(uint t, string msg)
-        //    {
-        //        Mail a = new Mail();
-        //        a.message = msg;
-        //        a.id = ID;
-        //        a.targetid = t;
-        //        a.type = "Send";
-        //        a.isSent = false;
-        //        MailBox.Add(a);
-        //    }
-        //    public override void RecvMailfrom(Player t, string msg, double Date = 0)
-        //    {
-        //        base.RecvMailfrom(t, msg, Date);
-        //        SendPacket p = new SendPacket();
-        //        p.PackArray(new byte[] { 14, 1 });
-        //        p.Pack32(t.ID);
-        //        p.PackArray(((Date == 0) ? BitConverter.GetBytes(DateTime.Now.ToOADate()) : BitConverter.GetBytes(Date)));
-        //        for (int n = 0; n < msg.Length; n++)
-        //            p.Pack8((byte)msg[n]);
-        //        Send(p);
-        //    }
-        //    public string GetMailboxFlags()
-        //    {
-        //        string str = "none";
-        //        if (MailBox.Count > 0)
-        //        {
-        //            for (int a = 0; a < MailBox.Count; a++)
-        //            {
-        //                str += MailBox[a].id + " " +
-        //                    MailBox[a].targetid + " " +
-        //                    MailBox[a].when + " " +
-        //                    MailBox[a].message + " " +
-        //                    MailBox[a].type + " " +
-        //                    BitConverter.GetBytes(MailBox[a].isSent)[0].ToString() + " ";
-
-        //                if (a < MailBox.Count)
-        //                    str += "&";
-        //            }
-        //        }
-        //        return str;
-        //    }
-        //    #endregion
-
-        //    #region equips
-
-        //    public bool WearEQ(byte index)
-        //    {
-
-        //        bool ret = false;
-        //        InvItemCell i = new InvItemCell();
-
-        //        i.CopyFrom(Inv[index]);
-        //        if (i.ItemID > 0)
-        //        {
-        //            Inv[index].Clear();
-        //            if (Eqs.Level >= i.Data.Level)
-        //            {
-        //                DataOut = SendType.Multi;
-        //                var retrem = Eqs.SetEQ((byte)i.Data.EquipPos, i);
-        //                if (retrem != null && retrem.ItemID > 0)
-        //                    Inv.AddItem(retrem, index, false);
-        //                Eqs.Send8_1();//send ac8
-        //                SendPacket tmp = new SendPacket();
-        //                tmp.PackArray(new byte[] { 5, 2 });
-        //                tmp.Pack32(ID);
-        //                tmp.Pack16(i.ItemID);
-        //                CurrentMap.Broadcast(tmp, ID);
-        //                tmp = new SendPacket();
-        //                tmp.PackArray(new byte[] { 23, 17 });
-        //                tmp.Pack8(index);
-        //                tmp.Pack8(index);
-        //                Send(tmp);
-        //                ret = true;
-        //                DataOut = SendType.Normal;
-
-        //            }
-        //            else
-        //            {
-        //            }
-        //        }
-        //        return ret;
-
-        //    }
-
-        //    public bool unWearEQ(byte src, byte dst)
-        //    {
-        //        bool ret = false;
-        //        InvItemCell i = new InvItemCell();
-
-        //        if (Eqs[src].ItemID > 0)
-        //        {
-        //            i.CopyFrom(Eqs[src]);//copy from clothes
-        //            if (i != null && Inv.AddItem(i, dst, false) > 0)
-        //            {
-        //                Eqs.RemoveEQ(src);
-        //                DataOut = SendType.Multi;
-        //                SendPacket p = new SendPacket();
-        //                p.PackArray(new byte[] { 23, 16 });
-        //                p.Pack8(src);
-        //                p.Pack8(dst);
-        //                Send(p);
-        //                Eqs.Send8_1();
-        //                p = new SendPacket();
-        //                p.PackArray(new byte[] { 5, 1 });
-        //                p.Pack32(ID);
-        //                p.Pack16(i.ItemID);
-        //                CurrentMap.Broadcast(p, ID);
-        //                ret = true;
-        //                DataOut = SendType.Normal;
-        //            }
-        //            else if (i != null)
-        //                Eqs.SetEQ(src, i);
-        //        }
-        //        return ret;
-
-        //    }
-
-        //    #endregion
 
         #region Team
         public void CreateParty()
@@ -2053,22 +1807,7 @@ namespace Game
 
         #endregion
 
-        #region Inotify Property
-        public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void OnPropertyChanged(string propertyName)
-        {
-            PropertyChangedEventHandler handler = PropertyChanged;
-            if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
-        }
-        protected bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
-        {
-            if (EqualityComparer<T>.Default.Equals(field, value)) return false;
-            field = value;
-            OnPropertyChanged(propertyName);
-            return true;
-        }
-        #endregion
 
 
 

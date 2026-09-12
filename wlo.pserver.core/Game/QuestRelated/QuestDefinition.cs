@@ -80,7 +80,7 @@ namespace Game.QuestRelated
         public uint NpcTemplateID { get; set; }
         public string NpcNamePattern { get; set; }
 
-        public string Category { get; set; } = "🏝️ Storyline & Area";
+        public string Category { get; set; } = " Storyline & Area";
         public string AreaName { get; set; } = "Unknown";
         public uint InProgressMarkID { get; set; }
         public uint CompletedMarkID { get; set; }

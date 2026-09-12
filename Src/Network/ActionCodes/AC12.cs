@@ -52,6 +52,7 @@ namespace Wonderland_Private_Server.ActionCodes
                         DebugSystem.Write($"[AC12] Beach cutscene block ENTERED for {p.CharName}");
                         p.PendingBeachCutscene = false;
                         p.BeachCutsceneActive = true;
+                        p.BeachCutsceneStep = 1;
                         p.ClearInteraction();
 
                         // Frame 2405: Player lies down on sand (Emote 9) + immobilize (AC 5:30)
@@ -76,8 +77,8 @@ namespace Wonderland_Private_Server.ActionCodes
                                 p.Send(Tools.FromFormat("bb", 20, 10));
                                 DebugSystem.Write($"[AC12] Timeline: Sent Camera Pan + Cinema Mode to {p.CharName}");
 
-                                // Frame 2414: Robinson approaches & bends over player (1200ms delay)
-                                await Task.Delay(1200);
+                                // Frame 2414: Robinson approaches & bends over player (1000ms delay)
+                                await Task.Delay(1000);
                                 if (p.CurMap?.MapID != 10035 && p.CurMap?.MapID != 10039) return;
 
                                 p.Send(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5));       // AC 22:12 Robinson approach
@@ -85,13 +86,30 @@ namespace Wonderland_Private_Server.ActionCodes
                                 p.Send(Tools.FromFormat("bb", 20, 10));
                                 DebugSystem.Write($"[AC12] Timeline: Sent Robinson approach (AC 22:12) to {p.CharName}");
 
-                                // Frame 2436: Trigger Robinson dialogue (1500ms delay)
-                                await Task.Delay(1500);
-                                if (p.CurMap is GameMap gMap && (p.CurMap.MapID == 10035 || p.CurMap.MapID == 10039))
+                                // Frame 2436: Trigger Beach Wakeup Animation (Cutscene ID 12008) (800ms delay)
+                                await Task.Delay(800);
+                                if (p.CurMap?.MapID != 10035 && p.CurMap?.MapID != 10039) return;
+
+                                SendPacket animPkt = new SendPacket();
+                                animPkt.Pack8(20);
+                                animPkt.Pack8(1);
+                                animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                                animPkt.Pack8(1); // Step 1
+                                animPkt.Pack8(5); // Type 5: Cutscene Animation
+                                animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0); // Speaker 0
+                                animPkt.Pack8(1); // Flag 1
+                                animPkt.Pack32(12008); // Cutscene ID 12008 (Beach Wake Up)
+                                animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                                p.Send(animPkt);
+                                p.BeachCutsceneStep = 2; // Waiting for client to finish animation (sends AC 20:6)
+                                DebugSystem.Write($"[AC12] Timeline: Sent Cutscene 12008 (Beach Arrival Animation) to {p.CharName}");
+
+                                // Safety timeout: if client does not acknowledge completion after 25s, force-complete cutscene
+                                await Task.Delay(25000);
+                                if (p.BeachCutsceneActive && (p.CurMap?.MapID == 10035 || p.CurMap?.MapID == 10039))
                                 {
-                                    p.BeachCutsceneActive = false;
-                                    EveEventInterpreter.TryExecute(p, gMap, 1);
-                                    DebugSystem.Write($"[AC12] Timeline: Triggered Robinson dialogue for {p.CharName}");
+                                    DebugSystem.Write($"[AC12] Safety timeout reached for beach cutscene on {p.CharName} — force completing.");
+                                    AC20.AdvanceBeachCutscene(p, forceComplete: true);
                                 }
                             }
                             catch (Exception ex)

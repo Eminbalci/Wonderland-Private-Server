@@ -275,7 +275,7 @@ namespace Wonderland_Private_Server
             this.btnCompleteQuest.Name = "btnCompleteQuest";
             this.btnCompleteQuest.Size = new System.Drawing.Size(120, 25);
             this.btnCompleteQuest.TabIndex = 5;
-            this.btnCompleteQuest.Text = "✓ Mark Completed";
+            this.btnCompleteQuest.Text = " Mark Completed";
             this.btnCompleteQuest.UseVisualStyleBackColor = true;
             this.btnCompleteQuest.Click += new System.EventHandler(this.btnCompleteQuest_Click);
 
@@ -286,7 +286,7 @@ namespace Wonderland_Private_Server
             this.btnAdvanceStep.Name = "btnAdvanceStep";
             this.btnAdvanceStep.Size = new System.Drawing.Size(100, 25);
             this.btnAdvanceStep.TabIndex = 6;
-            this.btnAdvanceStep.Text = "➔ Step +1";
+            this.btnAdvanceStep.Text = " Step +1";
             this.btnAdvanceStep.UseVisualStyleBackColor = true;
             this.btnAdvanceStep.Click += new System.EventHandler(this.btnAdvanceStep_Click);
 
@@ -297,7 +297,7 @@ namespace Wonderland_Private_Server
             this.btnDeleteQuest.Name = "btnDeleteQuest";
             this.btnDeleteQuest.Size = new System.Drawing.Size(85, 25);
             this.btnDeleteQuest.TabIndex = 7;
-            this.btnDeleteQuest.Text = "🗑 Delete";
+            this.btnDeleteQuest.Text = " Delete";
             this.btnDeleteQuest.UseVisualStyleBackColor = true;
             this.btnDeleteQuest.Click += new System.EventHandler(this.btnDeleteQuest_Click);
 
@@ -308,7 +308,7 @@ namespace Wonderland_Private_Server
             this.btnRefreshQuests.Name = "btnRefreshQuests";
             this.btnRefreshQuests.Size = new System.Drawing.Size(100, 28);
             this.btnRefreshQuests.TabIndex = 8;
-            this.btnRefreshQuests.Text = "🔄 Refresh";
+            this.btnRefreshQuests.Text = " Refresh";
             this.btnRefreshQuests.UseVisualStyleBackColor = true;
             this.btnRefreshQuests.Click += new System.EventHandler(this.btnRefreshQuests_Click);
 
@@ -319,7 +319,7 @@ namespace Wonderland_Private_Server
             this.btnSyncLiveQuests.Name = "btnSyncLiveQuests";
             this.btnSyncLiveQuests.Size = new System.Drawing.Size(170, 28);
             this.btnSyncLiveQuests.TabIndex = 9;
-            this.btnSyncLiveQuests.Text = "⚡ Sync Quests to Live Client";
+            this.btnSyncLiveQuests.Text = " Sync Quests to Live Client";
             this.btnSyncLiveQuests.UseVisualStyleBackColor = true;
             this.btnSyncLiveQuests.Click += new System.EventHandler(this.btnSyncLiveQuests_Click);
 
@@ -394,7 +394,7 @@ namespace Wonderland_Private_Server
             this.btnMaxAmityHeal.Name = "btnMaxAmityHeal";
             this.btnMaxAmityHeal.Size = new System.Drawing.Size(140, 26);
             this.btnMaxAmityHeal.TabIndex = 2;
-            this.btnMaxAmityHeal.Text = "💖 Max Amity & Full HP";
+            this.btnMaxAmityHeal.Text = " Max Amity & Full HP";
             this.btnMaxAmityHeal.UseVisualStyleBackColor = true;
             this.btnMaxAmityHeal.Click += new System.EventHandler(this.btnMaxAmityHeal_Click);
 
@@ -405,7 +405,7 @@ namespace Wonderland_Private_Server
             this.btnDeletePet.Name = "btnDeletePet";
             this.btnDeletePet.Size = new System.Drawing.Size(85, 26);
             this.btnDeletePet.TabIndex = 3;
-            this.btnDeletePet.Text = "🗑 Delete";
+            this.btnDeletePet.Text = " Delete";
             this.btnDeletePet.UseVisualStyleBackColor = true;
             this.btnDeletePet.Click += new System.EventHandler(this.btnDeletePet_Click);
 
@@ -416,7 +416,7 @@ namespace Wonderland_Private_Server
             this.btnSavePets.Name = "btnSavePets";
             this.btnSavePets.Size = new System.Drawing.Size(100, 26);
             this.btnSavePets.TabIndex = 4;
-            this.btnSavePets.Text = "💾 Save Grid";
+            this.btnSavePets.Text = " Save Grid";
             this.btnSavePets.UseVisualStyleBackColor = true;
             this.btnSavePets.Click += new System.EventHandler(this.btnSavePets_Click);
 
@@ -427,7 +427,7 @@ namespace Wonderland_Private_Server
             this.btnRefreshPets.Name = "btnRefreshPets";
             this.btnRefreshPets.Size = new System.Drawing.Size(100, 28);
             this.btnRefreshPets.TabIndex = 5;
-            this.btnRefreshPets.Text = "🔄 Refresh";
+            this.btnRefreshPets.Text = " Refresh";
             this.btnRefreshPets.UseVisualStyleBackColor = true;
             this.btnRefreshPets.Click += new System.EventHandler(this.btnRefreshPets_Click);
 
@@ -438,7 +438,7 @@ namespace Wonderland_Private_Server
             this.btnSyncLivePets.Name = "btnSyncLivePets";
             this.btnSyncLivePets.Size = new System.Drawing.Size(170, 28);
             this.btnSyncLivePets.TabIndex = 6;
-            this.btnSyncLivePets.Text = "⚡ Sync Pets to Live Client";
+            this.btnSyncLivePets.Text = " Sync Pets to Live Client";
             this.btnSyncLivePets.UseVisualStyleBackColor = true;
             this.btnSyncLivePets.Click += new System.EventHandler(this.btnSyncLivePets_Click);
 
@@ -515,7 +515,7 @@ namespace Wonderland_Private_Server
             this.btnOpenBreakChest.Name = "btnOpenBreakChest";
             this.btnOpenBreakChest.Size = new System.Drawing.Size(120, 26);
             this.btnOpenBreakChest.TabIndex = 2;
-            this.btnOpenBreakChest.Text = "📦 Break / Open";
+            this.btnOpenBreakChest.Text = " Break / Open";
             this.btnOpenBreakChest.UseVisualStyleBackColor = true;
             this.btnOpenBreakChest.Click += new System.EventHandler(this.btnOpenBreakChest_Click);
 
@@ -526,7 +526,7 @@ namespace Wonderland_Private_Server
             this.btnRestoreCloseChest.Name = "btnRestoreCloseChest";
             this.btnRestoreCloseChest.Size = new System.Drawing.Size(120, 26);
             this.btnRestoreCloseChest.TabIndex = 3;
-            this.btnRestoreCloseChest.Text = "🔄 Reset / Unbroken";
+            this.btnRestoreCloseChest.Text = " Reset / Unbroken";
             this.btnRestoreCloseChest.UseVisualStyleBackColor = true;
             this.btnRestoreCloseChest.Click += new System.EventHandler(this.btnRestoreCloseChest_Click);
 
@@ -537,7 +537,7 @@ namespace Wonderland_Private_Server
             this.btnHideDespawnNpc.Name = "btnHideDespawnNpc";
             this.btnHideDespawnNpc.Size = new System.Drawing.Size(120, 26);
             this.btnHideDespawnNpc.TabIndex = 4;
-            this.btnHideDespawnNpc.Text = "🚫 Hide / Despawn";
+            this.btnHideDespawnNpc.Text = " Hide / Despawn";
             this.btnHideDespawnNpc.UseVisualStyleBackColor = true;
             this.btnHideDespawnNpc.Click += new System.EventHandler(this.btnHideDespawnNpc_Click);
 
@@ -548,7 +548,7 @@ namespace Wonderland_Private_Server
             this.btnShowUnhideNpc.Name = "btnShowUnhideNpc";
             this.btnShowUnhideNpc.Size = new System.Drawing.Size(110, 26);
             this.btnShowUnhideNpc.TabIndex = 5;
-            this.btnShowUnhideNpc.Text = "👁 Show / Visible";
+            this.btnShowUnhideNpc.Text = " Show / Visible";
             this.btnShowUnhideNpc.UseVisualStyleBackColor = true;
             this.btnShowUnhideNpc.Click += new System.EventHandler(this.btnShowUnhideNpc_Click);
 
@@ -559,7 +559,7 @@ namespace Wonderland_Private_Server
             this.btnRefreshNpcs.Name = "btnRefreshNpcs";
             this.btnRefreshNpcs.Size = new System.Drawing.Size(100, 28);
             this.btnRefreshNpcs.TabIndex = 6;
-            this.btnRefreshNpcs.Text = "🔄 Refresh";
+            this.btnRefreshNpcs.Text = " Refresh";
             this.btnRefreshNpcs.UseVisualStyleBackColor = true;
             this.btnRefreshNpcs.Click += new System.EventHandler(this.btnRefreshNpcs_Click);
 
@@ -570,7 +570,7 @@ namespace Wonderland_Private_Server
             this.btnBroadcastNpcLive.Name = "btnBroadcastNpcLive";
             this.btnBroadcastNpcLive.Size = new System.Drawing.Size(200, 28);
             this.btnBroadcastNpcLive.TabIndex = 7;
-            this.btnBroadcastNpcLive.Text = "⚡ Send AC 22 Live Packet";
+            this.btnBroadcastNpcLive.Text = " Send AC 22 Live Packet";
             this.btnBroadcastNpcLive.UseVisualStyleBackColor = true;
             this.btnBroadcastNpcLive.Click += new System.EventHandler(this.btnBroadcastNpcLive_Click);
 
@@ -678,7 +678,7 @@ namespace Wonderland_Private_Server
             this.btnDeleteItem.Name = "btnDeleteItem";
             this.btnDeleteItem.Size = new System.Drawing.Size(90, 26);
             this.btnDeleteItem.TabIndex = 5;
-            this.btnDeleteItem.Text = "🗑 Delete";
+            this.btnDeleteItem.Text = " Delete";
             this.btnDeleteItem.UseVisualStyleBackColor = true;
             this.btnDeleteItem.Click += new System.EventHandler(this.btnDeleteItem_Click);
 
@@ -689,7 +689,7 @@ namespace Wonderland_Private_Server
             this.btnRepairItem.Name = "btnRepairItem";
             this.btnRepairItem.Size = new System.Drawing.Size(120, 26);
             this.btnRepairItem.TabIndex = 6;
-            this.btnRepairItem.Text = "🛠 Repair 100%";
+            this.btnRepairItem.Text = " Repair 100%";
             this.btnRepairItem.UseVisualStyleBackColor = true;
             this.btnRepairItem.Click += new System.EventHandler(this.btnRepairItem_Click);
 
@@ -700,7 +700,7 @@ namespace Wonderland_Private_Server
             this.btnRefreshInventory.Name = "btnRefreshInventory";
             this.btnRefreshInventory.Size = new System.Drawing.Size(100, 28);
             this.btnRefreshInventory.TabIndex = 7;
-            this.btnRefreshInventory.Text = "🔄 Refresh";
+            this.btnRefreshInventory.Text = " Refresh";
             this.btnRefreshInventory.UseVisualStyleBackColor = true;
             this.btnRefreshInventory.Click += new System.EventHandler(this.btnRefreshInventory_Click);
 
@@ -807,7 +807,7 @@ namespace Wonderland_Private_Server
             this.btnDeleteSkill.Name = "btnDeleteSkill";
             this.btnDeleteSkill.Size = new System.Drawing.Size(130, 26);
             this.btnDeleteSkill.TabIndex = 5;
-            this.btnDeleteSkill.Text = "🗑 Revoke Unlock";
+            this.btnDeleteSkill.Text = " Revoke Unlock";
             this.btnDeleteSkill.UseVisualStyleBackColor = true;
             this.btnDeleteSkill.Click += new System.EventHandler(this.btnDeleteSkill_Click);
 
@@ -818,7 +818,7 @@ namespace Wonderland_Private_Server
             this.btnRefreshSkills.Name = "btnRefreshSkills";
             this.btnRefreshSkills.Size = new System.Drawing.Size(100, 28);
             this.btnRefreshSkills.TabIndex = 6;
-            this.btnRefreshSkills.Text = "🔄 Refresh";
+            this.btnRefreshSkills.Text = " Refresh";
             this.btnRefreshSkills.UseVisualStyleBackColor = true;
             this.btnRefreshSkills.Click += new System.EventHandler(this.btnRefreshSkills_Click);
 
@@ -948,7 +948,7 @@ namespace Wonderland_Private_Server
             this.btnDeleteLearnedSkill.Name = "btnDeleteLearnedSkill";
             this.btnDeleteLearnedSkill.Size = new System.Drawing.Size(120, 26);
             this.btnDeleteLearnedSkill.TabIndex = 7;
-            this.btnDeleteLearnedSkill.Text = "🗑 Forget Skill";
+            this.btnDeleteLearnedSkill.Text = " Forget Skill";
             this.btnDeleteLearnedSkill.UseVisualStyleBackColor = true;
             this.btnDeleteLearnedSkill.Click += new System.EventHandler(this.btnDeleteLearnedSkill_Click);
 
@@ -959,7 +959,7 @@ namespace Wonderland_Private_Server
             this.btnRefreshLearnedSkills.Name = "btnRefreshLearnedSkills";
             this.btnRefreshLearnedSkills.Size = new System.Drawing.Size(100, 28);
             this.btnRefreshLearnedSkills.TabIndex = 8;
-            this.btnRefreshLearnedSkills.Text = "🔄 Refresh";
+            this.btnRefreshLearnedSkills.Text = " Refresh";
             this.btnRefreshLearnedSkills.UseVisualStyleBackColor = true;
             this.btnRefreshLearnedSkills.Click += new System.EventHandler(this.btnRefreshLearnedSkills_Click);
 

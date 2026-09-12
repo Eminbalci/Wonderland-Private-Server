@@ -1,9 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Wonderland_Private_Server.Code.Objects;
 using wlo.pserver.core.Game.Enums;
 using Network;
 using Game;
@@ -61,20 +60,6 @@ namespace Network.ActionCodes
         }
         void Recv3(Player p, RecievePacket r)
         {
-            // int cc = r.Unpack8(4);
-            //string tt = "";
-            //string str = r.UnpackNChar(5);
-            //int tmp = r.Unpack16(2);
-            //try
-            //{
-            //    //if (cc > 0)
-            //    //{
-            //    //    tt = r.Data.Skip(5).Take(cc).ToString();
-            //    //}
-            //    cGlobal.gInstanceSystem.CreaterInstance(ref p, tmp, str);
-
-            //}
-            //catch (Exception t) { Utilities.LogServices.Log(t); }
         }
         void Recv4(Player p, RecievePacket r)
         {

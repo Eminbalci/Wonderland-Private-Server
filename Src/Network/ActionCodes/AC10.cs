@@ -97,6 +97,7 @@ namespace Network.ActionCodes
             try
             {
                 c.MyFriends?.SendFriendList();
+                AC14.SendFriendList(c);
             }
             catch (Exception ex)
             {
@@ -129,6 +130,7 @@ namespace Network.ActionCodes
             try
             {
                 c.MyFriends?.SendFriendList();
+                AC14.SendFriendList(c);
             }
             catch (Exception ex)
             {

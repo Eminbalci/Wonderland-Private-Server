@@ -31,10 +31,7 @@ namespace DataBase
         public string Char_Delete_Code_Ref = "char_delete_code";
         public VerifyPassType PassVerification;
 
-
-        List<User> GOnlineUsers;
-
-        bool shutdown = false;
+        List<User> GOnlineUsers = new List<User>();
 
         public UserDataBase()
         {

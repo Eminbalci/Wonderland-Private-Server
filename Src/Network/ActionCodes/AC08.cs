@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Wonderland_Private_Server.Code.Objects;
 using Wonderland_Private_Server.Utilities;
 using Network;
 using Game;
@@ -197,11 +196,11 @@ namespace Network.ActionCodes
 
                             appliedAny = true;
                             DebugSystem.Write($"[AC08] Allocated +{amount} to {statName} (StatID {statId}) for {r.CharName}. New base={newStat}, Remaining SkillPoints={r.SkillPoints}");
-                            r.SendSystemMessage($"✨ [{statName} +{amount}] Stat upgraded! Current {statName}: {newStat} (Available Points: {r.SkillPoints})");
+                            r.SendSystemMessage($" [{statName} +{amount}] Stat upgraded! Current {statName}: {newStat} (Available Points: {r.SkillPoints})");
                         }
                         else
                         {
-                            r.SendSystemMessage($"⚠️ Not enough stat points to allocate +{amount} (Available: {r.SkillPoints})");
+                            r.SendSystemMessage($" Not enough stat points to allocate +{amount} (Available: {r.SkillPoints})");
                         }
                     }
 
@@ -279,13 +278,13 @@ namespace Network.ActionCodes
 
                                 petApplied = true;
                                 DebugSystem.Write($"[AC08] Allocated +{amount} to Pet '{targetPet.PetName}' {statName}. Remaining Points: {targetPet.SkillPoints}");
-                                r.SendSystemMessage($"🐾 [{targetPet.PetName} {statName} +{amount}] Current: {newStat} (Pet Points: {targetPet.SkillPoints})");
+                                r.SendSystemMessage($" [{targetPet.PetName} {statName} +{amount}] Current: {newStat} (Pet Points: {targetPet.SkillPoints})");
                                 r.Send(Tools.FromFormat("bbbbdd", 8, 2, statId, petSlot, (uint)newStat, 0));
                                 r.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, petSlot, (uint)targetPet.SkillPoints, 0));
                             }
                             else
                             {
-                                r.SendSystemMessage($"⚠️ Pet '{targetPet.PetName}' has insufficient stat points (Available: {targetPet.SkillPoints})");
+                                r.SendSystemMessage($" Pet '{targetPet.PetName}' has insufficient stat points (Available: {targetPet.SkillPoints})");
                             }
                         }
 

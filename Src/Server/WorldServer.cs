@@ -395,141 +395,29 @@ namespace Server
                 return MapList.Values.Single(c => c.MapID == ID);
         }
 
-        //public bool onTelePort(TeleportType teletype, byte portalID, WarpData map, Player target)
-        //{
-
-        //    if (MapList.Values.Count(c => c.MapID == map.DstMap) == 0)
-        //    {
-        //        //Create Map
-        //        GameMap tmp = null;
-        //        if ((tmp = GetMap(map.DstMap)) != null)
-        //        {
-        //            //cGlobal.gGameDataBase.SetupMap(ref tmp);
-        //            if (MapList.TryAdd((ushort)tmp.MapID, tmp))
-        //                DebugSystem.Write(DebugItemType.Info_Heavy, "Loaded Map {0}", tmp.MapID);
-        //        }
-        //        else
-        //            return false;
-        //    }
-
-        //    MapList.Values.Single(c => c.MapID == map.DstMap).Teleport(teletype, target, portalID, map);
-        //    return true;
-        //}
-
-        /// <summary>
-        /// Broadcasts a packet to all
-        /// </summary>
-        /// <param CharacterName="pkt"></param>
         public void Broadcast(SendPacket pkt)
         {
-            //foreach (var p in Players)
-            //    p.Send(pkt);
+            foreach (var m in MapList.Values)
+                m.Broadcast(pkt);
         }
-        /// <summary>
-        /// Broadcast's a direct packet or a packet that will ignore the selcected
-        /// </summary>
-        /// <param CharacterName="pkt"></param>
-        /// <param CharacterName="directTo">Person to send to/ or avoid</param>
-        /// <param CharacterName="avoid">Avoid the Person and send to everyone else</param>
+
         public void Broadcast(SendPacket pkt, uint? directTo = null, bool exclude = false)
         {
-            //foreach (var p in Players)
-            //        if (p.ID == directTo && exclude)
-            //        continue;
-            //        else if (p.ID == directTo && !exclude)
-            //    {
-            //        p.Send(pkt); return;
-            //    }
-            //        else if (exclude && p.ID != directTo)
-            //        p.Send(pkt);
+            foreach (var m in MapList.Values)
+            {
+                if (directTo.HasValue)
+                {
+                    if (exclude)
+                        m.Broadcast(pkt, "Ex", directTo.Value);
+                    else
+                        m.Broadcast(pkt, "ID", directTo.Value);
+                }
+                else
+                {
+                    m.Broadcast(pkt);
+                }
+            }
         }
-
-        //public override void onPlayerDisconnected(ref Player src)
-        //{
-        //    lock (mylock)
-        //    {
-        //        //base.onPlayerDisconnected(ref src);
-        //        ////if (WorldEvent != null) WorldEvent(c, WorldEventType.PlayerLogoff);
-        //        ////dc socket
-        //        //src.Disconnect();
-
-        //        ////unlock CharacterName
-        //        //cGlobal.gCharacterDataBase.unLockName(src.CharacterName);
-        //        ////send dc packet
-        //        //SendPacket bye = new SendPacket();
-        //        //bye.Pack(new byte[] { 1, 1 });
-        //        //bye.Pack(src.ID);
-        //        //BroadcastTo(bye, src.ID, true);
-        //        ////save data
-        //        //if (cGlobal.gCharacterDataBase.WritePlayer(src.ID, src))
-        //        //    DebugSystem.Write(src.UserName + " Info has been Fully Saved");
-
-        //        //DebugSystem.Write(String.Format("Client {0} {1} Disconnected.", src.ClientIP + ":" + src.ClientPort, src.UserName));
-        //    }
-        //}
-
-        //public void SendCurrentPlayers(Player to)
-        //{
-        //    //SendPacket p = new SendPacket();
-        //    //foreach (var y in (from c in Assembly.GetExecutingAssembly().GetTypes()
-        //    //                   where c.IsClass && c.IsSubclassOf(typeof(Bots.GmBot))
-        //    //                   select c))
-        //    //{
-        //    //    var c = (Activator.CreateInstance(y) as Bots.GmBot);
-        //    //    p = new SendPacket();
-        //    //    p.Pack(new byte[] { 4 });
-        //    //    p.Pack(c.ID);
-        //    //    p.Pack((byte)c.Body); //body style
-        //    //    p.Pack((byte)c.Element); //element
-        //    //    p.Pack(c.Level); //level
-        //    //    p.Pack((c.CurrentMap == null) ? c.LoginMap : c.CurrentMap.MapID); //map id
-        //    //    p.Pack(c.X); //x
-        //    //    p.Pack(c.Y); //y
-        //    //    p.Pack(0); p.Pack(c.Head); p.Pack(0);
-        //    //    p.Pack(c.HairColor);
-        //    //    p.Pack(c.SkinColor);
-        //    //    p.Pack(c.ClothingColor);
-        //    //    p.Pack(c.EyeColor);
-        //    //    p.Pack(c.WornCount);//clothesAmmt); // ammt of clothes
-        //    //    p.Pack(c.Worn_Equips);
-        //    //    p.Pack(0); p.Pack(0); //??
-        //    //    p.Pack(c.Reborn); //is rebirth
-        //    //    p.Pack((byte)c.Job); //rb class
-        //    //    p.Pack(c.CharacterName);//(BYTE*)c.CharacterName,c.nameLen); //CharacterName
-        //    //    p.Pack(c.Nickname);//(BYTE*)c.nick,c.nickLen); //nickname
-        //    //    p.Pack(255); //??
-        //    //    to.Send(p);
-        //    //}
-        //    //foreach (var d in Players.Where(c => c.inGame))
-        //    //{
-        //    //    Character c = d;
-        //    //    p = new SendPacket();
-        //    //    p.Pack(new byte[] { 4 });
-        //    //    p.Pack(d.ID);
-        //    //    p.Pack((byte)c.Body); //body style
-        //    //    p.Pack((byte)c.Element); //element
-        //    //    p.Pack(c.Level); //level
-        //    //    p.Pack(c.CurrentMap.MapID); //map id
-        //    //    p.Pack(c.X); //x
-        //    //    p.Pack(c.Y); //y
-        //    //    p.Pack(0); p.Pack(c.Head); p.Pack(0);
-        //    //    p.Pack(c.HairColor);
-        //    //    p.Pack(c.SkinColor);
-        //    //    p.Pack(c.ClothingColor);
-        //    //    p.Pack(c.EyeColor);
-        //    //    p.Pack(c.WornCount);//clothesAmmt); // ammt of clothes
-        //    //    p.Pack(c.Worn_Equips);
-        //    //    p.Pack(0); p.Pack(0); //??
-        //    //    p.Pack(c.Reborn); //is rebirth
-        //    //    p.Pack((byte)c.Job); //rb class
-        //    //    p.Pack(c.CharacterName);//(BYTE*)c.CharacterName,c.nameLen); //CharacterName
-        //    //    p.Pack(c.Nickname);//(BYTE*)c.nick,c.nickLen); //nickname
-        //    //    p.Pack(255); //??
-        //    //    to.Send(p);
-        //    //    to.onPlayerLogin(c.ID);
-        //    //    d.onPlayerLogin(to.ID);
-        //    //}
-        //}    
 
         public void CommenceLogin(Player src)
         {

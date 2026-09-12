@@ -47,38 +47,24 @@ namespace Game
 
         Queue<Task> QueuedTasks = new Queue<Task>(252);
 
-        protected List<Player> m_playerlist;
-        protected List<Item> ItemsDropped;
-        protected List<MapGroundItem> GroundItems;
-        //protected ConcurrentDictionary<int, Battle> Battles;
-        protected ConcurrentDictionary<uint, Tent> Tents;
-        protected Dictionary<byte, WarpDest> Destinations;
-        protected Dictionary<byte, WarpPortal> Portals;
-        protected List<Game.Maps.InteractableObjects> NPCs;
+        protected List<Player> m_playerlist = new List<Player>();
+        protected List<Item> ItemsDropped = new List<Item>(255);
+        protected List<MapGroundItem> GroundItems = new List<MapGroundItem>();
+        protected ConcurrentDictionary<uint, Tent> Tents = new ConcurrentDictionary<uint, Tent>();
+        protected Dictionary<byte, WarpDest> Destinations = new Dictionary<byte, WarpDest>();
+        protected Dictionary<byte, WarpPortal> Portals = new Dictionary<byte, WarpPortal>();
+        public List<Game.Maps.InteractableObjects> NPCs = new List<Game.Maps.InteractableObjects>();
 
-        protected Queue<Player> DisconnectedQueue;
-        protected Queue<KeyValuePair<DateTime, Action>> WaitingtoLogin;
+        protected Queue<Player> DisconnectedQueue = new Queue<Player>(50);
+        protected Queue<KeyValuePair<DateTime, Action>> WaitingtoLogin = new Queue<KeyValuePair<DateTime, Action>>(105);
 
         protected uint m_mapid;
         protected string m_name;
 
         bool shutdown = false;
 
-
-
         public GameMap()
         {
-
-            m_playerlist = new List<Player>();
-            ItemsDropped = new List<Item>(255);
-            GroundItems = new List<MapGroundItem>();
-            DisconnectedQueue = new Queue<Player>(50);
-            WaitingtoLogin = new Queue<KeyValuePair<DateTime, Action>>(105);
-            Tents = new ConcurrentDictionary<uint, Tent>();
-            //Battles = new ConcurrentDictionary<int, Battle>();
-            Destinations = new Dictionary<byte, WarpDest>();
-            Portals = new Dictionary<byte, WarpPortal>();
-            NPCs = new List<Game.Maps.InteractableObjects>();
         }
 
         public List<Player> PlayersList { get { return m_playerlist; } }
@@ -88,18 +74,7 @@ namespace Game
         public GameMap(Plugin.PluginHost host, System.IO.FileInfo src)
             : base(src)
         {
-
             myhost = (Plugin.PluginHost)host;
-            m_playerlist = new List<Player>();
-            ItemsDropped = new List<Item>(255);
-            GroundItems = new List<MapGroundItem>();
-            DisconnectedQueue = new Queue<Player>(50);
-            WaitingtoLogin = new Queue<KeyValuePair<DateTime, Action>>(105);
-            Tents = new ConcurrentDictionary<uint, Tent>();
-            //Battles = new ConcurrentDictionary<int, Battle>();
-            Destinations = new Dictionary<byte, WarpDest>();
-            Portals = new Dictionary<byte, WarpPortal>();
-            NPCs = new List<Game.Maps.InteractableObjects>();
 
             try
             {
@@ -208,6 +183,7 @@ namespace Game
                             newNpc.MapID = (ushort)this.MapID;
                             newNpc.CickID = entry.clickId;
                             newNpc.TemplateID = entry.npcId;
+                            newNpc.EntityType = entry.unknownbyte1 > 0 ? entry.unknownbyte1 : (byte)1;
                             newNpc.X = (ushort)entry.x;
                             newNpc.Y = (ushort)entry.y;
                             newNpc.SpawnX = (ushort)entry.x;
@@ -556,6 +532,82 @@ namespace Game
             }
         }
 
+        private static void SendPeerCompanionAndVehicle(Player recipient, Player actor)
+        {
+            if (recipient == null || actor == null) return;
+
+            // Send actor's vehicle to recipient
+            if (actor.ActiveVehicleID > 0)
+            {
+                SendPacket veh = new SendPacket();
+                veh.Pack8(15);
+                veh.Pack8(10);
+                veh.Pack8(0);
+                veh.Pack32(actor.CharID);
+                veh.Pack16((ushort)actor.ActiveVehicleID);
+                recipient.Send(veh);
+            }
+
+            // Send actor's mount to recipient
+            if (actor.ActiveMountID > 0)
+            {
+                SendPacket mount = new SendPacket();
+                mount.Pack8(15);
+                mount.Pack8(16);
+                mount.Pack8(1);
+                mount.Pack32(actor.CharID);
+                mount.Pack32(actor.ActiveMountID);
+                for (int i = 0; i < 26; i++) mount.Pack8(0);
+                recipient.Send(mount);
+            }
+
+            // Send actor's battle pet to recipient
+            if (actor.ActivePetID > 0)
+            {
+                var pet = actor.PlayerPets?.Values?.FirstOrDefault(x => x.PetID == actor.ActivePetID);
+                string petName = pet?.PetName ?? QuestRelated.QuestManager.GetNpcName(actor.ActivePetID);
+
+                // AC 15:4 Map Pet Visual Entity
+                SendPacket petMapPkt = new SendPacket();
+                petMapPkt.PackArray(new byte[] { 15, 4 });
+                petMapPkt.Pack32(actor.CharID);
+                petMapPkt.Pack32(actor.ActivePetID);
+                petMapPkt.Pack8(0);
+                petMapPkt.Pack8(1);
+                petMapPkt.PackString(petName);
+                petMapPkt.Pack16(0);
+                recipient.Send(petMapPkt);
+
+                // AC 15:1 Pet Info
+                SendPacket petPkt = (pet != null)
+                    ? QuestRelated.QuestManager.CreatePetPacket(actor, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job)
+                    : QuestRelated.QuestManager.CreatePetPacket(actor, actor.ActivePetID, 1);
+                recipient.Send(petPkt);
+
+                // AC 19:4 Pet Following
+                SendPacket follow = new SendPacket();
+                follow.Pack8(19);
+                follow.Pack8(4);
+                follow.Pack32(actor.CharID);
+                follow.Pack32(actor.ActivePetID);
+                recipient.Send(follow);
+
+                // AC 13:5 Follow formation
+                SendPacket petFollow = new SendPacket();
+                petFollow.PackArray(new byte[] { 13, 5 });
+                petFollow.Pack32(actor.CharID);
+                petFollow.Pack32(actor.ActivePetID);
+                recipient.Send(petFollow);
+
+                // AC 5:8 Sprite refresh
+                SendPacket petRefresh = new SendPacket();
+                petRefresh.PackArray(new byte[] { 5, 8 });
+                petRefresh.Pack32(actor.CharID);
+                petRefresh.Pack8(0);
+                recipient.Send(petRefresh);
+            }
+        }
+
         protected virtual void Warp_In(TeleportType teletype, Player src, WarpData from = null, byte portalID = 0)
         {
             DebugSystem.Write(DebugItemType.Info_Heavy, "{0} warping into {1}", src.CharName, MapName);
@@ -640,82 +692,8 @@ namespace Game
                         r.Send(p);
                     }
 
-                    // Send new arrival's vehicle to existing player
-                    if (src.ActiveVehicleID > 0)
-                    {
-                        SendPacket srcVeh = new SendPacket();
-                        srcVeh.Pack8((byte)15);
-                        srcVeh.Pack8((byte)10);
-                        srcVeh.Pack8(0);
-                        srcVeh.Pack32(src.CharID);
-                        srcVeh.Pack16((ushort)src.ActiveVehicleID);
-                        r.Send(srcVeh);
-                    }
-
-                    // Send new arrival's mount to existing player
-                    if (src.ActiveMountID > 0)
-                    {
-                        SendPacket srcMount = new SendPacket();
-                        srcMount.Pack8((byte)15);
-                        srcMount.Pack8((byte)16);
-                        srcMount.Pack8(1);
-                        srcMount.Pack32(src.CharID);
-                        srcMount.Pack32(src.ActiveMountID);
-                        for (int i = 0; i < 26; i++) srcMount.Pack8(0);
-                        r.Send(srcMount);
-                    }
-
-                    // Send new arrival's battle pet to existing player
-                    if (src.ActivePetID > 0)
-                    {
-                        var srcPet = src.PlayerPets?.Values?.FirstOrDefault(x => x.PetID == src.ActivePetID);
-                        string srcPetName = srcPet?.PetName ?? QuestRelated.QuestManager.GetNpcName(src.ActivePetID);
-
-                        // AC 15:4 Map Pet Visual Entity
-                        SendPacket srcPetMapPkt = new SendPacket();
-                        srcPetMapPkt.PackArray(new byte[] { 15, 4 });
-                        srcPetMapPkt.Pack32(src.CharID);
-                        srcPetMapPkt.Pack32(src.ActivePetID);
-                        srcPetMapPkt.Pack8(0);
-                        srcPetMapPkt.Pack8(1);
-                        srcPetMapPkt.PackString(srcPetName);
-                        srcPetMapPkt.Pack16(0);
-                        r.Send(srcPetMapPkt);
-
-                        // AC 15:1 Pet Info
-                        SendPacket srcPetPkt;
-                        if (srcPet != null)
-                        {
-                            srcPetPkt = QuestRelated.QuestManager.CreatePetPacket(src, srcPet.PetID, srcPet.Slot, srcPet.HP, srcPet.MaxHP, srcPet.SP, srcPet.MaxSP, srcPet.Amity, srcPet.Level, srcPet.Str, srcPet.Con, srcPet.Int, srcPet.Wis, srcPet.Agi, srcPet.Exp, srcPet.Reborn, srcPet.Job);
-                        }
-                        else
-                        {
-                            srcPetPkt = QuestRelated.QuestManager.CreatePetPacket(src, src.ActivePetID, 1);
-                        }
-                        r.Send(srcPetPkt);
-
-                        // AC 19:4 Following
-                        SendPacket srcFollow = new SendPacket();
-                        srcFollow.Pack8(19);
-                        srcFollow.Pack8(4);
-                        srcFollow.Pack32(src.CharID);
-                        srcFollow.Pack32(src.ActivePetID);
-                        r.Send(srcFollow);
-
-                        // AC 13:5 Follow formation
-                        SendPacket srcPetFollow = new SendPacket();
-                        srcPetFollow.PackArray(new byte[] { 13, 5 });
-                        srcPetFollow.Pack32(src.CharID);
-                        srcPetFollow.Pack32(src.ActivePetID);
-                        r.Send(srcPetFollow);
-
-                        // AC 5:8 Sprite refresh
-                        SendPacket srcRefresh = new SendPacket();
-                        srcRefresh.PackArray(new byte[] { 5, 8 });
-                        srcRefresh.Pack32(src.CharID);
-                        srcRefresh.Pack8(0);
-                        r.Send(srcRefresh);
-                    }
+                    // Send new arrival's companion & vehicle to existing player
+                    SendPeerCompanionAndVehicle(r, src);
 
                     // send to me - send existing player's FULL spawn data to new arrival
                     DebugSystem.Write($"[Map.Warp_In] Sending {r.CharName} full spawn to {src.CharName}");
@@ -729,86 +707,8 @@ namespace Game
                     p.PackArray(r.Worn_Equips);
                     src.Send(p);
 
-                    // Send existing player's vehicle if they have one
-                    if (r.ActiveVehicleID > 0)
-                    {
-                        p = new SendPacket();
-                        p.Pack8((byte)15);
-                        p.Pack8((byte)10); // Ride vehicle
-                        p.Pack8(0);
-                        p.Pack32(r.CharID);
-                        p.Pack16((ushort)r.ActiveVehicleID);
-                        src.Send(p);
-                        DebugSystem.Write($"[Map.Warp_In] Sent vehicle {r.ActiveVehicleID} of {r.CharName} to {src.CharName}");
-                    }
-
-                    // Send existing player's mount (riding pet) if they have one
-                    if (r.ActiveMountID > 0)
-                    {
-                        p = new SendPacket();
-                        p.Pack8((byte)15);
-                        p.Pack8((byte)16); // Mount/ride pet
-                        p.Pack8(1);
-                        p.Pack32(r.CharID);
-                        p.Pack32(r.ActiveMountID);
-                        for (int i = 0; i < 26; i++) p.Pack8(0);
-                        src.Send(p);
-                        DebugSystem.Write($"[Map.Warp_In] Sent mount {r.ActiveMountID} of {r.CharName} to {src.CharName}");
-                    }
-
-                    // Send existing player's battle pet to new arrival (AC 15:4 Visual + AC 15:1 Pet Info + AC 19:4 Following + AC 13:5 Formation + AC 5:8 Sprite Refresh)
-                    if (r.ActivePetID > 0)
-                    {
-                        var rPet = r.PlayerPets?.Values?.FirstOrDefault(x => x.PetID == r.ActivePetID);
-                        string rPetName = rPet?.PetName ?? QuestRelated.QuestManager.GetNpcName(r.ActivePetID);
-
-                        // AC 15:4 Map Pet Visual Entity
-                        SendPacket rPetMapPkt = new SendPacket();
-                        rPetMapPkt.PackArray(new byte[] { 15, 4 });
-                        rPetMapPkt.Pack32(r.CharID);
-                        rPetMapPkt.Pack32(r.ActivePetID);
-                        rPetMapPkt.Pack8(0);
-                        rPetMapPkt.Pack8(1);
-                        rPetMapPkt.PackString(rPetName);
-                        rPetMapPkt.Pack16(0);
-                        src.Send(rPetMapPkt);
-
-                        // AC 15:1 Pet Info
-                        SendPacket rPetPkt;
-                        if (rPet != null)
-                        {
-                            rPetPkt = QuestRelated.QuestManager.CreatePetPacket(r, rPet.PetID, rPet.Slot, rPet.HP, rPet.MaxHP, rPet.SP, rPet.MaxSP, rPet.Amity, rPet.Level);
-                        }
-                        else
-                        {
-                            rPetPkt = QuestRelated.QuestManager.CreatePetPacket(r, r.ActivePetID, 1);
-                        }
-                        src.Send(rPetPkt);
-
-                        // AC 19:4 Pet Following
-                        p = new SendPacket();
-                        p.Pack8((byte)19);
-                        p.Pack8((byte)4); // Pet battle following
-                        p.Pack32(r.CharID); // Owner CharID
-                        p.Pack32(r.ActivePetID); // Pet ID
-                        src.Send(p);
-
-                        // Send AC 13:5 to attach pet as follower to r
-                        SendPacket petFollow = new SendPacket();
-                        petFollow.PackArray(new byte[] { 13, 5 });
-                        petFollow.Pack32(r.CharID);
-                        petFollow.Pack32(r.ActivePetID);
-                        src.Send(petFollow);
-
-                        // Send AC 5:8 appearance refresh
-                        SendPacket petRefresh = new SendPacket();
-                        petRefresh.PackArray(new byte[] { 5, 8 });
-                        petRefresh.Pack32(r.CharID);
-                        petRefresh.Pack8(0);
-                        src.Send(petRefresh);
-
-                        DebugSystem.Write($"[Map.Warp_In] Sent battle pet {r.ActivePetID} (owner: {r.CharName}) to {src.CharName}");
-                    }
+                    // Send existing player's companion & vehicle to new arrival
+                    SendPeerCompanionAndVehicle(src, r);
 
                     p = new SendPacket();
                     p.Pack8((byte)7);
@@ -836,22 +736,24 @@ namespace Game
                         Broadcast(petPkt, "Ex", src.CharID);
                         QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
 
-                        if (pet.IsBattle || (src.ActivePetID > 0 && src.ActivePetID == pet.PetID))
+                        if (pet.IsBattle || (src.ActivePetID > 0 && Player.IsSamePetOrCompanion(pet.PetID, src.ActivePetID)))
                         {
-                            src.ActivePetID = pet.PetID;
+                            // Resolve the broadcast-safe companion ID (e.g. Robinson: 12032 DB -> 12178 client display)
+                            uint broadcastPetId = Player.GetCompanionBroadcastId(pet.PetID);
+                            src.ActivePetID = broadcastPetId;
                             pet.IsBattle = true;
 
                             // AC 19:1 Set battle companion state to owner
-                            src.Send(Tools.FromFormat("bbd", 19, 1, pet.PetID));
+                            src.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
 
                             // AC 15:4 Map Pet Visual Entity to owner and map peers
                             SendPacket petMapPkt = new SendPacket();
                             petMapPkt.PackArray(new byte[] { 15, 4 });
                             petMapPkt.Pack32(src.CharID);
-                            petMapPkt.Pack32(pet.PetID);
+                            petMapPkt.Pack32(broadcastPetId);
                             petMapPkt.Pack8(0);
                             petMapPkt.Pack8(1);
-                            petMapPkt.PackString(pet.PetName ?? QuestRelated.QuestManager.GetNpcName(pet.PetID));
+                            petMapPkt.PackString(pet.PetName ?? QuestRelated.QuestManager.GetNpcName(broadcastPetId));
                             petMapPkt.Pack16(0);
                             src.Send(petMapPkt);
                             Broadcast(petMapPkt, "Ex", src.CharID);
@@ -861,7 +763,7 @@ namespace Game
                             followPkt.Pack8(19);
                             followPkt.Pack8(4);
                             followPkt.Pack32(src.CharID);
-                            followPkt.Pack32(pet.PetID);
+                            followPkt.Pack32(broadcastPetId);
                             src.Send(followPkt);
                             Broadcast(followPkt, "Ex", src.CharID);
 
@@ -869,7 +771,7 @@ namespace Game
                             SendPacket petFollow = new SendPacket();
                             petFollow.PackArray(new byte[] { 13, 5 });
                             petFollow.Pack32(src.CharID);
-                            petFollow.Pack32(pet.PetID);
+                            petFollow.Pack32(broadcastPetId);
                             src.Send(petFollow);
                             Broadcast(petFollow, "Ex", src.CharID);
 
@@ -881,7 +783,7 @@ namespace Game
                             src.Send(petRefresh);
                             Broadcast(petRefresh, "Ex", src.CharID);
 
-                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {pet.PetID}) to {src.CharName} and broadcast following state to peers");
+                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {broadcastPetId}) to {src.CharName} and broadcast following state to peers");
                         }
                     }
                 }
@@ -932,6 +834,7 @@ namespace Game
             // Synchronize active and completed quest flags for client PreEvent NPC rendering
             Game.QuestRelated.QuestManager.SendAllQuestFlags(src);
             Game.QuestRelated.QuestManager.ReplayActorVisibility(src, this);
+            Game.QuestRelated.PreEventInterpreter.EvaluateMapPreEvents(src, (ushort)this.MapID);
 
             // Astrologer Laura Exit Cutscene & Space Tent Gift (Map 10001 -> Map 10000)
             if (MapID == 10000 && src.PrevMap?.DstMap == 10001)
@@ -958,7 +861,7 @@ namespace Game
                     QuestRelated.QuestManager.SavePlayerQuest(src, 10035);
                     QuestRelated.QuestManager.SendQuestUpdate(src, 10035, QuestRelated.QuestState.Completed);
 
-                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "✨ Astrologer Laura gifted you the Space Tent & Remote Control!"));
+                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, " Astrologer Laura gifted you the Space Tent & Remote Control!"));
                     DebugSystem.Write($"[Map.Warp_In] Astrologer Laura cutscene executed: Granted Space Tent (32000) and Remote (32075) to {src.CharName}");
                 }
             }
@@ -1261,7 +1164,7 @@ namespace Game
                             {
                                 Warp_Out((byte)(portalID & 0xFF), sender, sender.PrevMap);
                             }
-                            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+                            catch (Exception ex) { DebugSystem.Write($"[Teleport] Warp_Out exception (Map {MapID}→PrevMap): {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
 
                             if (Game.Maps.MapManager.Instance != null && (map = Game.Maps.MapManager.Instance.GetMap(dstMap)) != null)
                             {
@@ -1269,7 +1172,7 @@ namespace Game
                                 {
                                     map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, (byte)(portalID & 0xFF));
                                 }
-                                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+                                catch (Exception ex) { DebugSystem.Write($"[Teleport] Warp_In exception (Map {MapID}→{dstMap}): {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
                             }
                             break;
                         }
@@ -1281,15 +1184,16 @@ namespace Game
                                 {
                                     Warp_Out((byte)(portalID & 0xFF), sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY });
                                 }
-                                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+                                catch (Exception ex) { DebugSystem.Write($"[Teleport] Warp_Out exception (Map {MapID}→{dstMap}): {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
 
                                 try
                                 {
                                     map.Warp_In(teletype, sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY }, (byte)(portalID & 0xFF));
                                 }
-                                catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+                                catch (Exception ex) { DebugSystem.Write($"[Teleport] Warp_In exception (Map {MapID}→{dstMap}): {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
                                 break;
                             }
+
                             else
                             {
                                 tmp = new SendPacket();
@@ -1302,32 +1206,8 @@ namespace Game
                     }
                 #endregion
                 case TeleportType.Special:
-                    {
-                        //WarpInfo f = new WarpInfo();
-                        //f.clickID = i.id;
-                        //f.mapID = i.mapTo;
-                        //f.x = i.x;
-                        //f.y = i.y;
-                        //globals.gServer.Multipkt_Request(t);
-                        //var map = Phase1Warp(t, f, false);
-                        //globals.gServer.Queue_Request(t);
-                        //map.Phase2Warp(t);
-                        //globals.packet.cCharacter.DatatoSend.Enqueue(globals.gServer.GenerateQueuepkt(t));
-                        //globals.gServer.SendCombinepkt(t);
-                    }
-                    break;
                 case TeleportType.Quest:
-                    {
-                        //var exitpoint = mapData.Entry_Points[Entry - 1];
-                        //var WarpID = (int)mapData.Events[exitpoint.unknownbytearray1[0] - 1].SubEntry[0].SubEntry[0].dialog2;
-                        //globals.gServer.Queue_Request(t);
-
-                        //var map = Phase1Warp(t, mapData.WarpLoc[WarpID - 1]);
-                        //globals.packet.cCharacter.DatatoSend.Enqueue(globals.gServer.GenerateQueuepkt(t));
-                        //globals.gServer.Queue_Request(t);
-                        //map.Phase2Warp(t);
-                        //globals.packet.cCharacter.DatatoSend.Enqueue(globals.gServer.GenerateQueuepkt(t));
-                    }
+                case TeleportType.Tool:
                     break;
                 #region Tent Warp
                 case TeleportType.Tent:
@@ -1346,7 +1226,6 @@ namespace Game
                     }
                     break;
                 #endregion
-                case TeleportType.Tool:/*t.inv.RemoveInv((byte)Entry, 1);*/ break;
                 #region Cmd Warp
                 case TeleportType.CmD:
                     {
@@ -1431,16 +1310,21 @@ namespace Game
 
                 foreach (var npc in this.NPCs.OrderBy(n => n.CickID))
                 {
-                    npcListPkt.Pack16(npc.CickID);
                     QuestNpc qn = npc as QuestNpc;
-                    ushort state = 0x0000;
+                    bool isRecruited = qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                    bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
+                    bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
 
-                    if (qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID))
+                    bool isHidden = isRecruited || isHiddenByPreEvent || isDead;
+
+                    if (this.MapID == 12000 && qn != null)
+                        DebugSystem.Write($"[Map12000.NPC] CickID={npc.CickID} TID={qn.TemplateID} Name={qn.Name} Hidden={isHidden} X={npc.X} Y={npc.Y}");
+
+                    ushort state = 0x00FF; // Authentic default for living NPC actors (wire: FF 00)
+
+                    if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                     {
-                        state = 0xFFFF; // Hidden / Recruited Companion
-                    }
-                    else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
-                    {
+                        // Static interactive map props / containers / chests: 0x0001 if opened/broken, 0x0000 if intact
                         bool isOpened = qn.IsBroken;
                         if (!isOpened && t.Quests != null && eveData != null)
                         {
@@ -1459,39 +1343,23 @@ namespace Game
                         }
                         state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
                     }
-                    else if (!Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID))
-                    {
-                        state = 0xFFFF; // Hidden by map PreEvents (e.g. Lost Dog clickID 28 before quest completion)
-                    }
                     else
                     {
-                        state = (ushort)0x0000;
+                        state = 0x00FF; // Normal living NPC actor
                     }
 
+                    byte entityType = isHidden ? (byte)2 : (byte)1;
+
+                    // Pack NPC record matching official wire protocol
+                    npcListPkt.Pack16(npc.CickID);
                     npcListPkt.Pack16(state);
                     npcListPkt.Pack16(npc.X);
                     npcListPkt.Pack16(npc.Y);
-                    npcListPkt.Pack8(1);
+                    npcListPkt.Pack8(entityType);
                     npcListPkt.Pack8(0);
                     npcListPkt.Pack32(0);
                 }
                 tmp.Add(npcListPkt);
-
-                // Hide already recruited companion NPCs, PreEvent-hidden entities, and permanently broken objects from player's map view (AC 22:10 & AC 22:11)
-                foreach (var npc in this.NPCs)
-                {
-                    QuestNpc qn = npc as QuestNpc;
-                    if (qn != null)
-                    {
-                        bool isRecruited = t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
-                        bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)qn.CickID);
-                        if (isRecruited || isHiddenByPreEvent || (qn.IsBroken && qn.RespawnTime == DateTime.MaxValue))
-                        {
-                            tmp.Add(Tools.FromFormat("bbwbb", 22, 10, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
-                            tmp.Add(Tools.FromFormat("bbwbb", 22, 11, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
-                        }
-                    }
-                }
             }
             #endregion
             #region Send Ground Items (AC 23:4)
@@ -1527,105 +1395,29 @@ namespace Game
 
                 if (r.CharID != t.CharID)
                 {
-                    //r.SendPacket(Tools.FromFormat("bbd", 23, 122, t.CharID));
-                    //r.SendPacket(Tools.FromFormat("bbdb", 10, 3, t.CharID, 255));
-
                     if (r.Emote != 0)
                         tmp.Add(Tools.FromFormat("bbdb", 32, 2, r.CharID, r.Emote));
-
-                    #region Pets in Map
-                    //if (t.Pets.BattlePet != null)//to them
-                    //{
-                    //    SendPacket tmp = new SendPacket();
-                    //    tmp.PackArray(new byte[] { 15, 4 });
-                    //    tmp.Pack(t.CharID);
-                    //    tmp.Pack(t.Pets.BattlePet.ID);
-                    //    tmp.Pack((byte)0);
-                    //    tmp.Pack((byte)1);
-                    //    tmp.PackString(t.Pets.BattlePet.Name);
-                    //    tmp.Pack16(0);//weapon
-                    //    r.Send(tmp);
-                    //}
-                    //if (r.Pets.BattlePet != null)//to me
-                    //{
-                    //    SendPacket tmp = new SendPacket();
-                    //    tmp.PackArray(new byte[] { 15, 4 });
-                    //    tmp.Pack(r.CharID);
-                    //    tmp.Pack(r.Pets.BattlePet.ID);
-                    //    tmp.Pack((byte)0);
-                    //    tmp.Pack((byte)1);
-                    //    tmp.PackString(r.Pets.BattlePet.Name);
-                    //    tmp.Pack16(0);//weapon
-                    //    t.Send(tmp);
-                    //}
-
-                    #endregion
-                    #region Riceball
-                    //if (characters_in_map[a].riceBall.id > 0)
-                    //{
-                    //    if (characters_in_map[a].riceBall.active) g.ac5.Send_5(characters_in_map[a].riceBall.id, characters_in_map[a], t);
-                    //}
-                    //if (t.riceBall.id > 0)
-                    //{
-                    //    if (t.riceBall.active) g.ac5.Send_5(t.riceBall.id, t, characters_in_map[a]);
-                    //}
-                    #endregion
-                    #region Team
-                    //if (t.MyTeam.PartyLeader && t.MyTeam.hasParty && plist[a] != t)
-                    //{
-                    //    SendPacket fg = t.MyTeam._13_6;
-                    //    plist[a].Send(fg);
-                    //}
-                    //if (plist[a].MyTeam.PartyLeader && plist[a].MyTeam.hasParty)
-                    //{
-                    //    SendPacket fg = plist[a].MyTeam._13_6;
-                    //    t.Send(fg);
-                    //}
-                    #endregion
-                    //if (Player.PlayerID != t.PlayerID)
-                    //g.ac23.Send_74(Player.PlayerID, 0, c); //TODO find out what this does
-                    #region Pets in Map
-                    //AC 15,4 //possibly pet info for players on map with pets
-
-                    //if (plist[a].CharacterState == PlayerState.inBattle)
-                    //{
-                    //    SendPacket qp = new SendPacket(t);
-                    //    qp.PackArray(new byte[]{(11, 4);
-                    //    qp.Pack((byte)2);
-                    //    qp.Pack(plist[a].CharacterID);
-                    //    qp.Pack16(0);
-                    //    qp.Pack((byte)0);
-                    //    qp.Send();
-                    //}
-                    #endregion
-                    //23_76                    
                 }
                 tmp.Add(Tools.FromFormat("bbd", 23, 76, r.CharID));
 
             }
-            //39_9
-            //SendPacket gh = new SendPacket(g);
-            //gh.PackArray(new byte[] { 244, 68, 5, 0, 22, 6, 1, 0, 1, 244, 68, 5, 0, 22, 6, 21, 0, 1, 244, 68, 5, 0, 22, 6, 22, 0, 1, 244, 68, 5, 0, 22, 6, 23, 0, 1, 244, 68, 5, 0, 22, 6, 24, 0, 1, });
-            // cServer.Send(gh, t);
-            /*tmp = new SendPacket(g);
-            tmp.PackArray(new byte[]{(6, 2);
-            tmp.Pack((byte)1);
-            tmp.SetSize();
-            tmp.Player = t;
-            tmp.Send();
-            for (int a = 0; a < 1; a++)
-            {
-                gh = new SendPacket(g);
-                gh.PackArray(new byte[] { 244, 68, 2, 0, 20, 11, 244, 68, 2, 0, 20, 10 });
-                t.DatatoSend.Enqueue(gh);
-            }
-            for (int a = 0; a < 1; a++)
-            {
-                gh = new SendPacket(g);
-                gh.PackArray(new byte[] { 244, 68, 2, 0, 20, 10 });
-                t.DatatoSend.Enqueue(gh);
-            }*/
             tmp.Add(Tools.FromFormat("bb", 23, 102));
+
+            // Authentic WLO protocol (Official PCAP Seq 979..1000): conceal recruited companions, PreEvent-hidden actors, and broken props via AC 22:10 & AC 22:11 after map loading signal
+            foreach (var npc in this.NPCs)
+            {
+                QuestNpc qn = npc as QuestNpc;
+                bool isRecruited = qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
+                bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
+
+                if (isRecruited || isHiddenByPreEvent || isDead)
+                {
+                    tmp.Add(Tools.FromFormat("bbwbb", 22, 10, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
+                    tmp.Add(Tools.FromFormat("bbwbb", 22, 11, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
+                }
+            }
+
             tmp.Add(Tools.FromFormat("bb", 20, 8));
             t.LastSpawnX = t.CurX;
             t.LastSpawnY = t.CurY;
@@ -1768,6 +1560,16 @@ namespace Game
                     var qNpc = npc as Game.Maps.QuestNpc;
                     string nName = qNpc != null ? qNpc.Name : $"NPC_{clickID}";
                     uint nTid = qNpc != null ? qNpc.TemplateID : 0;
+
+                    // Block interaction if this NPC is a recruited companion or hidden by PreEvents
+                    if (qNpc != null && (player.HasRecruitedCompanion(qNpc.Name, (ushort)qNpc.TemplateID) || !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(player, (ushort)this.MapID, clickID)))
+                    {
+                        DebugSystem.Write($"[ProcessInteraction] Blocked interaction on recruited/hidden NPC #{clickID} '{nName}' for player {player.CharName}");
+                        player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickID, (byte)0xFF, (byte)0xFF));
+                        player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)clickID, (byte)0xFF, (byte)0xFF));
+                        return false;
+                    }
+
                     DebugSystem.Write($"[ProcessInteraction] Found NPC #{clickID} '{nName}' (TID: {nTid}), calling Interact for player {player.CharName}");
                     npc.Interact(player);
                     return true;

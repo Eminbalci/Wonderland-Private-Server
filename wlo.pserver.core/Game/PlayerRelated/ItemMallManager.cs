@@ -506,7 +506,7 @@ namespace Game.PlayerRelated
             SendPointBalance(player);
 
             int remaining = isBonus ? GetUserBonusPoints(player) : GetUserPoints(player);
-            SendSystemMsg(player, $"🎉 Successfully purchased {totalItemCount}x {entry.ItemName} for {totalCost} {pointLabel}! (Remaining: {remaining})");
+            SendSystemMsg(player, $" Successfully purchased {totalItemCount}x {entry.ItemName} for {totalCost} {pointLabel}! (Remaining: {remaining})");
             DebugSystem.Write($"[ItemMall] Player {player.CharName} purchased {quantity}x #{itemId} ({entry.ItemName}) for {totalCost} {pointLabel}.");
             return true;
         }

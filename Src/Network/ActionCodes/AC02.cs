@@ -260,7 +260,7 @@ namespace Network.ActionCodes {
                                     var shoreWarp = new WarpData() { DstMap = 10036, DstX_Axis = 1038, DstY_Axis = 2235 };
                                     p.CurMap.Teleport(TeleportType.CmD, p, 0, shoreWarp);
                                 }
-                                p.SendSystemMessage("🚶 Dismounted from vehicle.");
+                                p.SendSystemMessage(" Dismounted from vehicle.");
                             }
                             break;
 
@@ -275,7 +275,7 @@ namespace Network.ActionCodes {
                                 }
                                 var carnieWarp = new WarpData() { DstMap = 11094, DstX_Axis = 1180, DstY_Axis = 875 };
                                 p.CurMap?.Teleport(TeleportType.CmD, p, 0, carnieWarp);
-                                p.SendSystemMessage("🎪 Teleported to Carnie (Map 11094, 1180, 875)!");
+                                p.SendSystemMessage(" Teleported to Carnie (Map 11094, 1180, 875)!");
                             }
                             break;
 
@@ -286,7 +286,7 @@ namespace Network.ActionCodes {
                                         string petName = words.Length >= 3 ? words[2] : (petId == 12178 ? "Robinson" : petId == 10727 ? "Monkey" : petId == 14161 ? "Roca" : $"Pet_{petId}");
                                         Game.QuestRelated.QuestManager.SendCompanionReward(p, petId, petName, setBattle: true);
                                         cGlobal.gCharacterDataBase?.WritePlayer(p.CharID, p);
-                                        p.SendSystemMessage($"🐾 Companion '{petName}' (ID: {petId}) added and saved!");
+                                        p.SendSystemMessage($" Companion '{petName}' (ID: {petId}) added and saved!");
                                     } else {
                                         p.SendSystemMessage("[GM] Usage: :pet <petId> [name]. Example: :pet 12178 Robinson, :pet 10727 Monkey, :pet 14161 Roca");
                                     }

@@ -7,6 +7,7 @@ using Network;
 using Network.ActionCodes;
 using Game;
 using Game.Maps;
+using Game.QuestRelated;
 
 namespace Wonderland_Private_Server.ActionCodes
 {
@@ -152,6 +153,76 @@ namespace Wonderland_Private_Server.ActionCodes
             p.Send(Tools.FromFormat("bb", 20, 8));
             p.Send(Tools.FromFormat("bb", 5, 4));
         }
+        public static void AdvanceBeachCutscene(Player p, bool forceComplete = false)
+        {
+            if (!p.BeachCutsceneActive) return;
+
+            if (forceComplete)
+            {
+                p.BeachCutsceneStep = 6;
+            }
+
+            switch (p.BeachCutsceneStep)
+            {
+                case 2:
+                    // Frame 2928: Cutscene 12008 animation completed!
+                    p.BeachCutsceneStep = 3;
+                    if (p.Quests == null) p.Quests = new Dictionary<uint, PlayerQuest>();
+                    p.Quests[12040] = new PlayerQuest(12040, QuestState.InProgress, 1);
+                    QuestManager.SavePlayerQuest(p, 12040);
+
+                    // Authentic PCAP Frame 2928: AC 24:1 [08, 2f, 01] + AC 20:10
+                    p.Send(Tools.FromFormat("bbbbb", 24, 1, 8, 47, 1));
+                    p.Send(Tools.FromFormat("bb", 20, 10));
+                    DebugSystem.Write($"[BeachCutscene] Step 2 completed for {p.CharName} -> sent Quest 12040 progress + AC 20:10");
+                    break;
+
+                case 3:
+                    // Frame 2971: Fanfare / Action advance
+                    p.BeachCutsceneStep = 4;
+                    p.Send(Tools.FromFormat("bb", 20, 10));
+                    DebugSystem.Write($"[BeachCutscene] Step 3 completed for {p.CharName} -> sent AC 20:10");
+                    break;
+
+                case 4:
+                    // Frame 2989: AC 24:5 [97, 0, 1] + AC 20:10
+                    p.BeachCutsceneStep = 5;
+                    p.Send(Tools.FromFormat("bbbbb", 24, 5, 97, 0, 1));
+                    p.Send(Tools.FromFormat("bb", 20, 10));
+                    DebugSystem.Write($"[BeachCutscene] Step 4 completed for {p.CharName} -> sent AC 24:5 + AC 20:10");
+                    break;
+
+                case 5:
+                    // Frame 2997: AC 22:12 [1, 1, 0, 6] + AC 20:10
+                    p.BeachCutsceneStep = 6;
+                    p.Send(Tools.FromFormat("bbbbbb", 22, 12, 1, 1, 0, 6));
+                    p.Send(Tools.FromFormat("bb", 20, 10));
+                    DebugSystem.Write($"[BeachCutscene] Step 5 completed for {p.CharName} -> sent AC 22:12 + AC 20:10");
+                    break;
+
+                case 6:
+                    // Frame 3000: Cutscene finished -> Unlock player and trigger Robinson dialogue
+                    p.BeachCutsceneActive = false;
+                    p.BeachCutsceneStep = 0;
+                    p.Emote = 0;
+                    p.Send(Tools.FromFormat("bb", 20, 8));
+                    p.Send(Tools.FromFormat("bb", 5, 4));
+                    p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                    p.SaveCharacterData();
+                    DebugSystem.Write($"[BeachCutscene] Cutscene finished! Mobilized {p.CharName}. Triggering Robinson dialogue.");
+
+                    if (p.CurMap is GameMap gMap)
+                    {
+                        EveEventInterpreter.TryExecute(p, gMap, 1);
+                    }
+                    break;
+
+                default:
+                    DebugSystem.Write($"[BeachCutscene] Unhandled BeachCutsceneStep {p.BeachCutsceneStep} for {p.CharName}");
+                    break;
+            }
+        }
+
         void Recv6(Player p, RecievePacket r)
         {
             // If the player is currently watching the ship storm cutscene, client AC 20:6 signals cutscene finished -> warp to beach
@@ -166,10 +237,17 @@ namespace Wonderland_Private_Server.ActionCodes
                 return;
             }
 
-            // If beach cutscene timeline is actively running, absorb AC 20:6 so it does not interfere with the timeline
+            // If beach cutscene timeline is actively running
             if (p.BeachCutsceneActive)
             {
-                DebugSystem.Write($"[AC20.Recv6] Absorbed AC 20:6 during BeachCutsceneActive timeline for {p.CharName}");
+                if (p.BeachCutsceneStep >= 2)
+                {
+                    AdvanceBeachCutscene(p);
+                }
+                else
+                {
+                    DebugSystem.Write($"[AC20.Recv6] Absorbed AC 20:6 during BeachCutsceneActive preamble (step {p.BeachCutsceneStep}) for {p.CharName}");
+                }
                 return;
             }
 

@@ -62,7 +62,7 @@ namespace Network.ActionCodes
 
                 DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
 
-                p.SendSystemMessage($"📥 Stored '{p.Storage[storSlot].Name}' x{transferAmmt} into Storage Slot {storSlot}.");
+                p.SendSystemMessage($" Stored '{p.Storage[storSlot].Name}' x{transferAmmt} into Storage Slot {storSlot}.");
                 DebugSystem.Write($"[AC29.Recv1] {p.CharName} deposited Item #{p.Storage[storSlot].ItemID} (x{transferAmmt}) from Bag Slot {bagSlot} to Storage Slot {storSlot}");
             }
             catch (Exception ex)
@@ -109,7 +109,7 @@ namespace Network.ActionCodes
 
                 DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
 
-                p.SendSystemMessage($"📤 Withdrew '{storItem.Name}' x{transferAmmt} from Storage Slot {storSlot}.");
+                p.SendSystemMessage($" Withdrew '{storItem.Name}' x{transferAmmt} from Storage Slot {storSlot}.");
                 DebugSystem.Write($"[AC29.Recv2] {p.CharName} withdrew Item #{storItem.ItemID} (x{transferAmmt}) from Storage Slot {storSlot} to Bag Slot {bagSlot}");
             }
             catch (Exception ex)

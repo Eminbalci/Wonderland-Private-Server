@@ -21,6 +21,7 @@ namespace Game.Maps
         public virtual byte Element { get; set; }
         public virtual uint TemplateID { get; set; } // Template ID for NPC definition lookup
         public ushort MapID { get; set; }
+        public byte EntityType { get; set; } = 1; // Authentic eve.Emg entity type (1: living NPC actor, 2: staged/quest prop/actor)
 
         public ushort SpawnX { get; set; }
         public ushort SpawnY { get; set; }
@@ -111,7 +112,7 @@ namespace Game.Maps
                     pkt.Pack16(finalY);
                     pkt.Pack8(2); // walking speed
 
-                    map.Broadcast(pkt);
+                    BroadcastNpcMove(map, pkt);
 
                     this.X = finalX;
                     this.Y = finalY;
@@ -162,7 +163,7 @@ namespace Game.Maps
                     pkt.Pack16(targetY);
                     pkt.Pack8(2); // walking speed
 
-                    map.Broadcast(pkt);
+                    BroadcastNpcMove(map, pkt);
 
                     this.X = targetX;
                     this.Y = targetY;
@@ -194,7 +195,7 @@ namespace Game.Maps
                     pkt.Pack16(finalY);
                     pkt.Pack8(2); // walking speed
 
-                    map.Broadcast(pkt);
+                    BroadcastNpcMove(map, pkt);
 
                     this.X = finalX;
                     this.Y = finalY;
@@ -214,6 +215,22 @@ namespace Game.Maps
             {
                 DebugSystem.Write($"[QuestNpc] Error in Update for ClickID {this.CickID}: {ex.Message}");
                 NextWalkTime = now.AddSeconds(10);
+            }
+        }
+
+        /// <summary>
+        /// Sends NPC movement packet (AC 22:2) only to players who currently have this NPC visible.
+        /// Prevents resurrecting or animating despawned/recruited companions on client viewport.
+        /// </summary>
+        private void BroadcastNpcMove(GameMap map, SendPacket pkt)
+        {
+            if (map?.PlayersList == null || map.PlayersList.Count == 0) return;
+            foreach (var p in map.PlayersList)
+            {
+                if (p == null) continue;
+                if (p.HasRecruitedCompanion(this.Name, (ushort)this.TemplateID)) continue;
+                if (!Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(p, (ushort)map.MapID, (ushort)this.CickID)) continue;
+                p.Send(pkt);
             }
         }
 
@@ -311,8 +328,10 @@ namespace Game.Maps
 
             // Prop / chest / object template ID ranges in WLO:
             // 12000-12999: containers, crates, beach wreckage props
+            // 19000-19999: static scenery props (statues, swords, guideposts, honeycomb, etc.)
             // 25000-35000: static map props & mechanisms
             if ((this.TemplateID >= 12000 && this.TemplateID <= 12999) ||
+                (this.TemplateID >= 19000 && this.TemplateID <= 19999) ||
                 (this.TemplateID >= 25000 && this.TemplateID <= 35000))
             {
                 return true;
@@ -423,7 +442,7 @@ namespace Game.Maps
                             src.Send(Tools.FromFormat("bb", 20, 9));
                             src.Send(Tools.FromFormat("bb", 20, 8));
                             src.Send(Tools.FromFormat("bb", 5, 4));
-                            src.SendSystemMessage($"✨ [{Name}]: HP and SP fully restored!");
+                            src.SendSystemMessage($" [{Name}]: HP and SP fully restored!");
                         }
                         else if (choice == 0x1F || choice == 2) // Option 2: Save Respawn / Memory Point
                         {
@@ -442,7 +461,7 @@ namespace Game.Maps
                             src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare music
                             src.Send(Tools.FromFormat("bb", 20, 8));
                             src.Send(Tools.FromFormat("bb", 5, 4));
-                            src.SendSystemMessage($"💾 [{Name}]: Memory point saved at Map {src.CurMap?.MapID} pos({src.CurX},{src.CurY})!");
+                            src.SendSystemMessage($" [{Name}]: Memory point saved at Map {src.CurMap?.MapID} pos({src.CurX},{src.CurY})!");
                         }
                         else // Option 3: Cancel
                         {
@@ -519,7 +538,7 @@ namespace Game.Maps
                     // Static Chest, Crate, Barrel, Ore Vein, Herb, or Gathering Prop
                     if (this.IsBroken)
                     {
-                        src.SendSystemMessage("📦 This node/chest is currently empty and will respawn soon.");
+                        src.SendSystemMessage(" This node/chest is currently empty and will respawn soon.");
                         src.Send(Tools.FromFormat("bb", 20, 8));
                         src.Send(Tools.FromFormat("bb", 5, 4));
                         return;
@@ -542,7 +561,7 @@ namespace Game.Maps
                         string itemName = Game.Battle.MonsterDropManager.ResolveItemName(drop.ItemID) ?? drop.ItemName;
                         src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
                         src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
-                        src.SendSystemMessage($"🎁 Opened '{this.Name}' and obtained {drop.Count}x {itemName}!");
+                        src.SendSystemMessage($" Opened '{this.Name}' and obtained {drop.Count}x {itemName}!");
                         DebugSystem.Write($"[QuestNpc] Player {src.CharName} opened static chest/prop '{this.Name}' (ClickID: {this.CickID}) and received {drop.Count}x {itemName} (#{drop.ItemID}).");
                     }
 
@@ -566,7 +585,7 @@ namespace Game.Maps
                     sysPkt.Pack8(0);
                     sysPkt.Pack8(0); sysPkt.Pack8(0); sysPkt.Pack8(0); sysPkt.Pack8(0);
                     src.Send(sysPkt);
-                    src.SendSystemMessage($"🏦 [{Name}]: Storage vault opened.");
+                    src.SendSystemMessage($" [{Name}]: Storage vault opened.");
                     DebugSystem.Write($"[QuestNpc] Handled Storage/Keeper interaction for '{Name}' (ClickID: {this.CickID}) with {src.CharName}");
                     return;
                 }
@@ -588,7 +607,7 @@ namespace Game.Maps
                     dialogueText = ExtractDialogueFromTalkDat(talkId);
                 }
 
-                src.SendSystemMessage($"💬 {Name}: {dialogueText}");
+                src.SendSystemMessage($" {Name}: {dialogueText}");
                 DebugSystem.Write($"[QuestNpc] Sent authentic dialogue window for '{Name}' (ClickID: {this.CickID}, TalkID: 0x{talkId:X}): '{dialogueText}'");
             }
             catch (Exception ex)

@@ -155,9 +155,6 @@
     <Compile Include="Game\PlayerRelated\Equip.cs" />
     <Compile Include="Game\PlayerRelated\inGameSettings.cs" />
     <Compile Include="Game\PlayerRelated\Tent\Tent.cs" />
-    <Compile Include="Game\PlayerRelated\Tent\TentItem.cs" />
-    <Compile Include="Game\PlayerRelated\Tent\TentItemContainer.cs" />
-    <Compile Include="Game\PlayerRelated\Tent\Tools.cs" />
     <Compile Include="Game\PlayerRelated\RiceBall.cs" />
     <Compile Include="Game\PlayerRelated\Mail.cs" />
     <Compile Include="Game\PlayerRelated\MailManager.cs" />
@@ -179,7 +176,6 @@
     <Compile Include="Game\Crafting\TentManufactureManager.cs" />
     <Compile Include="Game\Battle\PvPManager.cs" />
     <Compile Include="Game\Battle\PalaceTrialManager.cs" />
-    <Compile Include="Game\PlayerRelated\PetList.cs" />
     <Compile Include="Game\PlayerRelated\Quest.cs" />
     <Compile Include="Game\QuestRelated\QuestEnums.cs" />
     <Compile Include="Game\QuestRelated\QuestDefinition.cs" />
@@ -191,10 +187,6 @@
 
     <Compile Include="Generics\Tools.cs" />
     <Compile Include="Network\ActionCodes\AC.cs" />
-    <Compile Include="Network\ActionCodes\AC11.cs" />
-    <Compile Include="Network\ActionCodes\AC15.cs" />
-    <Compile Include="Network\ActionCodes\AC25.cs" />
-    <Compile Include="Network\ActionCodes\AC56.cs" />
     <Compile Include="Network\Packet.cs" />
     <Compile Include="Network\SocketClient.cs" />
     <Compile Include="Network\EmbeddedWebServer.cs" />
@@ -208,7 +200,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Game\Maps\SpecialMaps\" />
-    <Folder Include="Game\Objects\" />
     <Folder Include="Game\PetRelated\" />
     <Folder Include="Game\PlayerRelated\Tent\Manufacture\" />
     <Folder Include="Game\Quests\" />

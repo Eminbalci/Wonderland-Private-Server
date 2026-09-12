@@ -138,34 +138,39 @@ namespace Game.PlayerRelated
             ushort vid = vehicleId > 0 ? vehicleId : (ushort)player.ActiveVehicleID;
             if (vid == 0) vid = 48016;
 
-            player.ActiveVehicleID = 0;
-            player.RideVehicle("");
+            // Determine vehicle inventory slot
+            byte slot = player.MountedVehicleSlot;
+            if (slot == 0 || player.Inv == null || player.Inv[slot].ItemID == 0)
+            {
+                if (player.Inv != null)
+                {
+                    for (byte s = 1; s <= 50; s++)
+                    {
+                        var it = player.Inv[s];
+                        if (it != null && (it.ItemID == vid || it.ItemID == 48016 || it.ItemID == 48010))
+                        {
+                            slot = s;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (slot == 0) slot = 16; // Fallback to default slot 16
 
-            // 1. Send AC 15 Sub 14: Final state
+            // 1. Send AC 15 Sub 14: Final state (PCAP Frame 6992: 0F 0E [slot] [charId] D6 01 00 00 00 00)
             SendPacket statePkt = new SendPacket();
-            statePkt.PackArray(new byte[] { 15, 14, vehicleType });
+            statePkt.PackArray(new byte[] { 15, 14, slot });
             statePkt.Pack32(player.CharID);
             statePkt.PackArray(new byte[] { 0xD6, 0x01, 0, 0, 0, 0 });
             player.Send(statePkt);
             player.CurMap?.Broadcast(statePkt);
 
-            // 2. Locate and remove vehicle item from inventory
-            byte foundSlot = 0;
+            // 2. Remove vehicle item from inventory (PCAP Frame 6992: 17 09 [slot] 01)
             if (player.Inv != null)
             {
-                for (byte s = 1; s <= 50; s++)
+                if (slot > 0 && player.Inv[slot].ItemID > 0)
                 {
-                    var it = player.Inv[s];
-                    if (it != null && (it.ItemID == vid || it.ItemID == 48016 || it.ItemID == 48010))
-                    {
-                        foundSlot = s;
-                        break;
-                    }
-                }
-
-                if (foundSlot > 0)
-                {
-                    player.Inv.RemoveItem(foundSlot, 1, senddata: true);
+                    player.Inv.RemoveItem(slot, 1, senddata: true);
                 }
                 else
                 {
@@ -173,7 +178,7 @@ namespace Game.PlayerRelated
                 }
             }
 
-            // 3. Vehicle wreck packet (AC 15:15)
+            // 3. Vehicle wreck packet (AC 15:15) (PCAP Frame 6992: 0F 0F [charId] [vid])
             SendPacket wreckPkt = new SendPacket();
             wreckPkt.Pack8(15);
             wreckPkt.Pack8(15);
@@ -182,19 +187,24 @@ namespace Game.PlayerRelated
             player.Send(wreckPkt);
             player.CurMap?.Broadcast(wreckPkt);
 
-            // 4. Unmount packet (AC 15:11)
+            // 4. Unmount packet (AC 15:11) (PCAP Frame 6992: 0F 0B [slot] [charId])
             SendPacket unmountPkt = new SendPacket();
-            unmountPkt.PackArray(new byte[] { 15, 11, vehicleType });
+            unmountPkt.PackArray(new byte[] { 15, 11, slot });
             unmountPkt.Pack32(player.CharID);
             player.Send(unmountPkt);
             player.CurMap?.Broadcast(unmountPkt);
+
+            // Reset active state
+            player.ActiveVehicleID = 0;
+            player.MountedVehicleSlot = 0;
+            player.RideVehicle("");
 
             // 5. Movement refresh & persistence
             player.Send(Tools.FromFormat("bb", 5, 4));
             player.SendSystemMessage("The wooden raft broke apart upon landing on the shore. You are now walking on foot.");
             player.SaveCharacterData();
 
-            DebugSystem.Write($"[VehicleManager] Player {player.CharName}'s vehicle #{vid} wrecked upon reaching shore (removed from slot {foundSlot}).");
+            DebugSystem.Write($"[VehicleManager] Player {player.CharName}'s vehicle #{vid} wrecked upon reaching shore (removed from slot {slot}).");
         }
 
         public static void ConsumeFuel(Player player, ushort amount = 1)

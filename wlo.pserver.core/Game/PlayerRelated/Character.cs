@@ -13,12 +13,11 @@ using Game;
 
 namespace Game
 {
-    public class Character : EquipManager
+    public class Character : EquipManager, INotifyPropertyChanged
     {
         readonly object c_lock = new object();
         Action<SendPacket> Send;
 
-        byte emote;
         Dictionary<string, string> m_colors; public Dictionary<string, string> Colors { get { lock (c_lock) return m_colors; } }
 
         UInt16 m_hairColor; public UInt16 HairColor { get { lock (c_lock)return m_hairColor; } set { lock (c_lock)m_hairColor = value; } }
@@ -224,6 +223,9 @@ namespace Game
             p.PackString(src.CharName ?? "");
             p.PackString(src.NickName ?? "");
             p.Pack8(255);
+            uint guildId = (src is Player pl) ? (uint)pl.GuildID : 0u;
+            p.Pack32(guildId);
+            p.Pack8(1);
             return p;
         }
     }

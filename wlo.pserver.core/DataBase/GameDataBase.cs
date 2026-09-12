@@ -129,6 +129,7 @@ namespace DataBase
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_ips (ip TEXT PRIMARY KEY, reason TEXT, banned_at TEXT, banned_by TEXT);");
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_users (userID INT PRIMARY KEY, username TEXT, reason TEXT, banned_at TEXT, banned_by TEXT);");
                 ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_charquest_char_quest ON charquest(charID, quest_started);");
+                VerifyCharacterPetsTable();
 
                 DebugSystem.Write("[GameDataBase] All GUI and Server subsystem database tables verified & auto-seeded successfully.");
             }
@@ -208,6 +209,29 @@ namespace DataBase
             catch (Exception ex)
             {
                 DebugSystem.Write($"[GameDataBase] Error during legacy schema migration: {ex.Message}");
+            }
+        }
+
+        public void VerifyCharacterPetsTable()
+        {
+            try
+            {
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
+                string[] petCols = new string[] {
+                    "exp INT DEFAULT 0", "str INT DEFAULT 10", "con INT DEFAULT 10", "int_ INT DEFAULT 10",
+                    "wis INT DEFAULT 10", "agi INT DEFAULT 10", "potential INT DEFAULT 0", "skillPoints INT DEFAULT 0",
+                    "isHotel TINYINT DEFAULT 0", "reborn TINYINT DEFAULT 0", "job TINYINT DEFAULT 0",
+                    "eq_head INT DEFAULT 0", "eq_body INT DEFAULT 0", "eq_weapon INT DEFAULT 0",
+                    "eq_wrist INT DEFAULT 0", "eq_shoes INT DEFAULT 0", "eq_special INT DEFAULT 0"
+                };
+                foreach (var col in petCols)
+                {
+                    try { ExecuteNonQuery($"ALTER TABLE character_pets ADD COLUMN {col};"); } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error verifying character_pets table: {ex.Message}");
             }
         }
 
@@ -376,26 +400,6 @@ namespace DataBase
             #region Pets
             try
             {
-                // Ensure character_pets table exists with comprehensive stat columns
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN exp INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN str INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN con INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN int_ INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN wis INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN agi INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN potential INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN skillPoints INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN reborn TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN job TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_head INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_body INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_weapon INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_wrist INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_shoes INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_special INT DEFAULT 0;"); } catch { }
-
                 var petTable = GetDataTable("SELECT * FROM character_pets WHERE charID = '" + c.CharID + "'");
                 c.PlayerPets.Clear();
                 c.HotelPets.Clear();
@@ -615,7 +619,6 @@ namespace DataBase
                 byte[] fileBytes = System.IO.File.ReadAllBytes(datPath);
                 int recordSize = 138;
                 int totalRecords = fileBytes.Length / recordSize;
-                int debugLimit = 0;
                 System.Text.StringBuilder batch = new System.Text.StringBuilder();
 
                 for (int rec = 1; rec < totalRecords; rec++)

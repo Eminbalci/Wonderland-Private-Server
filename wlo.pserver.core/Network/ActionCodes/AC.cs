@@ -1,4 +1,4 @@
-﻿using Game;
+using Game;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,16 +70,13 @@ namespace Network.ActionCodes
                                         }
                                     }
                                 }
-                                catch (Exception ex)
+                                catch (Exception)
                                 {
-                                    //DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Failed to instantiate {y.Name}: {ex.Message}");
                                 }
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            // Assembly loading error (some dynamic assemblies might throw)
-                            //DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Failed to scan assembly {asm.GetName().Name}: {ex.Message}");
                         }
                     }
 

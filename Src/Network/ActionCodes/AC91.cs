@@ -138,7 +138,7 @@ namespace Network.ActionCodes
                     sysMsg.Pack8(23);
                     sysMsg.Pack8(57);
                     sysMsg.Pack8(0);
-                    sysMsg.PackString($"🎉 Claimed bonus item! Remaining Bonus Points: {remaining}.");
+                    sysMsg.PackString($" Claimed bonus item! Remaining Bonus Points: {remaining}.");
                     p.Send(sysMsg);
 
                     DebugSystem.Write($"[AC91.Recv3] {p.CharName} claimed bonus item #{itemId} for {cost} bonus points.");

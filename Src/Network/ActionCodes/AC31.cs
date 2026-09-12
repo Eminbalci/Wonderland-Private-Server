@@ -58,7 +58,7 @@ namespace Network.ActionCodes
                 if (p.HotelPets == null) p.HotelPets = new System.Collections.Generic.Dictionary<byte, Player.PlayerPetData>();
                 if (p.HotelPets.Count >= 20)
                 {
-                    p.SendSystemMessage("⚠️ Pet Hotel is full! (Max 20 pets)");
+                    p.SendSystemMessage(" Pet Hotel is full! (Max 20 pets)");
                     return;
                 }
 
@@ -68,7 +68,7 @@ namespace Network.ActionCodes
 
                 if (freeHotelSlot > 20)
                 {
-                    p.SendSystemMessage("⚠️ Pet Hotel is full! (Max 20 pets)");
+                    p.SendSystemMessage(" Pet Hotel is full! (Max 20 pets)");
                     return;
                 }
 
@@ -134,7 +134,7 @@ namespace Network.ActionCodes
                 // 3. Save to database immediately
                 DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
 
-                p.SendSystemMessage($"🏨 '{hotelPet.PetName}' (#{hotelPet.PetID}) deposited into Pet Hotel (Slot {freeHotelSlot}).");
+                p.SendSystemMessage($" '{hotelPet.PetName}' (#{hotelPet.PetID}) deposited into Pet Hotel (Slot {freeHotelSlot}).");
                 DebugSystem.Write($"[AC31.RecvDeposit] {p.CharName} deposited '{hotelPet.PetName}' (ID: {hotelPet.PetID}) from Team Slot {petSlot} to Hotel Slot {freeHotelSlot}");
             }
             catch (Exception ex)
@@ -161,7 +161,7 @@ namespace Network.ActionCodes
                 if (p.PlayerPets == null) p.PlayerPets = new System.Collections.Generic.Dictionary<byte, Player.PlayerPetData>();
                 if (p.PlayerPets.Count >= 4)
                 {
-                    p.SendSystemMessage("⚠️ Your companion team is full! (Max 4 pets)");
+                    p.SendSystemMessage(" Your companion team is full! (Max 4 pets)");
                     return;
                 }
 
@@ -171,7 +171,7 @@ namespace Network.ActionCodes
 
                 if (freeTeamSlot > 4)
                 {
-                    p.SendSystemMessage("⚠️ Your companion team is full! (Max 4 pets)");
+                    p.SendSystemMessage(" Your companion team is full! (Max 4 pets)");
                     return;
                 }
 
@@ -204,7 +204,7 @@ namespace Network.ActionCodes
                 // 3. Save to database immediately
                 DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
 
-                p.SendSystemMessage($"🏨 '{teamPet.PetName}' (#{teamPet.PetID}) retrieved from Pet Hotel to Team Slot {freeTeamSlot}!");
+                p.SendSystemMessage($" '{teamPet.PetName}' (#{teamPet.PetID}) retrieved from Pet Hotel to Team Slot {freeTeamSlot}!");
                 DebugSystem.Write($"[AC31.RecvWithdraw] {p.CharName} withdrew '{teamPet.PetName}' (ID: {teamPet.PetID}) from Hotel Slot {hotelSlot} to Team Slot {freeTeamSlot}");
             }
             catch (Exception ex)

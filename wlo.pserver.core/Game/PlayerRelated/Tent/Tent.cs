@@ -23,7 +23,7 @@ namespace Game.Code
         //List<TentFloor> _floors;
 
         uint _mapx, _mapy;
-        bool _locked, firstime, _closed;
+        bool _closed;
 
         ushort _floorcolor = 39062, _wallcolor = 39064;
 
@@ -39,9 +39,6 @@ namespace Game.Code
         public Tent(Game.Player src)
         {
             _owner = src;
-            firstime = true;
-            //_floors = new List<TentFloor>();
-            //_floors.Add(new TentFloor() { MapID = (ushort)_floors.Count });
             _closed = true;
 
             // Initialize items collection
@@ -410,7 +407,7 @@ namespace Game.Code
                     sentCount++;
                 }
 
-                DebugSystem.Write(DebugItemType.Error, $"[Tent] ✓ Sent {sentCount} items via AC 23:3 to {player.CharName} (MapID={this.MapID})");
+                DebugSystem.Write(DebugItemType.Error, $"[Tent]  Sent {sentCount} items via AC 23:3 to {player.CharName} (MapID={this.MapID})");
             }
             catch (Exception ex)
             {

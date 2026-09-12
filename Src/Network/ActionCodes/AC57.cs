@@ -75,7 +75,7 @@ namespace Network.ActionCodes
                 else
                 {
                     // Loss Flow from official PCAP (Frame 14118 & 4074):
-                    p.SendSystemMessage("❌ Minigame failed. You can try again anytime!");
+                    p.SendSystemMessage(" Minigame failed. You can try again anytime!");
 
                     try
                     {

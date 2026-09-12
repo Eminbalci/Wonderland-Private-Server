@@ -254,7 +254,7 @@ namespace Wonderland_Private_Server
             this.btnSaveServerInfo.Name = "btnSaveServerInfo";
             this.btnSaveServerInfo.Size = new System.Drawing.Size(76, 26);
             this.btnSaveServerInfo.TabIndex = 13;
-            this.btnSaveServerInfo.Text = "💾 Save";
+            this.btnSaveServerInfo.Text = " Save";
             this.btnSaveServerInfo.UseVisualStyleBackColor = false;
             this.btnSaveServerInfo.Click += new System.EventHandler(this.btnSaveServerInfo_Click);
             // 
@@ -269,7 +269,7 @@ namespace Wonderland_Private_Server
             this.btnSaveAllNow.Name = "btnSaveAllNow";
             this.btnSaveAllNow.Size = new System.Drawing.Size(100, 26);
             this.btnSaveAllNow.TabIndex = 10;
-            this.btnSaveAllNow.Text = "💾 Save All";
+            this.btnSaveAllNow.Text = " Save All";
             this.btnSaveAllNow.UseVisualStyleBackColor = false;
             this.btnSaveAllNow.Click += new System.EventHandler(this.btnSaveAllNow_Click);
             // 
@@ -284,7 +284,7 @@ namespace Wonderland_Private_Server
             this.btnSafeShutdown.Name = "btnSafeShutdown";
             this.btnSafeShutdown.Size = new System.Drawing.Size(100, 26);
             this.btnSafeShutdown.TabIndex = 11;
-            this.btnSafeShutdown.Text = "🛡️ Shutdown";
+            this.btnSafeShutdown.Text = " Shutdown";
             this.btnSafeShutdown.UseVisualStyleBackColor = false;
             this.btnSafeShutdown.Click += new System.EventHandler(this.btnSafeShutdown_Click);
             // 
@@ -308,10 +308,10 @@ namespace Wonderland_Private_Server
             this.cmbBroadcastColor.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbBroadcastColor.FormattingEnabled = true;
             this.cmbBroadcastColor.Items.AddRange(new object[] {
-            "🔴 Red (GM Announcement)",
-            "🟡 Yellow (World Chat)",
-            "🔵 Blue (Guild Chat)",
-            "🟣 Pink (Whisper)"});
+            " Red (GM Announcement)",
+            " Yellow (World Chat)",
+            " Blue (Guild Chat)",
+            " Pink (Whisper)"});
             this.cmbBroadcastColor.Location = new System.Drawing.Point(378, 40);
             this.cmbBroadcastColor.Name = "cmbBroadcastColor";
             this.cmbBroadcastColor.Size = new System.Drawing.Size(175, 21);
@@ -327,7 +327,7 @@ namespace Wonderland_Private_Server
             this.btnBroadcastPrompt.Name = "btnBroadcastPrompt";
             this.btnBroadcastPrompt.Size = new System.Drawing.Size(120, 26);
             this.btnBroadcastPrompt.TabIndex = 17;
-            this.btnBroadcastPrompt.Text = "📢 Broadcast";
+            this.btnBroadcastPrompt.Text = " Broadcast";
             this.btnBroadcastPrompt.UseVisualStyleBackColor = false;
             this.btnBroadcastPrompt.Click += new System.EventHandler(this.btnBroadcastPrompt_Click);
             // 
@@ -379,7 +379,7 @@ namespace Wonderland_Private_Server
             this.label_SelectedPlayer.Name = "label_SelectedPlayer";
             this.label_SelectedPlayer.Size = new System.Drawing.Size(58, 15);
             this.label_SelectedPlayer.TabIndex = 10;
-            this.label_SelectedPlayer.Text = "🎯 Player:";
+            this.label_SelectedPlayer.Text = " Player:";
             // 
             // comboBox_OnlinePlayers
             // 
@@ -419,7 +419,7 @@ namespace Wonderland_Private_Server
             this.btnGiveStatPoints.Name = "btnGiveStatPoints";
             this.btnGiveStatPoints.Size = new System.Drawing.Size(110, 25);
             this.btnGiveStatPoints.TabIndex = 15;
-            this.btnGiveStatPoints.Text = "➕ Give Points";
+            this.btnGiveStatPoints.Text = " Give Points";
             this.btnGiveStatPoints.UseVisualStyleBackColor = true;
             this.btnGiveStatPoints.Click += new System.EventHandler(this.btnGiveStatPoints_Click);
             // 
@@ -430,7 +430,7 @@ namespace Wonderland_Private_Server
             this.btnResetStats.Name = "btnResetStats";
             this.btnResetStats.Size = new System.Drawing.Size(95, 25);
             this.btnResetStats.TabIndex = 16;
-            this.btnResetStats.Text = "🔄 Reset Stats";
+            this.btnResetStats.Text = " Reset Stats";
             this.btnResetStats.UseVisualStyleBackColor = true;
             this.btnResetStats.Click += new System.EventHandler(this.btnResetStats_Click);
             // 
@@ -443,7 +443,7 @@ namespace Wonderland_Private_Server
             this.label_CheatHint.Name = "label_CheatHint";
             this.label_CheatHint.Size = new System.Drawing.Size(210, 15);
             this.label_CheatHint.TabIndex = 12;
-            this.label_CheatHint.Text = "💡 Double-click row to cheat";
+            this.label_CheatHint.Text = " Double-click row to cheat";
             // 
             // tableLayoutPanel_Cheat
             // 
@@ -726,7 +726,7 @@ namespace Wonderland_Private_Server
             this.btnEditCharacterData.Name = "btnEditCharacterData";
             this.btnEditCharacterData.Size = new System.Drawing.Size(100, 32);
             this.btnEditCharacterData.TabIndex = 3;
-            this.btnEditCharacterData.Text = "Edit Data ⚙";
+            this.btnEditCharacterData.Text = "Edit Data ";
             this.btnEditCharacterData.UseVisualStyleBackColor = true;
             this.btnEditCharacterData.Click += new System.EventHandler(this.btnEditCharacterData_Click);
             // 

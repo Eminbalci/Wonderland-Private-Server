@@ -241,7 +241,6 @@ namespace Game.Code
                         if (senddata && owner != null)
                         {
                             owner.Send(Tools.FromFormat("bbbb", 23, 9, at, ammt));
-                            owner.Send(new SendPacket(GetAC23_5()));
                         }
                         return remItem;
                     }
@@ -265,7 +264,6 @@ namespace Game.Code
                         if (needed == 0) break;
                     }
                 }
-                owner?.Send(new SendPacket(GetAC23_5()));
                 return needed == 0;
             }
         }
@@ -531,7 +529,7 @@ namespace Game.Code
                             tmp.Pack16(this[a].ItemID);
                             tmp.Pack8(this[a].Ammt);
                             tmp.Pack8(this[a].Damage);
-                            tmp.PackArray(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                            tmp.PackArray(new byte[26]);
                         }
                 }
                 return tmp.Buffer;
@@ -554,7 +552,7 @@ namespace Game.Code
                             tmp.Pack16(this[a].ItemID);
                             tmp.Pack8(this[a].Ammt);
                             tmp.Pack8(this[a].Damage);
-                            tmp.PackArray(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                            tmp.PackArray(new byte[26]);
                         }
                 }
                 return tmp.Buffer;
@@ -610,33 +608,16 @@ namespace Game.Code
         }
         public void onItemCanceled(byte slot)
         {
-            //Get item first
-            if (m_Items[slot].ItemID > 0)
-                switch (m_Items[slot].Type)
-                {
-                    //case eItemType.Tent: owner.Tent.Close(); break;
-                }
+            // Reserved for client item cancel events
         }
-        int MatrixtoNumber(int a, int b) { return ((a * 5) + (b - 5)); }//wlo specific
+        int MatrixtoNumber(int a, int b) => (a * 5) + (b - 5); // WLO specific
         byte[] NumbertoMatrix(int a)
         {
-            var s = 0;
-            if (a == 5 || a == 10 || a == 15 || a == 20 || a == 25 || a == 30 || a == 35 || a == 40 || a == 45 || a == 50)
-                s = (a / 5);
-            else
-                s = 1 + (a / 5);
-            var t = 0;
-            if (a == 5 || a == 10 || a == 15 || a == 20 || a == 25 || a == 30 || a == 35 || a == 40 || a == 45 || a == 50)
-                t = 5;
-            else if (a > 5)
-                t = 5 - (((1 + (a / 5)) * 5) - a);
-            else
-                t = a;
-            byte[] matrixloc = new byte[2];
-            matrixloc[0] = (byte)(s);
-            matrixloc[1] = (byte)(t);
-            return matrixloc;
-        }//wlo specific
+            if (a <= 0) return new byte[] { 0, 0 };
+            byte s = (byte)(((a - 1) / 5) + 1);
+            byte t = (byte)(((a - 1) % 5) + 1);
+            return new byte[] { s, t };
+        } // WLO specific
     }
 
     public class TentInventoryManager : Inventory
