@@ -1,6 +1,8 @@
 WLO Private Server CheatEngine
 ==============================
 
+Discord invite link : http://discord.gg/J79ezkpzrT
+
 Developing Tools: Visual Studio 2022
 
 Database: sqlite bypass
