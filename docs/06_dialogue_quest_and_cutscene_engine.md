@@ -101,6 +101,45 @@ The visibility engine enforces per-player isolation for narrative consistency:
 * **Declarative QuestDefinition Spawning:** Registered quests define `SpawnNpcClickIDs` and `DespawnNpcClickIDs` at both quest-level and step-level ([`QuestDefinition`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestDefinition.cs)). Actors in `SpawnNpcClickIDs` are kept concealed until the prerequisite quest or step condition is satisfied.
 * **Runtime Dynamic Synchronization:** [`QuestManager.SyncPerPlayerNpcVisibility`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestManager.cs) hooks directly into `AcceptQuest`, `AdvanceQuestStep`, `SetPlayerQuestState`, `CompleteQuest`, `ResetQuest`, and `EveEventInterpreter` opcodes (2, 3, 5, battle victory) to trigger immediate, diff-checked visibility updates without requiring a map transition.
 
+### 4.4 Full-Scale Eve.emg Map & Event Extraction Architecture
+The official `eve.Emg` asset binary (5.16 MB) defines the complete global event ecosystem for the game:
+* **Total Maps:** 1,119 scene entries.
+* **Total Event Scripts:** 10,644 events across all maps.
+* **Total PreEvent Descriptors:** 1,412 PreEvents with 6,018 condition chunks and 8,951 action chunks.
+* **Total Native NPCs:** 8,181 entities with waypoint schedules.
+* **Total Portal Warps:** 2,791 bidirectional warp coordinates.
+
+[`EveManager.Load_ScenceData`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataFiles/EveLoader.cs) extracts 11 category offsets (`(dataptr + datalen) - 44` bytes) across all 1,119 maps without early loop termination, ensuring that high-index maps (such as 12544..60015) receive full event tables and PreEvent bytecode.
+
+### 4.5 Multi-Candidate Event Resolution & Priority Hierarchy
+In the Wonderland Online `Eve.emg` binary, NPC definitions in `Npclist` explicitly specify their event bindings via the `npcEntry.Events` array (e.g. Map 12000 Villager ClickID 4 binds to Event 12, Mary Lou ClickID 5 binds to Events [9, 10]). Over 5,617 native NPCs have assigned Event IDs that differ from their spatial `clickId`.
+
+In [`EveEventInterpreter.TryExecute`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventInterpreter.cs):
+1. **Linked Event Priority:** If an NPC contains entries in `npcEntry.Events`, those events are populated as primary candidates in their defined order (quest event first, idle dialogue second).
+2. **ClickID Fallback:** The direct event match (`event.clickID == clickId`) is only used as a fallback if the entity has no explicit linked events (e.g., chests, gather nodes, interactive props).
+3. **Dialogue Branch Validation:** Fallback branch selection validates that candidate branches contain genuine dialogue opcodes (`(DialogPtr == 1 && d1 == 2 && d2 >= 10000)`, `(DialogPtr == 2 && (d3 >= 10000 || d2 == 6))`, or choice opcodes `DialogPtr == 4 / 6`). Non-dialogue opcodes (such as Warp trigger `DialogPtr == 1, d1 == 3`) are strictly excluded from dialogue candidate pools.
+4. **State Cascade Safety:** `SelectMatchingBranch` enforces `excludeSub` across all branch selectors, preventing recursive infinite loops when advancing post-condition quest states.
+
+### 4.6 Zero-Op Item Gate Priority Pattern
+In `eve.Emg` event bytecode, a **zero-op item condition sub** (`b1=2`, `SubEntry.Count == 0`) acts as a prerequisite gate for the **next executable sub** (found by `GetExecutableBranch` walking forward). This pattern appears across 22,171 zero-op subs globally.
+
+**Compound Condition Chain Example (Map 12004, Event 2 -- Honeycomb Quest):**
+```
+Sub 2: b1=5, Quest 13022 InProgress, step=1     -- 3 ops  ("I need Honeycomb" dialogue)
+Sub 4: b1=2, Item #30034 (Honeycomb), reqHave=T -- 0 ops  (ITEM GATE)
+Sub 5: b1=5, Quest 13022 InProgress, step=1     -- 17 ops (quest completion branch)
+```
+
+Without item-gate priority, the main condition loop matches Sub 2 (quest state) first and returns it immediately, never reaching the item gate at Sub 4. The fix adds a dedicated priority pass **before** the main condition loop:
+
+1. Scan all subs for zero-op `b1=2` item conditions.
+2. If the item condition is satisfied, resolve the gated executable sub via `GetExecutableBranch`.
+3. Verify the gated sub's own quest condition (if `b1=5`) matches the player's quest state.
+4. Skip if the associated quest is already completed or contains completed quest ops.
+5. Return the gated sub, overriding any earlier quest-state-only match.
+
+This ensures that **item-gated completion branches take priority** over their unqualified quest-state counterparts when the player possesses the required item.
+
 ---
 
 ## 5. Cinematic Cutscene Sequencer

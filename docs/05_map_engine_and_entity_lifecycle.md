@@ -120,15 +120,23 @@ Upon map load, [`Map.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserve
 ```
 Client Click Ground Item -> Client Sends AC 23:2 (Slot)
   |
-  +--> Server verifies distance <= 150 pixels & !IsPickedUp
+  +--> Atomic Check & Lock (mlock):
+  |      - Matches gi.Slot == loc || gi.ClickID == loc
+  |      - Immediately flags gi.IsPickedUp = true & calculates gi.RespawnTime
+  |      - Drops duplicate/rapid clicks atomically
+  |
+  +--> Inventory Capacity Check:
+  |      - If Inv.FreeSpace < 1 and item not stackable, rolls back IsPickedUp and returns AC 23:57 error
   |
   +--> src.Inv.AddItem(gi.ItemID, 1)
-  +--> gi.IsPickedUp = true; gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+  |      - Dispatches authoritative AC 23:6 (Gold Item Banner)
+  |      - Dispatches authoritative AC 23:5 (Inventory Sync)
   |
-  +--> Send to Collector: AC 23:2 (Slot, 1 = Success)
-  +--> Broadcast to Peers: AC 23:2 (Slot, 0 = Despawn)
-  +--> Send to Collector: AC 23:6 (Gold Item Banner - 28-byte padded packet)
-  +--> Send to Collector: AC 23:57 (System prompt notification)
+  +--> Map Synchronization:
+  |      - Send to Collector: AC 23:2 (Slot, 1 = Success)
+  |      - Broadcast to Peers: AC 23:2 (Slot, 0 = Despawn)
+  |      - Send to Collector: AC 23:57 (System prompt notification)
+  |      - src.SaveCharacterData()
 ```
 
 ### 5.3 Asynchronous Respawn Loop

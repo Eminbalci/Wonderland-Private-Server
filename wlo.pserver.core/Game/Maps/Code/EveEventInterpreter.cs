@@ -47,40 +47,49 @@ namespace Game.Maps
                 EventsinMapEntries eventEntry = null;
                 EventSubEntry selectedSub = null;
 
-                if (npcEntry != null && npcEntry.Events != null && npcEntry.Events.Count > 0)
+                List<EventsinMapEntries> candidates = new List<EventsinMapEntries>();
+                if (mapData.Events != null)
                 {
-                    // Scan registered events for this NPC to find the first event with an eligible branch
-                    foreach (var evId in npcEntry.Events)
+                    // 1. Explicit linked events assigned to this NPC in Eve.emg take absolute priority
+                    if (npcEntry?.Events != null && npcEntry.Events.Count > 0)
                     {
-                        var candidate = mapData.Events?.FirstOrDefault(e => e.clickID == evId);
-                        if (candidate != null && candidate.SubEntry != null && candidate.SubEntry.Count > 0)
+                        foreach (var evId in npcEntry.Events)
                         {
-                            var sub = SelectMatchingBranch(player, map, clickId, candidate);
-                            if (sub != null)
+                            var linked = mapData.Events.FirstOrDefault(e => e.clickID == evId);
+                            if (linked != null && linked.SubEntry != null && linked.SubEntry.Count > 0 && !candidates.Contains(linked))
                             {
-                                eventEntry = candidate;
-                                selectedSub = sub;
-                                break;
+                                candidates.Add(linked);
                             }
                         }
                     }
 
-                    // Fallback to first available event if no specific state branch was matched
-                    if (eventEntry == null)
+                    // 2. Fallback to direct event matching clickID ONLY if no linked events exist for this NPC
+                    if (candidates.Count == 0)
                     {
-                        foreach (var evId in npcEntry.Events)
+                        var direct = mapData.Events.FirstOrDefault(e => e.clickID == clickId);
+                        if (direct != null && direct.SubEntry != null && direct.SubEntry.Count > 0)
                         {
-                            eventEntry = mapData.Events?.FirstOrDefault(e => e.clickID == evId);
-                            if (eventEntry != null && eventEntry.SubEntry != null && eventEntry.SubEntry.Count > 0)
-                                break;
+                            candidates.Add(direct);
                         }
                     }
                 }
 
-                // If this is an interactive map prop / entity not registered in Npclist, check direct event match on clickID
-                if (eventEntry == null && mapData.Events != null && (npcEntry == null || (npcEntry.Events == null || npcEntry.Events.Count == 0)))
+                // Scan all candidate events for this NPC to find the first event with an eligible branch
+                foreach (var candidate in candidates)
                 {
-                    eventEntry = mapData.Events.FirstOrDefault(e => e.clickID == clickId);
+                    var sub = SelectMatchingBranch(player, map, clickId, candidate);
+                    if (sub != null)
+                    {
+                        eventEntry = candidate;
+                        selectedSub = sub;
+                        break;
+                    }
+                }
+
+                // Fallback to first available event if no specific state branch was matched
+                if (eventEntry == null && candidates.Count > 0)
+                {
+                    eventEntry = candidates[0];
                 }
 
                 if (eventEntry == null || eventEntry.SubEntry == null || eventEntry.SubEntry.Count == 0)
@@ -827,6 +836,84 @@ namespace Game.Maps
                 }
             }
 
+            // 0.5. Item Gate Priority: Zero-op item condition subs (b1=2, ops=0) act as prerequisite
+            // gates for the next executable sub. When the item condition is satisfied AND the gated
+            // executable sub's own quest condition matches, that branch takes priority over earlier
+            // quest-state-only branches. Example: Map 12004 Event 2, Sub 4 (Honeycomb gate) -> Sub 5
+            // (17-op completion) must override Sub 2 (3-op "need honeycomb" dialogue).
+            foreach (var sub in eventEntry.SubEntry)
+            {
+                if (sub == excludeSub) continue;
+                if (sub.unknownbyte1 != 2) continue;
+                if (sub.SubEntry != null && sub.SubEntry.Count > 0) continue; // Only zero-op gates
+
+                ushort reqItem = (sub.unknownword1 >= 10000 && sub.unknownword1 <= 65000) ? sub.unknownword1 : sub.unknownword3;
+                if (reqItem == 0) continue;
+
+                byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
+                bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
+                bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
+
+                if (!((reqHave && hasItem) || (!reqHave && !hasItem))) continue; // Item condition not met
+
+                var target = GetExecutableBranch(player, eventEntry, sub);
+                if (target == null || target == excludeSub) continue;
+
+                // Verify target's quest condition (b1=5) matches player state
+                if (target.unknownbyte1 == 5 && target.unknownword1 > 0)
+                {
+                    uint tQId = target.unknownword1;
+                    ushort tReqState = target.unknownword2;
+                    byte tReqStep = (byte)(target.unknownword4 >> 8);
+                    if (tReqStep == 0 && target.unknownword3 > 1 && target.unknownword3 < 250)
+                        tReqStep = (byte)target.unknownword3;
+
+                    bool isQuestDone = player.Quests != null && (
+                        (player.Quests.TryGetValue(tQId, out var cPq) && cPq.State == QuestState.Completed) ||
+                        (player.Quests.TryGetValue(tQId + 1, out var cPqN) && cPqN.State != QuestState.NotStarted)
+                    );
+                    if (isQuestDone) continue;
+
+                    bool questValid = false;
+                    if (player.Quests != null && player.Quests.TryGetValue(tQId, out var pq))
+                    {
+                        if (tReqState == 1 && pq.State == QuestState.InProgress)
+                        {
+                            if (tReqStep == 0) questValid = true;
+                            else
+                            {
+                                switch (target.unknownword3)
+                                {
+                                    case 2: questValid = (pq.Step >= tReqStep); break;
+                                    case 3: questValid = (pq.Step <= tReqStep); break;
+                                    case 4: questValid = (pq.Step != tReqStep); break;
+                                    case 1: default: questValid = (pq.Step == tReqStep); break;
+                                }
+                            }
+                        }
+                        else if (tReqState == 2 && pq.State == QuestState.NotStarted) questValid = true;
+                        else if (tReqState == 3 && pq.State == QuestState.Completed) questValid = true;
+                    }
+                    else if (tReqState == 2) questValid = true;
+
+                    if (!questValid) continue;
+                }
+
+                // Skip if target contains quest completion ops for already-completed quests
+                if (target.SubEntry != null)
+                {
+                    bool hasCompletedQuestOp = target.SubEntry.Any(o => o.DialogPtr == 5 && o.dialog1 > 0 &&
+                        player.Quests != null && (
+                            (player.Quests.TryGetValue(o.dialog1, out var qPq) && qPq.State == QuestState.Completed) ||
+                            (player.Quests.TryGetValue((uint)(o.dialog1 + 1), out var qPqN) && qPqN.State != QuestState.NotStarted)
+                        ));
+                    if (hasCompletedQuestOp) continue;
+                }
+
+                DebugSystem.Write($"[SelectMatchingBranch] Item gate priority: item #{reqItem} present={hasItem}, selected gated sub #{eventEntry.SubEntry.IndexOf(target)} for event #{eventEntry.clickID}");
+                return target;
+            }
+
             // 1. Check Condition SubEntries (Levels, Items, Gold)
             foreach (var sub in eventEntry.SubEntry)
             {
@@ -1144,7 +1231,10 @@ namespace Game.Maps
                     // Filter out branches whose quest is already completed!
                     var candidateSubs = eventEntry.SubEntry.Where(s =>
                         s.SubEntry != null &&
-                        s.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2 || o.DialogPtr == 4 || o.DialogPtr == 6) &&
+                        s != excludeSub &&
+                        s.SubEntry.Any(o => (o.DialogPtr == 1 && o.dialog1 == 2 && o.dialog2 >= 10000) ||
+                                            (o.DialogPtr == 2 && ((o.dialog3 >= 10000 && o.dialog3 <= 55000) || o.dialog2 == 6)) ||
+                                            o.DialogPtr == 4 || o.DialogPtr == 6) &&
                         s.unknownbyte1 != 15 &&
                         s.unknownbyte1 != 4 &&
                         s.unknownbyte1 != 7 &&
@@ -1189,7 +1279,7 @@ namespace Game.Maps
                 {
                     foreach (var sub in eventEntry.SubEntry)
                     {
-                        if (sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
+                        if (sub == excludeSub || sub.SubEntry == null || sub.SubEntry.Count == 0) continue;
                         if (sub.unknownbyte1 == 15 || sub.unknownbyte1 == 4 || sub.unknownbyte1 == 7) continue; // Skip inventory check gate branches & battle outcomes
                         if (playerFreeSlots >= 1 && IsInventoryFullErrorBranch(sub)) continue; // Skip inv full error when player has space
                         uint questId = sub.unknownword1;
@@ -1208,7 +1298,7 @@ namespace Game.Maps
                         {
                             continue;
                         }
-                        if (sub.SubEntry.Any(o => o.DialogPtr == 1 || o.DialogPtr == 2 || o.DialogPtr == 4 || o.DialogPtr == 6))
+                        if (sub.SubEntry.Any(o => (o.DialogPtr == 1 && o.dialog1 == 2 && o.dialog2 >= 10000) || (o.DialogPtr == 2 && ((o.dialog3 >= 10000 && o.dialog3 <= 55000) || o.dialog2 == 6)) || o.DialogPtr == 4 || o.DialogPtr == 6))
                         {
                             return sub;
                         }
@@ -1248,32 +1338,20 @@ namespace Game.Maps
                                 return true;
                             }
                             // Transition from Shipwreck Beach to South Island
-                            else if (map.MapID == 10035)
+                            else
                             {
-                                player.OnInteractionComplete = () =>
+                                var warpEntry = map.mapData?.WarpLoc?.FirstOrDefault(w => w.clickID == transitionType);
+                                if (warpEntry != null && warpEntry.mapID > 0)
                                 {
-                                    var warp = new WarpData() { DstMap = 11016, DstX_Axis = 402, DstY_Axis = 1035 };
-                                    player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
-                                    DebugSystem.Write($"[EveEventInterpreter] Ocean Raft Scene Transition completed. Teleported {player.CharName} to Map 11016 (402, 1035)");
-                                };
-                                return true;
+                                    player.OnInteractionComplete = () =>
+                                    {
+                                        var warp = new WarpData() { DstMap = warpEntry.mapID, DstX_Axis = (ushort)warpEntry.x, DstY_Axis = (ushort)warpEntry.y };
+                                        player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
+                                        DebugSystem.Write($"[EveEventInterpreter] Opcode 1 (Warp {transitionType}): Teleported {player.CharName} to Map {warpEntry.mapID} ({warpEntry.x}, {warpEntry.y})");
+                                    };
+                                    return true;
+                                }
                             }
-                            return true;
-                        }
-
-                        // Scene transition / cutscene fade opcode: ptr=1, d1=3 (Official PCAP Frame 2378)
-                        if (op.dialog1 == 3)
-                        {
-                            player.Send(Tools.FromFormat("bb", 20, 7)); // Black screen fade
-                            player.PendingBeachCutscene = true;
-
-                            ushort targetMap = 10035;
-                            ushort targetX = 1038;
-                            ushort targetY = 2235;
-
-                            var warpData = new WarpData { DstMap = targetMap, DstX_Axis = targetX, DstY_Axis = targetY };
-                            player.CurMap?.Teleport(TeleportType.CmD, player, 0, warpData);
-                            DebugSystem.Write($"[EveEventInterpreter] Opcode 1 (Scene Transition d1=3): Faded screen and transitioned {player.CharName} to beach Map {targetMap} ({targetX}, {targetY})");
                             return true;
                         }
 

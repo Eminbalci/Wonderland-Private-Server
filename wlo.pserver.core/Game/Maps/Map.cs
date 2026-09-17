@@ -465,45 +465,63 @@ namespace Game
         }
         public void onItemPickup(Player src, byte pos)
         {
-            Task dropItem = new Task(() =>
-            {
-                byte loc = pos;
-                // 1. Check Native Ground Items
-                MapGroundItem gi = null;
-                lock (mlock)
-                {
-                    gi = GroundItems?.FirstOrDefault(g => !g.IsPickedUp && (g.Slot == loc || g.ClickID == loc || (loc > 0 && g.Slot == loc - 1)));
-                }
+            if (src == null || src.Inv == null) return;
+            byte loc = pos;
 
-                if (gi != null && src.Inv != null)
+            // 1. Check Native Ground Items
+            MapGroundItem gi = null;
+            lock (mlock)
+            {
+                gi = GroundItems?.FirstOrDefault(g => !g.IsPickedUp && (g.Slot == loc || g.ClickID == loc));
+                if (gi != null)
                 {
-                    src.Inv.AddItem(gi.ItemID, 1);
+                    // Mark as picked up immediately inside the lock to guarantee no race condition or duplicate grant
+                    gi.IsPickedUp = true;
+                    gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+                }
+            }
+
+            if (gi != null)
+            {
+                // Verify inventory space
+                if (src.Inv.FreeSpace < 1 && !src.Inv.ContainsItem(gi.ItemID))
+                {
                     lock (mlock)
                     {
-                        gi.IsPickedUp = true;
-                        gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+                        gi.IsPickedUp = false;
+                        gi.RespawnTime = DateTime.MinValue;
                     }
-
-                    // Send pickup result to player (AC 23:2, slot, 1 = success - Official PCAP Frame 75)
-                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
-                    // Broadcast item removal to others on map (AC 23:2, slot, 0)
-                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
-
-                    // Send AC 23:6 Gold Item Banner popup (Official PCAP Frame 75)
-                    SendPacket bannerPkt = new SendPacket();
-                    bannerPkt.PackArray(new byte[] { 23, 6 });
-                    bannerPkt.Pack16(gi.ItemID);
-                    bannerPkt.Pack8(1);
-                    bannerPkt.PackArray(new byte[28]);
-                    src.Send(bannerPkt);
-
-                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Picked up {gi.Name}!"));
-                    src.SaveCharacterData();
-                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item {gi.Name} (#{gi.ItemID}) from slot {gi.Slot}. Respawns in {gi.RespawnSeconds}s");
+                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
                     return;
                 }
 
-                // 2. Fallback: Player-dropped items
+                // Add item to inventory (AddItem with sendData: true already sends AC 23:6 banner & AC 23:5 inv update)
+                int added = src.Inv.AddItem(gi.ItemID, 1);
+                if (added <= 0)
+                {
+                    lock (mlock)
+                    {
+                        gi.IsPickedUp = false;
+                        gi.RespawnTime = DateTime.MinValue;
+                    }
+                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
+                    return;
+                }
+
+                // Send pickup result to player (AC 23:2, slot, 1 = success - Official PCAP Frame 75)
+                src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
+                // Broadcast item removal to others on map (AC 23:2, slot, 0)
+                Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
+
+                src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Picked up {gi.Name}!"));
+                src.SaveCharacterData();
+                DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item {gi.Name} (#{gi.ItemID}) from slot {gi.Slot}. Respawns in {gi.RespawnSeconds}s");
+                return;
+            }
+
+            // 2. Fallback: Player-dropped items
+            lock (mlock)
+            {
                 if (loc > 0 && loc - 1 < ItemsDropped.Count && ItemsDropped[loc - 1].ItemID > 0)
                 {
                     Item res = new Item();
@@ -514,10 +532,10 @@ namespace Game
                     {
                         src.Send(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 1));
                         Broadcast(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 0), "Ex", src.CharID);
+                        src.SaveCharacterData();
                     }
                 }
-            });
-            QueuedTasks.Enqueue(dropItem);
+            }
         }
         #endregion
 

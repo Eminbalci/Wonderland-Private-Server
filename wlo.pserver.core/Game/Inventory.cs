@@ -38,6 +38,22 @@ namespace Game.Code
             }
         }
 
+        public int FreeSpace
+        {
+            get
+            {
+                lock (mylock)
+                {
+                    int count = 0;
+                    for (byte a = 1; a <= 50; a++)
+                    {
+                        if (m_Items[a - 1].ItemID == 0) count++;
+                    }
+                    return count;
+                }
+            }
+        }
+
         #region Events/Funcs/Actions
         public Item onWearEquip(byte loc)
         {
@@ -267,11 +283,11 @@ namespace Game.Code
                 return needed == 0;
             }
         }
-        public void AddItem(ushort ID, byte amt)
+        public int AddItem(ushort ID, byte amt)
         {
-            AddItem(ID, amt, true);
+            return AddItem(ID, amt, true);
         }
-        public void AddItem(ushort ID, byte amt, bool sendData)
+        public int AddItem(ushort ID, byte amt, bool sendData)
         {
             PhxItemInfo baseItem = null;
             try
@@ -290,7 +306,7 @@ namespace Game.Code
             InvItem i = new InvItem();
             i.CopyFrom(baseItem);
             i.Ammt = amt;
-            AddItem(i, 0, sendData);
+            return AddItem(i, 0, sendData);
         }
         /// <summary>
         /// Adds an item to the Inventory
