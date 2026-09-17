@@ -1,92 +1,122 @@
-# Wonderland Online Private Server & CheatEngine
+WLO Private Server CheatEngine
 
-A high-performance, modular private server emulator and cheat/administration engine for **Wonderland Online (WLO)** written in C# (.NET Framework 4.8 / .NET runtime). Engineered for **100% dynamic portability**, allowing zero-configuration cloning, building, and running across any Windows machine or drive.
+Discord invite link : http://discord.gg/J79ezkpzrT
 
----
+Developing Tools: Visual Studio 2022
 
-## Key Features
+Database: sqlite bypass
 
-- **100% Dynamic Portability**: Zero hardcoded absolute paths. Seamless path resolution across all workstations via `RCLibrary.Core.PathHelper`.
-- **Self-Healing SQLite Database**: Consolidated single database in `Data/ServerDataBase.db` with relational persistence tables. Automatically verifies schemas, applies unique indexes, and seeds missing default data upon every boot (`GameDataBase.VerifySetup()`).
-- **Tri-Server Socket Architecture**:
-  - **Login Server (Port 6414)**: Authentication, account management, character selection/creation, Item Mall catalog sync (`AC 75`).
-  - **World Server (Port 6415)**: Overworld replication, tile pathfinding, turn-based combat engine, quests, dialogue engine, housing.
-  - **Item Mall Server (Port 6416)**: Microtransaction catalog and promotional point currency transactions.
-  - **Registration API (Port 8080)**: REST API endpoint for account creation.
-- **Complete Action Code Protocol Catalog (AC 0 - AC 226)**: Full support for turn-based battles (`AC 11`/`AC 50`/`AC 51`/`AC 52`/`AC 53`), lucky draw wheel (`AC 104`), vehicle/mount system (`AC 15`), tent housing (`AC 12`), quests (`AC 39`/`AC 52`), scene entities (`AC 22`), inventory bag (`AC 23`), and cinematic cutscenes (`AC 20`/`AC 186`).
-- **Authentic Turn-Based Combat Protocol Engine**: Byte-for-byte alignment with official network captures (`session_20260911_150803`). Broadcasts `AC 11:4` crossed-swords combat presence (`[0x02, CharID: UInt32, 0x00, 0x00, State: Byte]`) to map observers via strongly-typed packet serialization eliminating `System.OverflowException` on 32-bit Character IDs, acknowledges player moves via `AC 53:5`, dispatches input lock frames `AC 50:6`, serializes continuous 19-byte `AC 50:1` action animation records, triggers instant death collapse frames via `AC 53:3`, synchronizes real-time entity stats via `AC 51:1`, and reactivates turn selection menus via `AC 52:1`.
-- **Authentic Asset Parsing**: In-memory decryption and caching of `Npc.dat` (4,928 NPCs via XOR `0x5209`), `Item.dat`, `Skill.dat`, `Talk.dat` (17,494 records), `Mark.dat`, `SceneData.dat`, and `Eve.emg` event scripts.
-- **Comprehensive GUI Management Suite**: Live player monitoring, map inspector, NPC/Mob editor, quest manager, Item Mall studio, chest drop editor, and firewall security center.
-- **Dynamic Ground Items Lifecycle (`AC 23`)**: Automatic map loading of native terrain resources from `Eve.emg` `ItemAreas` (209 items across 77 maps). Real-time authentic batched spawning (`AC 23:4`), terrain slot pickups (`AC 23:2`), gold item banner acquisition popups (`AC 23:6`), and asynchronous heartbeat respawning.
-- **Robust NPC Spatial AI & Wander Boundaries**: Authentic signed bounding-box roaming (`WalkBehavior == 3`), waypoint patrol oscillation (`WalkBehavior == 2 / 5`), and static anchors (`WalkBehavior == 1`) preventing map boundary drift or corner teleports.
-- **State-Verified Dialogue & Quest Safeguards**: Multi-event evaluation prioritizing post-quest resolution over completed stages, Quest State Condition decoding, paired quest completion flags (`questId + 1`), persistent SQLite quest `step` tracking, and irreversible completion locks preventing quest demotion loops.
-- **Authentic Starter Pack, 31-Byte Record Alignment, Chest Safeguards & Raft Wreck Protocol**: Complete 31-byte fixed record item serialization (`AC 23:5` / `AC 30:5`) and 21-byte equipment serialization (`AC 23:11`) preventing client parser desynchronization and guaranteeing full multi-item visibility across all 50 bag slots. Deduplicated single `AC 23:6` acquisition banner and `player.Quests` persistence check preventing chest double-granting. Client bag slot tracking (`MountedVehicleSlot`) with single `AC 23:9` slot clearing and authentic 7-step shore wrecking sequence (`AC 15:14 -> AC 23:9 -> AC 15:15 -> AC 15:11 -> AC 5:4`) preventing raft phantom icons.
-- **Pre-Event NPC Visibility & Dynamic Entity Lifecycle Spawning**: Comprehensive bidirectional multi-target PreEvent evaluation and per-player entity lifecycle tracking (`player.HiddenNpcClickIDs`). Authentic 14-byte `AC 22:4` entity table serialization utilizing State `0xFFFF`, EntityType Byte 8 (`2 = Hidden`), and Despawn Code `0x03E7FC18` (65,535,000 ms) invoking client `FUN_00432674` to set `*(actor + 0x1eec) = 2` and clear map collision grid via `FUN_0043d390`. Suppresses client actor rendering (`FUN_0043d58c`) and disables mouse cursor hit-testing (client lines 308016 & 308092). Dynamic runtime concealment (despawn) and reveal (spawn) transmits single-record `AC 22:4` frames (`[ClickID, 0xFFFF, X, Y, Type=2, Duration=0x03E7FC18, 0]` for despawn, `[ClickID, 0x00FF, X, Y, Type=1, Duration=0, 0]` for spawn). Evaluates `Eve.emg` 21-byte PreEvent condition bytecodes (Opcodes `0x01` unconditional, `0x02` companion recruitment, `0x03` quest step/item check, `0x05` quest marks/steps) and Action Opcode `0x02` (ActionType `2` conceal vs ActionType `3` reveal). Integrates declarative `SpawnNpcClickIDs` and `DespawnNpcClickIDs` into `QuestDefinition` and `QuestStep`, automatically synchronizes visibility in real time across `QuestManager` lifecycle operations (`AcceptQuest`, `AdvanceQuestStep`, `SetPlayerQuestState`, `CompleteQuest`, `ResetQuest`) and `EveEventInterpreter` opcodes (2, 3, 5, battle victory) without requiring map re-entry, and enforces server-side interaction guards in `AC20.Recv1` and `Map.ProcessInteraction`. Fully isolates staged quest NPCs and props on Map 12000 (Roca 32, grave Rocas 34 & 36, Father's Statue 33, Iron Sword 35, permanent dog 29, missing dog 28, and staged pigs 14, 15, 16).
-- **Companion Actor Despawning & Overworld Visibility Isolation**: Full dynamic despawning of recruited companion NPCs (Robinson, Roca, S. Monkey, Clive, Niss, etc.) using authentic `AC 22:4` concealment frames (`State = 0xFFFF`, `EntityType = 2`, `Duration = 0x03E7FC18`). Multi-tier resolution through `Player.IsSamePetOrCompanion`, `Npc.dat` canonical name resolution for generic Eve names (`" Npc"`), active pet verification, and quest flag safeguards completely eliminating overworld companion duplicates (e.g. Robinson on Starter Beach Map 11016).
-- **Cinematic Cutscene Timeline & Animation Pre-Dialogue Sequencing**: Authentic dispatch of cutscene animation opcodes (`AC 20:1 SubCode 1 Type 5 Cutscene ID 12008` for Rhode Island Beach arrival) with client ACK (`AC 20:6`) step synchronization, mobility restoration (`AC 20:8`, `AC 5:4`), and fail-safe timeouts ensuring cutscene animations play to completion before dialogue trees begin.
-- **Graceful Shutdown & Diagnostic Countdown**: Non-immediate shutdown saves all player, inventory, and server data, displays the exact canonical log file location on the console, and executes a 10-second countdown before process exit.
-- **Codebase Deduplication & Dead-Code Optimization**: System-wide cleanup purging 13 uncompiled legacy files, eliminating 1,850+ lines of dead commented code across combat, player, and action code subsystems, centralizing database table DDL checks to boot-time execution, extracting unified peer entity replication helpers in Map engine, and enforcing 0-error 0-warning compilation.
+Private Server + CheatEngine for Wonderland Online
 
----
+Running steps:
 
-## Technical Documentation (`docs/`)
+1. rhode island install : [drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY](https://drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY)
+2. Ensure `SERVER.INI` in the client directory is set to `127.0.0.1`
+3. Server DAT files in `./Data` are synchronized with the client data files (`Npc.dat`, `Item.dat`, `Skill.dat`, `Talk.dat`, `Eve.emg`, `Ground.MMG`, `SkillData.MBTM`, etc.).
+   - Note: The large 1.42 GB sprite archive `odd.dat` can be downloaded directly from [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
+4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
+5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
 
-The server technical documentation is organized into a cohesive 10-document master specification suite:
+Tips:
+In the private server exe, click "Cheat" tab:
 
-1. [**01 - System Architecture and Server Topology**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_system_architecture_and_server_topology.md): Multi-server socket topology, dynamic portability engine (`PathHelper`), threading model, project graph, and graceful shutdown.
-2. [**02 - Database Schema and Persistence Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_schema_and_persistence.md): Centralized SQLite relational tables (`users`, `characters`, `character_inventory`, `character_equipment`, `character_pets`, `character_quests`), startup schema verification, and atomic transaction lifecycles.
-3. [**03 - Network Protocol and Action Codes**](file:///D:/GitHub/Wonderland-Private-Server/docs/03_network_protocol_and_action_codes.md): Binary wire framing, `0x44F4` magic header, little-endian serialization (`Tools.FromFormat`), and exhaustive Action Code reference catalog.
-4. [**04 - Data File Pipeline and Asset Parsing**](file:///D:/GitHub/Wonderland-Private-Server/docs/04_data_file_pipeline_and_asset_parsing.md): In-memory client asset decoders (`Npc.dat` XOR `0x5209` cipher, `Item.dat` 45-byte structs, `Talk.dat` 292-byte dialogues, `SceneData.dat`), and `eve.Emg` bytecode engine.
-5. [**05 - Map Engine and Entity Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/05_map_engine_and_entity_lifecycle.md): Isometric coordinate systems, NPC roaming AI, 209-item ground harvesting loop, 14-byte `AC 22:4` scene table, concealment frame sequencing, and peer replication.
-6. [**06 - Dialogue, Quest State Machine, and Cutscene Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/06_dialogue_quest_and_cutscene_engine.md): Modal dialogue boxes, 24-bit talk IDs, choice callbacks, quest state monotonic progression, PreEvent condition evaluation, and cinematic timelines.
-7. [**07 - Gameplay Subsystems and Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/docs/07_gameplay_subsystems_and_mechanics.md): 50-slot inventory, companion recruitment and amity, vehicle systems with 7-step raft shore shipwreck sequence, tent housing, and turn-based combat math with elemental wheel.
-8. [**08 - GUI Administration Suite and GM Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_gui_administration_and_gm_engine.md): Windows Forms dashboard, 13 operational management tabs, deep character editor, and in-game GM chat command directory (`:heal`, `:level`, `:item`, `:warp`, etc.).
-9. [**09 - Developer Tooling and Reverse Engineering**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_developer_tooling_and_reverse_engineering.md): Asynchronous rotating diagnostic logs (`DebugSystem`), PCAP packet capture analysis, and Ghidra MCP reverse engineering bridge.
-10. [**10 - Deployment Operations and Codebase Integrity**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_deployment_operations_and_codebase_integrity.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), and codebase deduplication audit.
+- Double click the item in list:
 
----
+  > Maps : Teleports you to that ID
+  >
 
-## Quick Start Guide
+  > Vehicle : Ride the vehicle
+  >
 
-### 1. Prerequisites
-- Windows 10 / 11 (64-bit)
-- .NET Framework 4.8 or later
-- Visual Studio 2022 or .NET SDK (`dotnet build`)
-- Wonderland Online Client (e.g., [Rhode Island Client](https://drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY))
-  - Note: Large 1.42 GB client sprite archive `odd.dat` is available on [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
+  > Items : Adds the item to your inventory
+  >
 
-### 2. Build the Server
-```powershell
-dotnet build "Wonderland Private Server.sln" --configuration Debug
-```
+  > Npc : Battle/ride the NPC or Pet
+  >
+- Each lists have a search textbox on top of it:
 
-### 3. Launch Server & Client
-1. Ensure client `SERVER.INI` points to `127.0.0.1`.
-2. Run `bin/Debug/Wonderland Private Server.exe`.
-3. Wait until the dashboard displays operational status.
-4. Press `F5` in the server window (or run `aLogin.exe` in the client directory).
-5. Log in with default GM accounts:
-   - User: `admin` / Password: `password` (GM Level 10)
-   - User: `developer` / Password: `password` (GM Level 10)
+  > Type in your search query and then hit Enter
+  >
 
----
+  > To reload all, blank the search then hit Enter
+  >
+- Press `F5` key anywhere in the GUI window to automatically launch `aLogin.exe`.
+- Click the in-game PK button (sword icon) and click any monster/NPC to engage in turn-based combat. Supports attack, skills, defending, fleeing, XP/Gold rewards, and automatic battle exit.
+- Real-time NPC movement and roaming (`AC 22 Sub 2`) ported from Python server with scripted waypoints and random wandering.
+- Character skill unlocking system (`AC 5 Sub 11`, `AC 8 Sub 1`) with character-specific stunt skills, element skills, and `:skill <id> [grade]` chat command.
+- Interactive Quest & Journal System (`AC 39`, `AC 52`, `charquest` DB table) supporting multi-stage NPC dialogues, item delivery verification, automatic reward distribution (Gold, EXP, Items, Companions), and quest battle encounters.
+- In-Game GM Chat Commands:
 
-## In-Game GM Chat Commands
-
-Type commands into standard in-game chat to execute administrative operations:
-
-| Command | Usage | Description |
-| :--- | :--- | :--- |
-| `:heal` / `:full` | `:heal [hp] [sp]` | Restores character HP and SP to maximum (or specified values). |
-| `:level` / `:lvl` | `:level <1-200>` | Sets character level and recalculates derived base stats. |
-| `:points` / `:sp` | `:points <amount>` | Grants unallocated attribute stat points. |
-| `:gold` / `:money` | `:gold <amount>` | Updates character wallet gold balance. |
-| `:exp` | `:exp <amount>` | Sets total character experience points. |
-| `:stats` / `:stat` | `:stat <str> <con> <int> <wis> <agi>` | Distributes character base attribute points. |
-| `:item` | `:item [add] <id> [count]` | Injects item(s) directly into character inventory. |
-| `:skill` | `:skill <id> [grade]` | Unlocks or levels up a specific skill ID. |
-| `:warp` / `:goto` | `:warp <map_id> <x> <y>` | Teleports player and followers to map coordinates. |
-| `:buy` | `:buy <query/id> [quantity]` | Buys or spawns item from Item Mall or Item.dat. |
-| `:pet` | `:pet <pet_id>` | Spawns and recruits specified companion into party. |
-| `:unride` | `:unride` | Dismounts active vehicle or riding pet. |
-| `:help` | `:help` | Displays command list and syntax help. |
+  > `:heal [hp] [sp]` : Fully restores character HP and SP (or specified values).
+  > `:level <1-200>` : Sets character level and recalculates stats.
+  > `:gold <amount>` : Sets character gold.
+  > `:stat <str> <con> <int> <wis> <agi>` : Sets base character stats.
+  > `:item <id> [amount]` : Adds item(s) to inventory.
+  > `:skill <id> [grade]` : Unlocks or upgrades a skill.
+  > `:warp <map_id> <x> <y>` : Teleports player to map coordinates.
+  > `:help` : Shows command help in chat.
+  >
+- `Src/`: Server architecture, networking handlers, action codes (AC00-AC92), database access, and GUI management.
+- `dev_scripts/`: Development and reverse-engineering diagnostic scripts and tools.
+- `docs/`: Technical specifications, reverse engineering documentation, and protocol guides.
+- Technical documentation and reverse engineering analysis of the client launcher available in [docs/alogin_decompiled_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/alogin_decompiled_analysis.md).
+- Detailed technical overview of the NPC and Quest systems available in [docs/npc_and_quest_systems_overview.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_and_quest_systems_overview.md).
+- Reverse engineering analysis of decompiled NPC and quest routines in [docs/decompiled_npc_and_quest_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_npc_and_quest_analysis.md).
+- Reverse engineering analysis of decompiled skill systems in [docs/decompiled_skill_system_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_skill_system_analysis.md).
+- Comprehensive game mechanics and mathematical formulas reference in [docs/game_systems_and_formulas_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/game_systems_and_formulas_reference.md).
+- Extended reverse engineering analysis of gameplay subsystems in [docs/decompiled_extended_systems_analysis.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_extended_systems_analysis.md).
+- Master binary packet Action Code protocol specification in [docs/master_action_codes_protocol_reference.md](file:///d:/GitHub/Wonderland-Private-Server/docs/master_action_codes_protocol_reference.md).
+- Reverse engineering memory map, asset formats, and engine internals in [docs/decompiled_engine_internals_and_memory_map.md](file:///d:/GitHub/Wonderland-Private-Server/docs/decompiled_engine_internals_and_memory_map.md).
+- Technical diagnosis and solution for NPC/chest blinking and state toggling in [docs/npc_blinking_and_chest_state_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_blinking_and_chest_state_fix.md).
+- Authentic map chest, prop gathering drop tables and timed respawn system in [docs/map_chest_and_gathering_drop_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/map_chest_and_gathering_drop_system.md).
+- Chest & Gathering Drop GUI Editor documentation in [docs/chest_drop_editor_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/chest_drop_editor_gui.md).
+- Player inventory and equipment persistence on save/shutdown in [docs/player_inventory_persistence_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/player_inventory_persistence_fix.md).
+- Safe server shutdown and instant data save GUI controls in [docs/safe_shutdown_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/safe_shutdown_system.md).
+- Authentic Item Mall & Catalog System (Port 6416 & AC 23/35/54) in [docs/item_mall_system_status.md](file:///d:/GitHub/Wonderland-Private-Server/docs/item_mall_system_status.md).
+- Responsive GUI Layout & Dynamic Scaling in [docs/gui_responsive_layout.md](file:///d:/GitHub/Wonderland-Private-Server/docs/gui_responsive_layout.md).
+- Portal Teleport Cooldown System in [docs/portal_cooldown_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/portal_cooldown_system.md).
+- NPC Scripted Path Movement & Farm Leashing in [docs/npc_movement_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_movement_system.md).
+- DAT Files and Authentic Talk/Mark/Eve System in [docs/dat_file_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/dat_file_system.md).
+- Authentic Minigame System & Voucher Reward Protocol (AC 57 / AC 23:6) in [docs/minigame_system_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/minigame_system_protocol.md).
+- Gathering Nodes & Timed Respawn System (Coconuts, Wood, Ore) in [docs/gathering_nodes_and_respawn_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/gathering_nodes_and_respawn_system.md).
+- Authentic Redeem Voucher NPC Exchange Protocol in [docs/redeem_voucher_exchange_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/redeem_voucher_exchange_protocol.md).
+- Breillat 10-Talks Character Swap & Model Transformation in [docs/breillat_character_swap_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/breillat_character_swap_protocol.md).
+- Ship Captain Storm Cutscene & Shipwreck Protocol (AC 186 / AC 20 / AC 12) in [docs/captain_storm_cutscene_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/captain_storm_cutscene_protocol.md).
+- Companion Recruitment and Map NPC Despawn Synchronization (AC 22:10 / AC 15:1) in [docs/companion_recruitment_and_npc_despawn.md](file:///d:/GitHub/Wonderland-Private-Server/docs/companion_recruitment_and_npc_despawn.md).
+- Character Deletion and Relational Data Cleanup Protocol in [docs/character_deletion_and_cleanup_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/character_deletion_and_cleanup_protocol.md).
+- Character Relational Data & Map NPC Visibility GUI Editor in [docs/character_data_editor_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/character_data_editor_gui.md).
+- Robust Safe Server Shutdown & Thread Synchronization in [docs/safe_server_shutdown_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/safe_server_shutdown_system.md).
+- Robinson Beach Rescue Cutscene Protocol & StepQueue Architecture in [docs/robinson_beach_cutscene_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/robinson_beach_cutscene_protocol.md).
+- Raft Shore Landing & Vehicle Wrecking Protocol in [docs/raft_shore_landing_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/raft_shore_landing_protocol.md).
+- Holy Village & NPC System Actions Protocol (Choice Resolution & System Action Opcodes) in [docs/holy_village_npc_system_actions.md](file:///d:/GitHub/Wonderland-Private-Server/docs/holy_village_npc_system_actions.md).
+- Native Eve.emg Portal Resolution Protocol (Hierarchical Multi-Priority Warp Engine) in [docs/native_eve_portal_resolution_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/native_eve_portal_resolution_protocol.md).
+- Character Props Keeper Storage & Database Persistence (AC 30 / AC 29 / storID 2) in [docs/props_keeper_storage_persistence.md](file:///d:/GitHub/Wonderland-Private-Server/docs/props_keeper_storage_persistence.md).
+- Pet Hotel Storage System & Companion Database Persistence (AC 31 / isHotel 1) in [docs/pet_hotel_storage_persistence.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pet_hotel_storage_persistence.md).
+- Overworld Monsters, Aggro, and Dynamic Encounter Combat Protocol in [docs/overworld_monsters_and_encounter_combat.md](file:///d:/GitHub/Wonderland-Private-Server/docs/overworld_monsters_and_encounter_combat.md).
+- Character & Companion Stat Point Allocation Protocol (AC 8 / Stat 38) in [docs/stat_point_allocation_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/stat_point_allocation_protocol.md).
+- Companion & Pet Combat System (AC 11:5, AC 50:1, AC 51:1) in [docs/companion_battle_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/companion_battle_system.md).
+- Multi-Member Team & PvP Battle System in [docs/multi_member_team_and_pvp_battle_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/multi_member_team_and_pvp_battle_system.md).
+- Party Member Portal Following Protocol in [docs/party_portal_teleport_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/party_portal_teleport_protocol.md).
+- Party HP/SP Synchronization and AC 13 Protocol in [docs/party_stat_sync_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/party_stat_sync_protocol.md).
+- Friend List Online Status, Party Formation & Companion Following Synchronization Fix in [docs/friend_list_status_and_party_following_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/friend_list_status_and_party_following_fix.md).
+- PvE Battle Monster Spawning Fix in [docs/pve_battle_monster_spawning_fix.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pve_battle_monster_spawning_fix.md).
+- Player Disconnect, Logout & World Despawn Protocol in [docs/player_logout_and_despawn_handling.md](file:///d:/GitHub/Wonderland-Private-Server/docs/player_logout_and_despawn_handling.md).
+- Player Map Spawn & Visual Appearance Protocol (AC 3 vs AC 4) in [docs/player_spawn_and_visual_sync.md](file:///d:/GitHub/Wonderland-Private-Server/docs/player_spawn_and_visual_sync.md).
+- Linux Compatibility, Porting Roadmap & Docker Guide in [docs/linux_compatibility_and_porting_guide.md](file:///d:/GitHub/Wonderland-Private-Server/docs/linux_compatibility_and_porting_guide.md).
+- Event & Quest DB Studio (Map Bytecode Flow, Talk.dat Visualizer & Master Quests) in [docs/event_and_quest_db_manager_studio.md](file:///d:/GitHub/Wonderland-Private-Server/docs/event_and_quest_db_manager_studio.md).
+- Companion & Pet Network Synchronization Protocol (AC 15:4, AC 15:1, AC 19:4, AC 15:16/17, AC 13:5, AC 5:8) in [docs/companion_following_synchronization_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/companion_following_synchronization_protocol.md).
+- Eve.emg Binary String Encoding & Big5 Localization Architecture in [docs/eve_binary_encoding_and_localization.md](file:///d:/GitHub/Wonderland-Private-Server/docs/eve_binary_encoding_and_localization.md).
+- Universal Quest & Event Runtime Engine (7-Pillar Architecture) in [docs/quest_and_event_runtime_engine.md](file:///d:/GitHub/Wonderland-Private-Server/docs/quest_and_event_runtime_engine.md).
+- Talk.dat Dialogue Flow Resolution & Eve Opcode Decoding in [docs/talk_dat_dialogue_flow_resolution.md](file:///d:/GitHub/Wonderland-Private-Server/docs/talk_dat_dialogue_flow_resolution.md).
+- Modular Talk ID Resolver Engine Architecture & Dynamic Token Parser in [docs/talk_id_resolver_architecture.md](file:///d:/GitHub/Wonderland-Private-Server/docs/talk_id_resolver_architecture.md).
+- Map NPCs & Event Sequence Studio Architecture in [docs/map_npc_and_event_sequence_studio.md](file:///d:/GitHub/Wonderland-Private-Server/docs/map_npc_and_event_sequence_studio.md).
+- Dynamic PreEvent Runtime Engine & Actor Scene Isolation in [docs/preevent_runtime_engine.md](file:///d:/GitHub/Wonderland-Private-Server/docs/preevent_runtime_engine.md).
+- 7 Independent Event Flow Systems Architecture in [docs/all_7_event_flow_systems.md](file:///d:/GitHub/Wonderland-Private-Server/docs/all_7_event_flow_systems.md).
+- Advanced Features Implementation Roadmap in [docs/remaining_features_roadmap.md](file:///d:/GitHub/Wonderland-Private-Server/docs/remaining_features_roadmap.md).
+- Native Quiz & Multi-Question Choice Event Flow Engine in [docs/native_quiz_and_multiquestion_event_flow.md](file:///d:/GitHub/Wonderland-Private-Server/docs/native_quiz_and_multiquestion_event_flow.md).
+- Immediate Player Persistence System across critical packet triggers in [docs/immediate_player_persistence_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/immediate_player_persistence_system.md).
+- PvE Battle Pet & Turn-Based Flee System in [docs/pve_battle_pet_and_flee_turn_system.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pve_battle_pet_and_flee_turn_system.md).
+- Pure Binary Npc.dat Decoding Engine in [docs/pure_binary_npc_dat_resolver.md](file:///d:/GitHub/Wonderland-Private-Server/docs/pure_binary_npc_dat_resolver.md).
+- NPC Name Resolver & Template Directory GUI Studio in [docs/npc_name_resolver_gui.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_name_resolver_gui.md).
+- NPC & Event Mapping Integrity and Teleportation Isolation in [docs/npc_event_mapping_and_teleport_isolation.md](file:///d:/GitHub/Wonderland-Private-Server/docs/npc_event_mapping_and_teleport_isolation.md).
+- Robinson Beach Rescue Cutscene & Camera Protocol in [docs/robinson_beach_cutscene_protocol.md](file:///d:/GitHub/Wonderland-Private-Server/docs/robinson_beach_cutscene_protocol.md).
