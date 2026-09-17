@@ -64,17 +64,42 @@ Condition buffers consist of up to three 7-byte chunks (total 21 bytes):
 #### Supported Condition Opcodes
 * **`0x01` (Unconditional):** Always evaluates to `true`.
 * **`0x02` (Companion / Pet Recruitment Check):** Evaluates if target `petId` is present in active party, pet roster, or has recruited flag set.
-* **`0x03` (Inventory Item Possession):** Verifies if the character holds `>= count` of `itemId`.
+* **`0x03` (Quest Step / Item Check):**
+  * At Chunk 7 (offset 7) with active quest flag: Matches required quest `step` via operator `compType`.
+  * At Chunk 0 (offset 0) with `itemId >= 10000`: Verifies character holds required count of items in inventory.
 * **`0x05` (Quest Flag / Step Check):** 
-  * Chunk 0: Matches `flagId` against `reqState` using `compType`.
-  * Chunk 7: Matches quest `step` requirement for active quests.
+  * Chunk 0 (offset 0): Matches `flagId` against `reqState` using `compType` (`1: InProgress`, `2: NotStarted`, `3: Completed`).
+  * Chunk 7 (offset 7): Matches quest `step` requirement for active quests.
 
-### 4.2 Staged Quest Actor Isolation
+### 4.2 Action Chunk Binary Specification
+Action buffers in `subentry2` control entity visibility and animation frames:
+
+```
++---------------+---------------+-----------------------------------------------+
+| Offset (Byte) | Type          | Description                                   |
++---------------+---------------+-----------------------------------------------+
+| 0             | Byte          | Action Opcode (0x02: Actor/Prop Control)      |
+| 1..2          | UInt16        | Target ClickID                                |
+| 3..4          | UInt16        | Action Type (2: Hide/Despawn, 3: Show/Spawn,  |
+|               |               |              5: Prop State Animation)         |
+| 5..6          | UInt16        | Subtype / State parameter                     |
+| 7             | Byte          | Padding (0x00)                                |
+| 8..9          | Byte[2]       | Frame Marker (0xFF, 0xFF = Concealment Frame) |
++---------------+---------------+-----------------------------------------------+
+```
+
+* **ActionType `2` (Conceal / Despawn):** Dispatches authentic `AC 22:4` concealment frame (`[ClickID, 0xFFFF, X, Y, Type=2, Duration=0x03E7FC18, Stance=0]`), invoking client `FUN_00432674` to set `*(actor + 0x1eec) = 2`, clear grid collision via `FUN_0043d390`, and tracking the hidden entity in `player.HiddenNpcClickIDs`.
+* **ActionType `3` (Reveal / Spawn):** Dispatches authentic `AC 22:4` spawn frame (`[ClickID, 0x00FF, X, Y, Type=1, Duration=0, Stance=0]`), setting `*(actor + 0x1eec) = 1` (visible) and clearing it from `player.HiddenNpcClickIDs`.
+* **ActionType `5` (Prop State Animation):** Dispatches `AC 22:4` with custom state values (e.g., opened chest `0x0001` or broken gathering node).
+
+### 4.3 Staged Quest Actor Isolation & Multi-Step Spawning
 The visibility engine enforces per-player isolation for narrative consistency:
-* **Recruited Companions:** Recruited companions (e.g., Robinson on Map 11016, Roca in Kelan Village Map 12000) are automatically suppressed on overworld maps via `AC 22:10` and `AC 22:11`.
+* **Recruited Companions:** Recruited companions (e.g., Robinson on Map 11016, Roca in Kelan Village Map 12000) are automatically suppressed on overworld maps via `AC 22:4` concealment frames (`Duration = 0x03E7FC18`).
 * **Staged Cutscene Actors:** On Map 12000, mourning Roca at the grave (ClickID 34 & 36) is visible only during Quest 13052 ("Death of Roca's Father"), while standard Roca (ClickID 32) is hidden once recruited.
 * **Quest Props:** Father's Statue (ClickID 33) and Iron Sword (ClickID 35) remain hidden until Quest 13098 ("Remembering Father") begins.
 * **Lost Dog Quest:** Shiba Inu (ClickID 20) is only visible on the hills during Quest 13046 Step 1. Sitting dog (ClickID 28) returns to Lina's side only upon quest completion.
+* **Declarative QuestDefinition Spawning:** Registered quests define `SpawnNpcClickIDs` and `DespawnNpcClickIDs` at both quest-level and step-level ([`QuestDefinition`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestDefinition.cs)). Actors in `SpawnNpcClickIDs` are kept concealed until the prerequisite quest or step condition is satisfied.
+* **Runtime Dynamic Synchronization:** [`QuestManager.SyncPerPlayerNpcVisibility`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestManager.cs) hooks directly into `AcceptQuest`, `AdvanceQuestStep`, `SetPlayerQuestState`, `CompleteQuest`, `ResetQuest`, and `EveEventInterpreter` opcodes (2, 3, 5, battle victory) to trigger immediate, diff-checked visibility updates without requiring a map transition.
 
 ---
 

@@ -13,9 +13,10 @@ namespace Game.QuestRelated
     public static class PreEventInterpreter
     {
         /// <summary>
-        /// Evaluates all PreEvents for the target map against the player's current quest marks/flags.
+        /// Evaluates all PreEvents and quest stage conditions for the target map against the player's current marks/flags.
+        /// Symmetrically dispatches SendActorShow or SendActorHide based on ShouldNpcBeVisible.
         /// </summary>
-        public static void EvaluateMapPreEvents(Player player, ushort mapId)
+        public static void EvaluateMapPreEvents(Player player, ushort mapId, bool force = false)
         {
             if (player == null) return;
 
@@ -27,185 +28,144 @@ namespace Game.QuestRelated
                 var mapData = eveDat.GetMapData(mapId);
                 if (mapData == null) return;
 
-                HashSet<ushort> handledNpcs = new HashSet<ushort>();
+                HashSet<ushort> allClickIds = new HashSet<ushort>();
 
-                // Hide any companions on this map that have already been recruited by this player
-                if (mapData.Npclist != null && mapData.Npclist.Count > 0)
+                // 1. Gather all click IDs defined in mapData.Npclist
+                if (mapData.Npclist != null)
                 {
                     foreach (var npc in mapData.Npclist)
                     {
-                        if (player.HasRecruitedCompanion(npc.Name, (ushort)npc.npcId))
-                        {
-                            SendActorHide(player, (ushort)npc.clickId);
-                            handledNpcs.Add((ushort)npc.clickId);
-                        }
+                        allClickIds.Add((ushort)npc.clickId);
                     }
                 }
 
-                // Map 12000 (Kelan Village): Exact per-player quest lifecycle isolation matching official PCAP
-                if (mapId == 12000)
+                // 2. Gather all click IDs from player's current map entities if available
+                if (player.CurMap is GameMap gmap && gmap.NpcList != null)
                 {
-                    bool hasRoca = player.HasRecruitedCompanion("Roca", 14162) || player.HasRecruitedCompanion(14162);
-
-                    // 1. Father's Statue (33) & Iron Sword (35):
-                    // Staged quest props for Quest 13098 ("Remembering Father").
-                    // Hidden while Quest 13098 is NotStarted (state 2).
-                    if (GetPlayerQuestState(player, 13098) == 2)
+                    foreach (var mapNpc in gmap.NpcList)
                     {
-                        SendPropHide(player, 33);
-                        SendPropHide(player, 35);
+                        allClickIds.Add((ushort)mapNpc.CickID);
                     }
-                    handledNpcs.Add(33);
-                    handledNpcs.Add(35);
-
-                    // 2. Grave Rocas (ClickID 34 & ClickID 36):
-                    // In official WLO, Roca is strictly in the village center (ClickID 32).
-                    // The two grave Rocas (34 & 36) are staged cutscene actors for Quest 13052 ("Death of Roca's Father").
-                    // ClickID 34 (mourning Roca) is only visible while Quest 13052 is InProgress (state 1) and not recruited.
-                    // ClickID 36 (standing Roca) is hidden while Quest 13052 is NotStarted (2) or Completed (3) or recruited.
-                    ushort q13052State = GetPlayerQuestState(player, 13052);
-                    if (q13052State != 1 || hasRoca)
-                    {
-                        SendActorHide(player, 34);
-                    }
-                    handledNpcs.Add(34);
-
-                    if (q13052State == 2 || q13052State == 3 || hasRoca)
-                    {
-                        SendActorHide(player, 36);
-                    }
-                    handledNpcs.Add(36);
-
-                    if (hasRoca)
-                    {
-                        SendActorHide(player, 32);
-                    }
-                    handledNpcs.Add(32);
-
-                    // 3. Lina's Shiba Inus:
-                    // ClickID 29 is the permanent dog sitting with Lina (always visible).
-                    // ClickID 28 is the missing dog next to Lina (Event 35, PreEvents #5 & #6).
-                    ushort q13046State = GetPlayerQuestState(player, 13046);
-                    byte q13046Step = 0;
-                    if (player.Quests != null && player.Quests.TryGetValue(13046, out var pq13046)) q13046Step = (byte)pq13046.Step;
-                    bool q13047Done = GetPlayerQuestState(player, 13047) == 1;
-
-                    if (q13046State == 2 || (q13046State == 1 && q13046Step < 2 && !q13047Done))
-                    {
-                        SendActorHide(player, 28);
-                    }
-                    handledNpcs.Add(28);
-                    handledNpcs.Add(29); // Permanent dog: always visible, never hide
-
-                    // 4. Lost Shiba Inu in trees/hills (ClickID 20):
-                    // Only visible during Quest 13046 Step 1 (when player has to find it). Hidden when unstarted, dog found, or quest completed.
-                    if (q13046State == 2 || q13046State == 3 || (q13046State == 1 && q13046Step >= 2) || q13047Done)
-                    {
-                        SendActorHide(player, 20);
-                    }
-                    handledNpcs.Add(20);
-
-                    // 5. Baby Bees near Honeycomb (ClickID 18 & 19):
-                    // Only swarm when Honeycomb (ClickID 17) is disturbed.
-                    if (GetPlayerQuestState(player, 13023) == 2)
-                    {
-                        SendActorHide(player, 18);
-                        SendActorHide(player, 19);
-                    }
-                    handledNpcs.Add(18);
-                    handledNpcs.Add(19);
-
-                    // 6. Staged Quest Pigs (ClickID 14, 15, 16):
-                    // Match authentic official PCAP Frame 530 and Frame 614.
-                    ushort q12020State = GetPlayerQuestState(player, 12020);
-                    byte q12020Stp = 0;
-                    if (player.Quests != null && player.Quests.TryGetValue(12020, out var pq12020)) q12020Stp = (byte)pq12020.Step;
-                    bool q12021Done = GetPlayerQuestState(player, 12021) == 1;
-
-                    if (!((q12020State == 1 && q12020Stp >= 2) || q12020State == 3 || q12021Done))
-                    {
-                        SendActorHide(player, 14);
-                    }
-                    handledNpcs.Add(14);
-
-                    if (!(q12020State == 1 && q12020Stp == 1))
-                    {
-                        SendActorHide(player, 15);
-                    }
-                    handledNpcs.Add(15);
-
-                    if (GetPlayerQuestState(player, 13020) == 2 || GetPlayerQuestState(player, 13021) == 1)
-                    {
-                        SendActorHide(player, 16);
-                    }
-                    handledNpcs.Add(16);
-
-                    // 7. Permanent guideposts & honeycomb:
-                    handledNpcs.Add(17);
-                    handledNpcs.Add(10);
-                    handledNpcs.Add(31);
                 }
 
-                if (mapData.PreEvents == null || mapData.PreEvents.Count == 0)
+                // 3. Gather all target click IDs referenced in PreEvents
+                if (mapData.PreEvents != null)
                 {
-                    DebugSystem.Write($"[PreEvent] Map {mapId}: PreEvents=null or empty — generic bytecode loop skipped");
-                    return;
-                }
-
-                DebugSystem.Write($"[PreEvent] Map {mapId}: evaluating {mapData.PreEvents.Count} PreEvents for {player.CharName}");
-
-                foreach (var preEvent in mapData.PreEvents)
-                {
-                    if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
-
-                    foreach (var sub in preEvent.subentry1)
+                    foreach (var pe in mapData.PreEvents)
                     {
-                        if (sub.unknown == null || sub.unknown.Count < 7)
+                        if (pe.clickID > 0) allClickIds.Add(pe.clickID);
+                        if (pe.subentry1 != null)
                         {
-                            DebugSystem.Write($"[PreEvent] Map {mapId} ClickID={preEvent.clickID}: sub.unknown too short ({sub.unknown?.Count ?? 0} bytes), skipping");
-                            continue;
-                        }
-
-                        byte[] condData = sub.unknown.ToArray();
-                        bool condMet = EvaluateConditionBlock(player, condData);
-                        byte opcode = condData.Length > 0 ? condData[0] : (byte)0;
-                        DebugSystem.Write($"[PreEvent] Map {mapId} ClickID={preEvent.clickID}: opcode=0x{opcode:X2} condMet={condMet} sub2count={sub.subentry2?.Count ?? 0}");
-
-                        if (condMet)
-                        {
-                            // Condition matched! Execute action blocks in subentry2 for unhandled NPCs
-                            if (sub.subentry2 != null && sub.subentry2.Count > 0)
+                            foreach (var sub in pe.subentry1)
                             {
-                                foreach (var act in sub.subentry2)
+                                if (sub.subentry2 != null)
                                 {
-                                    if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
+                                    foreach (var act in sub.subentry2)
                                     {
-                                        ushort targetClickId = BitConverter.ToUInt16(act.unknown.ToArray(), 1);
-                                        byte s1 = act.unknown[8]; byte s2 = act.unknown[9];
-                                        DebugSystem.Write($"[PreEvent] Map {mapId} ClickID={preEvent.clickID}: action targetClickId={targetClickId} state=[{s1:X2},{s2:X2}] handled={handledNpcs.Contains(targetClickId)}");
-                                        if (!handledNpcs.Contains(targetClickId))
+                                        if (act.unknown != null && act.unknown.Count >= 3 && act.unknown[0] == 0x02)
                                         {
-                                            ExecuteActionBlock(player, mapId, act.unknown.ToArray());
-                                            handledNpcs.Add(targetClickId);
+                                            ushort tClick = BitConverter.ToUInt16(act.unknown.ToArray(), 1);
+                                            if (tClick > 0) allClickIds.Add(tClick);
                                         }
-                                    }
-                                    else if (act.unknown != null && act.unknown.Count >= 5)
-                                    {
-                                        byte aop = act.unknown[0];
-                                        DebugSystem.Write($"[PreEvent] Map {mapId} ClickID={preEvent.clickID}: non-0x02 action opcode=0x{aop:X2} len={act.unknown.Count}");
-                                        ExecuteActionBlock(player, mapId, act.unknown.ToArray());
                                     }
                                 }
                             }
-                            else if (preEvent.clickID > 0 && !handledNpcs.Contains(preEvent.clickID) && mapId != 12000)
+                        }
+                    }
+                }
+
+                // 4. Gather any currently hidden NPCs for this player
+                if (player.HiddenNpcClickIDs != null)
+                {
+                    foreach (var hid in player.HiddenNpcClickIDs)
+                    {
+                        allClickIds.Add(hid);
+                    }
+                }
+
+                // 5. Add Map 12000 staged actors
+                if (mapId == 12000)
+                {
+                    ushort[] map12000Actors = { 10, 14, 15, 16, 17, 18, 19, 20, 28, 29, 31, 32, 33, 34, 35, 36 };
+                    foreach (var c in map12000Actors) allClickIds.Add(c);
+                }
+
+                // 6. Add any registered quest spawn/despawn click IDs for this map
+                if (QuestManager.AllQuests != null)
+                {
+                    foreach (var q in QuestManager.AllQuests.Values)
+                    {
+                        if (q.MapID == mapId)
+                        {
+                            if (q.DespawnNpcClickIDs != null)
+                                foreach (var c in q.DespawnNpcClickIDs) allClickIds.Add(c);
+                            if (q.SpawnNpcClickIDs != null)
+                                foreach (var c in q.SpawnNpcClickIDs) allClickIds.Add(c);
+                            if (q.Steps != null)
                             {
-                                // Sub matched but has no action data (sub2_count=0).
-                                // The parent PreEvent's clickID is the implicit target — emit actor hide (only on maps where clickID maps to entity).
-                                SendActorHide(player, preEvent.clickID);
-                                handledNpcs.Add(preEvent.clickID);
+                                foreach (var st in q.Steps)
+                                {
+                                    if (st.DespawnNpcClickIDs != null)
+                                        foreach (var c in st.DespawnNpcClickIDs) allClickIds.Add(c);
+                                    if (st.SpawnNpcClickIDs != null)
+                                        foreach (var c in st.SpawnNpcClickIDs) allClickIds.Add(c);
+                                }
                             }
                         }
+                    }
+                }
 
+                // Symmetrically evaluate and synchronize visibility for every entity
+                foreach (var clickId in allClickIds)
+                {
+                    bool shouldBeVisible = ShouldNpcBeVisible(player, mapId, clickId);
+                    bool isHidden = player.HiddenNpcClickIDs.Contains(clickId);
+
+                    if (!shouldBeVisible)
+                    {
+                        if (force || !isHidden)
+                        {
+                            SendActorHide(player, clickId);
+                        }
+                    }
+                    else
+                    {
+                        if (force || isHidden)
+                        {
+                            SendActorShow(player, clickId);
+                        }
+                    }
+                }
+
+                // Execute custom prop states (actionType 5 or non-FF animation frames)
+                if (mapData.PreEvents != null)
+                {
+                    foreach (var preEvent in mapData.PreEvents)
+                    {
+                        if (preEvent.subentry1 == null) continue;
+                        foreach (var sub in preEvent.subentry1)
+                        {
+                            if (sub.unknown == null || sub.unknown.Count < 7) continue;
+                            if (EvaluateConditionBlock(player, sub.unknown.ToArray()))
+                            {
+                                if (sub.subentry2 != null)
+                                {
+                                    foreach (var act in sub.subentry2)
+                                    {
+                                        if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
+                                        {
+                                            ushort actType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
+                                            byte s1 = act.unknown[8];
+                                            byte s2 = act.unknown[9];
+                                            if (actType == 5 || (s1 != 0xFF && s2 != 0xFF && actType != 2 && actType != 3))
+                                            {
+                                                ExecuteActionBlock(player, mapId, act.unknown.ToArray());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -368,6 +328,50 @@ namespace Game.QuestRelated
                     }
                 }
 
+                // Check registered QuestDefinition / QuestStep spawn and despawn lists
+                if (QuestManager.AllQuests != null)
+                {
+                    foreach (var qDef in QuestManager.AllQuests.Values)
+                    {
+                        if (qDef.MapID != mapId) continue;
+
+                        if (qDef.DespawnNpcClickIDs != null && qDef.DespawnNpcClickIDs.Contains(clickId))
+                        {
+                            if (player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.Completed)
+                            {
+                                return false;
+                            }
+                        }
+
+                        if (qDef.SpawnNpcClickIDs != null && qDef.SpawnNpcClickIDs.Contains(clickId))
+                        {
+                            bool questCompleted = player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.Completed;
+                            if (!questCompleted) return false;
+                            return true;
+                        }
+
+                        if (qDef.Steps != null)
+                        {
+                            foreach (var step in qDef.Steps)
+                            {
+                                if (step.DespawnNpcClickIDs != null && step.DespawnNpcClickIDs.Contains(clickId))
+                                {
+                                    if (player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.InProgress && pq.Step == step.StepIndex)
+                                    {
+                                        return false;
+                                    }
+                                }
+                                if (step.SpawnNpcClickIDs != null && step.SpawnNpcClickIDs.Contains(clickId))
+                                {
+                                    bool stepActive = player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.InProgress && pq.Step == step.StepIndex;
+                                    if (!stepActive) return false;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (eveDat == null || mapData?.PreEvents == null || mapData.PreEvents.Count == 0) return true;
 
                 foreach (var preEvent in mapData.PreEvents)
@@ -392,10 +396,19 @@ namespace Game.QuestRelated
                                         if (targetClickId == clickId)
                                         {
                                             targetsThisNpc = true;
+                                            ushort actionType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
                                             byte s1 = act.unknown[8];
                                             byte s2 = act.unknown[9];
 
-                                            if (s1 == 0xFF && s2 == 0xFF)
+                                            if (actionType == 2)
+                                            {
+                                                return false; // ActionType 2 is strictly Conceal / Hide
+                                            }
+                                            else if (actionType == 3)
+                                            {
+                                                return true; // ActionType 3 is strictly Reveal / Show
+                                            }
+                                            else if (s1 == 0xFF && s2 == 0xFF)
                                             {
                                                 return false; // Action specifies complete concealment / despawn frame (FF FF)
                                             }
@@ -523,42 +536,154 @@ namespace Game.QuestRelated
                         if (!hasPet) return false;
                     }
                 }
+                // Opcode 0x03: Quest Step Condition (at offset 7) OR Inventory Item Check
+                else if (op == 0x03)
+                {
+                    if (offset == 7 && activeFlagId > 0)
+                    {
+                        ushort reqStep = BitConverter.ToUInt16(data, offset + 1);
+                        ushort stepComp = BitConverter.ToUInt16(data, offset + 5);
+
+                        if (reqStep > 0)
+                        {
+                            byte playerStep = 0;
+                            if (player?.Quests != null && player.Quests.TryGetValue(activeFlagId, out var pq) && pq.State == QuestState.InProgress)
+                            {
+                                playerStep = (byte)Math.Max(1, (int)pq.Step);
+                            }
+
+                            bool stepMatch = false;
+                            switch (stepComp)
+                            {
+                                case 1: stepMatch = (playerStep == reqStep); break;
+                                case 2: stepMatch = (playerStep >= reqStep); break;
+                                case 3: stepMatch = (playerStep <= reqStep); break;
+                                case 4: stepMatch = (playerStep != reqStep); break;
+                                default: stepMatch = (playerStep == reqStep); break;
+                            }
+
+                            if (!stepMatch) return false;
+                        }
+                    }
+                    else
+                    {
+                        ushort itemId = BitConverter.ToUInt16(data, offset + 1);
+                        ushort count = BitConverter.ToUInt16(data, offset + 3);
+                        ushort comp = BitConverter.ToUInt16(data, offset + 5);
+
+                        if (itemId >= 10000)
+                        {
+                            int hasCount = player?.Inv?.GetItemCount(itemId) ?? 0;
+                            bool itemMatch = false;
+                            switch (comp)
+                            {
+                                case 1: itemMatch = (hasCount == count); break;
+                                case 2: itemMatch = (hasCount >= count); break;
+                                case 3: itemMatch = (hasCount <= count); break;
+                                case 4: itemMatch = (hasCount != count); break;
+                                default: itemMatch = (hasCount >= (count > 0 ? count : 1)); break;
+                            }
+                            if (!itemMatch) return false;
+                        }
+                    }
+                }
             }
 
             return true;
         }
 
+        private static void GetNpcCoordinates(Player player, ushort clickId, out ushort x, out ushort y)
+        {
+            x = 0;
+            y = 0;
+            if (player?.CurMap is GameMap gmap && gmap.NpcList != null)
+            {
+                var target = gmap.NpcList.FirstOrDefault(n => n.CickID == clickId);
+                if (target != null)
+                {
+                    x = target.X;
+                    y = target.Y;
+                    return;
+                }
+            }
+
+            var mapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)(player?.MapID ?? 0));
+            var def = mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+            if (def != null)
+            {
+                x = (ushort)def.x;
+                y = (ushort)def.y;
+            }
+        }
+
         /// <summary>
-        /// Sends authentic actor hide packets (AC 22:10 actor despawn frame and AC 22:11 scene isolation frame).
-        /// Note: AC 22:4 must strictly NEVER be sent dynamically at runtime, as the client replaces entity slot 0 with length/14 records.
+        /// Sends authentic actor hide packets (AC 22:4 concealment frame with 0x03E7FC18 despawn code).
+        /// Sets actor visibility field *(actor + 0x1eec) = 2 and clears map collision grid via FUN_0043d390.
         /// </summary>
         public static void SendActorHide(Player player, ushort clickId)
         {
             if (player == null) return;
-            player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0xFF, (byte)0xFF));
-            player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0xFF, (byte)0xFF));
+            player.HiddenNpcClickIDs.Add(clickId);
+
+            GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
+
+            // Record: [ClickID:w, State:w (0xFFFF), X:w, Y:w, EntityType:b (2), Duration:d (0x03E7FC18), StateFlag:b (0)] (14 bytes)
+            SendPacket p = new SendPacket();
+            p.Pack8(22);
+            p.Pack8(4);
+            p.Pack16(clickId);
+            p.Pack16(0xFFFF);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(2); // 2 = Hidden
+            p.Pack32(0x03E7FC18); // Despawn & clear collision
+            p.Pack8(0);
+            player.Send(p);
+
+            DebugSystem.Write($"[ActorVisibility] Sent SendActorHide (AC 22:4 despawn) for ClickID {clickId} at {x},{y} to {player.CharName}");
         }
 
         /// <summary>
-        /// Sends authentic actor show packets (AC 22:10 actor spawn/reveal frame and AC 22:11 scene isolation frame).
-        /// Note: AC 22:4 must strictly NEVER be sent dynamically at runtime, as the client replaces entity slot 0 with length/14 records.
+        /// Sends authentic actor show packets (AC 22:4 reveal frame).
+        /// Sets actor visibility field *(actor + 0x1eec) = 1 (visible) and updates world coordinates.
         /// </summary>
         public static void SendActorShow(Player player, ushort clickId)
         {
             if (player == null) return;
-            player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0x00, (byte)0xFF));
-            player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0x00, (byte)0xFF));
+            player.HiddenNpcClickIDs.Remove(clickId);
+
+            GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
+
+            // Record: [ClickID:w, State:w (0x00FF), X:w, Y:w, EntityType:b (1), Duration:d (0), StateFlag:b (0)] (14 bytes)
+            SendPacket p = new SendPacket();
+            p.Pack8(22);
+            p.Pack8(4);
+            p.Pack16(clickId);
+            p.Pack16(0x00FF);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(1); // 1 = Visible
+            p.Pack32(0);
+            p.Pack8(0);
+            player.Send(p);
+
+            DebugSystem.Write($"[ActorVisibility] Sent SendActorShow (AC 22:4 spawn) for ClickID {clickId} at {x},{y} to {player.CharName}");
         }
 
         /// <summary>
-        /// Sends authentic prop hide packet (AC 22:10 and AC 22:11 scene isolation frames).
-        /// Note: AC 22:4 must strictly NEVER be sent dynamically at runtime, as the client replaces entity slot 0 with length/14 records.
+        /// Sends authentic prop hide packet (AC 22:4 concealment frame with 0x03E7FC18 despawn code).
         /// </summary>
         public static void SendPropHide(Player player, ushort clickId)
         {
-            if (player == null) return;
-            player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0xFF, (byte)0xFF));
-            player.Send(Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0xFF, (byte)0xFF));
+            SendActorHide(player, clickId);
+        }
+
+        /// <summary>
+        /// Sends authentic prop show packet (AC 22:4 reveal frame).
+        /// </summary>
+        public static void SendPropShow(Player player, ushort clickId)
+        {
+            SendActorShow(player, clickId);
         }
 
         /// <summary>
@@ -584,15 +709,35 @@ namespace Game.QuestRelated
                     return;
                 }
 
-                if (state1 == 0xFF && state2 == 0xFF)
+                if (actionType == 2)
+                {
+                    SendActorHide(player, clickId);
+                }
+                else if (actionType == 3)
+                {
+                    SendActorShow(player, clickId);
+                }
+                else if (state1 == 0xFF && state2 == 0xFF)
                 {
                     // Action specifies complete concealment / despawn frame (FF FF)
                     SendActorHide(player, clickId);
                 }
                 else
                 {
-                    // Standard actor state / animation frame update (AC 22:10)
-                    player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, state1, state2));
+                    // Standard actor state / animation frame update (AC 22:4)
+                    GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
+                    SendPacket p = new SendPacket();
+                    p.Pack8(22);
+                    p.Pack8(4);
+                    p.Pack16(clickId);
+                    p.Pack8(state1);
+                    p.Pack8(state2);
+                    p.Pack16(x);
+                    p.Pack16(y);
+                    p.Pack8(1);
+                    p.Pack32(0);
+                    p.Pack8(0);
+                    player.Send(p);
                 }
             }
         }

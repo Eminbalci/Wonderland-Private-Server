@@ -112,6 +112,16 @@ namespace Wonderland_Private_Server.ActionCodes
 
             DebugSystem.Write($"[AC20.Recv1] Player {p.CharName} clicked NPC #{clickID} '{npcName}' (TID: {templateId}) on Map #{p.CurMap.MapID} ({mapName})");
 
+            // Guard: block interaction immediately if NPC is hidden / invisible
+            if (p.HiddenNpcClickIDs.Contains(clickID) || !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(p, (ushort)p.CurMap.MapID, clickID))
+            {
+                DebugSystem.Write($"[AC20.Recv1] Blocked interaction: NPC #{clickID} '{npcName}' is hidden/invisible for player {p.CharName}");
+                Game.QuestRelated.PreEventInterpreter.SendActorHide(p, clickID);
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                p.Send(Tools.FromFormat("bb", 5, 4));
+                return;
+            }
+
             // If player is already in an active multi-step dialogue with queued steps, advance dialogue
             if ((p.QueueData != null && p.QueueData.Count > 0) || (p.StepQueue != null && p.StepQueue.Count > 0))
             {

@@ -1414,12 +1414,14 @@ namespace Game.Maps
                         if (op.dialog2 == 2 || op.dialog2 == 3)
                         {
                             ushort targetClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
-                            byte st1 = (op.dialog2 == 3) ? (byte)0x00 : (byte)0xFF;
-                            byte st2 = (byte)0xFF;
-
-                            SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, targetClickId, st1, st2);
-                            player.Send(anim);
-                            player.Send(Tools.FromFormat("bbwbb", 22, 11, targetClickId, st1, st2));
+                            if (op.dialog2 == 3)
+                            {
+                                PreEventInterpreter.SendActorShow(player, targetClickId);
+                            }
+                            else
+                            {
+                                PreEventInterpreter.SendActorHide(player, targetClickId);
+                            }
 
                             var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == targetClickId) as QuestNpc;
                             if (qn != null && qn.IsStaticNpc())
@@ -1429,10 +1431,13 @@ namespace Game.Maps
                                 {
                                     qn.RespawnTime = DateTime.Now.AddSeconds(60);
                                 }
+                                byte st1 = (op.dialog2 == 3) ? (byte)0x00 : (byte)0xFF;
+                                byte st2 = (byte)0xFF;
+                                SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, targetClickId, st1, st2);
                                 map?.Broadcast(anim);
                             }
 
-                            DebugSystem.Write($"[EveEventInterpreter] Dynamic Actor State (AC 22:10/11) for ClickID {targetClickId} -> ({st1:X2}, {st2:X2}) for {player.CharName}");
+                            DebugSystem.Write($"[EveEventInterpreter] Dynamic Actor State (AC 22:10/11) for ClickID {targetClickId} -> (dialog2={op.dialog2}) for {player.CharName}");
                             return true;
                         }
 
@@ -1503,6 +1508,10 @@ namespace Game.Maps
                             string petName = companionId == 12178 ? "Robinson" : (Game.Battle.PvEBattleManager.ResolveMonsterName(companionId) ?? $"Companion #{companionId}");
                             QuestManager.SendCompanionReward(player, companionId, petName);
                             player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{petName} has joined your party!"));
+                            if (map != null)
+                            {
+                                QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
+                            }
                             DebugSystem.Write($"[EveEventInterpreter] Recruited Companion Pet {petName} (#{companionId}) for {player.CharName}");
                             return true;
                         }
@@ -1549,7 +1558,7 @@ namespace Game.Maps
 
                             if (map != null)
                             {
-                                PreEventInterpreter.EvaluateMapPreEvents(player, (ushort)map.MapID);
+                                QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
                             }
 
                             DebugSystem.Write($"[EveEventInterpreter] Opcode 5: Updated Quest/Flag #{questId} -> Step {step} ({state}) for {player.CharName}");
@@ -1629,6 +1638,10 @@ namespace Game.Maps
                                         QuestManager.SetPlayerQuestState(player, sub.unknownword1, QuestState.Completed);
                                     }
                                     QuestManager.ReplayActorVisibility(player, map);
+                                    if (map != null)
+                                    {
+                                        QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
+                                    }
                                 },
                                 OnDefeat = () =>
                                 {

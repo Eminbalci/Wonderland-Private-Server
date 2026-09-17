@@ -107,6 +107,7 @@ namespace Game
         public ushort LastSpawnY { get; set; } = 0;
         public ushort LastOriginMapID { get; set; } = 0;
         public int BreillatTalkCount { get; set; } = 0;
+        public HashSet<ushort> HiddenNpcClickIDs { get; } = new HashSet<ushort>();
 
         // FIX: Added properties for ActionCodes compatibility
         public Game.Battle.BattleScene BattleScene { get { return m_battle; } }

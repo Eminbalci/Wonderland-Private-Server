@@ -61,6 +61,16 @@ namespace Game.QuestRelated
         public uint BattleMonsterID { get; set; }
         public string BattleMonsterName { get; set; }
 
+        /// <summary>
+        /// NPC ClickIDs that should spawn/show during this specific quest step.
+        /// </summary>
+        public List<ushort> SpawnNpcClickIDs { get; set; } = new List<ushort>();
+
+        /// <summary>
+        /// NPC ClickIDs that should despawn/hide during this specific quest step.
+        /// </summary>
+        public List<ushort> DespawnNpcClickIDs { get; set; } = new List<ushort>();
+
         public QuestStep(int stepIndex, string npcPattern, QuestType stepType = QuestType.Dialogue)
         {
             StepIndex = stepIndex;
@@ -111,6 +121,16 @@ namespace Game.QuestRelated
         /// NPC TemplateIDs that will disappear (AC 19:2) upon quest completion.
         /// </summary>
         public List<uint> DespawnNpcTemplateIDs { get; set; } = new List<uint>();
+
+        /// <summary>
+        /// NPC ClickIDs on the source map that will appear/spawn for this player upon quest completion.
+        /// </summary>
+        public List<ushort> SpawnNpcClickIDs { get; set; } = new List<ushort>();
+
+        /// <summary>
+        /// NPC TemplateIDs that will appear/spawn upon quest completion.
+        /// </summary>
+        public List<uint> SpawnNpcTemplateIDs { get; set; } = new List<uint>();
 
         /// <summary>
         /// Target MapID where the NPC will relocate/spawn after quest completion.

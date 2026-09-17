@@ -27,19 +27,22 @@ When a player enters a map, the server serializes all resident entities into an 
 | Offset (Byte) | Type          | Description                           |
 +---------------+---------------+---------------------------------------+
 | 0..1          | UInt16        | ClickID (Scene Entry Identifier)      |
-| 2..3          | UInt16        | State (0x00FF = Living Actor,         |
+| 2..3          | UInt16        | State (0x00FF = Living Active Actor,  |
+|               |               |        0xFFFF = Concealed/Despawned,  |
 |               |               |        0x0001 = Opened Chest/Prop,    |
 |               |               |        0x0000 = Intact Chest/Prop)    |
 | 4..5          | UInt16        | Grid X Coordinate                     |
 | 6..7          | UInt16        | Grid Y Coordinate                     |
-| 8             | Byte          | Entity Type (1 = Visible, 2 = Hidden) |
-| 9             | Byte          | Unused / Padding (0x00)               |
-| 10..13        | UInt32        | Extended Flags (0x00000000)           |
+| 8             | Byte          | EntityType (1 = Visible, 2 = Hidden)  |
+| 9..12         | UInt32        | Despawn Code / Duration (LE)          |
+|               |               | (0x03E7FC18 = Despawn & Clear Grid,   |
+|               |               |  0 = Active / Visible)                |
+| 13            | Byte          | Stance / Animation Frame (0 = Default)|
 +---------------+---------------+---------------------------------------+
 ```
 
-### 3.2 Handshake & Concealment Sequencing
-To prevent visual flickering or ghost NPCs from rendering before client scripts take effect, entity suppression executes within a strict temporal packet window:
+### 3.2 Handshake, Concealment, and Spawning Sequencing
+To prevent visual flickering, ghost NPCs, or missing stage actors from rendering out of sync with player narrative state, entity visibility execution operates through authentic `AC 22:4` records:
 
 ```mermaid
 sequenceDiagram
@@ -47,22 +50,25 @@ sequenceDiagram
     participant Server
     participant Client
 
-    Server->>Client: AC 22:4 (Scene NPC Table - initial positions)
+    Server->>Client: AC 22:4 (Scene NPC Table - initial positions, entity types, and despawn codes)
     Server->>Client: AC 23:4 (Ground Items on Map)
     Server->>Client: AC 23:102 (Map Load Complete Signal)
-    Note over Server,Client: Concealment Isolation Window
-    loop Every Hidden Actor (Recruited Companion / Completed Quest Actor)
-        Server->>Client: AC 22:10 (Actor Unbind / Conceal Frame - ClickID, 0xFF, 0xFF)
-        Server->>Client: AC 22:11 (Stage Isolation Frame - ClickID, 0xFF, 0xFF)
-    end
     Server->>Client: AC 20:8 (Unfreeze Player Movement - Input Unlock)
     Server->>Client: AC 5:4 (Set Walking Speed)
+    Note over Server,Client: Runtime Narrative State & PreEvent Updates
+    Server->>Client: AC 22:4 (Dynamic Single-Record Despawn: ClickID, 0xFFFF, X, Y, Type=2, Code=0x03E7FC18, 0)
+    Server->>Client: AC 22:4 (Dynamic Single-Record Reveal: ClickID, 0x00FF, X, Y, Type=1, Code=0, 0)
 ```
 
-1. **Map Ready Signal:** Server issues `AC 23:102`.
-2. **Scene Entity Table (`AC 22:4`):** Server streams the complete 14-byte-per-record NPC table strictly once per map transition. In the client executable (`aLogin.exe`), the packet handler calculates `record_count = (packet_len - 2) / 14`. Sending single-record `AC 22:4` packets dynamically at runtime forces `record_count = 1`, overwriting entity slot 0 and truncating the client's entity list. Therefore, dynamic concealment/spawn during runtime must exclusively use `AC 22:10` and `AC 22:11`.
-3. **Actor Concealment (`AC 22:10` & `AC 22:11`):** Server dispatches dual concealment frames (`[ClickID: uint16, 0xFFFF: uint16]`) for recruited companions (e.g., Robinson on Map 11016), completed stage props, and conditional actors filtered by [`PreEventInterpreter`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/PreEventInterpreter.cs). Crucially, these frames are transmitted as independent, standalone TCP packets via `t.Send(...)` immediately after the map ready signal (`AC 23:102`), rather than concatenated inside the `AC 23:138` composite packet buffer. This architecture strictly adheres to official PCAP captures, preventing client buffer overflow or packet boundary desynchronization.
-4. **Input Unlock:** Server issues `AC 20:8` to grant player mobility only after actor isolation is committed.
+1. **Scene Entity Table (`AC 22:4`):** When entering a map, the server serializes all map entities into 14-byte records. Hidden entities (e.g., Shiba Inu ClickID 28 on Map 12000 before quest acceptance, recruited companions, or dead bosses) are packed with `State = 0xFFFF`, `EntityType = 2`, and `Duration = 0x03E7FC18`.
+2. **Official Client Despawn Engine (`aLogin.exe`):**
+   * Inside the client packet dispatcher (`FUN_003a6dcc`), each 14-byte record unpacks the actor at `PTR_DAT_004c9790 + ClickID * 4`.
+   * If `EntityType == 2`, the client sets actor visibility `*(actor + 0x1eec) = 2`.
+   * When `Duration == 0x03E7FC18` (65,535,000 ms), the client invokes `FUN_00432674`, which confirms `*(actor + 0x1eec) = 2` and calls `FUN_0043d390(actor)` to instantly clear the actor's footprint from the walkable collision grid (`*pbVar & 0xfb`).
+   * The client frame renderer (`FUN_0043d58c`) explicitly skips rendering any actor with `*(actor + 0x1eec) == 2` or `4`.
+   * The mouse click and cursor hit-test routines (lines 308016 & 308092) explicitly check `*(actor + 0x1eec) != 2 && *(actor + 0x1eec) != 4`, making concealed actors completely unclickable and untargetable.
+3. **Runtime Symmetrical Sync:** When quests advance or reset, [`QuestManager.SyncPerPlayerNpcVisibility`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestManager.cs) dispatches dynamic `AC 22:4` frames to toggle actor visibility on the client without reloading the map.
+4. **Server-Side Click Guard (`AC 20:1`):** As an authoritative safeguard against packet injection or desynchronized clients, [`AC20.Recv1`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC20.cs) verifies if `player.HiddenNpcClickIDs.Contains(clickID)` or `!PreEventInterpreter.ShouldNpcBeVisible(...)`. If hidden, the interaction is immediately dropped and a fresh `SendActorHide` concealment frame is returned.
 
 ---
 

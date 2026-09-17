@@ -94,9 +94,18 @@ namespace Network.ActionCodes
             {
                 p.Pack16(npc.CickID);
                 QuestNpc qn = npc as QuestNpc;
+                bool isRecruited = qn != null && player != null && player.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                bool isHiddenByPreEvent = player != null && !PreEventInterpreter.ShouldNpcBeVisible(player, mapId, (ushort)npc.CickID);
+                bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
+                bool isHidden = isRecruited || isHiddenByPreEvent || isDead;
+
                 ushort state = 0x00FF; // Authentic default for all living NPCs (wire: FF 00)
 
-                if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
+                if (isHidden)
+                {
+                    state = 0xFFFF; // Authentic WLO despawned/concealed entity state
+                }
+                else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                 {
                     // Static interactive map props / chests: 0x0001 if opened/broken, 0x0000 if intact
                     bool isOpened = qn.IsBroken;
@@ -122,11 +131,15 @@ namespace Network.ActionCodes
                     state = 0x00FF; // Normal living NPC actor
                 }
 
+                byte entityType = isHidden ? (byte)2 : (byte)1;
+                uint duration = isHidden ? 0x03E7FC18u : 0u;
+
                 p.Pack16(state);
                 p.Pack16(npc.X);
                 p.Pack16(npc.Y);
-                p.Pack16((ushort)1); // Direction / mode (uint16 LE)
-                p.Pack32(0);         // Flags / padding (uint32 LE)
+                p.Pack8(entityType);
+                p.Pack32(duration);
+                p.Pack8(0);
             }
 
             return p;
@@ -162,31 +175,60 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// AC 22:10 - Temporarily conceals or despawns an actor during events.
-        /// Payload: [22, 10, ClickID:w, 0xFFFF:w] (6 bytes total on wire).
+        /// AC 22:4 - Constructs authentic entity concealment frame (0x03E7FC18 despawn duration code).
+        /// Sets actor visibility field *(actor + 0x1eec) = 2 and clears map collision grid via FUN_0043d390.
+        /// Payload: [22, 4, ClickID:w, 0xFFFF:w, X:w, Y:w, EntityType:b (2), Duration:d (0x03E7FC18), Stance:b (0)] (14 bytes total).
         /// </summary>
-        public static SendPacket BuildNpcDespawnPacket(ushort clickId)
+        public static SendPacket BuildNpcDespawnPacket(ushort clickId, ushort x = 0, ushort y = 0)
         {
             SendPacket p = new SendPacket();
             p.Pack8(22);
-            p.Pack8(10);
+            p.Pack8(4);
             p.Pack16(clickId);
             p.Pack16(0xFFFF);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(2); // 2 = Hidden
+            p.Pack32(0x03E7FC18); // Despawn & clear collision
+            p.Pack8(0);
             return p;
         }
 
         /// <summary>
-        /// AC 22:11 - Dynamic scene isolation hide packet for staged PreEvent entities.
-        /// Payload: [22, 11, ClickID:w, 0xFFFF:w] (6 bytes total on wire).
+        /// AC 22:4 - Dynamic scene isolation hide packet for staged PreEvent entities.
+        /// Payload: [22, 4, ClickID:w, 0xFFFF:w, X:w, Y:w, EntityType:b (2), Duration:d (0x03E7FC18), Stance:b (0)] (14 bytes total).
         /// </summary>
-        public static SendPacket BuildNpcHidePacket(ushort clickId)
+        public static SendPacket BuildNpcHidePacket(ushort clickId, ushort x = 0, ushort y = 0)
+        {
+            return BuildNpcDespawnPacket(clickId, x, y);
+        }
+
+        /// <summary>
+        /// AC 22:4 - Restores or reveals an actor on client viewport.
+        /// Payload: [22, 4, ClickID:w, 0x00FF:w, X:w, Y:w, EntityType:b (1), Duration:d (0), Stance:b (0)] (14 bytes total).
+        /// </summary>
+        public static SendPacket BuildNpcSpawnPacket(ushort clickId, ushort x = 0, ushort y = 0)
         {
             SendPacket p = new SendPacket();
             p.Pack8(22);
-            p.Pack8(11);
+            p.Pack8(4);
             p.Pack16(clickId);
-            p.Pack16(0xFFFF);
+            p.Pack16(0x00FF);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(1); // 1 = Visible
+            p.Pack32(0);
+            p.Pack8(0);
             return p;
+        }
+
+        /// <summary>
+        /// AC 22:4 - Dynamic scene isolation reveal packet for staged PreEvent entities.
+        /// Payload: [22, 4, ClickID:w, 0x00FF:w, X:w, Y:w, EntityType:b (1), Duration:d (0), Stance:b (0)] (14 bytes total).
+        /// </summary>
+        public static SendPacket BuildNpcShowPacket(ushort clickId, ushort x = 0, ushort y = 0)
+        {
+            return BuildNpcSpawnPacket(clickId, x, y);
         }
 
         /// <summary>

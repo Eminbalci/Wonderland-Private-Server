@@ -1322,7 +1322,11 @@ namespace Game
 
                     ushort state = 0x00FF; // Authentic default for living NPC actors (wire: FF 00)
 
-                    if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
+                    if (isHidden)
+                    {
+                        state = 0xFFFF; // Authentic WLO despawned/concealed entity state
+                    }
+                    else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                     {
                         // Static interactive map props / containers / chests: 0x0001 if opened/broken, 0x0000 if intact
                         bool isOpened = qn.IsBroken;
@@ -1349,15 +1353,17 @@ namespace Game
                     }
 
                     byte entityType = isHidden ? (byte)2 : (byte)1;
+                    uint duration = isHidden ? 0x03E7FC18u : 0u;
 
-                    // Pack NPC record matching official wire protocol
+                    // Pack NPC record matching official wire protocol:
+                    // [ClickID:w, State:w, X:w, Y:w, EntityType:b, Duration:d, StateFlag:b] (14 bytes)
                     npcListPkt.Pack16(npc.CickID);
                     npcListPkt.Pack16(state);
                     npcListPkt.Pack16(npc.X);
                     npcListPkt.Pack16(npc.Y);
                     npcListPkt.Pack8(entityType);
+                    npcListPkt.Pack32(duration);
                     npcListPkt.Pack8(0);
-                    npcListPkt.Pack32(0);
                 }
                 tmp.Add(npcListPkt);
             }
@@ -1402,14 +1408,11 @@ namespace Game
 
             }
             tmp.Add(Tools.FromFormat("bb", 23, 102));
-            tmp.Add(Tools.FromFormat("bb", 20, 8));
-            t.LastSpawnX = t.CurX;
-            t.LastSpawnY = t.CurY;
-            t.LastTeleportTime = DateTime.UtcNow;
-            t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
-            t.Send(new SendPacket(tmp.End()));
 
-            // Authentic WLO protocol (Official PCAP Seq 979..1000): conceal recruited companions, PreEvent-hidden actors, and broken props via standalone AC 22:10 & AC 22:11 after map loading signal
+            // Authentic WLO protocol (Official PCAP Seq 979..1000):
+            // Conceal recruited companions, PreEvent-hidden actors, and broken props inside the Concealment Synchronization Window
+            // strictly BEFORE AC 20:8 movement unfreeze and rendering initiation
+            t.HiddenNpcClickIDs.Clear();
             if (this.NPCs != null && this.NPCs.Count > 0)
             {
                 foreach (var npc in this.NPCs)
@@ -1421,13 +1424,20 @@ namespace Game
 
                     if (isRecruited || isHiddenByPreEvent || isDead)
                     {
-                        t.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
-                        t.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)npc.CickID, (byte)0xFF, (byte)0xFF));
+                        t.HiddenNpcClickIDs.Add((ushort)npc.CickID);
                     }
                 }
             }
 
-            // Personal Client-Side NPC Visibility Sync (Only hides completed/recruited NPCs for this specific player)
+            tmp.Add(Tools.FromFormat("bb", 20, 8));
+            tmp.Add(Tools.FromFormat("bb", 5, 4));
+            t.LastSpawnX = t.CurX;
+            t.LastSpawnY = t.CurY;
+            t.LastTeleportTime = DateTime.UtcNow;
+            t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
+            t.Send(new SendPacket(tmp.End()));
+
+            // Personal Client-Side NPC Visibility Sync (Dynamic Quest Stage evaluation)
             QuestRelated.QuestManager.SyncPerPlayerNpcVisibility(t, (ushort)this.MapID);
 
             // Sync Guild Insignia
