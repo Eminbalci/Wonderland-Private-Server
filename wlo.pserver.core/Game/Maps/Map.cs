@@ -582,47 +582,12 @@ namespace Game
             // Send actor's battle pet to recipient
             if (actor.ActivePetID > 0)
             {
-                var pet = actor.PlayerPets?.Values?.FirstOrDefault(x => x.PetID == actor.ActivePetID);
+                var pet = actor.PlayerPets?.Values?.FirstOrDefault(x => Player.IsSamePetOrCompanion(x.PetID, actor.ActivePetID));
                 string petName = pet?.PetName ?? QuestRelated.QuestManager.GetNpcName(actor.ActivePetID);
 
-                // AC 15:4 Map Pet Visual Entity
-                SendPacket petMapPkt = new SendPacket();
-                petMapPkt.PackArray(new byte[] { 15, 4 });
-                petMapPkt.Pack32(actor.CharID);
-                petMapPkt.Pack32(actor.ActivePetID);
-                petMapPkt.Pack8(0);
-                petMapPkt.Pack8(1);
-                petMapPkt.PackString(petName);
-                petMapPkt.Pack16(0);
-                recipient.Send(petMapPkt);
-
-                // AC 15:1 Pet Info
-                SendPacket petPkt = (pet != null)
-                    ? QuestRelated.QuestManager.CreatePetPacket(actor, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job)
-                    : QuestRelated.QuestManager.CreatePetPacket(actor, actor.ActivePetID, 1);
-                recipient.Send(petPkt);
-
-                // AC 19:4 Pet Following
-                SendPacket follow = new SendPacket();
-                follow.Pack8(19);
-                follow.Pack8(4);
-                follow.Pack32(actor.CharID);
-                follow.Pack32(actor.ActivePetID);
-                recipient.Send(follow);
-
-                // AC 13:5 Follow formation
-                SendPacket petFollow = new SendPacket();
-                petFollow.PackArray(new byte[] { 13, 5 });
-                petFollow.Pack32(actor.CharID);
-                petFollow.Pack32(actor.ActivePetID);
-                recipient.Send(petFollow);
-
-                // AC 5:8 Sprite refresh
-                SendPacket petRefresh = new SendPacket();
-                petRefresh.PackArray(new byte[] { 5, 8 });
-                petRefresh.Pack32(actor.CharID);
-                petRefresh.Pack8(0);
-                recipient.Send(petRefresh);
+                // Authentic AC 15:4 Map Pet Visual Entity
+                SendPacket petMapPkt = actor.CreatePetMapPacket(actor.ActivePetID, petName);
+                if (petMapPkt != null) recipient.Send(petMapPkt);
             }
         }
 
@@ -740,70 +705,14 @@ namespace Game
 
             SendMapInfo(src);
 
-            // Synchronize player's own companion pets to themselves and the map
-            if (src.PlayerPets != null && src.PlayerPets.Count > 0)
+            // Synchronize active companion map visual on warp
+            if (src.ActivePetID > 0)
             {
-                foreach (var kvp in src.PlayerPets)
+                var mapPkt = src.CreatePetMapPacket(src.ActivePetID);
+                if (mapPkt != null)
                 {
-                    var pet = kvp.Value;
-                    if (pet != null && pet.PetID > 0)
-                    {
-                        // Send authentic AC 15:1 pet recruit data to owner and map peers
-                        SendPacket petPkt = QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job);
-                        src.Send(petPkt);
-                        Broadcast(petPkt, "Ex", src.CharID);
-                        QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
-
-                        if (pet.IsBattle || (src.ActivePetID > 0 && Player.IsSamePetOrCompanion(pet.PetID, src.ActivePetID)))
-                        {
-                            // Resolve the broadcast-safe companion ID (e.g. Robinson: 12032 DB -> 12178 client display)
-                            uint broadcastPetId = Player.GetCompanionBroadcastId(pet.PetID);
-                            src.ActivePetID = broadcastPetId;
-                            pet.IsBattle = true;
-
-                            // AC 19:1 Set battle companion state to owner
-                            src.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
-
-                            // AC 15:4 Map Pet Visual Entity to owner and map peers
-                            SendPacket petMapPkt = new SendPacket();
-                            petMapPkt.PackArray(new byte[] { 15, 4 });
-                            petMapPkt.Pack32(src.CharID);
-                            petMapPkt.Pack32(broadcastPetId);
-                            petMapPkt.Pack8(0);
-                            petMapPkt.Pack8(1);
-                            petMapPkt.PackString(pet.PetName ?? QuestRelated.QuestManager.GetNpcName(broadcastPetId));
-                            petMapPkt.Pack16(0);
-                            src.Send(petMapPkt);
-                            Broadcast(petMapPkt, "Ex", src.CharID);
-
-                            // AC 19:4 Broadcast battle companion following player to all players on map
-                            SendPacket followPkt = new SendPacket();
-                            followPkt.Pack8(19);
-                            followPkt.Pack8(4);
-                            followPkt.Pack32(src.CharID);
-                            followPkt.Pack32(broadcastPetId);
-                            src.Send(followPkt);
-                            Broadcast(followPkt, "Ex", src.CharID);
-
-                            // AC 13:5 Broadcast companion follow formation to peers
-                            SendPacket petFollow = new SendPacket();
-                            petFollow.PackArray(new byte[] { 13, 5 });
-                            petFollow.Pack32(src.CharID);
-                            petFollow.Pack32(broadcastPetId);
-                            src.Send(petFollow);
-                            Broadcast(petFollow, "Ex", src.CharID);
-
-                            // AC 5:8 Appearance refresh
-                            SendPacket petRefresh = new SendPacket();
-                            petRefresh.PackArray(new byte[] { 5, 8 });
-                            petRefresh.Pack32(src.CharID);
-                            petRefresh.Pack8(0);
-                            src.Send(petRefresh);
-                            Broadcast(petRefresh, "Ex", src.CharID);
-
-                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {broadcastPetId}) to {src.CharName} and broadcast following state to peers");
-                        }
-                    }
+                    src.Send(mapPkt);
+                    Broadcast(mapPkt, "Ex", src.CharID);
                 }
             }
 
@@ -1346,24 +1255,40 @@ namespace Game
                     }
                     else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                     {
-                        // Static interactive map props / containers / chests: 0x0001 if opened/broken, 0x0000 if intact
-                        bool isOpened = qn.IsBroken;
-                        if (!isOpened && t.Quests != null && eveData != null)
+                        // Check if this prop is tied to a one-time per-player quest
+                        bool isQuestProp = false;
+                        bool isOpened = false;
+
+                        if (t.Quests != null && eveData != null)
                         {
                             var ev = eveData.Events?.FirstOrDefault(e => e.clickID == qn.CickID);
                             if (ev != null && ev.SubEntry != null)
                             {
                                 foreach (var s in ev.SubEntry)
                                 {
-                                    if (s.unknownword1 > 0 && t.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == Game.QuestRelated.QuestState.Completed)
+                                    if (s.unknownword1 > 0)
                                     {
-                                        isOpened = true;
-                                        break;
+                                        isQuestProp = true;
+                                        if (t.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == Game.QuestRelated.QuestState.Completed)
+                                        {
+                                            isOpened = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
                         }
-                        state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
+
+                        // Only non-quest renewable gathering nodes (ore, wood, clay) check shared qn.IsBroken
+                        if (!isQuestProp)
+                        {
+                            isOpened = qn.IsBroken;
+                        }
+
+                        // Authentic WLO protocol:
+                        // 0x00FF (255) is the default intact animation frame
+                        // 0x0001 is the opened / broken animation frame
+                        state = isOpened ? (ushort)0x0001 : (ushort)0x00FF;
                     }
                     else
                     {

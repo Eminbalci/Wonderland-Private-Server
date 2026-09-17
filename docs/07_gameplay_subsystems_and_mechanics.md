@@ -45,20 +45,38 @@ To safeguard new characters created during network desyncs or external registrat
 Companions represent recruited human storyline allies (Robinson, Roca, Clive, Niss, S. Monkey, etc.) and wild captured animals/beasts.
 
 ### 2.1 Recruitment & Overworld Despawning
-* **Recruitment:** Triggered via script bytecode (`EveEventInterpreter`). The entity is added to the player's active party or `character_pets` database table.
+* **Recruitment:** Triggered via script bytecode (`EveEventInterpreter`). The entity is added to the player's active party and persisted to the `character_pets` database table. Server transmits initial companion stats via `AC 15:1` and activates battle mode via `AC 19:1`.
 * **Overworld Despawn Isolation:** To prevent clone duplicates, once an NPC is recruited, [`Map.SendMapInfo`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs#L1407) emits dual concealment packets `AC 22:10` and `AC 22:11` to suppress that NPC for that specific player.
 
-### 2.2 Amity (Loyalty / Intimacy)
+### 2.2 Login Synchronization & Overworld Follower
+* **Login Pet Sync:** During character login in [`WorldServer.CommenceLogin`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/WorldServer.cs), all companions stored in `character_pets` are transmitted to the client via `AC 15:1` along with learned skill trees via `QuestManager.SendPetSkills`. If an active battle pet is designated, `AC 19:4` and `AC 19:1` are sent.
+* **Map Follower (`AC 15:4`):** When warping or toggling battle mode, an authentic `AC 15:4` packet `[CharID: 4B, PetID: 4B, 0, 1, Name: String, EquipTail: 8B]` is dispatched to the player and broadcast to map peers.
+* **Standby Mode (`AC 19:7` & `AC 19:2`):** Resting a companion emits `AC 19:7 [CharID: 4B]` to despawn the follower sprite from the overworld, followed by `AC 19:2` to confirm standby stance.
+* **Riding & Dismounting:** Riding a pet transmits `AC 15:11`, eliciting `AC 15:16 [Slot, CharID, PetID, 26 zeros]`. Dismounting emits `AC 15:12`, eliciting `AC 15:17 [CharID]` and restoring the follower sprite if the pet was active in battle.
+
+### 2.3 Battle Spawn & Matrix Positioning (`AC 11:5`)
+* **Friendly Pets:** Spawned with side indicator `0x05` and type `0x04`, providing slot index, owner `CharID`, HP/SP, and accurate element and level.
+* **Element & Level Ordering:** Byte 26 contains element (`0=Earth, 1=Water, 2=Fire, 3=Wind`) and Byte 27 contains level, matching official network packet captures.
+
+### 2.4 Amity (Loyalty / Intimacy)
 * Values range from `0` to `100`.
 * Default starting amity for recruited human companions is `60`.
 * **Death Penalty:** If a companion faints in battle, amity decreases by `1..5` points.
 * **Abandonment Threshold:** If companion amity drops below `20`, the companion may refuse battle orders or permanently leave the player's party.
 * **Combat Stance:** Managed via `AC 19`, controlling whether the companion fights (`Battle`), defends (`Guard`), or rides along (`Standby`).
 
-### 2.3 Pet Hotel & Storage Farm (`AC 31`)
+### 2.5 Pet Hotel & Storage Farm (`AC 31`)
 Players can store up to 10 inactive pets in the pet hotel/farm without consuming active bag or party slots.
 
+### 2.6 Companion Combat Skills & Real-time State Synchronization
+* **Skill Unlock Protocol (`AC 8:2` Stat 367):** Pet skills are synchronized upon login ([`SkillManager.SendAllSkills`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/SkillRelated/SkillManager.cs#L784)), battle initiation ([`PvEBattleManager`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Battle/PvEBattleManager.cs#L1111)), recruitment, and battle companion switching. Wire format is `[8, 2, TargetType=4, Slot: 2B, StatID=0x016F: 2B, Grade/Exp=1: 4B, SkillID: 4B]`. TargetType `0x04` is mandatory; passing player target codes or slot in byte 0 causes the client to drop the pet skill registration.
+* **Skill Catalog Resolution:** Companion skills are resolved by [`QuestManager.GetDefaultPetSkills`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestManager.cs#L1152) combining curated human companion ability sets (Robinson's *Fury Strike* / *Freeze Strike*, Roca's *Heart Chop* / *Earthquake Chop*, Niss's *Icicle Attack*, Fred's *Fire Wave*, etc.) and dynamic `Npc.dat` lookups (`SkillID1`, `SkillID2`, `SkillID3`) for wild and generic captured creatures.
+* **In-Battle Action Consumption & Feedback:** When a pet casts an offensive or support skill (`AC 50:1`), SP is deducted server-side and immediately synchronized to the owner's status interface via `AC 8:2` (Stat `0x011A`, SP value). Skill proficiency EXP is awarded via `AC 8:2` (Stat `0x016F`).
+* **Damage & Recovery Synchronization:** When a companion takes damage or receives healing/revival, the server updates `PetRef.HP` and sends `AC 8:2` (Stat `0x0119`, HP value) directly to the owner in addition to battlefield grid broadcast `AC 51:1`.
+* **Level-Up Stat Reflection:** When victorious battle EXP triggers a pet level increase, the server synchronizes new Level (Stat `0x011D`), MaxHP (Stat `0x0119`), and MaxSP (Stat `0x011A`) via authentic `AC 8:2` packets.
+
 ---
+
 
 ## 3. Vehicles and Marine Transport Engine
 
@@ -148,17 +166,21 @@ Wonderland Online features four classical elemental disciplines:
 
 ### 5.5 Combat Packet Protocol & Wire Synchronization
 * **Map Presence Broadcast (`AC 11:4`):** When entering combat, the server emits `AC 11:4 [0x02, CharID, 0, 0, 1]` to map peers to display the crossed-swords combat indicator. On combat completion, `AC 11:4 [0x02, CharID, 0, 0, 0]` is broadcast to clear the indicator.
-* **Fighter Death Collapse (`AC 53:3`):** When any combat entity reaches 0 HP, `AC 53:3 [GridX, GridY]` is immediately dispatched, triggering the client-side death collapse animation before `AC 11:1` despawns the grid sprite.
+* **Turn Prompting & Acknowledgment (`AC 52:1` & `AC 53:5`):** Action UI input is enabled via `AC 52:1` without premature `AC 50:6`. When an action command (`AC 50:1`) is received, the server responds with `AC 53:5 [srcGridX, srcGridY]`, signaling the client to advance focus automatically to pet/companion actions.
+* **Turn Replay Markers (`AC 50:6`):** `AC 50:6 [GridX, GridY, 0]` is dispatched immediately before each fighter's `AC 50:1` animation record to focus the active actor.
+* **In-Combat Knockout (`AC 53:3`):** When any combat entity reaches 0 HP, `AC 53:3 [GridX, GridY]` is dispatched to trigger the knockout animation. The server strictly refrains from emitting `AC 11:1` during active combat rounds to avoid premature sprite despawning.
 * **Stat Commit (`AC 51:1`):** Dynamic HP (`0x19`) and SP (`0x1A`) changes are committed via `AC 51:1 [GridX, GridY, StatType, Value: UInt32]`.
-* **Turn Prompting (`AC 52:1`):** Action UI selection is reopened each round via `AC 52:1` (0 payload bytes).
+* **Battle Exit Despawn Sequencing (`AC 11:12`, `AC 11:1`, `AC 11:0`):** Combat closes with `AC 11:12 [1]` (victory/defeat), followed by 4-byte `AC 11:1 [GridX, GridY]` for pets, 6-byte `AC 11:0 [CharID, 0, 0]`, and 5-byte `AC 11:1 [GridX, GridY, 0]` for players, cleanly releasing map mobility without spurious map-mode override packets.
 
 ---
 
 ## 6. Social, Guild, and Economic Systems
 
-### 6.1 Mutual Friend Presence (`AC 10` & `AC 14`)
-* The social engine delegates online state checks to [`Friendlist.IsPlayerOnlineHandler`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/WorldServer.cs#L59).
-* When a player logs in or disconnects, `AC14.NotifyFriendsStatus(player, isOnline)` iterates over all reciprocal friend relationships and broadcasts presence updates.
+### 6.1 Mutual Friend Presence & Roster Synchronization (`AC 14` & `AC 10`)
+* The social engine delegates online state checks to [`Friendlist.IsPlayerOnlineHandler`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/WorldServer.cs#L59) and persists relationships in the `Friends` table (`CharID1`, `CharID2`).
+* **Login Synchronization:** Dispatches `AC 14:11` (tab categorization, 26 bytes/friend) and `AC 14:5` (main roster, 28 bytes/friend) upon map entry.
+* **Friend Request & Mutual Acceptance:** Dispatches forward request `AC 14:2`, reciprocal acceptance `AC 14:3`, confirmation ACK `AC 14:9`, and dual online presence updates via `AC 14:7` and `AC 10:3 [CharID, 0xFF]`.
+* **Friend Removal Synchronization:** When a friend is removed, reciprocal `AC 14:4 <targetCharID>` packets are dispatched to both players to immediately purge the friend sprite and entry from the client UI tree.
 
 ### 6.2 Player Trade (`AC 13`)
 * **Phase 1 (Request):** Player A invites Player B (`AC 13:1`).

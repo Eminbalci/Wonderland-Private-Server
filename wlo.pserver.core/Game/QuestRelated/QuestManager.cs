@@ -1159,29 +1159,103 @@ namespace Game.QuestRelated
                     skills.Add(25221); // Fury Strike (Water)
                     skills.Add(12046); // Freeze Strike (Water)
                     break;
-                case 17162: // Monkey
+                case 17162:
+                case 10727: // Monkey
                     skills.Add(12026); // Throw Banana Skin (12 SP)
                     skills.Add(12027); // Monkey Trick
                     break;
-                case 12003: // Niss (Water)
-                    skills.Add(11001); // Icicle Attack
+                case 12004:
+                case 14001:
+                case 14161:
+                case 14162: // Roca (Earth)
+                    skills.Add(11041); // Heart Chop
+                    skills.Add(12041); // Earthquake Chop
                     break;
-                case 12002: // Clive (Earth)
+                case 12003:
+                case 14002:
+                case 14081: // Niss (Water)
+                    skills.Add(11001); // Icicle Attack
+                    skills.Add(12046); // Freeze Strike
+                    break;
+                case 12002:
+                case 14003:
+                case 14163: // Clive (Earth)
                     skills.Add(15001); // Exact Combo Hit
                     skills.Add(15002); // Instant Attack
                     break;
-                case 12001: // Xaolan (Fire)
-                    skills.Add(11100); // Fire Light
+                case 12011:
+                case 14004:
+                case 14164: // Fred (Fire)
+                    skills.Add(11116); // Fire Wave
+                    skills.Add(12053); // Volcano Burst
                     break;
-                case 12005: // Sam (Wind)
+                case 12016:
+                case 14005:
+                case 14165: // Elin (Earth)
+                    skills.Add(11060); // Plasma Gun
+                    skills.Add(12070); // Magnetic Storm
+                    break;
+                case 12005:
+                case 14006:
+                case 14166: // Sam (Wind)
                     skills.Add(12025); // Newbie's Stunt
                     skills.Add(11057); // Shield Defence
                     break;
-                case 12015: // Shizune (Fire)
+                case 12015:
+                case 14007:
+                case 14167: // Shizune (Fire)
                     skills.Add(25436); // Random Sword Slash
                     skills.Add(25437); // Fire Dragon Chopper
                     break;
+                case 12012:
+                case 14008:
+                case 14168: // Suzan (Wind)
+                    skills.Add(11075); // Wind Dance
+                    skills.Add(12061); // Flash Sword
+                    break;
+                case 12001: // Xaolan (Fire)
+                    skills.Add(11100); // Fire Light
+                    skills.Add(12052); // Phoenix Rising
+                    break;
+                case 12014: // Victoria (Water)
+                    skills.Add(11025); // Aqua Slash
+                    skills.Add(12048); // Ice Spear
+                    break;
+                case 12006: // Maggie (Fire)
+                    skills.Add(11105); // Flame Arrow
+                    skills.Add(12051); // Blazing Storm
+                    break;
+                case 12017: // Kanako (Wind)
+                    skills.Add(11076); // Gale Strike
+                    skills.Add(12062); // Tornado Blast
+                    break;
+                case 12013: // Charlotte (Wind)
+                    skills.Add(11072); // Swift Blade
+                    skills.Add(12058); // Fairy Dance
+                    break;
             }
+
+            // Fallback & supplement: Query Npc.dat for native SkillID1, SkillID2, SkillID3
+            try
+            {
+                var npcDat = DataBase.GameDataBase.GlobalInstance?.NpcDat;
+                if (npcDat != null)
+                {
+                    var npc = npcDat.GetNpcbyID((ushort)petId);
+                    if (npc == null && petId != Player.GetCompanionBroadcastId(petId))
+                    {
+                        npc = npcDat.GetNpcbyID((ushort)Player.GetCompanionBroadcastId(petId));
+                    }
+                    if (npc != null)
+                    {
+                        if (npc.SkillID1 > 0 && !skills.Contains(npc.SkillID1)) skills.Add(npc.SkillID1);
+                        if (npc.SkillID2 > 0 && !skills.Contains(npc.SkillID2)) skills.Add(npc.SkillID2);
+                        if (npc.SkillID3 > 0 && !skills.Contains(npc.SkillID3)) skills.Add(npc.SkillID3);
+                    }
+                }
+            }
+            catch { }
+
             return skills;
         }
 
@@ -1191,27 +1265,9 @@ namespace Game.QuestRelated
             var skills = GetDefaultPetSkills(petId);
             foreach (var skId in skills)
             {
-                // 1. Authentic AC 8:2 Stat 110 (Pet Skill Learned Notification)
-                SendPacket learnPkt = new SendPacket();
-                learnPkt.Pack8(8);
-                learnPkt.Pack8(2);
-                learnPkt.Pack8(slot);
-                learnPkt.Pack16(1);
-                learnPkt.Pack16(110);
-                learnPkt.Pack32(1);
-                learnPkt.Pack32((uint)skId);
-                player.Send(learnPkt);
-
-                // 2. Authentic AC 8:2 Stat 367 (Pet Skill Book / Tree Unlock)
-                SendPacket ac8_2 = new SendPacket();
-                ac8_2.Pack8(8);
-                ac8_2.Pack8(2);
-                ac8_2.Pack8(slot);
-                ac8_2.Pack16(1);
-                ac8_2.Pack16(0x016F);
-                ac8_2.Pack32(1);
-                ac8_2.Pack32((uint)skId);
-                player.Send(ac8_2);
+                // Authentic AC 8:2 Stat 367 (0x016F) Pet Skill Unlock
+                // Frame #1984: [8, 2, TargetType=4, Slot (UInt16), StatID=0x016F (UInt16), Val1=Grade/Exp (UInt32), Val2=SkillID (UInt32)]
+                player.SendPetStat(slot, 0x016F, 1, (uint)skId);
             }
         }
 
@@ -1327,12 +1383,16 @@ namespace Game.QuestRelated
                                 bool isDespawn = sub.SubEntry != null && sub.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 2);
                                 if (isChest)
                                 {
-                                    player.Send(Tools.FromFormat("bbwb", 22, 1, (ushort)ev.clickID, (byte)1));
+                                    var chestOp = sub.SubEntry?.FirstOrDefault(o => o.DialogPtr == 2 && o.dialog2 == 5);
+                                    ushort targetClickId = (ushort)(chestOp.HasValue && chestOp.Value.dialog1 > 0 ? chestOp.Value.dialog1 : ev.clickID);
+                                    player.Send(Tools.FromFormat("bbwb", 22, 1, targetClickId, (byte)1));
                                 }
                                 else if (isDespawn)
                                 {
-                                    player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
-                                    player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
+                                    var despawnOp = sub.SubEntry?.FirstOrDefault(o => o.DialogPtr == 2 && o.dialog2 == 2);
+                                    ushort targetClickId = (ushort)(despawnOp.HasValue && despawnOp.Value.dialog1 > 0 ? despawnOp.Value.dialog1 : ev.clickID);
+                                    player.Send(Tools.FromFormat("bbwbb", 22, 10, targetClickId, (byte)0xFF, (byte)0xFF));
+                                    player.Send(Tools.FromFormat("bbwbb", 22, 11, targetClickId, (byte)0xFF, (byte)0xFF));
                                 }
                             }
                         }

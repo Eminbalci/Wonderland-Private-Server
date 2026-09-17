@@ -107,24 +107,40 @@ namespace Network.ActionCodes
                 }
                 else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                 {
-                    // Static interactive map props / chests: 0x0001 if opened/broken, 0x0000 if intact
-                    bool isOpened = qn.IsBroken;
-                    if (!isOpened && player?.Quests != null && eveData != null)
+                    // Check if this prop is tied to a one-time per-player quest
+                    bool isQuestProp = false;
+                    bool isOpened = false;
+
+                    if (player?.Quests != null && eveData != null)
                     {
                         var ev = eveData.Events?.FirstOrDefault(e => e.clickID == qn.CickID);
                         if (ev != null && ev.SubEntry != null)
                         {
                             foreach (var s in ev.SubEntry)
                             {
-                                if (s.unknownword1 > 0 && player.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == QuestState.Completed)
+                                if (s.unknownword1 > 0)
                                 {
-                                    isOpened = true;
-                                    break;
+                                    isQuestProp = true;
+                                    if (player.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == QuestState.Completed)
+                                    {
+                                        isOpened = true;
+                                        break;
+                                    }
                                 }
                             }
                         }
                     }
-                    state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
+
+                    // Only non-quest renewable gathering nodes (ore, wood, clay) check shared qn.IsBroken
+                    if (!isQuestProp)
+                    {
+                        isOpened = qn.IsBroken;
+                    }
+
+                    // Authentic WLO protocol:
+                    // 0x00FF (255) is the default intact animation frame
+                    // 0x0001 is the opened / broken animation frame
+                    state = isOpened ? (ushort)0x0001 : (ushort)0x00FF;
                 }
                 else
                 {

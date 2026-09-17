@@ -66,6 +66,9 @@ namespace Game.Maps
                     // Broadcast un-hide / respawn packet (AC 22:10 state 0, 0)
                     SendPacket respawnPkt = Tools.FromFormat("bbwbb", 22, 10, (ushort)this.CickID, (byte)0, (byte)0);
                     map.Broadcast(respawnPkt);
+                    // Restore unbroken sprite animation frame (AC 22:1 action 0)
+                    SendPacket restoreFrame = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)0);
+                    map.Broadcast(restoreFrame);
                     DebugSystem.Write($"[QuestNpc] Gathering node '{Name}' (ClickID: {this.CickID}) respawned on Map {map.MapID}");
                 }
                 return;

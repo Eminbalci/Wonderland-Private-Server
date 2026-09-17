@@ -29,20 +29,20 @@ namespace Network.ActionCodes
                     RecvSetBattlePet(player, p);
                     break;
                 case 2:
-                    Recv2(player, p);
-                    break;
                 case 5:
                     RecvRestBattlePet(player, p);
                     break;
                 default:
-                    DebugSystem.Write($"[AC19] Action Code 19,{sub} - attempting battle pet toggle");
-                    RecvSetBattlePet(player, p);
+                    DebugSystem.Write($"[AC19] Action Code 19,{sub} received for player {player.CharName}");
                     break;
             }
         }
 
         /// <summary>
-        /// Set Active Battle Pet: C->S [19, 1/4, pet_id or slot]
+        /// Set Active Battle Pet: C->S [19, 1, pet_id (4B)]
+        /// Official server responds with:
+        /// 1. S->C AC 15:4 broadcast to player and map peers (spawns follower sprite)
+        /// 2. S->C AC 19:1 [PetID: 4B] sent to owner
         /// </summary>
         private void RecvSetBattlePet(Player player, RecievePacket p)
         {
@@ -96,40 +96,16 @@ namespace Network.ActionCodes
 
                 foreach (var kvp in player.PlayerPets)
                 {
-                    if (kvp.Value == activePet)
-                    {
-                        kvp.Value.IsBattle = true;
-                    }
-                    else
-                    {
-                        kvp.Value.IsBattle = false;
-                    }
+                    kvp.Value.IsBattle = (kvp.Value == activePet);
                 }
 
-                // 1. Send authentic AC 19:1 Set Battle Pet packet and full AC 15:4, AC 15:1, AC 19:4, AC 13:5, AC 5:8 to map
-                player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
+                // 1. Authentic AC 15:4 Map Pet Visual Entity broadcast to player and map peers
                 player.BroadcastPetAppearance(broadcastPetId, activePet.PetName);
 
-                // 2. Synchronize Pet Level & Stats so Party UI and Status Window show authentic Level and HP/SP
-                byte slot = activePet.Slot;
-                uint petLv = (uint)Math.Max(1, (int)activePet.Level);
-                uint petHp = (uint)Math.Max(1, (int)activePet.HP);
-                uint petMaxHp = (uint)Math.Max(1, (int)activePet.MaxHP);
-                uint petSp = (uint)Math.Max(0, (int)activePet.SP);
-                uint petMaxSp = (uint)Math.Max(0, (int)activePet.MaxSP);
+                // 2. Authentic AC 19:1 Set Battle Pet confirmation sent to owner
+                player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
 
-                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 35, slot, petLv, 0)); // Level
-                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 37, slot, (uint)Math.Max(0, (int)petLv - 1), 0)); // Level offset
-                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, slot, 0, 0)); // Potential points
-                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 207, slot, petMaxHp, 0)); // MaxHP
-                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 25, slot, petHp, 0)); // CurHP
-                player.Send(Tools.FromFormat("bbbbdd", 8, 2, 208, slot, petMaxSp, 0)); // MaxSP
-                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 26, slot, petSp, 0)); // CurSP
-                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 205, slot, petMaxHp, 0)); // FullHP
-                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 206, slot, petMaxSp, 0)); // FullSP
-
-                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{activePet.PetName ?? "Pet"} is now in Battle Mode!"));
-                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {slot}, Lv.{activePet.Level})");
+                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {activePet.Slot}, Lv.{activePet.Level})");
             }
             catch (Exception ex)
             {
@@ -138,7 +114,10 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// Rest Companion from Battle: C->S [19, 5]
+        /// Rest Companion from Battle / Standby: C->S [19, 2]
+        /// Official server responds with:
+        /// 1. S->C AC 19:7 [CharID: 4B] broadcast to player and map peers (despawns pet follower)
+        /// 2. S->C AC 19:2 (empty body) broadcast to player and map peers
         /// </summary>
         private void RecvRestBattlePet(Player player, RecievePacket p)
         {
@@ -153,43 +132,26 @@ namespace Network.ActionCodes
                     }
                 }
 
-                SendPacket restPkt = Tools.FromFormat("bbd", 19, 5, player.CharID);
-                player.Send(restPkt);
-                player.CurMap?.Broadcast(restPkt, "Ex", player.CharID);
+                if (player.ActiveMountID > 0)
+                {
+                    player.UnridePet();
+                }
 
-                // Send AC 15:2 dismiss to map peers
-                SendPacket dismissPkt = Tools.FromFormat("bbdb", 15, 2, player.CharID, (byte)1);
-                player.CurMap?.Broadcast(dismissPkt, "Ex", player.CharID);
+                // 1. Authentic AC 19:7 [CharID: 4B] despawns pet follower sprite from overworld
+                SendPacket despawnPkt = Tools.FromFormat("bbd", 19, 7, player.CharID);
+                player.Send(despawnPkt);
+                player.CurMap?.Broadcast(despawnPkt, "Ex", player.CharID);
 
-                // Send AC 5:8 appearance refresh
-                SendPacket refreshPkt = Tools.FromFormat("bbdb", 5, 8, player.CharID, (byte)0);
-                player.Send(refreshPkt);
-                player.CurMap?.Broadcast(refreshPkt, "Ex", player.CharID);
+                // 2. Authentic AC 19:2 standby stance confirmation
+                SendPacket togglePkt = Tools.FromFormat("bb", 19, 2);
+                player.Send(togglePkt);
+                player.CurMap?.Broadcast(togglePkt, "Ex", player.CharID);
 
                 DebugSystem.Write($"[AC19] Player {player.CharName} rested active battle companion");
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC19.RecvRestBattlePet] Error: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Toggle Battle Standby Stance: C->S [19, 2] -> Echo S->C [19, 2]
-        /// </summary>
-        private void Recv2(Player player, RecievePacket p)
-        {
-            try
-            {
-                SendPacket togglePkt = Tools.FromFormat("bb", 19, 2);
-                player.Send(togglePkt);
-                player.CurMap?.Broadcast(togglePkt);
-
-                DebugSystem.Write($"[AC19] Player {player.CharName} toggled battle standby stance");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC19.Recv2] Error: {ex.Message}");
             }
         }
     }

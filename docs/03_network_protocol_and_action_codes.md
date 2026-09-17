@@ -220,23 +220,28 @@ sequenceDiagram
     BattleManager->>Client: AC 11:250 (Prepare Battlefield & Self Player Record)
     BattleManager->>Client: AC 11:10 [01] (Combat Start Frame)
     BattleManager->>Client: AC 11:5 (Spawn Companions, Allies & Monster Fighters)
+    BattleManager->>Client: AC 20:9 (Clear Pre-Battle Dialogue Windows)
     BattleManager->>Client: AC 51:1 (Initial Grid HP/SP Sync)
-    BattleManager->>Client: AC 50:6 [GridX, GridY, 0] + AC 52:1 (Open Action Menu)
+    BattleManager->>Client: AC 52:1 (Open Action Menu - Turn Input Active)
 
     Note over Client,BattleManager: Round Action Phase
     Client->>BattleManager: AC 50:1 (Player Action Selection Command)
-    BattleManager->>Client: AC 53:5 [srcGridX, srcGridY] (Action Acknowledged)
-    BattleManager->>Client: AC 50:6 [srcGridX, srcGridY, 0] (Lock Input)
-    BattleManager->>Client: AC 50:1 (Execute Turn Animations - 19B per action record)
-    BattleManager->>Client: AC 53:3 [GridX, GridY] (Fighter Death Collapse Frame)
+    BattleManager->>Client: AC 53:5 [srcGridX, srcGridY] (Action Confirmed, Auto-Advance Focus to Pet)
+    Client->>BattleManager: AC 50:1 (Pet Action Selection Command)
+    BattleManager->>Client: AC 53:5 [petGridX, petGridY] (Pet Action Confirmed)
+
+    Note over Client,BattleManager: Round Turn Execution Phase
+    BattleManager->>Client: AC 50:6 [GridX, GridY, 0] (Focus Active Actor Sprite)
+    BattleManager->>Client: AC 50:1 (Execute Action Animations - 19B per action record)
+    BattleManager->>Client: AC 53:3 [GridX, GridY] (Fighter Knockout / Death Collapse Frame)
     BattleManager->>Client: AC 51:1 [GridX, GridY, StatType, NewVal] (Commit HP/SP)
     BattleManager->>Client: AC 52:1 (Open Next Round Menu)
 
     Note over Client,BattleManager: Victory & Exit Phase
     BattleManager->>Client: AC 11:12 [01] (Victory Fanfare)
-    BattleManager->>Client: AC 11:1 [GridX, GridY] (Despawn Grid Entities)
-    BattleManager->>Client: AC 11:0 [CharID, 0, 0] (Close Combat Window)
-    BattleManager->>Client: AC 6:2 [00] + AC 20:8 (Return to Normal Map Movement)
+    BattleManager->>Client: AC 11:1 [GridX, GridY] (Despawn Pet Entities - 4 Bytes)
+    BattleManager->>Client: AC 11:0 [CharID, 0, 0] (Close Combat Window - 6 Bytes)
+    BattleManager->>Client: AC 11:1 [GridX, GridY, 0] (Despawn Player Sprite - 5 Bytes)
     BattleManager->>MapPeers: AC 11:4 [02, CharID, 0, 0, 0] (Clear Combat Indicator)
 ```
 
@@ -265,4 +270,137 @@ Broadcast to map peers when a player enters or exits battle mode to control the 
 > [!NOTE]
 > Serialized directly using strongly-typed [`SendPacket.Pack32`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Network/Packet.cs#L48) rather than `Tools.FromFormat` to avoid signed/unsigned byte conversion overflow exceptions (`System.OverflowException`) when formatting 32-bit character identifiers.
 
+---
 
+### 4.6 Social & Friend System Protocol (`AC 14`)
+
+Friend synchronization and relationship lifecycle management strictly mirrors captured network traffic on TCP Port 6414:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Inviter (Client A)
+    participant Server
+    participant Invitee (Client B)
+
+    Note over Server,Inviter: Login Initial Roster Synchronization
+    Server->>Inviter: AC 14:11 [Friend Records - 26B/entry] (Synchronize Friend Category Tabs)
+    Server->>Inviter: AC 14:5 [Friend Records - 28B/entry] (Main Friend Roster & Online Status)
+
+    Note over Inviter,Invitee: Friend Request & Acceptance Handshake
+    Inviter->>Server: AC 14:2 [InviterID: UInt32, TargetCharID: UInt32] (Send Friend Invitation)
+    Server->>Invitee: AC 14:2 [InviterID: UInt32, TargetCharID: UInt32] (Forward Invitation Prompt)
+    Invitee->>Server: AC 14:3 [InviterID: UInt32, Group: Byte] (Accept Friend Request)
+    Server->>Inviter: AC 14:3 [InviteeID: UInt32, Group: Byte] (Reciprocal Acceptance Notification)
+    Server->>Inviter: AC 14:9 [InviteeID: UInt32, 0: Byte] (Add Friend ACK Confirmation)
+    Server->>Inviter: AC 14:7 [InviteeID: UInt32, Name: String] (Presence: Friend Online)
+    Server->>Inviter: AC 10:3 [InviteeID: UInt32, 0xFF: Byte] (Alternative Presence Indicator)
+    Server->>Invitee: AC 14:9 [InviterID: UInt32, 0: Byte] (Add Friend ACK Confirmation)
+    Server->>Invitee: AC 14:7 [InviterID: UInt32, Name: String] (Presence: Friend Online)
+    Server->>Invitee: AC 10:3 [InviterID: UInt32, 0xFF: Byte] (Alternative Presence Indicator)
+
+    Note over Inviter,Server: Friend Removal & UI Deselection
+    Inviter->>Server: AC 14:4 [TargetCharID: UInt32] (Delete Friend Request)
+    Server->>Inviter: AC 14:4 [TargetCharID: UInt32] (Client UI Drop Target Sprite/Row)
+    Server->>Invitee: AC 14:4 [InviterID: UInt32] (Client UI Drop Inviter Sprite/Row)
+```
+
+#### 4.6.1 Friend Binary Record Layouts
+* **Tab Synchronization (`AC 14:11` - 26 Bytes/Friend):**
+  * `Offset 0..3 (UInt32)`: Character ID.
+  * `Offset 4 (Byte)`: Level.
+  * `Offset 5 (Byte)`: Job / Rebirth Class.
+  * `Offset 6 (Byte)`: Element (`1=Earth, 2=Water, 3=Fire, 4=Wind`).
+  * `Offset 7 (Byte)`: Body Type.
+  * `Offset 8 (Byte)`: Head Type.
+  * `Offset 9..16 (UInt16 x 4)`: HairColor, SkinColor, ClothingColor, EyeColor.
+  * `Offset 17.. (String)`: Character Nickname / Name (length-prefixed).
+* **Main Roster Synchronization (`AC 14:5` - 28 Bytes/Friend):**
+  * Extends `AC 14:11` layout with Guild Name string (`""`) and trailing Online Status flag Byte (`0x01` = Online/Green, `0x00` = Offline/Grey).
+
+> [!NOTE]
+> Serialized directly using strongly-typed [`SendPacket.Pack32`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Network/Packet.cs#L48) rather than `Tools.FromFormat` to avoid signed/unsigned byte conversion overflow exceptions (`System.OverflowException`) when formatting 32-bit character identifiers.
+
+---
+
+### 4.7 Pet & Companion Lifecycle Protocol (`AC 15` & `AC 19`)
+
+Verified against official network captures (`session_20260911_150803`):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Server
+    participant MapPeers
+
+    Note over Server,Client: Login Pet Roster Synchronization
+    Server->>Client: AC 15:1 [Pet Stats Record - 52B] (One packet per companion)
+    Server->>Client: AC 8:2 [Stats 110 & 367] (Unlock companion combat skills)
+    Server->>Client: AC 19:4 / AC 19:1 [PetID: UInt32] (Active battle companion)
+
+    Note over Server,Client: Map Warp / Follower Display
+    Server->>Client: AC 15:4 [CharID: 4B, PetID: 4B, 0, 1, Name: String, EquipTail: 8B]
+    Server->>MapPeers: AC 15:4 [CharID: 4B, PetID: 4B, 0, 1, Name: String, EquipTail: 8B]
+
+    Note over Client,Server: Setting Active Battle Mode
+    Client->>Server: AC 19:1 [PetID: UInt32]
+    Server->>Client: AC 15:4 (Spawn/refresh map follower)
+    Server->>MapPeers: AC 15:4 (Spawn/refresh map follower)
+    Server->>Client: AC 19:1 [PetID: UInt32] (Confirm battle mode)
+
+    Note over Client,Server: Standby / Resting Companion
+    Client->>Server: AC 19:2 (Empty payload)
+    Server->>Client: AC 19:7 [CharID: UInt32] (Despawn map follower)
+    Server->>MapPeers: AC 19:7 [CharID: UInt32] (Despawn map follower)
+    Server->>Client: AC 19:2 (Confirm standby mode)
+    Server->>MapPeers: AC 19:2 (Confirm standby mode)
+
+    Note over Client,Server: Companion Mount & Dismount
+    Client->>Server: AC 15:11 [Slot: 1B, PetID: 4B] (Ride Companion)
+    Server->>Client: AC 15:16 [Slot: 1B, CharID: 4B, PetID: 4B, 26 zeros]
+    Server->>MapPeers: AC 15:16 [Slot: 1B, CharID: 4B, PetID: 4B, 26 zeros]
+    Client->>Server: AC 15:12 [Slot: 1B, PetID: 4B] (Dismount Companion)
+    Server->>Client: AC 15:17 [CharID: 4B]
+    Server->>MapPeers: AC 15:17 [CharID: 4B]
+```
+
+#### 4.7.1 Companion Binary Packet Specifications
+* **Overworld Map Visual Follower (`AC 15:4`):**
+  * `Offset 0..3 (UInt32)`: Owner Character ID (`CharID`).
+  * `Offset 4..7 (UInt32)`: Companion Template / NPC ID (`PetID`).
+  * `Offset 8 (Byte)`: Sub-mode flag (`0x00`).
+  * `Offset 9 (Byte)`: Active state flag (`0x01`).
+  * `Offset 10.. (String)`: Companion name (1-byte length prefix).
+  * `Trailing 8 Bytes`: Companion weapon and visual equipment padding (`[0, 0, 0, 0, 0, WeaponLo, WeaponHi, 0]`).
+* **Companion Battle Spawn Record (`AC 11:5` - 32 Bytes):**
+  * `Offset 0 (Byte)`: Team Side (`0x05` for Friendly Pets, `0x01` for Enemy Monsters).
+  * `Offset 1 (Byte)`: Entity Type (`0x04` for Pets, `0x07` for Monsters, `0x02` for Players).
+  * `Offset 2..5 (UInt32)`: Entity Identifier (`PetID`, `MonsterID`, or `CharID`).
+  * `Offset 6..7 (UInt16)`: Pet Slot index (in friendly pet list) or ClickID (for monsters).
+  * `Offset 8..11 (UInt32)`: Owner Character ID (or `0` for monsters/players).
+  * `Offset 12 (Byte)`: Battlefield Matrix Grid X coordinate.
+  * `Offset 13 (Byte)`: Battlefield Matrix Grid Y coordinate.
+  * `Offset 14..17 (UInt32)`: Max HP.
+  * `Offset 18..19 (UInt16)`: Max SP.
+  * `Offset 20..23 (UInt32)`: Current HP.
+  * `Offset 24..25 (UInt16)`: Current SP.
+  * `Offset 26 (Byte)`: Element (`0=Earth, 1=Water, 2=Fire, 3=Wind`).
+  * `Offset 27 (Byte)`: Level.
+  * `Offset 28 (Byte)`: Reborn flag.
+  * `Offset 29 (Byte)`: Job / Class flag.
+* **Pet Stat & Skill Sync Record (`AC 8:2` - 13 Bytes Payload):**
+  * `Offset 0 (Byte)`: Target Type indicator (`0x04` strictly designates Pet record; values != 4 are treated as player attributes).
+  * `Offset 1..2 (UInt16)`: Pet Roster Slot (`1..4`).
+  * `Offset 3..4 (UInt16)`: Stat Identifier:
+    * `0x0119` (281): Current HP
+    * `0x011A` (282): Current SP
+    * `0x011D` (285): Level
+    * `0x0129` (297): STR
+    * `0x012A` (298): CON
+    * `0x012B` (299): INT
+    * `0x012C` (300): WIS
+    * `0x012D` (301): AGI
+    * `0x016F` (367): Skill Tree Node Unlock / Proficiency Exp
+  * `Offset 5..8 (UInt32)`: Value 1 (CurHP, CurSP, Level, or Skill Proficiency / Grade).
+  * `Offset 9..12 (UInt32)`: Value 2 (Skill ID when Stat is `0x016F`, otherwise `0x00000000`).

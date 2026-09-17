@@ -86,14 +86,10 @@ namespace Network.ActionCodes
                     pet.IsBattle = false;
                     player.UnridePet();
 
-                    // Rest / Despawn follower packets
-                    SendPacket restPkt = Tools.FromFormat("bbd", 19, 5, player.CharID);
-                    player.Send(restPkt);
-                    player.CurMap?.Broadcast(restPkt, "Ex", player.CharID);
-
-                    SendPacket petDespawn = Tools.FromFormat("bbdd", 5, 8, player.CharID, 0);
-                    player.Send(petDespawn);
-                    player.CurMap?.Broadcast(petDespawn, "Ex", player.CharID);
+                    // Authentic AC 19:7 [CharID: 4B] despawns pet follower sprite from overworld
+                    SendPacket despawnPkt = Tools.FromFormat("bbd", 19, 7, player.CharID);
+                    player.Send(despawnPkt);
+                    player.CurMap?.Broadcast(despawnPkt, "Ex", player.CharID);
                 }
 
                 // 2. Remove pet from PlayerPets collection
@@ -263,6 +259,10 @@ namespace Network.ActionCodes
                 uint petId = p.Unpack32();
 
                 player.UnridePet();
+                if (player.ActivePetID > 0)
+                {
+                    player.BroadcastPetAppearance(player.ActivePetID);
+                }
                 DebugSystem.Write($"[AC15] Player {player.CharName} rested/dismounted companion ID {petId} (Slot {slot})");
             }
             catch (Exception ex)

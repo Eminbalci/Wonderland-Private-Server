@@ -1898,34 +1898,11 @@ namespace DataBase
                             player.Send(broadcastPacket);
                             broadcastCount++;
 
-                            // Also synchronize newPlayer's active companion pet to player
-                            if (newPlayer.PlayerPets != null && newPlayer.PlayerPets.Count > 0)
+                            // Also synchronize newPlayer's active companion visual to map peer
+                            if (newPlayer.ActivePetID > 0 && player.CurMap != null && player.CurMap.MapID == newPlayer.CurMap.MapID)
                             {
-                                var activePet = newPlayer.PlayerPets.Values.FirstOrDefault(pet => pet.IsBattle || pet.PetID == newPlayer.ActivePetID);
-                                if (activePet != null)
-                                {
-                                    SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(newPlayer, activePet.PetID, activePet.Slot, activePet.HP, activePet.MaxHP, activePet.SP, activePet.MaxSP, activePet.Amity, activePet.Level);
-                                    player.Send(petPkt);
-
-                                    SendPacket petFollow = new SendPacket();
-                                    petFollow.PackArray(new byte[] { 13, 5 });
-                                    petFollow.Pack32(newPlayer.CharID);
-                                    petFollow.Pack32(activePet.PetID);
-                                    player.Send(petFollow);
-
-                                    SendPacket followPkt = new SendPacket();
-                                    followPkt.Pack8(19);
-                                    followPkt.Pack8(4);
-                                    followPkt.Pack32(newPlayer.CharID);
-                                    followPkt.Pack32(activePet.PetID);
-                                    player.Send(followPkt);
-
-                                    SendPacket petRefresh = new SendPacket();
-                                    petRefresh.PackArray(new byte[] { 5, 8 });
-                                    petRefresh.Pack32(newPlayer.CharID);
-                                    petRefresh.Pack8(0);
-                                    player.Send(petRefresh);
-                                }
+                                SendPacket petMapPkt = newPlayer.CreatePetMapPacket(newPlayer.ActivePetID);
+                                if (petMapPkt != null) player.Send(petMapPkt);
                             }
 
                             DebugSystem.Write($"[BroadcastNewPlayer] Successfully sent to {player.CharName}");

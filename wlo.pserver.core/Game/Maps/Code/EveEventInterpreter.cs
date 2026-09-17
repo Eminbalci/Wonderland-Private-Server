@@ -1475,16 +1475,24 @@ namespace Game.Maps
                             ushort propClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
                             SendPacket anim = Tools.FromFormat("bbwb", 22, 1, propClickId, (byte)1);
                             player.Send(anim);
-                            map?.Broadcast(anim);
 
-                            var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == propClickId) as QuestNpc;
-                            if (qn != null)
+                            // Determine if this prop is a one-time per-player quest container or a renewable gathering node
+                            bool isQuestProp = (sub != null && sub.unknownword1 > 0) ||
+                                               (ev != null && ev.SubEntry != null && ev.SubEntry.Any(s => s.unknownword1 > 0));
+
+                            if (!isQuestProp)
                             {
-                                qn.IsBroken = true;
-                                qn.RespawnTime = DateTime.Now.AddSeconds(60);
+                                map?.Broadcast(anim);
+
+                                var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == propClickId) as QuestNpc;
+                                if (qn != null)
+                                {
+                                    qn.IsBroken = true;
+                                    qn.RespawnTime = DateTime.Now.AddSeconds(60);
+                                }
                             }
 
-                            DebugSystem.Write($"[EveEventInterpreter] Prop Break/Open Animation (AC 22:1) for ClickID {propClickId} triggered by {player.CharName}");
+                            DebugSystem.Write($"[EveEventInterpreter] Prop Break/Open Animation (AC 22:1) for ClickID {propClickId} triggered by {player.CharName} (isQuestProp={isQuestProp})");
                             return true;
                         }
 
@@ -1501,21 +1509,27 @@ namespace Game.Maps
                                 PreEventInterpreter.SendActorHide(player, targetClickId);
                             }
 
-                            var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == targetClickId) as QuestNpc;
-                            if (qn != null && qn.IsStaticNpc())
+                            bool isQuestEntity = (sub != null && sub.unknownword1 > 0) ||
+                                                 (ev != null && ev.SubEntry != null && ev.SubEntry.Any(s => s.unknownword1 > 0));
+
+                            if (!isQuestEntity)
                             {
-                                qn.IsBroken = (op.dialog2 == 2);
-                                if (qn.IsBroken)
+                                var qn = map?.NpcList?.FirstOrDefault(n => n.CickID == targetClickId) as QuestNpc;
+                                if (qn != null && qn.IsStaticNpc())
                                 {
-                                    qn.RespawnTime = DateTime.Now.AddSeconds(60);
+                                    qn.IsBroken = (op.dialog2 == 2);
+                                    if (qn.IsBroken)
+                                    {
+                                        qn.RespawnTime = DateTime.Now.AddSeconds(60);
+                                    }
+                                    byte st1 = (op.dialog2 == 3) ? (byte)0x00 : (byte)0xFF;
+                                    byte st2 = (byte)0xFF;
+                                    SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, targetClickId, st1, st2);
+                                    map?.Broadcast(anim);
                                 }
-                                byte st1 = (op.dialog2 == 3) ? (byte)0x00 : (byte)0xFF;
-                                byte st2 = (byte)0xFF;
-                                SendPacket anim = Tools.FromFormat("bbwbb", 22, 10, targetClickId, st1, st2);
-                                map?.Broadcast(anim);
                             }
 
-                            DebugSystem.Write($"[EveEventInterpreter] Dynamic Actor State (AC 22:10/11) for ClickID {targetClickId} -> (dialog2={op.dialog2}) for {player.CharName}");
+                            DebugSystem.Write($"[EveEventInterpreter] Dynamic Actor State (AC 22:10/11) for ClickID {targetClickId} -> (dialog2={op.dialog2}) for {player.CharName} (isQuestEntity={isQuestEntity})");
                             return true;
                         }
 

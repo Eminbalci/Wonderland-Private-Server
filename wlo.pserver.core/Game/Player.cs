@@ -1119,14 +1119,17 @@ namespace Game
         {
             if (petId == 0) petId = ActivePetID;
             if (petId == 0) return null;
+
+            var pet = PlayerPets?.Values?.FirstOrDefault(x => Player.IsSamePetOrCompanion(x.PetID, petId));
             if (string.IsNullOrEmpty(petName))
             {
-                var pet = PlayerPets?.Values?.FirstOrDefault(x => x.PetID == petId);
                 petName = pet?.PetName;
                 if (string.IsNullOrWhiteSpace(petName)) petName = QuestRelated.QuestManager.GetNpcName(petId);
                 if (string.IsNullOrWhiteSpace(petName)) petName = $"Pet #{petId}";
             }
 
+            // Authentic AC 15:4 layout:
+            // [15, 4, CharID:4B, PetID:4B, 0:1B, 1:1B, PetName:String, 0,0,0,0,0, Weapon:2B, 0,0] (total 8 trailing bytes)
             SendPacket pkt = new SendPacket();
             pkt.Pack8(15);
             pkt.Pack8(4);
@@ -1135,7 +1138,12 @@ namespace Game
             pkt.Pack8(0);
             pkt.Pack8(1);
             pkt.PackString(petName);
-            pkt.Pack16(0);
+
+            ushort weaponId = pet != null ? pet.Eq_Weapon : (ushort)0;
+            pkt.Pack32(0);
+            pkt.Pack8(0);
+            pkt.Pack16(weaponId);
+            pkt.Pack8(0);
             return pkt;
         }
 
@@ -1150,41 +1158,6 @@ namespace Game
                 Send(mapPkt);
                 CurMap?.Broadcast(mapPkt, "Ex", this.CharID);
             }
-
-            var pet = PlayerPets?.Values?.FirstOrDefault(x => x.PetID == petId);
-            SendPacket petPkt;
-            if (pet != null)
-            {
-                petPkt = QuestRelated.QuestManager.CreatePetPacket(this, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level);
-            }
-            else
-            {
-                petPkt = QuestRelated.QuestManager.CreatePetPacket(this, petId, 1);
-            }
-            Send(petPkt);
-            CurMap?.Broadcast(petPkt, "Ex", this.CharID);
-
-            SendPacket followPkt = new SendPacket();
-            followPkt.Pack8(19);
-            followPkt.Pack8(4);
-            followPkt.Pack32(this.CharID);
-            followPkt.Pack32(petId);
-            Send(followPkt);
-            CurMap?.Broadcast(followPkt, "Ex", this.CharID);
-
-            SendPacket petFollow = new SendPacket();
-            petFollow.PackArray(new byte[] { 13, 5 });
-            petFollow.Pack32(this.CharID);
-            petFollow.Pack32(petId);
-            Send(petFollow);
-            CurMap?.Broadcast(petFollow, "Ex", this.CharID);
-
-            SendPacket petRefresh = new SendPacket();
-            petRefresh.PackArray(new byte[] { 5, 8 });
-            petRefresh.Pack32(this.CharID);
-            petRefresh.Pack8(0);
-            Send(petRefresh);
-            CurMap?.Broadcast(petRefresh, "Ex", this.CharID);
         }
 
         public bool AddPetToPartyList(string petID)
@@ -1242,6 +1215,13 @@ namespace Game
 
             // Full broadcast of AC 15:4, AC 15:1, AC 19:4, AC 13:5, and AC 5:8
             BroadcastPetAppearance(pid);
+
+            // Synchronize active companion pet skills to client
+            var activePet = PlayerPets?.Values.FirstOrDefault(p => p.PetID == pid);
+            if (activePet != null)
+            {
+                QuestRelated.QuestManager.SendPetSkills(this, activePet.PetID, activePet.Slot);
+            }
         }
 
         public void PutPetToRide(string petID)
@@ -1712,6 +1692,29 @@ namespace Game
             p.Pack16(statId);
             p.Pack64((ulong)val);
             recipient.Send(p);
+        }
+
+        /// <summary>
+        /// Dispatches an authentic AC 8:2 Pet Stat sync packet to this player.
+        /// Wire format: [8, 2, TargetType=4, Slot (UInt16), StatID (UInt16), Val1 (UInt32), Val2 (UInt32)]
+        /// </summary>
+        public void SendPetStat(byte slot, ushort statId, uint val1, uint val2 = 0)
+        {
+            SendPacket p = new SendPacket();
+            p.Pack8(8);
+            p.Pack8(2);
+            p.Pack8(4); // TargetType: Pet
+            p.Pack16((ushort)slot);
+            p.Pack16(statId);
+            p.Pack32(val1);
+            p.Pack32(val2);
+            Send(p);
+        }
+
+        public static void SendPetStat(Player recipient, byte slot, ushort statId, uint val1, uint val2 = 0)
+        {
+            if (recipient == null) return;
+            recipient.SendPetStat(slot, statId, val1, val2);
         }
 
         public static void SendTeammateStats(Player recipient, Player teammate)

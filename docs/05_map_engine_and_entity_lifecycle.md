@@ -158,3 +158,26 @@ When a player enters a map or another player approaches, [`SendPeerCompanionAndV
    * Transmits Character ID, Active Pet ID, visual state, companion name string, and combat stance.
 4. **Companion Combat Attributes (`AC 15:1`):**
    * Synchronizes pet HP, MaxHP, SP, MaxSP, Amity, Level, and primary attribute allocation to map peers.
+
+---
+
+## 7. Interactive Map Props, Chests, and Stage Scenery Synchronization
+
+### 7.1 Wire Protocol & State Field Semantics (`AC 22:4`)
+Map entity replication transmits 14-byte records per entity:
+`[ClickID: 2B, State: 2B, X: 2B, Y: 2B, EntityType: 1B, Duration: 4B, Stance: 1B]`
+
+* **Intact / Idle Frame (`0x00FF` / 255):** Authentic default animation frame for living actors, intact stage props, unopened chests, and unharvested resource nodes.
+* **Opened / Broken Frame (`0x0001` / 1):** Animation frame for broken casks, opened treasure chests, and smashed wreckage.
+* **Despawned / Concealed (`0xFFFF` / 65535):** Concealed or recruited entity state.
+* **Sprite Table Trap:** Sending `0x0000` for intact props is invalid in WLO client animation tables; action 0 corresponds to the shattered/cracked frame. All intact entities must strictly use `0x00FF`.
+
+### 7.2 Per-Player Quest Props vs. Renewable Gathering Nodes
+1. **One-Time Per-Player Quest Props (`unknownword1 > 0`):**
+   * State is derived strictly from `player.Quests[unknownword1].State == QuestState.Completed`.
+   * Never mutates shared `Map.NPCs` or `qn.IsBroken`.
+   * `AC 22:1` (break animation) is sent solely via unicast to `player.Send()`, never broadcast to map peers.
+2. **Renewable Gathering Nodes (No Quest Association):**
+   * State is tracked via `qn.IsBroken` and `qn.RespawnTime` on the map instance.
+   * Interacting broadcasts `AC 22:1` (action 1) to map peers.
+   * Upon timer expiration, `QuestNpc.Update()` broadcasts `AC 22:10 (0, 0)` (unhide) and `AC 22:1 (action 0)` to restore the unbroken sprite frame.

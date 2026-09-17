@@ -267,10 +267,26 @@ namespace Network.ActionCodes
                         sAck1.Pack8(0);
                         requester.Send(sAck1);
 
+                        // 3. S->C AC 14:7 to requester (Notify that newly accepted friend is online)
+                        SendPacket sOnline1 = new SendPacket();
+                        sOnline1.Pack8(14);
+                        sOnline1.Pack8(7);
+                        sOnline1.Pack32(p.CharID);
+                        sOnline1.PackString(p.CharName ?? string.Empty);
+                        requester.Send(sOnline1);
+
+                        // Also notify via AC 10:3 [CharID:4B, 0xFF] presence packet matching official capture
+                        SendPacket sAc10_1 = new SendPacket();
+                        sAc10_1.Pack8(10);
+                        sAc10_1.Pack8(3);
+                        sAc10_1.Pack32(p.CharID);
+                        sAc10_1.Pack8(0xFF);
+                        requester.Send(sAc10_1);
+
                         SendFriendList(requester);
                     }
 
-                    // 3. S->C AC 14:3 to accepter: [14, 3, requesterCharID:d, group:b]
+                    // 4. S->C AC 14:3 to accepter: [14, 3, requesterCharID:d, group:b]
                     SendPacket s2 = new SendPacket();
                     s2.Pack8(14);
                     s2.Pack8(3);
@@ -278,7 +294,7 @@ namespace Network.ActionCodes
                     s2.Pack8(group);
                     p.Send(s2);
 
-                    // 4. S->C AC 14:9 to accepter: [14, 9, requesterCharID:d, 0:b] (Add Friend Success ACK)
+                    // 5. S->C AC 14:9 to accepter: [14, 9, requesterCharID:d, 0:b] (Add Friend Success ACK)
                     SendPacket sAck2 = new SendPacket();
                     sAck2.Pack8(14);
                     sAck2.Pack8(9);
@@ -286,7 +302,25 @@ namespace Network.ActionCodes
                     sAck2.Pack8(0);
                     p.Send(sAck2);
 
-                    // 5. Auto-refresh friend list for accepter
+                    // 6. S->C AC 14:7 to accepter if requester is online
+                    if (requester != null)
+                    {
+                        SendPacket sOnline2 = new SendPacket();
+                        sOnline2.Pack8(14);
+                        sOnline2.Pack8(7);
+                        sOnline2.Pack32(requester.CharID);
+                        sOnline2.PackString(requester.CharName ?? string.Empty);
+                        p.Send(sOnline2);
+
+                        SendPacket sAc10_2 = new SendPacket();
+                        sAc10_2.Pack8(10);
+                        sAc10_2.Pack8(3);
+                        sAc10_2.Pack32(requester.CharID);
+                        sAc10_2.Pack8(0xFF);
+                        p.Send(sAc10_2);
+                    }
+
+                    // 7. Auto-refresh friend list for accepter
                     SendFriendList(p);
                 }
                 catch (Exception dbEx)
@@ -301,8 +335,9 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// AC 14:4 - Friend Remove or Friend List Request (Confirmed via arkadassilme.pcapng)
+        /// AC 14:4 - Friend Remove or Friend List Request (Confirmed via arkadassilme.pcapng and session_20260911_150803)
         /// C->S: 0e 04 <friendCharId(4B)>
+        /// S->C: 0e 04 <removedCharId(4B)> to notify UI deletion
         /// </summary>
         void Recv4(ref Player p, RecievePacket r)
         {
@@ -331,13 +366,24 @@ namespace Network.ActionCodes
 
                         DebugSystem.Write(DebugItemType.Error, $"[AC14.Recv4] Removed friendship: {p.CharID} <-> {friendCharID}");
 
+                        // S->C AC 14:4 Friend Removed ACK to current player so client drops entry from UI
+                        SendPacket delPkt = new SendPacket();
+                        delPkt.PackArray(new byte[] { 14, 4 });
+                        delPkt.Pack32(friendCharID);
+                        p.Send(delPkt);
+
                         // Auto-refresh friend list for current player
                         SendFriendList(p);
 
-                        // Auto-refresh friend list for ex-friend if online
+                        // If ex-friend is online, notify them and refresh their friend list
                         Player exFriend = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == friendCharID);
                         if (exFriend != null)
                         {
+                            SendPacket delEx = new SendPacket();
+                            delEx.PackArray(new byte[] { 14, 4 });
+                            delEx.Pack32(p.CharID);
+                            exFriend.Send(delEx);
+
                             SendFriendList(exFriend);
                         }
                     }
@@ -360,7 +406,7 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// Public static helper to send friend list to a player
+        /// Public static helper to send friend list to a player (AC 14:11 and AC 14:5 matching official PCAP frames 475 & 476)
         /// </summary>
         public static void SendFriendList(Player p)
         {
@@ -391,16 +437,24 @@ namespace Network.ActionCodes
 
                 DebugSystem.Write(DebugItemType.Error, $"[AC14] Found {friendIDs.Count} friends for {p.CharName}");
 
-                // Send friend list with complete character data (SubCmd 5)
-                SendPacket s = new SendPacket();
-                s.PackArray(new byte[] { 14, 5 });
-
+                // 1. S->C AC 14:11 Friend Tab Synchronization (verified from official PCAP frame 475)
+                SendPacket s11 = new SendPacket();
+                s11.PackArray(new byte[] { 14, 11 });
                 foreach (uint friendID in friendIDs)
                 {
-                    PackFriendEntry(s, friendID);
+                    PackFriendEntry(s11, friendID, isTab11: true);
                 }
+                p.Send(s11);
 
-                p.Send(s);
+                // 2. S->C AC 14:5 Main Friend List (verified from official PCAP frame 476)
+                SendPacket s5 = new SendPacket();
+                s5.PackArray(new byte[] { 14, 5 });
+                foreach (uint friendID in friendIDs)
+                {
+                    PackFriendEntry(s5, friendID, isTab11: false);
+                }
+                p.Send(s5);
+
                 DebugSystem.Write(DebugItemType.Error, $"[AC14] Sent friend list ({friendIDs.Count} friends) to {p.CharName}");
             }
             catch (Exception ex)
@@ -415,9 +469,11 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// Helper to pack a friend entry with live online detection
+        /// Helper to pack a friend entry with live online detection.
+        /// isTab11=true packs 26 bytes per entry (omitting guild and online status byte) matching AC 14:11.
+        /// isTab11=false packs 28 bytes per entry (including empty guild and online status byte) matching AC 14:5.
         /// </summary>
-        private static void PackFriendEntry(SendPacket s, uint friendID)
+        private static void PackFriendEntry(SendPacket s, uint friendID, bool isTab11 = false)
         {
             try
             {
@@ -440,10 +496,14 @@ namespace Network.ActionCodes
                     s.Pack16(friendChar.ClothingColor);
                     s.Pack16(friendChar.EyeColor);
                     s.PackString(friendChar.NickName ?? "");
-                    s.PackString(""); // GuildName string
-                    s.Pack8((byte)(isOnline ? 1 : 0)); // Online status: 1 = Online (Green), 0 = Offline (Grey)
 
-                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Added friend {friendChar.CharName} (ID:{friendID}) - Online: {isOnline}");
+                    if (!isTab11)
+                    {
+                        s.PackString(""); // GuildName string
+                        s.Pack8((byte)(isOnline ? 1 : 0)); // Online status: 1 = Online (Green), 0 = Offline (Grey)
+                    }
+
+                    DebugSystem.Write(DebugItemType.Error, $"[AC14] Added friend {friendChar.CharName} (ID:{friendID}, tab11={isTab11}) - Online: {isOnline}");
                 }
                 else
                 {
@@ -464,6 +524,12 @@ namespace Network.ActionCodes
             try
             {
                 if (p == null || cGlobal.gGameDataBase == null) return;
+
+                if (isOnline)
+                {
+                    SendFriendList(p);
+                }
+
                 var friendsTable = cGlobal.gGameDataBase.GetDataTable(
                     $"SELECT CharID1, CharID2 FROM Friends WHERE CharID1 = {p.CharID} OR CharID2 = {p.CharID}");
 
