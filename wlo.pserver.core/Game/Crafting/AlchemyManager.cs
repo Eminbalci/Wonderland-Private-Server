@@ -30,12 +30,11 @@ namespace Game.Crafting
         private static readonly List<AlchemyRecipe> _recipes = new List<AlchemyRecipe>();
         private static readonly Random _rng = new Random();
         private static readonly object _lock = new object();
-        private static readonly string ConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "alchemy_recipes.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("alchemy_recipes.txt");
 
         static AlchemyManager()
         {
-            InitializeRecipes();
-            LoadFromFile();
+            LoadFromDatabase();
         }
 
         public static void InitializeRecipes()
@@ -69,6 +68,65 @@ namespace Game.Crafting
                 _recipes.Add(new AlchemyRecipe(30015, 30016, 22001, "Leather Boots", 75.0)); // Pelt + Leather -> Boots
                 _recipes.Add(new AlchemyRecipe(30016, 30013, 22005, "Leather Vest", 70.0)); // Leather + Silk -> Vest
                 _recipes.Add(new AlchemyRecipe(30018, 30013, 22010, "Tiger Fur Coat", 60.0)); // Tiger Fur + Silk -> Coat
+
+                // Load official binary recipes from Compound2.dat and Compound.dat
+                string c2 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound2.dat");
+                if (File.Exists(c2)) { LoadFromCompoundDat(c2); }
+
+                string c1 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound.dat");
+                if (File.Exists(c1)) { LoadFromCompoundDat(c1); }
+            }
+        }
+
+        public static void LoadFromCompoundDat(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return;
+
+            try
+            {
+                byte[] data = File.ReadAllBytes(filePath);
+                int recordSize = 65;
+                int total = data.Length / recordSize;
+                int loaded = 0;
+
+                lock (_lock)
+                {
+                    for (int i = 0; i < total; i++)
+                    {
+                        int ptr = i * recordSize;
+                        if (ptr + recordSize > data.Length) break;
+
+                        ushort resultId = (ushort)((BitConverter.ToUInt16(data, ptr) ^ 0xFBBC) - 3);
+                        ushort in1 = (ushort)((BitConverter.ToUInt16(data, ptr + 11) ^ 0xFBBC) - 3);
+                        ushort in2 = (ushort)((BitConverter.ToUInt16(data, ptr + 14) ^ 0xFBBC) - 3);
+
+                        if (resultId > 0 && in1 > 0 && in2 > 0)
+                        {
+                            if (!_recipes.Any(r => (r.InputItem1 == in1 && r.InputItem2 == in2 && r.OutputItem == resultId) ||
+                                                   (r.InputItem1 == in2 && r.InputItem2 == in1 && r.OutputItem == resultId)))
+                            {
+                                string name = Battle.MonsterDropManager.ItemNameResolver?.Invoke(resultId) ?? $"Item #{resultId}";
+                                _recipes.Add(new AlchemyRecipe(in1, in2, resultId, name, 85.0));
+                                loaded++;
+                            }
+                        }
+                    }
+                }
+                DebugSystem.Write($"[AlchemyManager] Loaded {loaded} authentic recipes from {Path.GetFileName(filePath)} (Total recipes: {_recipes.Count})");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AlchemyManager] Error loading {filePath}: {ex.Message}");
+            }
+        }
+
+        public static AlchemyRecipe FindRecipe(ushort item1, ushort item2)
+        {
+            lock (_lock)
+            {
+                return _recipes.FirstOrDefault(r =>
+                    (r.InputItem1 == item1 && r.InputItem2 == item2) ||
+                    (r.InputItem1 == item2 && r.InputItem2 == item1));
             }
         }
 
@@ -140,76 +198,108 @@ namespace Game.Crafting
             p.Send(s);
         }
 
-        public static void LoadFromFile()
+        public static void VerifyTable()
         {
-            if (!File.Exists(ConfigPath))
-            {
-                SaveToFile();
-                return;
-            }
-
             try
             {
-                var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
+                bool needsRecreate = false;
+                try
+                {
+                    var testDt = RCLibrary.Core.DataBase.Query("SELECT item1_id FROM alchemy_recipes LIMIT 1;");
+                    if (testDt == null) needsRecreate = true;
+                }
+                catch
+                {
+                    needsRecreate = true;
+                }
+
+                if (needsRecreate)
+                {
+                    RCLibrary.Core.DataBase.Execute("DROP TABLE IF EXISTS alchemy_recipes;");
+                }
+
+                RCLibrary.Core.DataBase.Execute(@"CREATE TABLE IF NOT EXISTS alchemy_recipes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item1_id INT NOT NULL,
+                    item2_id INT NOT NULL,
+                    output_id INT NOT NULL,
+                    output_name TEXT,
+                    success_rate REAL DEFAULT 100.0
+                );");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[Alchemy] Error verifying alchemy_recipes table: {ex.Message}");
+            }
+        }
+
+        public static void LoadFromFile() => LoadFromDatabase();
+
+        public static void LoadFromDatabase()
+        {
+            try
+            {
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM alchemy_recipes;");
+
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    // Table empty: seed recipes
+                    InitializeRecipes();
+                    SaveToDatabase();
+                    dt = RCLibrary.Core.DataBase.Query("SELECT * FROM alchemy_recipes;");
+                }
+
                 lock (_lock)
                 {
                     _recipes.Clear();
-                    foreach (var rawLine in lines)
+                    if (dt != null)
                     {
-                        string line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
-
-                        // Format: ITEM1,ITEM2|OUTPUT_ID,OUTPUT_NAME,RATE
-                        var parts = line.Split('|');
-                        if (parts.Length >= 2)
+                        foreach (System.Data.DataRow row in dt.Rows)
                         {
-                            var inTokens = parts[0].Split(',');
-                            var outTokens = parts[1].Split(',');
+                            ushort in1 = Convert.ToUInt16(row["item1_id"]);
+                            ushort in2 = Convert.ToUInt16(row["item2_id"]);
+                            ushort outIt = Convert.ToUInt16(row["output_id"]);
+                            string outName = row["output_name"]?.ToString() ?? "";
+                            double rate = Convert.ToDouble(row["success_rate"]);
 
-                            if (inTokens.Length >= 2 && outTokens.Length >= 2)
-                            {
-                                if (ushort.TryParse(inTokens[0].Trim(), out ushort in1) &&
-                                    ushort.TryParse(inTokens[1].Trim(), out ushort in2) &&
-                                    ushort.TryParse(outTokens[0].Trim(), out ushort outIt))
-                                {
-                                    string outName = outTokens[1].Trim();
-                                    double rate = outTokens.Length > 2 && double.TryParse(outTokens[2].Trim(), out double r) ? r : 75.0;
-                                    _recipes.Add(new AlchemyRecipe(in1, in2, outIt, outName, rate));
-                                }
-                            }
+                            _recipes.Add(new AlchemyRecipe(in1, in2, outIt, outName, rate));
                         }
+                    }
+                }
+
+                DebugSystem.Write($"[Alchemy] Loaded {_recipes.Count} recipes from SQLite database.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[Alchemy] Error loading recipes from database: {ex.Message}");
+            }
+        }
+
+        public static void SaveToDatabase()
+        {
+            try
+            {
+                VerifyTable();
+                lock (_lock)
+                {
+                    RCLibrary.Core.DataBase.Execute("DELETE FROM alchemy_recipes;");
+                    foreach (var r in _recipes)
+                    {
+                        string sql = $"INSERT INTO alchemy_recipes (item1_id, item2_id, output_id, output_name, success_rate) VALUES ({r.InputItem1}, {r.InputItem2}, {r.OutputItem}, '{r.OutputName.Replace("'", "''")}', {r.SuccessRate});";
+                        RCLibrary.Core.DataBase.Execute(sql);
                     }
                 }
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[Alchemy] Error loading recipes: {ex.Message}");
+                DebugSystem.Write($"[Alchemy] Error saving recipes to database: {ex.Message}");
             }
         }
 
         public static void SaveToFile()
         {
-            try
-            {
-                string dir = Path.GetDirectoryName(ConfigPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                var sb = new StringBuilder();
-                sb.AppendLine("# WLO Alchemy & Synthesis Recipes");
-                sb.AppendLine("# Format: <InputItem1>,<InputItem2> | <OutputItem>,<OutputName>,<SuccessRate%>");
-                lock (_lock)
-                {
-                    foreach (var r in _recipes)
-                    {
-                        sb.AppendLine($"{r.InputItem1},{r.InputItem2} | {r.OutputItem},{r.OutputName},{r.SuccessRate:F1}");
-                    }
-                }
-                File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[Alchemy] Error saving recipes: {ex.Message}");
-            }
+            SaveToDatabase();
         }
     }
 }

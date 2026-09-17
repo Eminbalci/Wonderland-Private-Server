@@ -124,6 +124,7 @@ public static class DebugSystem
 			break;
 		}
 		DateTime key = DateTime.Now;
+		string timestamp = $"[{key:yyyy-MM-dd HH:mm:ss}] ";
 		DebugItem value = default(DebugItem);
 		if (data is string)
 		{
@@ -131,7 +132,7 @@ public static class DebugSystem
 			value.Msg = data.ToString();
 			if (value.VerboseReq <= VerboseLvl)
 			{
-				WriteLine(text + data.ToString(), col, newline);
+				WriteLine(timestamp + text + data.ToString(), col, newline);
 			}
 			while (true)
 			{
@@ -152,7 +153,7 @@ public static class DebugSystem
 			value = new DebugItem(data as ExceptionData);
 			if (value.VerboseReq <= VerboseLvl)
 			{
-				WriteLine(text + value.Msg, Color.Red, newline);
+				WriteLine(timestamp + text + value.Msg, Color.Red, newline);
 			}
 			while (true)
 			{
@@ -232,12 +233,12 @@ public static class DebugSystem
 						{
 							streamWriter.WriteLine(msg_towrite.Dequeue());
 						}
-						streamWriter.WriteLine(string.Concat(DateTime.Now.ToString(), " | ", type, " | ", data));
+						streamWriter.WriteLine(string.Concat($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] | ", type, " | ", data));
 						streamWriter.Flush();
 					}
 					catch
 					{
-						msg_towrite.Enqueue(string.Concat(DateTime.Now.ToString(), " | ", type, " | ", data));
+						msg_towrite.Enqueue(string.Concat($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] | ", type, " | ", data));
 					}
 				}
 			});
@@ -245,7 +246,7 @@ public static class DebugSystem
 		}
 		lock (m_Lock)
 		{
-			msg_towrite.Enqueue(string.Concat(DateTime.Now.ToString(), " | ", type, " | ", data));
+			msg_towrite.Enqueue(string.Concat($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] | ", type, " | ", data));
 		}
 	}
 

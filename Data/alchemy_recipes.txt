@@ -1,0 +1,18 @@
+﻿# WLO Alchemy & Synthesis Recipes
+# Format: <InputItem1>,<InputItem2> | <OutputItem>,<OutputName>,<SuccessRate%>
+27001,27001 | 48001,Wooden Plank,90,0
+27002,27001 | 48002,Hardwood Plank,85,0
+27005,27001 | 27015,Wooden Bow,75,0
+27020,27001 | 46005,Refined Metal,75,0
+46005,27001 | 21001,Bronze Sword,70,0
+46005,46005 | 21010,Iron Armor,65,0
+28014,28006 | 30201,Small HP Potion,90,0
+30201,28015 | 30202,Medium HP Potion,80,0
+30202,28015 | 30204,Large HP Potion,70,0
+30205,28012 | 30203,Small SP Potion,85,0
+30001,27001 | 28020,Roast Meat,90,0
+30002,27001 | 28021,Roast Pork,90,0
+30003,27001 | 28022,Grilled Seafood,90,0
+30015,30016 | 22001,Leather Boots,75,0
+30016,30013 | 22005,Leather Vest,70,0
+30018,30013 | 22010,Tiger Fur Coat,60,0

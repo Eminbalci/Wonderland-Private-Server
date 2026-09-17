@@ -208,6 +208,31 @@ namespace Game.PlayerRelated
             partner?.Send(pOffer);
         }
 
+        public static void SetTradeItem(Player player, byte tradeSlot, byte invSlot, byte count)
+        {
+            if (player == null) return;
+            var inv = player.Inv;
+            var it = inv?[invSlot];
+            if (it != null && it.ItemID > 0)
+            {
+                SetOffer(player, 0, new List<TradeOfferItem> { new TradeOfferItem(invSlot, it.ItemID, Math.Min(count, it.Ammt)) });
+            }
+        }
+
+        public static void SetTradeGold(Player player, uint gold)
+        {
+            SetOffer(player, gold, null);
+        }
+
+        public static void LockTrade(Player player)
+        {
+        }
+
+        public static void ConfirmTrade(Player player)
+        {
+            FinalizeTrade(player);
+        }
+
         public static void FinalizeTrade(Player player)
         {
             if (player == null) return;

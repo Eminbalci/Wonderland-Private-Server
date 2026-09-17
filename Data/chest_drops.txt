@@ -1,0 +1,38 @@
+﻿# RespawnSeconds=60
+[MAP:10036]
+41066|1 pcs Coconut|1|40
+28014|1 pcs Fresh Fruit|1|30
+28001|1 pcs Sea Water|1|15
+27001|1 pcs Ordinary Wood|1|15
+[MAP:10001]
+28006|1 pcs Red Apple|1|35
+28012|1 pcs Mushroom|1|25
+30001|1 pcs Herb Potion|1|20
+27002|1 pcs Pine Wood|1|20
+[MAP:10010]
+30259|1 pcs Black Medicine|1|40
+28003|1 pcs Cooking Salt|1|20
+28015|1 pcs White Rice|1|20
+28007|1 pcs Fresh Milk|1|20
+[MAP:10020]
+24001|1 pcs Iron Ore|1|35
+24002|1 pcs Copper Ore|1|25
+24005|1 pcs Coal|1|25
+24010|1 pcs Gold Sand|1|15
+[CAT:coconut]
+41066|1 pcs Coconut|1|80
+28014|1 pcs Fresh Fruit|1|20
+[CAT:medicine]
+30259|1 pcs Black Medicine|1|70
+30001|1 pcs Herb Potion|1|30
+[CAT:headband]
+22061|1 pcs Headband|1|100
+[CAT:ore]
+24001|1 pcs Iron Ore|1|40
+24002|1 pcs Copper Ore|1|30
+24005|1 pcs Coal|1|30
+[CAT:default_chest]
+28014|1 pcs Fresh Fruit|1|40
+30001|1 pcs Herb Potion|1|30
+27001|1 pcs Ordinary Wood|1|20
+28001|1 pcs Sea Water|1|10

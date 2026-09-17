@@ -181,8 +181,10 @@ namespace Game.Code
                             owner.CurMap?.Broadcast(wreck);
 
                             // Dismount player
+                            owner.ActiveVehicleID = 0;
                             owner.RideVehicle("");
-                            owner.SendSystemMessage("⚠️ Your raft broke into pieces from wear and tear!");
+                            owner.SaveCharacterData();
+                            owner.SendSystemMessage("Your raft broke into pieces from wear and tear!");
                         }
                         else
                         {
@@ -221,32 +223,25 @@ namespace Game.Code
         {
             lock (mylock)
             {
-
+                if (at < 1 || at > 50) return null;
                 InvItem remItem = new InvItem();
                 remItem.CopyFrom(this[at]);
                 try
                 {
                     if (remItem.ItemID > 0)
                     {
-                        var matrix = NumbertoMatrix(at);
-
-                        for (byte h = 0; h < remItem.Height; h++)
-                            for (byte w = 0; w < remItem.Width; w++)
-                            {
-                                byte slot = (byte)MatrixtoNumber(matrix[0] + h, matrix[1] + w);
-                                if (w == 0 && h == 0)
-                                {
-                                    if (this[slot].Parent == 0 && (this[at].Ammt == 1 || this[at].Ammt - ammt == 0))
-                                    {
-                                        this[slot].Clear(); continue;
-                                    }
-                                    else
-                                        this[slot].Ammt -= ammt;
-                                }
-                                else
-                                    this[slot].Clear();
-                            }
-                        if (senddata) owner.Send(Tools.FromFormat("bbbb", 23, 9, at, ammt));
+                        if (this[at].Ammt <= ammt)
+                        {
+                            this[at].Clear();
+                        }
+                        else
+                        {
+                            this[at].Ammt -= ammt;
+                        }
+                        if (senddata && owner != null)
+                        {
+                            owner.Send(Tools.FromFormat("bbbb", 23, 9, at, ammt));
+                        }
                         return remItem;
                     }
                 }
@@ -269,11 +264,14 @@ namespace Game.Code
                         if (needed == 0) break;
                     }
                 }
-                owner?.Send(new SendPacket(GetAC23_5()));
                 return needed == 0;
             }
         }
         public void AddItem(ushort ID, byte amt)
+        {
+            AddItem(ID, amt, true);
+        }
+        public void AddItem(ushort ID, byte amt, bool sendData)
         {
             PhxItemInfo baseItem = null;
             try
@@ -292,7 +290,7 @@ namespace Game.Code
             InvItem i = new InvItem();
             i.CopyFrom(baseItem);
             i.Ammt = amt;
-            AddItem(i, 0, true);
+            AddItem(i, 0, sendData);
         }
         /// <summary>
         /// Adds an item to the Inventory
@@ -306,66 +304,105 @@ namespace Game.Code
             {
                 if (item == null || item.ItemID == 0) return 0;
 
-                int addammt = item.Ammt;
-                int totalammt = 0;
+                int needed = item.Ammt;
+                int addedTotal = 0;
 
-                for (byte a = 1; a < 51; a++)
+                // Case 1: Specific slot requested
+                if (at >= 1 && at <= 50)
                 {
-                    if (at != 0) a = at;
-
-                    SendPacket tmp = new SendPacket();
-                    tmp.Pack8(23);
-                    tmp.Pack8(6);
-                    tmp.Pack16(item.ItemID);
-
-                    byte ammt = 0;
-
-                    for (int b = 0; b < addammt; b++)
-                        if (CanPlace(a, item))
-                        {
-                            var matrix = NumbertoMatrix(a);
-                            for (byte h = 0; h < item.Height; h++)
-                                for (byte w = 0; w < item.Width; w++)
-                                {
-                                    byte slot = (byte)MatrixtoNumber(matrix[0] + h, matrix[1] + w);
-                                    if (w == 0 && h == 0)
-                                    {
-                                        if (this[slot].ItemID == 0 && this[slot].Parent == 0)
-                                        {
-                                            this[slot].CopyFrom(item);
-                                            this[slot].Ammt = 1;
-                                        }
-                                        else if (this[slot].SpaceLeft == 0) goto end;
-                                        else
-                                            this[slot].Ammt++;
-                                        ammt++;
-                                        totalammt++;
-                                    }
-                                    else
-                                        this[slot].Parent = (byte)a;
-                                }
-
-
-                            //if (i.itemtype.ItemType == 39)
-                            //    own.vechile.Add(i.ID, mast);
-                        }
-                        else
-                            goto end;
-
-                        end:
-                    if (ammt > 0 && sendData && owner != null)
+                    var target = this[at];
+                    if (target.ItemID == 0)
                     {
-                        addammt -= ammt;
-                        tmp.Pack8(ammt);
+                        target.CopyFrom(item);
+                        target.Parent = 0;
+                        int toPut = item.Stackable ? Math.Min(needed, 50) : 1;
+                        target.Ammt = (byte)toPut;
+                        addedTotal = toPut;
+                    }
+                    else if (target.ItemID == item.ItemID && target.SpaceLeft > 0)
+                    {
+                        int toStack = Math.Min(needed, target.SpaceLeft);
+                        target.Ammt += (byte)toStack;
+                        addedTotal = toStack;
+                    }
+
+                    if (addedTotal > 0 && sendData && owner != null)
+                    {
+                        SendPacket tmp = new SendPacket();
+                        tmp.Pack8(23);
+                        tmp.Pack8(6);
+                        tmp.Pack16(item.ItemID);
+                        tmp.Pack8((byte)addedTotal);
                         tmp.PackArray(new byte[28]);
                         owner.Send(tmp);
                         owner.Send(new SendPacket(GetAC23_5()));
-                        DebugSystem.Write($"[Inventory.AddItem] Sent AC 23:6 + AC 23:5 item #{item.ItemID} x{ammt} to slot {a} for {owner.CharName}");
+                        DebugSystem.Write($"[Inventory.AddItem] Placed item #{item.ItemID} x{addedTotal} into slot {at} for {owner?.CharName ?? "Unknown"}");
                     }
-                    if (totalammt == item.Ammt || at != 0)
-                        return ammt;
+                    return addedTotal;
                 }
-                return 0;
+
+                // Case 2: Dynamic placement (at == 0)
+                // Pass 1: If stackable, stack onto existing stacks with SpaceLeft > 0
+                if (item.Stackable)
+                {
+                    for (byte s = 1; s <= 50 && needed > 0; s++)
+                    {
+                        var cur = this[s];
+                        if (cur != null && cur.ItemID == item.ItemID && cur.SpaceLeft > 0)
+                        {
+                            int toStack = Math.Min(needed, cur.SpaceLeft);
+                            cur.Ammt += (byte)toStack;
+                            needed -= toStack;
+                            addedTotal += toStack;
+
+                            if (sendData && owner != null)
+                            {
+                                SendPacket tmp = new SendPacket();
+                                tmp.Pack8(23);
+                                tmp.Pack8(6);
+                                tmp.Pack16(item.ItemID);
+                                tmp.Pack8((byte)toStack);
+                                tmp.PackArray(new byte[28]);
+                                owner.Send(tmp);
+                            }
+                            DebugSystem.Write($"[Inventory.AddItem] Stacked item #{item.ItemID} x{toStack} onto slot {s} for {owner?.CharName ?? "Unknown"} (New Ammt: {cur.Ammt})");
+                        }
+                    }
+                }
+
+                // Pass 2: Place remaining into empty slots (ItemID == 0)
+                for (byte s = 1; s <= 50 && needed > 0; s++)
+                {
+                    var cur = this[s];
+                    if (cur != null && cur.ItemID == 0)
+                    {
+                        cur.CopyFrom(item);
+                        cur.Parent = 0;
+                        int toPlace = item.Stackable ? Math.Min(needed, 50) : 1;
+                        cur.Ammt = (byte)toPlace;
+                        needed -= toPlace;
+                        addedTotal += toPlace;
+
+                        if (sendData && owner != null)
+                        {
+                            SendPacket tmp = new SendPacket();
+                            tmp.Pack8(23);
+                            tmp.Pack8(6);
+                            tmp.Pack16(item.ItemID);
+                            tmp.Pack8((byte)toPlace);
+                            tmp.PackArray(new byte[28]);
+                            owner.Send(tmp);
+                        }
+                        DebugSystem.Write($"[Inventory.AddItem] Added new item #{item.ItemID} x{toPlace} into slot {s} for {owner?.CharName ?? "Unknown"}");
+                    }
+                }
+
+                if (addedTotal > 0 && sendData && owner != null)
+                {
+                    owner.Send(new SendPacket(GetAC23_5()));
+                }
+
+                return addedTotal;
             }
         }
         /// <summary>
@@ -459,22 +496,17 @@ namespace Game.Code
         {
             lock (mylock)
             {
-                var matrix = NumbertoMatrix(cell);
-                for (int s = 0; s < item.Height; s++)
-                    for (int y = 0; y < item.Width; y++)
-                    {
-                        var chk = (byte)MatrixtoNumber(matrix[0] + s, matrix[1] + y);
-                        if (this[chk].ItemID == 0 && this[chk].Parent == 0) continue;
-                        else if (matrix[0] + (item.Height - 1) > 51 && matrix[1] + (item.Width - 1) > 6) return false;
-                        else if (this[chk].ItemID != 0 && this[chk].Parent != 0) return false;
-                        else if (this[chk].ItemID != 0 && this[chk].ItemID != item.ItemID) return false;
-                    }
-                return true;
+                if (cell < 1 || cell > 50 || item == null) return false;
+                var cur = this[cell];
+                if (cur == null) return false;
+                if (cur.ItemID == 0) return true;
+                if (cur.ItemID == item.ItemID && cur.SpaceLeft > 0) return true;
+                return false;
             }
         }
         public int FilledCount
         {
-            get { lock (mylock) { return m_Items.Count(c => c.ItemID > 0); } }
+            get { lock (mylock) { return m_Items.Count(c => c != null && c.ItemID > 0); } }
         }
         public int unFilledCount
         {
@@ -497,7 +529,7 @@ namespace Game.Code
                             tmp.Pack16(this[a].ItemID);
                             tmp.Pack8(this[a].Ammt);
                             tmp.Pack8(this[a].Damage);
-                            tmp.PackArray(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                            tmp.PackArray(new byte[26]);
                         }
                 }
                 return tmp.Buffer;
@@ -520,7 +552,7 @@ namespace Game.Code
                             tmp.Pack16(this[a].ItemID);
                             tmp.Pack8(this[a].Ammt);
                             tmp.Pack8(this[a].Damage);
-                            tmp.PackArray(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+                            tmp.PackArray(new byte[26]);
                         }
                 }
                 return tmp.Buffer;
@@ -576,33 +608,16 @@ namespace Game.Code
         }
         public void onItemCanceled(byte slot)
         {
-            //Get item first
-            if (m_Items[slot].ItemID > 0)
-                switch (m_Items[slot].Type)
-                {
-                    //case eItemType.Tent: owner.Tent.Close(); break;
-                }
+            // Reserved for client item cancel events
         }
-        int MatrixtoNumber(int a, int b) { return ((a * 5) + (b - 5)); }//wlo specific
+        int MatrixtoNumber(int a, int b) => (a * 5) + (b - 5); // WLO specific
         byte[] NumbertoMatrix(int a)
         {
-            var s = 0;
-            if (a == 5 || a == 10 || a == 15 || a == 20 || a == 25 || a == 30 || a == 35 || a == 40 || a == 45 || a == 50)
-                s = (a / 5);
-            else
-                s = 1 + (a / 5);
-            var t = 0;
-            if (a == 5 || a == 10 || a == 15 || a == 20 || a == 25 || a == 30 || a == 35 || a == 40 || a == 45 || a == 50)
-                t = 5;
-            else if (a > 5)
-                t = 5 - (((1 + (a / 5)) * 5) - a);
-            else
-                t = a;
-            byte[] matrixloc = new byte[2];
-            matrixloc[0] = (byte)(s);
-            matrixloc[1] = (byte)(t);
-            return matrixloc;
-        }//wlo specific
+            if (a <= 0) return new byte[] { 0, 0 };
+            byte s = (byte)(((a - 1) / 5) + 1);
+            byte t = (byte)(((a - 1) % 5) + 1);
+            return new byte[] { s, t };
+        } // WLO specific
     }
 
     public class TentInventoryManager : Inventory

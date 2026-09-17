@@ -56,7 +56,7 @@ public abstract class WebServer
 	{
 		DebugSystem.Write(Color.Magenta, "Started Web Server Listening Thread", DebugItemType.Info_Heavy);
 		int num = 0;
-		string text = "C:\\MyWebServerRoot\\";
+		string text = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot") + Path.DirectorySeparatorChar;
 		string text2 = "";
 		string data = "";
 		string text3 = "";

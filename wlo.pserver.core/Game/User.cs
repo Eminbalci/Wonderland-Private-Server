@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,6 +13,7 @@ namespace Game.Code
         string username, cipher;
         uint databaseID;
         int im;
+        int imBonus;
         int gmlvl; public int GMlvl { get { return gmlvl; } set { lock (mlock) gmlvl = value; } }
 
         //public GMStatus GMRank
@@ -65,6 +66,12 @@ namespace Game.Code
             set { lock (mlock) im = value; }
         }
 
+        public int IMBonus
+        {
+            get { lock (mlock) return imBonus; }
+            set { lock (mlock) imBonus = value; }
+        }
+
         public uint DataBaseID
         {
             get { lock (mlock) return databaseID; }
@@ -76,6 +83,7 @@ namespace Game.Code
             username = "";
             databaseID = 0;
             im = 0;
+            imBonus = 0;
             GMlvl = 0;
 
         }

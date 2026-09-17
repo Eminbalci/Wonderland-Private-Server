@@ -1,0 +1,58 @@
+[
+  {
+    "OrderIdx": 1,
+    "ItemID": 34038,
+    "ItemName": "Notepad",
+    "Count": 1,
+    "Description": "Beginner guide and notepad"
+  },
+  {
+    "OrderIdx": 2,
+    "ItemID": 34058,
+    "ItemName": "Remote Control",
+    "Count": 1,
+    "Description": "Auto-combat assistant controller"
+  },
+  {
+    "OrderIdx": 3,
+    "ItemID": 32176,
+    "ItemName": "Fugu Hot Pot",
+    "Count": 50,
+    "Description": "Full recovery food"
+  },
+  {
+    "OrderIdx": 4,
+    "ItemID": 34014,
+    "ItemName": "Tao Rice Ball",
+    "Count": 10,
+    "Description": "Pet and character food"
+  },
+  {
+    "OrderIdx": 5,
+    "ItemID": 34026,
+    "ItemName": "Protective EXP Pill",
+    "Count": 5,
+    "Description": "Prevents EXP loss upon death"
+  },
+  {
+    "OrderIdx": 6,
+    "ItemID": 34169,
+    "ItemName": "Bamboo Dragonfly",
+    "Count": 1,
+    "Description": "Starter flying mount vehicle"
+  },
+  {
+    "OrderIdx": 7,
+    "ItemID": 34190,
+    "ItemName": "10X Holy EXP Potion",
+    "Count": 3,
+    "Description": "Boosts experience gain"
+  },
+  {
+    "OrderIdx": 8,
+    "ItemID": 34253,
+    "ItemName": "Training Ticket",
+    "Count": 5,
+    "Description": "Training island pass"
+  }
+]

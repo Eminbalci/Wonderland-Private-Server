@@ -70,7 +70,7 @@ namespace Network.ActionCodes
 
                 if (targetSlot == 0)
                 {
-                    p.SendSystemMessage("⚠️ Props Keeper storage is full!");
+                    p.SendSystemMessage(" Props Keeper storage is full!");
                     return;
                 }
 
@@ -136,7 +136,7 @@ namespace Network.ActionCodes
                 // Persist storage and bag changes immediately
                 DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
 
-                p.SendSystemMessage($"📥 Stored '{p.Storage[targetSlot].Name}' x{transferAmmt} into Storage Slot {targetSlot}.");
+                p.SendSystemMessage($" Stored '{p.Storage[targetSlot].Name}' x{transferAmmt} into Storage Slot {targetSlot}.");
                 DebugSystem.Write($"[AC30.Recv2] {p.CharName} deposited Item #{p.Storage[targetSlot].ItemID} (x{transferAmmt}) from Bag Slot {bagSlot} to Storage Slot {targetSlot}");
             }
             catch (Exception ex)
@@ -210,7 +210,7 @@ namespace Network.ActionCodes
             // Persist storage and bag changes immediately
             DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
 
-            p.SendSystemMessage($"📤 Withdrew '{storItem.Name}' x{transferAmmt} from Storage Slot {storSlot}.");
+            p.SendSystemMessage($" Withdrew '{storItem.Name}' x{transferAmmt} from Storage Slot {storSlot}.");
             DebugSystem.Write($"[AC30.Withdraw] {p.CharName} withdrew Item #{storItem.ItemID} (x{transferAmmt}) from Storage Slot {storSlot} to Bag");
         }
 

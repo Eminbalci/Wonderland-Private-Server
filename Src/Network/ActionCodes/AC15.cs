@@ -80,7 +80,7 @@ namespace Network.ActionCodes
                 string petName = pet.PetName;
 
                 // 1. If pet was active in battle or following on map, clear and despawn
-                if (player.ActivePetID == petId || pet.IsBattle)
+                if (player.ActivePetID == petId || pet.IsBattle || Player.IsSamePetOrCompanion(player.ActivePetID, petId))
                 {
                     player.ActivePetID = 0;
                     pet.IsBattle = false;
@@ -111,7 +111,7 @@ namespace Network.ActionCodes
                 cGlobal.gCharacterDataBase?.ExecuteNonQuery($"DELETE FROM character_pets WHERE charID = '{player.CharID}' AND slot = '{slot}';");
                 player.SaveCharacterData();
 
-                player.SendSystemMessage($"👋 Released companion pet {petName} (Slot {slot}).");
+                player.SendSystemMessage($" Released companion pet {petName} (Slot {slot}).");
                 DebugSystem.Write($"[AC15.Recv2] Successfully dismissed pet '{petName}' (TID: {petId}) from slot {slot} for {player.CharName}");
             }
             catch (Exception ex)
@@ -128,15 +128,18 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte vehicleType = p.Unpack8(); // 0x10 = Raft
+                byte vehicleSlot = p.Unpack8(); // Inventory slot of vehicle (e.g. 0x0D = slot 13)
                 ushort vehicleId = 48016; // 0xBB90 default
                 if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
 
-                DebugSystem.Write($"[AC15.Recv14] Player {player.CharName} boarding vehicle (Type: 0x{vehicleType:X}, ID: {vehicleId})");
+                player.MountedVehicleSlot = vehicleSlot;
+                player.ActiveVehicleID = vehicleId;
 
-                // S->C AC 15 Sub 18: [15, 18, type (1B), char_id (4B), vehicle_id (2B), durability (8B)]
+                DebugSystem.Write($"[AC15.Recv14] Player {player.CharName} boarding vehicle from slot {vehicleSlot} (ID: {vehicleId})");
+
+                // S->C AC 15 Sub 18: [15, 18, slot (1B), char_id (4B), vehicle_id (2B), durability (8B)]
                 SendPacket resp = new SendPacket();
-                resp.PackArray(new byte[] { 15, 18, vehicleType });
+                resp.PackArray(new byte[] { 15, 18, vehicleSlot });
                 resp.Pack32(player.CharID);
                 resp.Pack16(vehicleId);
                 resp.Pack32(3042);  // 0x00000BE2 = Initial durability
@@ -150,23 +153,24 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// Client confirms boarding raft: C->S [15, 7, type (1B), item_id (2B)]
+        /// Client confirms boarding raft: C->S [15, 7, slot (1B), item_id (2B)]
         /// Official PCAP Frame 4160 -> Responds with AC 15 Sub 10 (Mount ACK) + AC 15 Sub 14 (Active state).
         /// </summary>
         private void Recv7(Player player, RecievePacket p)
         {
             try
             {
-                byte vehicleType = p.Unpack8();
+                byte vehicleSlot = p.Unpack8();
                 ushort vehicleId = 48016;
                 if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
 
+                player.MountedVehicleSlot = vehicleSlot;
                 player.ActiveVehicleID = vehicleId;
                 player.RideVehicle(vehicleId.ToString());
 
                 // S->C AC 15 Sub 10: Mount confirmation
                 SendPacket mountPkt = new SendPacket();
-                mountPkt.PackArray(new byte[] { 15, 10, vehicleType });
+                mountPkt.PackArray(new byte[] { 15, 10, vehicleSlot });
                 mountPkt.Pack32(player.CharID);
                 mountPkt.Pack16(vehicleId);
                 player.Send(mountPkt);
@@ -174,14 +178,14 @@ namespace Network.ActionCodes
 
                 // S->C AC 15 Sub 14: Active state
                 SendPacket statePkt = new SendPacket();
-                statePkt.PackArray(new byte[] { 15, 14, vehicleType });
+                statePkt.PackArray(new byte[] { 15, 14, vehicleSlot });
                 statePkt.Pack32(player.CharID);
                 statePkt.PackArray(new byte[] { 0, 0, 0, 0, 0, 0 });
                 player.Send(statePkt);
                 player.CurMap?.Broadcast(statePkt);
 
-                player.SendSystemMessage("⛵ You are now sailing on your raft!");
-                DebugSystem.Write($"[AC15.Recv7] Player {player.CharName} successfully mounted raft {vehicleId}");
+                player.SendSystemMessage("You are now sailing on your raft.");
+                DebugSystem.Write($"[AC15.Recv7] Player {player.CharName} successfully mounted raft {vehicleId} from slot {vehicleSlot}");
             }
             catch (Exception ex)
             {
@@ -204,38 +208,7 @@ namespace Network.ActionCodes
 
                 DebugSystem.Write($"[AC15.Recv10] Player {player.CharName} landing on shore from raft {vehicleId}");
 
-                // 1. Send AC 15 Sub 14: Final state
-                SendPacket statePkt = new SendPacket();
-                statePkt.PackArray(new byte[] { 15, 14, vehicleType });
-                statePkt.Pack32(player.CharID);
-                statePkt.PackArray(new byte[] { 0xD6, 0x01, 0, 0, 0, 0 });
-                player.Send(statePkt);
-                player.CurMap?.Broadcast(statePkt);
-
-                // 2. Send AC 23 Sub 9: Raft Break Notice
-                SendPacket breakNotice = new SendPacket();
-                breakNotice.PackArray(new byte[] { 23, 9, vehicleType, 1 });
-                player.Send(breakNotice);
-
-                // 3. Send AC 15 Sub 15: Destroy / Remove vehicle
-                SendPacket destroyPkt = new SendPacket();
-                destroyPkt.PackArray(new byte[] { 15, 15 });
-                destroyPkt.Pack32(player.CharID);
-                destroyPkt.Pack16(vehicleId);
-                player.Send(destroyPkt);
-                player.CurMap?.Broadcast(destroyPkt);
-
-                // 4. Send AC 15 Sub 11: Reset to walking on foot
-                SendPacket walkPkt = new SendPacket();
-                walkPkt.PackArray(new byte[] { 15, 11, vehicleType });
-                walkPkt.Pack32(player.CharID);
-                player.Send(walkPkt);
-                player.CurMap?.Broadcast(walkPkt);
-
-                player.ActiveVehicleID = 0;
-                player.RideVehicle("");
-
-                player.SendSystemMessage("🏖️ The wooden raft broke apart upon landing on the shore. You are now walking on foot.");
+                Game.PlayerRelated.VehicleManager.WreckVehicle(player, vehicleId, vehicleType);
             }
             catch (Exception ex)
             {

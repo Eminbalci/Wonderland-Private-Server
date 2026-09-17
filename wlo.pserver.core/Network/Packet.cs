@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -129,7 +129,7 @@ namespace Network
         public byte A { get { return this[4]; } }
         public byte? B { get { if (this.Buffer.Count() > 5) return this[5]; else return null; } }
 
-        public void SetPtr(int ptr = 4)
+        public new void SetPtr(int ptr = 4)
         {
             base.SetPtr(ptr);
         }

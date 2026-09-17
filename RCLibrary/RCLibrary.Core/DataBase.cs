@@ -53,7 +53,7 @@ public class DataBase {
         try {
             // Default to Sqlite ServerDataBase.db
             ServType = DataBaseTypes.Sqlite;
-            DBFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ServerDataBase.db");
+            DBFile = PathHelper.ResolveDatabaseFile("ServerDataBase.db");
 
             string configPath = "database.override.txt";
             if (!File.Exists(configPath)) {
@@ -92,6 +92,35 @@ public class DataBase {
                 }
             }
         } catch {
+        }
+    }
+
+    public static DataTable Query(string sql) {
+        try {
+            string dbFile = PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+            using SQLiteConnection conn = new SQLiteConnection($"Data Source={dbFile};Version=3;");
+            conn.Open();
+            using SQLiteCommand cmd = new SQLiteCommand(sql, conn);
+            using SQLiteDataReader reader = cmd.ExecuteReader();
+            DataTable dt = new DataTable();
+            dt.Load(reader);
+            return dt;
+        } catch (Exception ex) {
+            DebugSystem.Write($"[DataBase.Query] Error: {ex.Message} -> SQL: {sql}");
+            return null;
+        }
+    }
+
+    public static int Execute(string sql) {
+        try {
+            string dbFile = PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+            using SQLiteConnection conn = new SQLiteConnection($"Data Source={dbFile};Version=3;");
+            conn.Open();
+            using SQLiteCommand cmd = new SQLiteCommand(sql, conn);
+            return cmd.ExecuteNonQuery();
+        } catch (Exception ex) {
+            DebugSystem.Write($"[DataBase.Execute] Error: {ex.Message} -> SQL: {sql}");
+            return -1;
         }
     }
 

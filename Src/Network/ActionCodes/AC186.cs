@@ -49,6 +49,7 @@ namespace Network.ActionCodes
                 resp.Pack8(1); // 1 = Active / Playing
                 resp.Pack32(0); // Reserved padding
                 p.Send(resp);
+
                 DebugSystem.Write($"[AC186.Recv9] Acknowledged Cutscene #{cutsceneId} playback for {p.CharName}");
             }
             catch (Exception t)

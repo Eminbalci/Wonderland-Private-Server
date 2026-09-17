@@ -79,7 +79,6 @@ namespace Game.DataFiles
             Selling,
         }
         DateTime finishwalk_anim;
-        DateTime LastBattle = new DateTime();
         int curstep = 0;
 
         #region MapNpc Info

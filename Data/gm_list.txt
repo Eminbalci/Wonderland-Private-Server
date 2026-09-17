@@ -1,0 +1,4 @@
+﻿# WLO GM & Administrator List
+# Format: One CharName or Username per line
+gmone
+gmone1

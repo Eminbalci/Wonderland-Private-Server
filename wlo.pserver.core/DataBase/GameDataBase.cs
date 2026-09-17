@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
 using System.Data;
+using System.IO;
 using Game;
 using RCLibrary.Core;
 
@@ -96,7 +97,8 @@ namespace DataBase
                 ExecuteNonQuery(query);
 
                 // Auto-Import Spawns from CSV
-                string spawnCsv = System.AppDomain.CurrentDomain.BaseDirectory + "listdata\\spawns.csv";
+                string spawnCsv = RCLibrary.Core.PathHelper.GetDataFilePath("spawns.csv");
+                if (!File.Exists(spawnCsv)) spawnCsv = Path.Combine(RCLibrary.Core.PathHelper.AppRootDirectory, "bin", "Debug", "listdata", "spawns.csv");
                 LoadSpawnsFromCsv(spawnCsv);
             }
             catch (Exception ex) { DebugSystem.Write($"[GameDataBase] Error setup npcs table: {ex.Message}"); }
@@ -106,6 +108,131 @@ namespace DataBase
 
             // Initialize and synchronize Quests database table
             QuestDataBase.Initialize(this);
+
+            MigrateLegacyTables();
+
+            // Subsystem Database Tables Verification & Auto-Creation
+            try
+            {
+                Server.ServerStatusManager.LoadConfig();
+                Game.PlayerRelated.GmManager.LoadFromDatabase();
+                Game.PlayerRelated.ItemMallManager.LoadFromDatabase();
+                Game.PlayerRelated.StarterPackManager.LoadFromDatabase();
+                Game.PlayerRelated.GuildManager.LoadFromDatabase();
+                Game.PlayerRelated.MailSystem.LoadFromDatabase();
+                Game.PlayerRelated.MarriageManager.LoadFromDatabase();
+                Game.Battle.MonsterDropManager.LoadFromDatabase();
+                Game.Maps.ChestDropManager.LoadFromDatabase();
+                Game.Crafting.AlchemyManager.LoadFromDatabase();
+
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_ips (ip TEXT PRIMARY KEY, reason TEXT, banned_at TEXT, banned_by TEXT);");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_users (userID INT PRIMARY KEY, username TEXT, reason TEXT, banned_at TEXT, banned_by TEXT);");
+                ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_charquest_char_quest ON charquest(charID, quest_started);");
+                VerifyCharacterPetsTable();
+
+                DebugSystem.Write("[GameDataBase] All GUI and Server subsystem database tables verified & auto-seeded successfully.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error verifying subsystem database tables: {ex.Message}");
+            }
+        }
+
+        private void MigrateLegacyTables()
+        {
+            try
+            {
+                // 1. chest_drops
+                try
+                {
+                    var dt = GetDataTable("SELECT map_id FROM chest_drops LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS chest_drops;");
+                }
+
+                // 2. alchemy_recipes
+                try
+                {
+                    var dt = GetDataTable("SELECT item1_id FROM alchemy_recipes LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS alchemy_recipes;");
+                }
+
+                // 3. monster_drops
+                try
+                {
+                    var dt = GetDataTable("SELECT monster_tid FROM monster_drops LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS monster_drops;");
+                }
+
+                // 4. mails
+                try
+                {
+                    var dt = GetDataTable("SELECT mail_id FROM mails LIMIT 1;");
+                }
+                catch
+                {
+                    ExecuteNonQuery("DROP TABLE IF EXISTS mails;");
+                }
+
+                // 5. gm_accounts
+                try
+                {
+                    ExecuteNonQuery("CREATE TABLE IF NOT EXISTS gm_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, username TEXT, added_at TEXT, added_by TEXT);");
+                    var info = GetDataTable("PRAGMA table_info(gm_accounts);");
+                    var colNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (info != null)
+                    {
+                        foreach (System.Data.DataRow row in info.Rows)
+                        {
+                            colNames.Add(row["name"].ToString());
+                        }
+                    }
+                    if (!colNames.Contains("name")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN name TEXT;");
+                    if (!colNames.Contains("username")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN username TEXT;");
+                    if (!colNames.Contains("added_at")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN added_at TEXT;");
+                    if (!colNames.Contains("added_by")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN added_by TEXT;");
+
+                    ExecuteNonQuery("UPDATE gm_accounts SET name = username WHERE (name IS NULL OR name = '') AND username IS NOT NULL;");
+                    ExecuteNonQuery("UPDATE gm_accounts SET username = name WHERE (username IS NULL OR username = '') AND name IS NOT NULL;");
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error during legacy schema migration: {ex.Message}");
+            }
+        }
+
+        public void VerifyCharacterPetsTable()
+        {
+            try
+            {
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
+                string[] petCols = new string[] {
+                    "exp INT DEFAULT 0", "str INT DEFAULT 10", "con INT DEFAULT 10", "int_ INT DEFAULT 10",
+                    "wis INT DEFAULT 10", "agi INT DEFAULT 10", "potential INT DEFAULT 0", "skillPoints INT DEFAULT 0",
+                    "isHotel TINYINT DEFAULT 0", "reborn TINYINT DEFAULT 0", "job TINYINT DEFAULT 0",
+                    "eq_head INT DEFAULT 0", "eq_body INT DEFAULT 0", "eq_weapon INT DEFAULT 0",
+                    "eq_wrist INT DEFAULT 0", "eq_shoes INT DEFAULT 0", "eq_special INT DEFAULT 0"
+                };
+                foreach (var col in petCols)
+                {
+                    try { ExecuteNonQuery($"ALTER TABLE character_pets ADD COLUMN {col};"); } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error verifying character_pets table: {ex.Message}");
+            }
         }
 
         public void LoadSpawnsFromCsv(string path)
@@ -186,6 +313,7 @@ namespace DataBase
                                         data.CopyFrom(baseItem);
                                         data.Ammt = Math.Max((byte)1, qty);
                                         data.Damage = dmg;
+                                        data.Parent = 0;
                                         c.Inv[pos].CopyFrom(data);
                                     }
                                     break;
@@ -272,26 +400,6 @@ namespace DataBase
             #region Pets
             try
             {
-                // Ensure character_pets table exists with comprehensive stat columns
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN exp INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN str INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN con INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN int_ INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN wis INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN agi INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN potential INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN skillPoints INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN reborn TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN job TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_head INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_body INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_weapon INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_wrist INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_shoes INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_special INT DEFAULT 0;"); } catch { }
-
                 var petTable = GetDataTable("SELECT * FROM character_pets WHERE charID = '" + c.CharID + "'");
                 c.PlayerPets.Clear();
                 c.HotelPets.Clear();
@@ -483,12 +591,13 @@ namespace DataBase
                     if (count == 0)
                     {
                         // Priority 1: Binary Npc.dat
-                        string datPath = System.AppDomain.CurrentDomain.BaseDirectory + "Data\\Npc.dat";
+                        string datPath = RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
                         if (ImportNpcDat(datPath) == 0)
                         {
                             // Priority 2: CSV
-                            string csvPath = System.AppDomain.CurrentDomain.BaseDirectory + "listdata\\npc.csv";
-                            // ImportNpcDataFromCsv(csvPath); // Use new method logic for csv if needed, but Dat is preferred
+                            string csvPath = RCLibrary.Core.PathHelper.GetDataFilePath("npc.csv");
+                            if (!File.Exists(csvPath)) csvPath = Path.Combine(RCLibrary.Core.PathHelper.AppRootDirectory, "bin", "Debug", "listdata", "npc.csv");
+                            // ImportNpcDataFromCsv(csvPath);
                         }
                     }
                 }
@@ -510,7 +619,6 @@ namespace DataBase
                 byte[] fileBytes = System.IO.File.ReadAllBytes(datPath);
                 int recordSize = 138;
                 int totalRecords = fileBytes.Length / recordSize;
-                int debugLimit = 0;
                 System.Text.StringBuilder batch = new System.Text.StringBuilder();
 
                 for (int rec = 1; rec < totalRecords; rec++)

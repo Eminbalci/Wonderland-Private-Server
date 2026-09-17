@@ -275,6 +275,61 @@ namespace Game.Battle
         private static readonly object _lock = new object();
         private static readonly Random _rng = new Random();
 
+        public static IReadOnlyDictionary<uint, ActiveBattle> ActiveBattles
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return new Dictionary<uint, ActiveBattle>(_activeBattles);
+                }
+            }
+        }
+
+        public static bool ForceWinBattle(uint battleId)
+        {
+            try
+            {
+                ActiveBattle target = null;
+                lock (_lock)
+                {
+                    _activeBattles.TryGetValue(battleId, out target);
+                }
+                if (target != null)
+                {
+                    EndBattleVictory(target);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PvEBattle] Error in ForceWinBattle: {ex.Message}");
+            }
+            return false;
+        }
+
+        public static bool ForceEndBattle(uint battleId)
+        {
+            try
+            {
+                ActiveBattle target = null;
+                lock (_lock)
+                {
+                    _activeBattles.TryGetValue(battleId, out target);
+                }
+                if (target != null)
+                {
+                    EndBattleFlee(target);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PvEBattle] Error in ForceEndBattle: {ex.Message}");
+            }
+            return false;
+        }
+
         // WLO Player/Attacking Team Grid Positions:
         // Slot 0 (Leader): Player (4, 2), Pet (3, 2)
         // Slot 1 (Member 1): Player (4, 3), Pet (3, 3)
@@ -364,6 +419,7 @@ namespace Game.Battle
                     {
                         DebugSystem.Write($"[PvEBattle] Player {player.CharName} disconnected during battle. Cleaning up battle session.");
                         _activeBattles.Remove(player.CharID);
+                        player.SetBattleCooldown();
                         battle.AttackingPlayers.Remove(player);
                         battle.DefendingPlayers.Remove(player);
 
@@ -375,6 +431,7 @@ namespace Game.Battle
                             foreach (var p in battle.AllPlayers)
                             {
                                 _activeBattles.Remove(p.CharID);
+                                p.SetBattleCooldown();
                             }
                         }
                     }
@@ -402,25 +459,36 @@ namespace Game.Battle
         public static Player.PlayerPetData GetActivePet(Player p)
         {
             if (p == null || p.PlayerPets == null || p.PlayerPets.Count == 0) return null;
-            var pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
+
+            Player.PlayerPetData pet = null;
+
+            // 1. Prioritize designated ActivePetID if it is marked for battle (with companion alias and slot matching)
+            if (p.ActivePetID > 0)
+            {
+                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.IsBattle && x.HP > 0);
+            }
+
+            // 2. Fallback to any pet explicitly marked as IsBattle with positive HP
+            if (pet == null)
+            {
+                pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
+            }
+
+            // 3. Fallback: If ActivePetID > 0, match pet even if IsBattle flag was missed
             if (pet == null && p.ActivePetID > 0)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => x.PetID == p.ActivePetID && x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.HP > 0);
             }
+
+            // 4. If no pet is marked for battle or matching ActivePetID, do NOT force an inactive mount into combat
             if (pet == null)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => x.HP > 0);
+                return null;
             }
-            if (pet == null)
-            {
-                pet = p.PlayerPets.Values.FirstOrDefault();
-            }
-            if (pet != null)
-            {
-                if (pet.HP <= 0) pet.HP = Math.Max(50, pet.MaxHP);
-                if (pet.SP <= 0) pet.SP = Math.Max(20, pet.MaxSP);
-                pet.IsBattle = true;
-            }
+
+            if (pet.HP <= 0) pet.HP = Math.Max(50, pet.MaxHP);
+            if (pet.SP <= 0) pet.SP = Math.Max(20, pet.MaxSP);
+            pet.IsBattle = true;
             return pet;
         }
 
@@ -477,7 +545,7 @@ namespace Game.Battle
 
         public static void CheckAndTriggerRandomEncounter(Player player)
         {
-            if (player == null || IsInBattle(player)) return;
+            if (player == null || IsInBattle(player) || player.IsInBattleCooldown()) return;
 
             GameMap map = player.CurMap as GameMap;
             if (map == null) return;
@@ -502,6 +570,11 @@ namespace Game.Battle
         public static void StartProximityEncounter(Player player, GameMap map, QuestNpc triggerMob)
         {
             if (player == null || triggerMob == null || map == null) return;
+            if (player.IsInBattleCooldown())
+            {
+                DebugSystem.Write($"[PvEBattle] Proximity encounter suppressed for {player.CharName}: post-battle cooldown active.");
+                return;
+            }
             if (IsSafeTownMap((ushort)map.MapID) || !triggerMob.IsWildMonster()) return;
 
             lock (_lock)
@@ -553,7 +626,7 @@ namespace Game.Battle
 
         private static void StartRandomEncounterFromPool(Player player, GameMap map, List<QuestNpc> pool)
         {
-            if (player == null || pool == null || pool.Count == 0) return;
+            if (player == null || pool == null || pool.Count == 0 || player.IsInBattleCooldown()) return;
 
             lock (_lock)
             {
@@ -820,16 +893,19 @@ namespace Game.Battle
                 var pet = GetActivePet(p);
                 if (pet != null)
                 {
+                    uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
+                    byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
+
                     battle.Attackers.Add(new BattleFighter
                     {
                         Side = BattleTeamSide.Attacker,
                         FighterType = BattleFighterType.Pet,
                         PetRef = pet,
                         OwnerID = p.CharID,
-                        ID = pet.PetID,
+                        ID = petTid,
                         Name = pet.PetName ?? "Pet",
                         Level = pet.Level,
-                        Element = 0,
+                        Element = petElem,
                         MaxHP = Math.Max(1, pet.MaxHP),
                         CurHP = Math.Max(1, pet.HP),
                         MaxSP = Math.Max(0, pet.MaxSP),
@@ -875,16 +951,19 @@ namespace Game.Battle
                     var pet = GetActivePet(p);
                     if (pet != null)
                     {
+                        uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
+                        byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
+
                         battle.Defenders.Add(new BattleFighter
                         {
                             Side = BattleTeamSide.Defender,
                             FighterType = BattleFighterType.Pet,
                             PetRef = pet,
                             OwnerID = p.CharID,
-                            ID = pet.PetID,
+                            ID = petTid,
                             Name = pet.PetName ?? "Pet",
                             Level = pet.Level,
-                            Element = 0,
+                            Element = petElem,
                             MaxHP = Math.Max(1, pet.MaxHP),
                             CurHP = Math.Max(1, pet.HP),
                             MaxSP = Math.Max(0, pet.MaxSP),
@@ -960,6 +1039,9 @@ namespace Game.Battle
 
                 // 2. AC 6:2 [01] (mode change signal)
                 p.Send(Tools.FromFormat("bbb", 6, 2, 1));
+
+                // Broadcast AC 11:4 battle state to map peers (shows sword combat indicator)
+                BroadcastBattleState(p, true);
 
                 // 3. AC 11:250 (Prepare Battle: Pack ONLY self player)
                 var selfFighter = friendlyPlayers.FirstOrDefault(f => f.PlayerRef == p);
@@ -1752,6 +1834,7 @@ namespace Game.Battle
 
                             if (targetFighter.IsDead)
                             {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, targetFighter.GridX, targetFighter.GridY));
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, targetFighter.GridX, targetFighter.GridY, 0));
                             }
 
@@ -1861,6 +1944,7 @@ namespace Game.Battle
 
                             if (target.IsDead)
                             {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, target.GridX, target.GridY));
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 11, 1, target.GridX, target.GridY, 0));
                                 if (target.FighterType == BattleFighterType.Pet)
                                 {
@@ -1938,6 +2022,7 @@ namespace Game.Battle
                         foreach (var p in battle.AllPlayers)
                         {
                             _activeBattles.Remove(p.CharID);
+                            p.SetBattleCooldown();
                         }
                     }
 
@@ -1947,7 +2032,6 @@ namespace Game.Battle
                     foreach (var p in battle.AllPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 1)); // Fled
 
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
@@ -1962,6 +2046,8 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                         p.SaveCharacterData();
                     }
                 }
@@ -1987,6 +2073,7 @@ namespace Game.Battle
                         foreach (var p in battle.AllPlayers)
                         {
                             _activeBattles.Remove(p.CharID);
+                            p.SetBattleCooldown();
                         }
                     }
 
@@ -2058,18 +2145,14 @@ namespace Game.Battle
 
                         // 1. AC 11:12 Combat finish
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        // 2. AC 22:6 Victory
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2));
-                        // 3. AC 22:5 Rewards
-                        p.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)Math.Min(0xFFFF, totalExp), (ushort)Math.Min(0xFFFF, totalGold)));
 
-                        // 4. Despawn pets (4-byte AC 11:1)
+                        // 2. Despawn pets (4-byte AC 11:1)
                         foreach (var f in battle.Attackers.Where(a => a.FighterType == BattleFighterType.Pet))
                         {
                             p.Send(Tools.FromFormat("bbbb", 11, 1, f.GridX, f.GridY));
                         }
 
-                        // 5. Despawn players & close battle window for each team member
+                        // 3. Despawn players & close battle window for each team member
                         foreach (var pMember in battle.AttackingPlayers)
                         {
                             var pf = battle.Attackers.FirstOrDefault(a => a.PlayerRef == pMember);
@@ -2084,16 +2167,17 @@ namespace Game.Battle
                             p.Send(p110);
                         }
 
-                        // 6. Normal map mode and movement release
+                        // 4. Normal map mode and movement release
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
 
                     // Defending team cleanup (if PvP)
                     foreach (var p in battle.DefendingPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0)); // Defeat
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
                         p110.Pack32(p.CharID);
@@ -2113,6 +2197,8 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
 
                     // Check Quest Battle Completion for Leader
@@ -2146,6 +2232,7 @@ namespace Game.Battle
                         foreach (var p in battle.AllPlayers)
                         {
                             _activeBattles.Remove(p.CharID);
+                            p.SetBattleCooldown();
                         }
                     }
 
@@ -2156,7 +2243,6 @@ namespace Game.Battle
                     foreach (var p in battle.AttackingPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 0)); // Defeat
 
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
@@ -2177,14 +2263,14 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
 
                     // Defending players victory cleanup (if PvP)
                     foreach (var p in battle.DefendingPlayers)
                     {
                         p.Send(Tools.FromFormat("bbb", 11, 12, 1));
-                        p.Send(Tools.FromFormat("bbbbb", 22, 6, 11, 0, 2)); // Victory
-                        p.Send(Tools.FromFormat("bbwww", 22, 5, (ushort)11, (ushort)150, (ushort)100));
 
                         SendPacket p110 = new SendPacket();
                         p110.PackArray(new byte[] { 11, 0 });
@@ -2199,6 +2285,8 @@ namespace Game.Battle
 
                         p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         p.Send(Tools.FromFormat("bb", 20, 8));
+                        p.SetBattleCooldown();
+                        BroadcastBattleState(p, false);
                     }
                     if (battle.QuestContext?.OnDefeat != null)
                     {
@@ -2321,6 +2409,24 @@ namespace Game.Battle
             p.Pack8(statId);
             p.Pack32(val);
             player.Send(p);
+        }
+
+        /// <summary>
+        /// Broadcasts authentic AC 11:4 combat state indicator (swords icon) to map peers matching official PCAP.
+        /// Payload: Type 2 (1B), CharID (4B), 0 (1B), 0 (1B), State (1B; 1 = enter combat, 0 = exit combat)
+        /// </summary>
+        private static void BroadcastBattleState(Player p, bool inBattle)
+        {
+            if (p == null || p.CurMap == null) return;
+            SendPacket p114 = new SendPacket();
+            p114.Pack8(11);
+            p114.Pack8(4);
+            p114.Pack8(2);
+            p114.Pack32(p.CharID);
+            p114.Pack8(0);
+            p114.Pack8(0);
+            p114.Pack8(inBattle ? (byte)1 : (byte)0);
+            p.CurMap.Broadcast(p114);
         }
     }
 }

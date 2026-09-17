@@ -59,7 +59,7 @@ public class DataBase
 		{
 			// Default to Sqlite ServerDataBase.db
 			ServType = Types.Sqlite;
-			DBFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ServerDataBase.db");
+			DBFile = ResolveDbPath("ServerDataBase.db");
 
 			string configPath = "database.override.txt";
 			if (!File.Exists(configPath))
@@ -104,6 +104,51 @@ public class DataBase
 		}
 		catch
 		{
+		}
+	}
+
+	public static DataTable Query(string sql)
+	{
+		try
+		{
+			string dbFile = ResolveDbPath("ServerDataBase.db");
+			using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;"))
+			{
+				conn.Open();
+				using (var cmd = new SQLiteCommand(sql, conn))
+				using (var reader = cmd.ExecuteReader())
+				{
+					DataTable dt = new DataTable();
+					dt.Load(reader);
+					return dt;
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			DebugSystem.Write($"[DataBase.Query] Error: {ex.Message} -> SQL: {sql}");
+			return null;
+		}
+	}
+
+	public static int Execute(string sql)
+	{
+		try
+		{
+			string dbFile = ResolveDbPath("ServerDataBase.db");
+			using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;"))
+			{
+				conn.Open();
+				using (var cmd = new SQLiteCommand(sql, conn))
+				{
+					return cmd.ExecuteNonQuery();
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			DebugSystem.Write($"[DataBase.Execute] Error: {ex.Message} -> SQL: {sql}");
+			return -1;
 		}
 	}
 
@@ -540,5 +585,46 @@ public class DataBase
 	public virtual bool VerifyPassword(string check, string with)
 	{
 		return check == with;
+	}
+
+	private static string ResolveDbPath(string defaultFileName)
+	{
+		string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+		string currentDir = Directory.GetCurrentDirectory();
+		string[] candidates = new string[]
+		{
+			Path.Combine(baseDir, defaultFileName),
+			Path.Combine(baseDir, "Data", defaultFileName),
+			Path.Combine(baseDir, "..", "..", defaultFileName),
+			Path.Combine(baseDir, "..", "..", "Data", defaultFileName),
+			Path.Combine(baseDir, "bin", "Debug", defaultFileName),
+			Path.Combine(baseDir, "bin", "Debug", "Data", defaultFileName),
+			Path.Combine(currentDir, defaultFileName),
+			Path.Combine(currentDir, "Data", defaultFileName)
+		};
+
+		foreach (var candidate in candidates)
+		{
+			try
+			{
+				if (File.Exists(candidate) && new FileInfo(candidate).Length > 10000)
+				{
+					return Path.GetFullPath(candidate);
+				}
+			}
+			catch { }
+		}
+
+		foreach (var candidate in candidates)
+		{
+			try
+			{
+				if (File.Exists(candidate))
+					return Path.GetFullPath(candidate);
+			}
+			catch { }
+		}
+
+		return Path.Combine(baseDir, defaultFileName);
 	}
 }

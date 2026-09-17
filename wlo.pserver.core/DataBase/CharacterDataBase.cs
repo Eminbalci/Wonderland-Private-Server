@@ -17,19 +17,9 @@ using RCLibrary.Core.Networking;
 namespace DataBase
 {
 
-    struct CharacterDataRequest
-    {
-        public uint ID;
-        public DateTime RequestedAt;
-        public bool isOld { get { return ((DateTime.Now - RequestedAt) > new TimeSpan(0, 0, 30)); } }
-        public Character Data;
-    }
-
-
     public sealed class CharacterDataBase : RCLibrary.Core.DataBase
     {
         ConcurrentDictionary<int, Character> Characters_Online;
-        List<CharacterDataRequest> CacheCharacters;
 
         const string DBServer = "CharacterDataBase";
         //DBConnector.DBOAuth DBAssist;
@@ -53,7 +43,6 @@ namespace DataBase
             GlobalInstance = this;
             //DBAssist = new DBConnector.DBOAuth();
             Characters_Online = new ConcurrentDictionary<int, Character>();
-            CacheCharacters = new List<CharacterDataRequest>();
             DebugSystem.Write("[Init] - Configuring restricted Names");
             Setup();
         }
@@ -139,6 +128,7 @@ namespace DataBase
             charquest.Add("charID", "int/NN");
             charquest.Add("quest_started", "int");
             charquest.Add("quest_pos", "int");
+            charquest.Add("step", "int");
             #endregion
 
             #region charunlocks Columns
@@ -915,8 +905,6 @@ namespace DataBase
 
         public Character GetCharacterData(uint charID)
         {
-            bool good = true;
-
             if (Cache.ContainsKey((int)charID))
                 return Cache[(int)charID];
 
@@ -1540,25 +1528,6 @@ namespace DataBase
             #region write pets
             try
             {
-                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN exp INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN str INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN con INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN int_ INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN wis INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN agi INT DEFAULT 10;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN potential INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN skillPoints INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN isHotel TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN reborn TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN job TINYINT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_head INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_body INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_weapon INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_wrist INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_shoes INT DEFAULT 0;"); } catch { }
-                try { ExecuteNonQuery("ALTER TABLE character_pets ADD COLUMN eq_special INT DEFAULT 0;"); } catch { }
-
                 ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
                 List<string> petRows = new List<string>();
 
@@ -1787,7 +1756,9 @@ namespace DataBase
                 p.Pack8((byte)c.Job); //rb class
                 p.PackString(c.CharName);//(BYTE*)c.CharacterName,c.nameLen); //CharacterName
                 p.PackString(c.NickName);//(BYTE*)c.nick,c.nickLen); //nickname
-                p.Pack8(255); //??
+                p.Pack8(255); // Mode flag
+                p.Pack32(0); // Guild ID
+                p.Pack8(1); // Active entity flag
                 tmp.Add(p);
             }
 
@@ -1833,7 +1804,9 @@ namespace DataBase
                     p.Pack8((byte)c.Job); //rb class
                     p.PackString(c.CharName);//(BYTE*)c.CharacterName,c.nameLen); //CharacterName
                     p.PackString(c.NickName);//(BYTE*)c.nick,c.nickLen); //nickname
-                    p.Pack8(255); //??
+                    p.Pack8(255); // Mode flag
+                    p.Pack32((c as Player)?.GuildID ?? 0); // Guild ID
+                    p.Pack8(1); // Active entity flag
                     tmp.Add(p);
                     playerCount++;
 
@@ -1906,7 +1879,9 @@ namespace DataBase
                 p.Pack8((byte)newPlayer.Job);
                 p.PackString(newPlayer.CharName ?? "");
                 p.PackString(newPlayer.NickName ?? "");
-                p.Pack8(255);
+                p.Pack8(255); // Mode flag
+                p.Pack32(newPlayer.GuildID); // Guild ID
+                p.Pack8(1); // Active entity flag
                 tmp.Add(p);
 
                 SendPacket broadcastPacket = new SendPacket(tmp.End());

@@ -186,27 +186,27 @@ namespace Game.QuestRelated
                 t.Contains("fred") || t.Contains("magellan") || t.Contains("kanako") ||
                 t.Contains("charlotte") || t.Contains("rebirth") || t.Contains("reincarnation") || t.Contains("skill master"))
             {
-                return "👥 Companion & Rebirth";
+                return " Companion & Rebirth";
             }
             if (t.Contains("raft") || t.Contains("canoe") || t.Contains("ship") ||
                 t.Contains("boat") || t.Contains("airplane") || t.Contains("rocket") ||
                 t.Contains("ufo") || t.Contains("tent") || t.Contains("craftsman") ||
                 t.Contains("alchemy") || t.Contains("make a"))
             {
-                return "🛠️ Crafting & Vehicles";
+                return " Crafting & Vehicles";
             }
             if (t.Contains("whack") || t.Contains("collect") || t.Contains("contest") ||
                 t.Contains("quiz") || t.Contains("test") || t.Contains("game"))
             {
-                return "🎯 Minigames & Challenges";
+                return " Minigames & Challenges";
             }
             if (t.Contains("zodiac") || t.Contains("trial") || t.Contains("ghost") ||
                 t.Contains("dragon") || t.Contains("round") || t.Contains("palace") ||
                 t.Contains("tower") || t.Contains("cave") || t.Contains("pirate"))
             {
-                return "🐉 Dungeons & Instances";
+                return " Dungeons & Instances";
             }
-            return "🏝️ Storyline & Area";
+            return " Storyline & Area";
         }
 
         public static ushort ResolveDefaultMapId(string area, string title, string description)
@@ -778,6 +778,7 @@ namespace Game.QuestRelated
                         pq.CompletedAt = DateTime.UtcNow;
                         SavePlayerQuest(player, quest.QuestID);
                         SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                         dialogue = quest.CompleteDialogue ?? quest.IntroDialogue;
                     }
                     else
@@ -786,6 +787,7 @@ namespace Game.QuestRelated
                         pq.Step = 1;
                         SavePlayerQuest(player, quest.QuestID);
                         SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, 1);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                         dialogue = quest.IntroDialogue;
                     }
                     return true;
@@ -800,6 +802,7 @@ namespace Game.QuestRelated
                             pq.CompletedAt = DateTime.UtcNow;
                             SavePlayerQuest(player, quest.QuestID);
                             SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                            SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                             dialogue = quest.CompleteDialogue;
                         }
                         else
@@ -818,6 +821,7 @@ namespace Game.QuestRelated
                         pq.CompletedAt = DateTime.UtcNow;
                         SavePlayerQuest(player, quest.QuestID);
                         SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                         dialogue = quest.CompleteDialogue;
                     }
                     return true;
@@ -849,6 +853,7 @@ namespace Game.QuestRelated
                 pq.Step = 1;
                 SavePlayerQuest(player, quest.QuestID);
                 SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, 1);
+                SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                 dialogue = step.PromptDialogue;
                 return true;
             }
@@ -873,6 +878,7 @@ namespace Game.QuestRelated
                         pq.CompletedAt = DateTime.UtcNow;
                         SavePlayerQuest(player, quest.QuestID);
                         SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                         dialogue = step.CompleteDialogue ?? quest.CompleteDialogue;
                     }
                     else
@@ -880,6 +886,7 @@ namespace Game.QuestRelated
                         pq.Step++;
                         SavePlayerQuest(player, quest.QuestID);
                         SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, (byte)pq.Step);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                         dialogue = step.CompleteDialogue;
                     }
                 }
@@ -904,6 +911,7 @@ namespace Game.QuestRelated
                     pq.CompletedAt = DateTime.UtcNow;
                     SavePlayerQuest(player, quest.QuestID);
                     SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                    SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                     dialogue = step.CompleteDialogue ?? quest.CompleteDialogue;
                 }
                 else
@@ -911,6 +919,7 @@ namespace Game.QuestRelated
                     pq.Step++;
                     SavePlayerQuest(player, quest.QuestID);
                     SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, (byte)pq.Step);
+                    SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                     dialogue = step.PromptDialogue ?? step.CompleteDialogue;
                 }
             }
@@ -987,15 +996,14 @@ namespace Game.QuestRelated
                 SendCompanionReward(player, quest.Reward.CompanionPetID, quest.Reward.CompanionName ?? "Companion");
             }
 
-            // 5. Dynamic NPC Despawn (AC 22:1 state 1) for this player upon quest completion
+            // 5. Dynamic NPC Despawn (AC 22:10 and AC 22:11) for this player upon quest completion
             if (quest.DespawnNpcClickIDs != null && quest.DespawnNpcClickIDs.Count > 0)
             {
                 foreach (var clickId in quest.DespawnNpcClickIDs)
                 {
-                    SendPacket despawnPkt = new SendPacket();
-                    despawnPkt.PackArray(new byte[] { 22, 1, (byte)clickId, 0, 1 });
-                    player.Send(despawnPkt);
-                    DebugSystem.Write($"[QuestManager] Despawned NPC (ClickID: {clickId}) via AC 22:1 for {player.CharName} following Quest '{quest.Title}' completion.");
+                    player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickId, (byte)0xFF, (byte)0xFF));
+                    player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)clickId, (byte)0xFF, (byte)0xFF));
+                    DebugSystem.Write($"[QuestManager] Despawned NPC (ClickID: {clickId}) via AC 22:10/11 for {player.CharName} following Quest '{quest.Title}' completion.");
                 }
             }
 
@@ -1003,10 +1011,8 @@ namespace Game.QuestRelated
         }
 
         /// <summary>
-        /// Synchronizes personal, client-side NPC visibility for a specific player when entering a map.
-        /// Ensures despawned/completed NPCs stay hidden ONLY for players who finished the quest on this specific map.
-        /// <summary>
         /// Synchronizes personal client-side NPC visibility based on dynamic Eve.emg PreEvents and quest state.
+        /// Evaluates both spawning (reveal) and despawning (conceal) symmetrically across all map entities.
         /// </summary>
         public static void SyncPerPlayerNpcVisibility(Player player, ushort mapId)
         {
@@ -1014,29 +1020,14 @@ namespace Game.QuestRelated
 
             try
             {
-                // 1. Evaluate dynamic Eve.emg PreEvents bytecode across all 662 maps
-                PreEventInterpreter.EvaluateMapPreEvents(player, mapId);
-
-                // 2. Hide completed/recruited quest NPCs from registered definitions
-                if (player.Quests != null)
+                // 1. Replay actor visibility (despawn recruited companions and completed events/chests)
+                if (player.CurMap is GameMap gmap)
                 {
-                    lock (_lock)
-                    {
-                        foreach (var pq in player.Quests.Values)
-                        {
-                            if (pq.State == QuestState.Completed && _registeredQuests.TryGetValue(pq.QuestID, out var quest))
-                            {
-                                if (quest.MapID == mapId && quest.DespawnNpcClickIDs != null && quest.DespawnNpcClickIDs.Count > 0)
-                                {
-                                    foreach (var clickId in quest.DespawnNpcClickIDs)
-                                    {
-                                        player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickId, (byte)0xFF, (byte)0xFF));
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ReplayActorVisibility(player, gmap);
                 }
+
+                // 2. Symmetrically evaluate dynamic Eve.emg PreEvents and quest stage conditions
+                PreEventInterpreter.EvaluateMapPreEvents(player, mapId);
             }
             catch (Exception ex)
             {
@@ -1054,17 +1045,19 @@ namespace Game.QuestRelated
 
             try
             {
-                // 1. AC 22:10 Hide Recruited NPC from Map (PCAP Frame 1476: 16 0a 01 00 ff ff)
-                ushort npcClickId = (petId == 12178) ? (ushort)1 : (petId == 10727 ? (ushort)1 : (ushort)1);
-                SendPacket hidePkt = Tools.FromFormat("bbwbb", 22, 10, npcClickId, (byte)0xFF, (byte)0xFF);
-                player.Send(hidePkt);
-                player.CurMap?.Broadcast(hidePkt);
-
-                var mapNpc = (player.CurMap as GameMap)?.NpcList?.FirstOrDefault(n => n.CickID == npcClickId) as Maps.QuestNpc;
-                if (mapNpc != null)
+                // 1. AC 22:10 & AC 22:11 Hide Recruited NPC from Current Map for all matching ClickIDs
+                if (player.CurMap is GameMap gmap && gmap.NpcList != null)
                 {
-                    mapNpc.IsBroken = true;
-                    mapNpc.RespawnTime = DateTime.MaxValue;
+                    foreach (var mapNpc in gmap.NpcList.OfType<Maps.QuestNpc>())
+                    {
+                        if (Player.IsSamePetOrCompanion(petId, (uint)mapNpc.TemplateID) ||
+                            player.HasRecruitedCompanion(mapNpc.Name, (ushort)mapNpc.TemplateID) ||
+                            (!string.IsNullOrEmpty(mapNpc.Name) && mapNpc.Name.IndexOf(petName, StringComparison.OrdinalIgnoreCase) >= 0))
+                        {
+                            PreEventInterpreter.SendActorHide(player, (ushort)mapNpc.CickID);
+                            DebugSystem.Write($"[QuestManager] Despawned recruited NPC {mapNpc.Name} (ClickID {mapNpc.CickID}, TID {mapNpc.TemplateID}) for {player.CharName}");
+                        }
+                    }
                 }
 
                 // 2. Save to player's active pet list
@@ -1303,17 +1296,17 @@ namespace Game.QuestRelated
             if (player == null || map == null) return;
             try
             {
-                // 1. Despawn recruited companions from map if in player party/pets
-                if (player.PlayerPets != null && player.PlayerPets.Count > 0)
+                // 1. Despawn recruited companions from map if in player party/pets or recruited
+                if (map.NpcList != null && map.NpcList.Count > 0)
                 {
-                    foreach (var pet in player.PlayerPets.Values)
+                    foreach (var qn in map.NpcList.OfType<Game.Maps.QuestNpc>())
                     {
-                        if (pet == null) continue;
-                        var companionNpc = map.NpcList?.OfType<Game.Maps.QuestNpc>().FirstOrDefault(qn => qn.TemplateID == pet.PetID || (qn.Name != null && qn.Name.Equals(pet.PetName, StringComparison.OrdinalIgnoreCase)));
-                        if (companionNpc != null)
+                        if (qn == null) continue;
+                        if (player.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID))
                         {
-                            player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)companionNpc.CickID, (byte)0xFF, (byte)0xFF));
-                            DebugSystem.Write($"[ActorVisibility] Replayed despawn for companion NPC {companionNpc.Name} (ClickID {companionNpc.CickID}) for {player.CharName}");
+                            player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
+                            player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
+                            DebugSystem.Write($"[ActorVisibility] Replayed despawn for companion NPC {qn.Name} (ClickID {qn.CickID}, TID {qn.TemplateID}) for {player.CharName}");
                         }
                     }
                 }
@@ -1339,6 +1332,7 @@ namespace Game.QuestRelated
                                 else if (isDespawn)
                                 {
                                     player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
+                                    player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
                                 }
                             }
                         }
@@ -1403,15 +1397,20 @@ namespace Game.QuestRelated
                 var db = (RCLibrary.Core.DataBase)DataBase.CharacterDataBase.GlobalInstance ?? (RCLibrary.Core.DataBase)DataBase.GameDataBase.GlobalInstance;
                 if (db != null)
                 {
-                    var dt = db.GetDataTable($"SELECT quest_started, quest_pos FROM charquest WHERE charID={player.CharID}");
+                    var dt = db.GetDataTable($"SELECT quest_started, quest_pos, step FROM charquest WHERE charID={player.CharID}");
                     if (dt != null && dt.Rows.Count > 0)
                     {
                         foreach (System.Data.DataRow row in dt.Rows)
                         {
                             uint qId = Convert.ToUInt32(row["quest_started"]);
                             byte qPos = Convert.ToByte(row["quest_pos"]);
-                            player.Quests[qId] = new PlayerQuest(qId, (QuestState)qPos);
-                            SendQuestUpdate(player, qId, (QuestState)qPos, 1);
+                            byte step = 1;
+                            if (dt.Columns.Contains("step") && row["step"] != DBNull.Value)
+                            {
+                                step = Convert.ToByte(row["step"]);
+                            }
+                            player.Quests[qId] = new PlayerQuest(qId, (QuestState)qPos, step);
+                            SendQuestUpdate(player, qId, (QuestState)qPos, step);
                         }
                     }
                 }
@@ -1438,11 +1437,11 @@ namespace Game.QuestRelated
                     var existing = db.GetDataTable($"SELECT pri_key FROM charquest WHERE charID={player.CharID} AND quest_started={questId} LIMIT 1");
                     if (existing != null && existing.Rows.Count > 0)
                     {
-                        db.ExecuteNonQuery($"UPDATE charquest SET quest_pos={(byte)pq.State} WHERE charID={player.CharID} AND quest_started={questId}");
+                        db.ExecuteNonQuery($"UPDATE charquest SET quest_pos={(byte)pq.State}, step={pq.Step} WHERE charID={player.CharID} AND quest_started={questId}");
                     }
                     else
                     {
-                        db.ExecuteNonQuery($"INSERT INTO charquest (charID, quest_started, quest_pos) VALUES ({player.CharID}, {questId}, {(byte)pq.State})");
+                        db.ExecuteNonQuery($"INSERT INTO charquest (charID, quest_started, quest_pos, step) VALUES ({player.CharID}, {questId}, {(byte)pq.State}, {pq.Step})");
                     }
                 }
             }
@@ -1463,6 +1462,7 @@ namespace Game.QuestRelated
                 player.Quests[questId] = new PlayerQuest(questId, QuestState.InProgress) { Step = 1 };
                 SendQuestUpdate(player, questId, QuestState.InProgress, 1);
                 SavePlayerQuest(player, questId);
+                SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                 DebugSystem.Write($"[QuestManager] Player {player.CharName} accepted Quest #{questId}.");
             }
             catch (Exception ex)
@@ -1487,6 +1487,7 @@ namespace Game.QuestRelated
                 pq.Step++;
                 SendQuestUpdate(player, questId, QuestState.InProgress, (byte)pq.Step);
                 SavePlayerQuest(player, questId);
+                SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                 DebugSystem.Write($"[QuestManager] Player {player.CharName} advanced Quest #{questId} to Step {pq.Step}.");
             }
             catch (Exception ex)
@@ -1518,6 +1519,7 @@ namespace Game.QuestRelated
 
                 SendQuestUpdate(player, questId, state, step);
                 SavePlayerQuest(player, questId);
+                SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                 DebugSystem.Write($"[QuestManager] Set Player {player.CharName} Quest #{questId} -> {state} (Step {step})");
             }
             catch (Exception ex)
@@ -1564,6 +1566,7 @@ namespace Game.QuestRelated
 
                 SendQuestUpdate(player, questId, QuestState.Completed);
                 SavePlayerQuest(player, questId);
+                SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                 DebugSystem.Write($"[QuestManager] Player {player.CharName} completed Quest #{questId} successfully.");
             }
             catch (Exception ex)
@@ -1588,6 +1591,7 @@ namespace Game.QuestRelated
                 {
                     db.ExecuteNonQuery($"DELETE FROM charquest WHERE charID={player.CharID} AND quest_started={questId}");
                 }
+                SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
                 DebugSystem.Write($"[QuestManager] Reset Quest #{questId} for Player {player.CharName}.");
             }
             catch (Exception ex)

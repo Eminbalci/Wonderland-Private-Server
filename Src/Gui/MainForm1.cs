@@ -13,8 +13,6 @@ namespace Wonderland_Private_Server
 {
     public partial class Form1 : Form
     {
-        bool blockclose = true;
-
         PluginManager phostManager;
 
 
@@ -35,6 +33,13 @@ namespace Wonderland_Private_Server
             SetupTalkResolverTab();
             SetupMapNpcStudioTab();
             SetupNpcResolverTab();
+            SetupOnlineSessionsTab();
+            SetupGuildsTab();
+            SetupMailTab();
+            SetupSecurityTab();
+            SetupLiveBattlesTab();
+            SetupMarriagesTab();
+            SetupStarterItemsTab();
             SetupServerStatusControl();
         }
 
@@ -45,25 +50,65 @@ namespace Wonderland_Private_Server
                 RunClientProgram();
                 return true;
             }
+            if (keyData == (Keys.Shift | Keys.F5))
+            {
+                SelectClientProgramPath();
+                return true;
+            }
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void SelectClientProgramPath()
+        {
+            try
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog())
+                {
+                    ofd.Title = "Select Wonderland Online Client (aLogin.exe) Location";
+                    ofd.Filter = "Client Executable (aLogin.exe)|aLogin.exe|All Executables (*.exe)|*.exe";
+                    ofd.FileName = "aLogin.exe";
+                    string currentDir = RCLibrary.Core.PathHelper.ClientDirectory;
+                    if (!string.IsNullOrEmpty(currentDir) && Directory.Exists(currentDir))
+                    {
+                        ofd.InitialDirectory = currentDir;
+                    }
+                    if (ofd.ShowDialog(this) == DialogResult.OK && File.Exists(ofd.FileName))
+                    {
+                        RCLibrary.Core.PathHelper.ClientDirectory = Path.GetDirectoryName(ofd.FileName);
+                        DebugSystem.Write(DebugItemType.Info_Light, $"[System] Client location set to: {ofd.FileName}");
+                        MessageBox.Show($"Client location updated successfully:\n{ofd.FileName}", "Client Location", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, "[System] Client selection error: " + ex.Message);
+            }
         }
 
         private void RunClientProgram()
         {
             try
             {
-                string[] searchPaths = new string[]
+                string clientPath = RCLibrary.Core.PathHelper.GetClientExecutablePath();
+
+                if (string.IsNullOrEmpty(clientPath) || !File.Exists(clientPath))
                 {
-                    @"D:\garipgudubetseyler\WLRI\aLogin.exe",
-                    @"C:\Games\WLRI\aLogin.exe",
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "aLogin.exe"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "WLRI", "aLogin.exe"),
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "WLRI", "aLogin.exe")
-                };
+                    // Prompt user with file dialog to locate aLogin.exe
+                    using (OpenFileDialog ofd = new OpenFileDialog())
+                    {
+                        ofd.Title = "Select Wonderland Online Client Executable (aLogin.exe)";
+                        ofd.Filter = "Client Executable (aLogin.exe)|aLogin.exe|All Executables (*.exe)|*.exe";
+                        ofd.FileName = "aLogin.exe";
+                        if (ofd.ShowDialog(this) == DialogResult.OK && File.Exists(ofd.FileName))
+                        {
+                            clientPath = ofd.FileName;
+                            RCLibrary.Core.PathHelper.ClientDirectory = Path.GetDirectoryName(clientPath);
+                        }
+                    }
+                }
 
-                string clientPath = searchPaths.FirstOrDefault(File.Exists);
-
-                if (!string.IsNullOrEmpty(clientPath))
+                if (!string.IsNullOrEmpty(clientPath) && File.Exists(clientPath))
                 {
                     ProcessStartInfo psi = new ProcessStartInfo
                     {
@@ -72,16 +117,16 @@ namespace Wonderland_Private_Server
                         UseShellExecute = true
                     };
                     Process.Start(psi);
-                    DebugSystem.Write(DebugItemType.Info_Light, "[System] F5 pressed: Client process started (" + clientPath + ")");
+                    DebugSystem.Write(DebugItemType.Info_Light, "[System] Client process started (" + clientPath + ")");
                 }
                 else
                 {
-                    DebugSystem.Write(DebugItemType.Error, "[System] F5 pressed: Client executable (aLogin.exe) not found.");
+                    DebugSystem.Write(DebugItemType.Error, "[System] Client executable (aLogin.exe) not found or selection cancelled.");
                 }
             }
             catch (Exception ex)
             {
-                DebugSystem.Write(DebugItemType.Error, "[System] F5 pressed error: " + ex.Message);
+                DebugSystem.Write(DebugItemType.Error, "[System] Client launch error: " + ex.Message);
             }
         }
 
@@ -100,8 +145,10 @@ namespace Wonderland_Private_Server
             {
                 DebugSystem.Write(DebugItemType.Info_Light, "Loading Compound/Alchemy Data...");
                 cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
-                cGlobal.gCompoundDat.Load("Data\\Compound.dat");
-                cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false); // append
+                string comp1 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound.dat");
+                if (File.Exists(comp1)) cGlobal.gCompoundDat.Load(comp1);
+                string comp2 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound2.dat");
+                if (File.Exists(comp2)) cGlobal.gCompoundDat.Load(comp2, false); // append
                 DebugSystem.Write(DebugItemType.Info_Light, "Compound Data Loaded.");
             }
             catch (Exception ex)
@@ -212,11 +259,12 @@ namespace Wonderland_Private_Server
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
             cGlobal.ItemDatManager.onDebug = (obj) => { };
-            string itemDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "itemDat.wpdat");
-            if (System.IO.File.Exists(itemDatPath))
+            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
+            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
+            if (!string.IsNullOrEmpty(itemDatPath) && System.IO.File.Exists(itemDatPath))
             {
                 cGlobal.ItemDatManager.Load(itemDatPath).Wait();
-                DebugSystem.Write($"[Init] - Loaded {cGlobal.ItemDatManager.GetItemList().Count} items from itemDat.wpdat");
+                DebugSystem.Write($"[Init] - Loaded {cGlobal.ItemDatManager.GetItemList().Count} items from {System.IO.Path.GetFileName(itemDatPath)}");
             }
 
             Game.Battle.MonsterDropManager.ItemNameResolver = (iid) =>
@@ -234,16 +282,16 @@ namespace Wonderland_Private_Server
                 return null;
             };
 
-            string talkDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+            string talkDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Talk.dat");
             cGlobal.TalkDatManager = new DataFiles.PhxTalkDat(talkDatPath);
             DebugSystem.Write($"[Init] - Loaded {cGlobal.TalkDatManager.Count} authentic dialogues from Talk.dat");
 
-            string markDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Mark.dat");
+            string markDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Mark.dat");
             cGlobal.MarkDatManager = new DataFiles.PhxMarkDat(markDatPath);
             Game.QuestRelated.QuestManager.LoadAuthenticQuestsFromMarkDat(markDatPath);
             DebugSystem.Write($"[Init] - Loaded {cGlobal.MarkDatManager.Count} quest marks directly from Mark.dat (Total Quests: {Game.QuestRelated.QuestManager.AllQuests.Count})");
 
-            string npcDatPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Npc.dat");
+            string npcDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
             Game.Battle.MonsterDropManager.LoadFromNpcDat(npcDatPath);
 
             Game.SkillRelated.SkillManager.LoadSkillDatabase();
@@ -260,6 +308,7 @@ namespace Wonderland_Private_Server
             DebugSystem.Write("[Init] - Initializing DataBase Objects");
             cGlobal.gUserDataBase = new DataBase.UserDataBase();
             Game.PlayerRelated.ItemMallManager.OnPointsChanged = (uid, pts) => cGlobal.gUserDataBase?.SetIMPoints(uid, pts);
+            Game.PlayerRelated.ItemMallManager.OnBonusPointsChanged = (uid, pts) => cGlobal.gUserDataBase?.SetIMBonusPoints(uid, pts);
             cGlobal.gCharacterDataBase = new DataBase.CharacterDataBase();
             cGlobal.gCharacterDataBase.ItemDat = cGlobal.ItemDatManager;
             cGlobal.gGameDataBase = new DataBase.GameDataBase();
@@ -289,7 +338,13 @@ namespace Wonderland_Private_Server
             //cGlobal.gGameDataBase = new DataManagement.DataBase.GameDataBase();
             //cGlobal.gItemManager = new DataManagement.DataFiles.ItemManager();
             //cGlobal.gSkillManager = new DataManagement.DataFiles.SkillDataFile();
-            //cGlobal.gCompoundDat = new DataManagement.DataFiles.cCompound2Dat();
+            string compound2Path = RCLibrary.Core.PathHelper.GetDataFilePath("Compound2.dat");
+            if (System.IO.File.Exists(compound2Path))
+            {
+                cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
+                cGlobal.gCompoundDat.Load(compound2Path);
+                DebugSystem.Write($"[Init] - Loaded {cGlobal.gCompoundDat.buildList.Count} authentic compound recipes from Compound2.dat");
+            }
             //cGlobal.gUserDataBase = new UserDataBase();
             //cGlobal.gNpcManager = new DataManagement.DataFiles.NpcDat();
 
@@ -428,7 +483,8 @@ namespace Wonderland_Private_Server
             //cGlobal.gItemManager.LoadItems("Data\\Item.dat");
             //cGlobal.gSkillManager.LoadSkills("Data\\Skill.dat");
             //cGlobal.gNpcManager.LoadNpc("Data\\Npc.dat");
-            cGlobal.gGameDataBase.EveDat.LoadFile("Data\\eve.Emg");
+            string eveEmgPath = RCLibrary.Core.PathHelper.GetDataFilePath("eve.Emg");
+            cGlobal.gGameDataBase.EveDat.LoadFile(eveEmgPath);
             //cGlobal.gCompoundDat.Load("Data\\Compound.dat");
             //cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false);
 
@@ -474,13 +530,23 @@ namespace Wonderland_Private_Server
             try
             {
                 cGlobal.Run = false;
-                blockclose = false;
 
                 try
                 {
                     if (this.IsHandleCreated && !this.IsDisposed)
                     {
-                        this.BeginInvoke(new Action(() => { this.Enabled = false; }));
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            if (btnSafeShutdown != null && !btnSafeShutdown.IsDisposed)
+                            {
+                                btnSafeShutdown.Enabled = false;
+                                btnSafeShutdown.Text = "Shutting down...";
+                            }
+                            if (btnSaveAllNow != null && !btnSaveAllNow.IsDisposed)
+                            {
+                                btnSaveAllNow.Enabled = false;
+                            }
+                        }));
                     }
                 }
                 catch { }
@@ -577,6 +643,56 @@ namespace Wonderland_Private_Server
                 }
 
                 DebugSystem.Write($"[SafeShutdown] Safe server shutdown completed successfully ({savedPlayers} players saved).");
+
+                // 6. Log File Location Display & 10-Second Countdown
+                string logPath = DebugSystem.LogFilePath;
+                DebugSystem.Flush();
+
+                string banner = "================================================================================";
+                DebugSystem.Write(banner);
+                DebugSystem.Write("[SAFE SERVER SHUTDOWN]");
+                DebugSystem.Write($"All server data, drop configurations, and {savedPlayers} players saved successfully.");
+                DebugSystem.Write($"LOG FILE LOCATION: {logPath}");
+                DebugSystem.Write("Server will close automatically in 10 seconds...");
+                DebugSystem.Write(banner);
+
+                Console.WriteLine();
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {banner}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SAFE SERVER SHUTDOWN]");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] All server data, drop configurations, and {savedPlayers} players saved successfully.");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] LOG FILE LOCATION: {logPath}");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Server will close automatically in 10 seconds...");
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {banner}");
+
+                for (int i = 10; i >= 1; i--)
+                {
+                    string cdMsg = $"[SafeShutdown] Application closing... Time remaining: {i} seconds (Log file: {logPath})";
+                    DebugSystem.Write(cdMsg);
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {cdMsg}");
+
+                    try
+                    {
+                        if (this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                if (btnSafeShutdown != null && !btnSafeShutdown.IsDisposed)
+                                {
+                                    btnSafeShutdown.Text = $"Closing ({i}s)...";
+                                }
+                                this.Text = $"Wonderland Private Server - Closing ({i}s)...";
+                            }));
+                        }
+                    }
+                    catch { }
+
+                    Thread.Sleep(1000);
+                }
+
+                string doneMsg = "[SafeShutdown] 10-second countdown completed. Server and application are shutting down safely.";
+                DebugSystem.Write(doneMsg);
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {doneMsg}");
+                DebugSystem.EndIntialize();
             }
             catch (Exception ex)
             {
@@ -842,7 +958,7 @@ namespace Wonderland_Private_Server
                 // Persist to database
                 cGlobal.gCharacterDataBase?.WritePlayer(targetPlayer.CharID, targetPlayer);
 
-                targetPlayer.SendSystemMessage($"✨ [Server GUI] You were granted +{ptsToAdd} Stat Points! Total Available: {targetPlayer.Eqs.SkillPoints}");
+                targetPlayer.SendSystemMessage($" [Server GUI] You were granted +{ptsToAdd} Stat Points! Total Available: {targetPlayer.Eqs.SkillPoints}");
                 DebugSystem.Write($"[GUI] Granted +{ptsToAdd} stat points to {targetPlayer.CharName}. Total Available: {targetPlayer.Eqs.SkillPoints}");
 
                 MessageBox.Show($"Successfully added +{ptsToAdd} stat points to {targetPlayer.CharName}!\nTotal Available Points: {targetPlayer.Eqs.SkillPoints}", "Points Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -880,7 +996,7 @@ namespace Wonderland_Private_Server
                 targetPlayer.Eqs.Send8_1(true);
                 cGlobal.gCharacterDataBase?.WritePlayer(targetPlayer.CharID, targetPlayer);
 
-                targetPlayer.SendSystemMessage($"🔄 [Server GUI] All base stats have been reset to 10! +{refund} Points refunded. Total Available: {targetPlayer.Eqs.SkillPoints}");
+                targetPlayer.SendSystemMessage($" [Server GUI] All base stats have been reset to 10! +{refund} Points refunded. Total Available: {targetPlayer.Eqs.SkillPoints}");
                 DebugSystem.Write($"[GUI] Reset stats for {targetPlayer.CharName}. Refunded {refund} points. Total Available: {targetPlayer.Eqs.SkillPoints}");
 
                 MessageBox.Show($"Stats reset successfully for {targetPlayer.CharName}!\nRefunded {refund} points.\nTotal Available Points: {targetPlayer.Eqs.SkillPoints}", "Stats Reset", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1250,22 +1366,51 @@ namespace Wonderland_Private_Server
                 dgvSettings.Columns.Add("JOINABLE", "Join Mode");
                 dgvSettings.Columns.Add("TRADABLE", "Trade Mode");
 
+                // Ensure table exists
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
+
                 // Get online players
                 var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                var populatedChars = new HashSet<uint>();
+
                 if (onlinePlayers != null)
                 {
                     foreach (var player in onlinePlayers)
                     {
                         if (player.Settings != null)
                         {
+                            populatedChars.Add(player.CharID);
                             dgvSettings.Rows.Add(
                                 player.CharID,
-                                player.CharName,
+                                player.CharName + " (Online)",
                                 player.Settings.PKABLE ? "ON" : "OFF",
                                 player.Settings.JOINABLE ? "ON" : "OFF",
                                 player.Settings.TRADABLE ? "ON" : "OFF"
                             );
                         }
+                    }
+                }
+
+                // Also list offline characters from database
+                var dtChars = RCLibrary.Core.DataBase.Query("SELECT c.charID, c.name, COALESCE(s.pk_mode, 0) as pk, COALESCE(s.join_mode, 1) as jn, COALESCE(s.trade_mode, 1) as tr FROM characters c LEFT JOIN player_settings s ON c.charID = s.char_id;");
+                if (dtChars != null)
+                {
+                    foreach (System.Data.DataRow row in dtChars.Rows)
+                    {
+                        uint cId = Convert.ToUInt32(row["charID"]);
+                        if (populatedChars.Contains(cId)) continue;
+                        string cName = row["name"]?.ToString() ?? "";
+                        bool pk = Convert.ToInt32(row["pk"]) == 1;
+                        bool jn = Convert.ToInt32(row["jn"]) == 1;
+                        bool tr = Convert.ToInt32(row["tr"]) == 1;
+
+                        dgvSettings.Rows.Add(
+                            cId,
+                            cName + " (Offline)",
+                            pk ? "ON" : "OFF",
+                            jn ? "ON" : "OFF",
+                            tr ? "ON" : "OFF"
+                        );
                     }
                 }
 
@@ -1286,6 +1431,8 @@ namespace Wonderland_Private_Server
         {
             try
             {
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
+
                 int savedCount = 0;
                 foreach (DataGridViewRow row in dgvSettings.Rows)
                 {
@@ -1296,20 +1443,28 @@ namespace Wonderland_Private_Server
                     string joinStr = row.Cells["JOINABLE"].Value?.ToString() ?? "OFF";
                     string tradeStr = row.Cells["TRADABLE"].Value?.ToString() ?? "OFF";
 
-                    // Find online player
+                    bool pkVal = pkStr.ToUpper() == "ON" || pkStr == "1" || pkStr.ToUpper() == "TRUE";
+                    bool joinVal = joinStr.ToUpper() == "ON" || joinStr == "1" || joinStr.ToUpper() == "TRUE";
+                    bool tradeVal = tradeStr.ToUpper() == "ON" || tradeStr == "1" || tradeStr.ToUpper() == "TRUE";
+
+                    // Persist to database
+                    string sql = $"INSERT OR REPLACE INTO player_settings (char_id, pk_mode, join_mode, trade_mode) VALUES ({charID}, {(pkVal ? 1 : 0)}, {(joinVal ? 1 : 0)}, {(tradeVal ? 1 : 0)});";
+                    RCLibrary.Core.DataBase.Execute(sql);
+
+                    // If player is online, also update runtime object
                     var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
                     var player = onlinePlayers?.FirstOrDefault(p => p.CharID == charID);
 
                     if (player?.Settings != null)
                     {
-                        player.Settings.PKABLE = pkStr.ToUpper() == "ON" || pkStr == "1" || pkStr.ToUpper() == "TRUE";
-                        player.Settings.JOINABLE = joinStr.ToUpper() == "ON" || joinStr == "1" || joinStr.ToUpper() == "TRUE";
-                        player.Settings.TRADABLE = tradeStr.ToUpper() == "ON" || tradeStr == "1" || tradeStr.ToUpper() == "TRUE";
-                        savedCount++;
+                        player.Settings.PKABLE = pkVal;
+                        player.Settings.JOINABLE = joinVal;
+                        player.Settings.TRADABLE = tradeVal;
                     }
+                    savedCount++;
                 }
 
-                MessageBox.Show($"Settings saved for {savedCount} player(s).");
+                MessageBox.Show($"Settings saved to database for {savedCount} player(s).");
                 btnRefreshSettings_Click(sender, e); // Refresh view
             }
             catch (Exception ex)
@@ -1556,7 +1711,7 @@ namespace Wonderland_Private_Server
                             case 30: onlinePlayer.baseAgi = (ushort)newStatValue; break;
                         }
                         onlinePlayer.Eqs.Send8_1(true);
-                        onlinePlayer.SendSystemMessage($"✨ [Server GUI] Stat ID {statID} updated to {newStatValue}!");
+                        onlinePlayer.SendSystemMessage($" [Server GUI] Stat ID {statID} updated to {newStatValue}!");
                     }
 
                     MessageBox.Show("Stat updated successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1833,10 +1988,10 @@ namespace Wonderland_Private_Server
                     {
                         try
                         {
-                            byte chatType = 4; // 🔴 Kırmızı (GM Duyurusu - AC 2:4)
-                            if (colorIdx == 1) chatType = 1; // 🟡 Sarı (Dünya Sohbeti - AC 2:1)
-                            else if (colorIdx == 2) chatType = 6; // 🔵 Mavi (Lonca Sohbeti - AC 2:6)
-                            else if (colorIdx == 3) chatType = 3; // 🟣 Pembe (Fısıltı - AC 2:3)
+                            byte chatType = 4; //  Red (GM Announcement - AC 2:4)
+                            if (colorIdx == 1) chatType = 1; //  Yellow (World Chat - AC 2:1)
+                            else if (colorIdx == 2) chatType = 6; //  Blue (Guild Chat - AC 2:6)
+                            else if (colorIdx == 3) chatType = 3; //  Pink (Whisper - AC 2:3)
 
                             foreach (var line in lines)
                             {
@@ -1903,17 +2058,12 @@ namespace Wonderland_Private_Server
 
         private void btnSafeShutdown_Click(object sender, EventArgs e)
         {
-            var res = MessageBox.Show(
-                "Are you sure you want to perform a Safe Server Shutdown?\n\nThis will:\n1. Notify all online players.\n2. Save all inventories, equipment, stats, positions, and gold.\n3. Save all game settings and drop configs.\n4. Gracefully terminate server sockets and close the application.",
-                "Confirm Safe Shutdown",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning
-            );
-
-            if (res != DialogResult.Yes) return;
+            if (_isShuttingDown != 0) return;
 
             btnSafeShutdown.Enabled = false;
             btnSaveAllNow.Enabled = false;
+            btnSafeShutdown.Text = "Closing (10s)...";
+
             ThreadPool.QueueUserWorkItem(_ => PerformSafeShutdown());
         }
         #endregion
@@ -1928,7 +2078,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabGm = new TabPage("👑 GM Management");
+                TabPage tabGm = new TabPage(" GM Management");
                 tabGm.BackColor = System.Drawing.Color.White;
 
                 Label lblHeader = new Label
@@ -1964,7 +2114,7 @@ namespace Wonderland_Private_Server
 
                 btnAddGm = new Button
                 {
-                    Text = "➕ Add to GM List",
+                    Text = " Add to GM List",
                     Location = new System.Drawing.Point(340, 115),
                     Size = new System.Drawing.Size(150, 35),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -1985,7 +2135,7 @@ namespace Wonderland_Private_Server
 
                 btnRemoveGm = new Button
                 {
-                    Text = "➖ Remove Selected GM",
+                    Text = " Remove Selected GM",
                     Location = new System.Drawing.Point(340, 160),
                     Size = new System.Drawing.Size(180, 35),
                     BackColor = System.Drawing.Color.LightCoral,
@@ -2051,7 +2201,6 @@ namespace Wonderland_Private_Server
         private NumericUpDown numMallCount;
         private Button btnAddMallItem;
         private Button btnDeleteMallItem;
-        private Button btnSaveMallCatalog;
         private ComboBox cmbMallPlayers;
         private NumericUpDown numPlayerPoints;
         private Button btnAddPoints;
@@ -2061,7 +2210,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabMall = new TabPage("🛍️ Item Mall")
+                TabPage tabMall = new TabPage(" Item Mall")
                 {
                     BackColor = System.Drawing.Color.WhiteSmoke,
                     Padding = new Padding(6)
@@ -2085,7 +2234,7 @@ namespace Wonderland_Private_Server
 
                 Label lblHeader = new Label
                 {
-                    Text = "🛍️ Item Mall Catalog (Active in-game items)",
+                    Text = " Item Mall Catalog (Active in-game items)",
                     Location = new System.Drawing.Point(4, 6),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Bold),
@@ -2102,7 +2251,7 @@ namespace Wonderland_Private_Server
 
                 Button btnMoveUp = new Button
                 {
-                    Text = "⬆️ Move Up",
+                    Text = "⬆ Move Up",
                     Location = new System.Drawing.Point(4, 6),
                     Size = new System.Drawing.Size(100, 32),
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2123,7 +2272,7 @@ namespace Wonderland_Private_Server
 
                 Button btnMoveDown = new Button
                 {
-                    Text = "⬇️ Move Down",
+                    Text = "⬇ Move Down",
                     Location = new System.Drawing.Point(110, 6),
                     Size = new System.Drawing.Size(100, 32),
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2144,7 +2293,7 @@ namespace Wonderland_Private_Server
 
                 Button btnReload = new Button
                 {
-                    Text = "🔄 Reload from File",
+                    Text = " Reload from File",
                     Location = new System.Drawing.Point(216, 6),
                     Size = new System.Drawing.Size(140, 32),
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -2240,7 +2389,7 @@ namespace Wonderland_Private_Server
 
                 btnAddMallItem = new Button
                 {
-                    Text = "➕ Add / Update",
+                    Text = " Add / Update",
                     Location = new System.Drawing.Point(15, 185),
                     Size = new System.Drawing.Size(130, 36),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -2262,7 +2411,7 @@ namespace Wonderland_Private_Server
 
                 btnDeleteMallItem = new Button
                 {
-                    Text = "🗑️ Delete",
+                    Text = " Delete",
                     Location = new System.Drawing.Point(155, 185),
                     Size = new System.Drawing.Size(115, 36),
                     BackColor = System.Drawing.Color.LightCoral,
@@ -2335,7 +2484,7 @@ namespace Wonderland_Private_Server
 
                 btnAddPoints = new Button
                 {
-                    Text = "➕ Give Points",
+                    Text = " Give Points",
                     Location = new System.Drawing.Point(15, 110),
                     Size = new System.Drawing.Size(120, 34),
                     BackColor = System.Drawing.Color.LightSkyBlue,
@@ -2353,7 +2502,7 @@ namespace Wonderland_Private_Server
 
                 btnSetPoints = new Button
                 {
-                    Text = "💾 Set Exact",
+                    Text = " Set Exact",
                     Location = new System.Drawing.Point(145, 110),
                     Size = new System.Drawing.Size(125, 34),
                     BackColor = System.Drawing.Color.LightGoldenrodYellow,
@@ -2404,18 +2553,29 @@ namespace Wonderland_Private_Server
         private void RefreshMallGrid()
         {
             if (dgvMallCatalog == null) return;
-            var list = Game.PlayerRelated.ItemMallManager.GetCatalog();
+            var pointsList = Game.PlayerRelated.ItemMallManager.GetCatalog(isBonus: false);
+            var bonusList = Game.PlayerRelated.ItemMallManager.GetCatalog(isBonus: true);
 
             System.Data.DataTable dt = new System.Data.DataTable();
             dt.Columns.Add("ItemID", typeof(ushort));
             dt.Columns.Add("ItemName", typeof(string));
             dt.Columns.Add("Category", typeof(string));
             dt.Columns.Add("PointCost", typeof(int));
+            dt.Columns.Add("OriginalPrice", typeof(int));
+            dt.Columns.Add("Discount", typeof(byte));
+            dt.Columns.Add("Badge", typeof(string));
             dt.Columns.Add("Count", typeof(byte));
+            dt.Columns.Add("MallType", typeof(string));
 
-            foreach (var item in list)
+            foreach (var item in pointsList)
             {
-                dt.Rows.Add(item.ItemID, item.ItemName, item.Category, item.PointCost, item.Count);
+                string badgeStr = item.Badge == 1 ? "NEW" : (item.Badge == 2 ? "HOT" : (item.Badge == 3 ? "LIMITED" : "Normal"));
+                dt.Rows.Add(item.ItemID, item.ItemName, item.Category, item.PointCost, item.OriginalPrice, item.Discount, badgeStr, item.Count, "Points");
+            }
+            foreach (var item in bonusList)
+            {
+                string badgeStr = item.Badge == 1 ? "NEW" : (item.Badge == 2 ? "HOT" : (item.Badge == 3 ? "LIMITED" : "Normal"));
+                dt.Rows.Add(item.ItemID, item.ItemName, item.Category, item.PointCost, item.OriginalPrice, item.Discount, badgeStr, item.Count, "Bonus");
             }
 
             dgvMallCatalog.DataSource = dt;
@@ -2535,7 +2695,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                TabPage tabDrops = new TabPage("🐲 Monster Drops")
+                TabPage tabDrops = new TabPage(" Monster Drops")
                 {
                     BackColor = System.Drawing.Color.WhiteSmoke,
                     Padding = new Padding(6)
@@ -2597,7 +2757,7 @@ namespace Wonderland_Private_Server
                         {
                             selectedMonsterTid = tid;
                             string mName = row.Cells["MonsterName"]?.Value?.ToString() ?? $"Monster #{tid}";
-                            lblSelectedMonster.Text = $"🐲 Selected Monster: {mName} (TID: {tid})";
+                            lblSelectedMonster.Text = $" Selected Monster: {mName} (TID: {tid})";
                             RefreshMonsterDropsGrid(tid);
                         }
                     }
@@ -2617,7 +2777,7 @@ namespace Wonderland_Private_Server
 
                 lblSelectedMonster = new Label
                 {
-                    Text = "🐲 Selected Monster: (Please select a monster from the list)",
+                    Text = " Selected Monster: (Please select a monster from the list)",
                     Location = new System.Drawing.Point(4, 4),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold),
@@ -2697,7 +2857,7 @@ namespace Wonderland_Private_Server
 
                 btnAddDrop = new Button
                 {
-                    Text = "➕ Add / Update Drop",
+                    Text = " Add / Update Drop",
                     Location = new System.Drawing.Point(10, 85),
                     Size = new System.Drawing.Size(195, 32),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -2730,7 +2890,7 @@ namespace Wonderland_Private_Server
 
                 btnDeleteDrop = new Button
                 {
-                    Text = "🗑️ Delete Drop",
+                    Text = " Delete Drop",
                     Location = new System.Drawing.Point(215, 85),
                     Size = new System.Drawing.Size(195, 32),
                     BackColor = System.Drawing.Color.LightCoral,
@@ -2754,7 +2914,7 @@ namespace Wonderland_Private_Server
 
                 Button btnClearMonster = new Button
                 {
-                    Text = "🧹 Clear Monster's Drops",
+                    Text = " Clear Monster's Drops",
                     Location = new System.Drawing.Point(10, 122),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.SandyBrown,
@@ -2779,7 +2939,7 @@ namespace Wonderland_Private_Server
 
                 btnSaveDrops = new Button
                 {
-                    Text = "💾 Save All Drops to File",
+                    Text = " Save All Drops to File",
                     Location = new System.Drawing.Point(215, 122),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.LightSkyBlue,
@@ -2793,7 +2953,7 @@ namespace Wonderland_Private_Server
 
                 btnReloadDrops = new Button
                 {
-                    Text = "🔄 Reload from Npc.dat",
+                    Text = " Reload from Npc.dat",
                     Location = new System.Drawing.Point(10, 156),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.LightYellow,
@@ -2801,7 +2961,7 @@ namespace Wonderland_Private_Server
                 };
                 btnReloadDrops.Click += (s, e) =>
                 {
-                    string npcDat = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Npc.dat");
+                    string npcDat = RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat");
                     Game.Battle.MonsterDropManager.LoadFromNpcDat(npcDat);
                     RefreshMonsterListGrid();
                     if (selectedMonsterTid > 0) RefreshMonsterDropsGrid(selectedMonsterTid);
@@ -2810,7 +2970,7 @@ namespace Wonderland_Private_Server
 
                 Button btnClearAllDrops = new Button
                 {
-                    Text = "❌ Clear ALL Drop Tables",
+                    Text = " Clear ALL Drop Tables",
                     Location = new System.Drawing.Point(215, 156),
                     Size = new System.Drawing.Size(195, 30),
                     BackColor = System.Drawing.Color.Crimson,
@@ -2914,7 +3074,7 @@ namespace Wonderland_Private_Server
                 {
                     selectedMonsterTid = tid;
                     string mName = firstRow.Cells["MonsterName"]?.Value?.ToString() ?? $"Monster #{tid}";
-                    if (lblSelectedMonster != null) lblSelectedMonster.Text = $"🐲 Selected Monster: {mName} (TID: {tid})";
+                    if (lblSelectedMonster != null) lblSelectedMonster.Text = $" Selected Monster: {mName} (TID: {tid})";
                     RefreshMonsterDropsGrid(tid);
                 }
             }
@@ -2953,7 +3113,7 @@ namespace Wonderland_Private_Server
 
                 GroupBox grpServerStatus = new GroupBox
                 {
-                    Text = "🌐 Sunucu Listesi Trafik Işığı / Doluluk Rengi (Port 6416)",
+                    Text = " Server List Traffic Indicator / Cluster Load (Port 6416)",
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue,
                     Location = new System.Drawing.Point(6, 68),
@@ -2963,7 +3123,7 @@ namespace Wonderland_Private_Server
 
                 Label lblStatus = new Label
                 {
-                    Text = "Sunucu Durumu:",
+                    Text = "Server Status:",
                     Location = new System.Drawing.Point(10, 24),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
@@ -2978,11 +3138,11 @@ namespace Wonderland_Private_Server
                     Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
                 cmbServerStatus.Items.AddRange(new object[] {
-                    "🟢 Yeşil (Boş / Akıcı)",
-                    "🟡 Sarı (Kalabalık)",
-                    "🔴 Kırmızı (Dolu)",
-                    "⚫ Kapalı / Bakım",
-                    "⚡ Otomatik (Canlı Oyuncu)"
+                    " Green (Smooth / Empty)",
+                    " Yellow (Crowded)",
+                    " Red (Full)",
+                    " Offline / Maintenance",
+                    " Auto (Live Population)"
                 });
                 cmbServerStatus.SelectedIndexChanged += (s, e) =>
                 {
@@ -3002,7 +3162,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetGreen = new Button
                 {
-                    Text = "🟢 Yeşil",
+                    Text = " Green",
                     Location = new System.Drawing.Point(355, 20),
                     Size = new System.Drawing.Size(90, 26),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -3012,7 +3172,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetYellow = new Button
                 {
-                    Text = "🟡 Sarı",
+                    Text = " Yellow",
                     Location = new System.Drawing.Point(450, 20),
                     Size = new System.Drawing.Size(90, 26),
                     BackColor = System.Drawing.Color.Khaki,
@@ -3022,7 +3182,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetRed = new Button
                 {
-                    Text = "🔴 Kırmızı",
+                    Text = " Red",
                     Location = new System.Drawing.Point(545, 20),
                     Size = new System.Drawing.Size(95, 26),
                     BackColor = System.Drawing.Color.MistyRose,
@@ -3033,7 +3193,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSetAuto = new Button
                 {
-                    Text = "⚡ Otomatik",
+                    Text = " Auto",
                     Location = new System.Drawing.Point(645, 20),
                     Size = new System.Drawing.Size(105, 26),
                     BackColor = System.Drawing.Color.LightCyan,
@@ -3099,7 +3259,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                tabTalkResolver = new TabPage("💬 Talk ID Resolver")
+                tabTalkResolver = new TabPage(" Talk ID Resolver")
                 {
                     BackColor = System.Drawing.Color.WhiteSmoke,
                     Padding = new Padding(6)
@@ -3113,7 +3273,7 @@ namespace Wonderland_Private_Server
                 // Top Panel: Live Talk ID Resolver & Token Decoder
                 GroupBox grpResolver = new GroupBox
                 {
-                    Text = "⚡ Live Talk ID Resolver & Dynamic Token Decoder",
+                    Text = " Live Talk ID Resolver & Dynamic Token Decoder",
                     Dock = DockStyle.Top,
                     Height = 145,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
@@ -3146,7 +3306,7 @@ namespace Wonderland_Private_Server
 
                 Button btnResolve = new Button
                 {
-                    Text = "🔍 Resolve Talk ID",
+                    Text = " Resolve Talk ID",
                     Location = new System.Drawing.Point(465, 3),
                     Size = new System.Drawing.Size(130, 25),
                     BackColor = System.Drawing.Color.LightSkyBlue,
@@ -3157,7 +3317,7 @@ namespace Wonderland_Private_Server
 
                 Button btnReloadTalk = new Button
                 {
-                    Text = "🔄 Reload Talk.dat",
+                    Text = " Reload Talk.dat",
                     Location = new System.Drawing.Point(605, 3),
                     Size = new System.Drawing.Size(130, 25),
                     BackColor = System.Drawing.Color.LightCyan,
@@ -3166,7 +3326,7 @@ namespace Wonderland_Private_Server
                 };
                 btnReloadTalk.Click += (s, e) =>
                 {
-                    string talkPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                    string talkPath = RCLibrary.Core.PathHelper.GetDataFilePath("Talk.dat");
                     cGlobal.TalkDatManager = new DataFiles.PhxTalkDat(talkPath);
                     if (cGlobal.gGameDataBase != null) cGlobal.gGameDataBase.TalkDat = cGlobal.TalkDatManager;
                     PopulateTalkExplorerGrid();
@@ -3210,7 +3370,7 @@ namespace Wonderland_Private_Server
 
                 // Left Panel: Search & Master Grid
                 Panel pnlSearch = new Panel { Dock = DockStyle.Top, Height = 36 };
-                Label lblSearch = new Label { Text = "🔍 Search (ID / Text):", Location = new System.Drawing.Point(4, 9), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
+                Label lblSearch = new Label { Text = " Search (ID / Text):", Location = new System.Drawing.Point(4, 9), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold) };
                 txtTalkExplorerSearch = new TextBox { Location = new System.Drawing.Point(145, 6), Size = new System.Drawing.Size(220, 23), Font = new System.Drawing.Font("Segoe UI", 9f) };
                 txtTalkExplorerSearch.TextChanged += (s, e) => FilterTalkExplorer(txtTalkExplorerSearch.Text);
 
@@ -3242,7 +3402,7 @@ namespace Wonderland_Private_Server
 
                 GroupBox grpDispatch = new GroupBox
                 {
-                    Text = "📡 Live Game Client Dialogue Dispatcher",
+                    Text = " Live Game Client Dialogue Dispatcher",
                     Dock = DockStyle.Bottom,
                     Height = 65,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
@@ -3254,7 +3414,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSendDialogue = new Button
                 {
-                    Text = "💬 Send Dialogue Prompt (AC 23:57)",
+                    Text = " Send Dialogue Prompt (AC 23:57)",
                     Location = new System.Drawing.Point(255, 21),
                     Size = new System.Drawing.Size(220, 27),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -3276,7 +3436,7 @@ namespace Wonderland_Private_Server
 
                 Label lblBubbleHeader = new Label
                 {
-                    Text = "📜 In-Game Styled Dialogue Display:",
+                    Text = " In-Game Styled Dialogue Display:",
                     Dock = DockStyle.Top,
                     Height = 24,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
@@ -3323,7 +3483,7 @@ namespace Wonderland_Private_Server
                 {
                     lblResolveResultMethod.Text = $"Method: {res.ResolutionMethod}";
                     lblResolveResultRecord.Text = $"Record Index: #{res.RecordIndex}";
-                    lblResolveResultSound.Text = string.IsNullOrEmpty(res.SoundEffect) ? "Audio: None" : $"🎵 Sound: {res.SoundEffect}";
+                    lblResolveResultSound.Text = string.IsNullOrEmpty(res.SoundEffect) ? "Audio: None" : $" Sound: {res.SoundEffect}";
                     lblResolveResultFace.Text = res.SpeakerFaceIndex >= 0 ? $"Face: #{res.SpeakerFaceIndex}" : "Face: Standard";
 
                     rtbResolvedPreview.Clear();
@@ -3340,9 +3500,9 @@ namespace Wonderland_Private_Server
                         rtbStyledPreview.Clear();
                         rtbStyledPreview.SelectionFont = new System.Drawing.Font("Segoe UI", 11f, System.Drawing.FontStyle.Bold);
                         rtbStyledPreview.SelectionColor = System.Drawing.Color.DarkSlateBlue;
-                        string soundNote = !string.IsNullOrEmpty(res.SoundEffect) ? $" [🎵 {res.SoundEffect}]" : "";
-                        string faceNote = res.SpeakerFaceIndex >= 0 ? $" [👤 Face #{res.SpeakerFaceIndex}]" : "";
-                        rtbStyledPreview.AppendText($"💬 Dialogue #{res.RawId}{soundNote}{faceNote}\r\n\r\n");
+                        string soundNote = !string.IsNullOrEmpty(res.SoundEffect) ? $" [ {res.SoundEffect}]" : "";
+                        string faceNote = res.SpeakerFaceIndex >= 0 ? $" [ Face #{res.SpeakerFaceIndex}]" : "";
+                        rtbStyledPreview.AppendText($" Dialogue #{res.RawId}{soundNote}{faceNote}\r\n\r\n");
 
                         rtbStyledPreview.SelectionFont = new System.Drawing.Font("Segoe UI", 11f, System.Drawing.FontStyle.Regular);
                         rtbStyledPreview.SelectionColor = System.Drawing.Color.FromArgb(20, 20, 20);
@@ -3358,13 +3518,13 @@ namespace Wonderland_Private_Server
 
                     rtbResolvedPreview.Clear();
                     rtbResolvedPreview.SelectionColor = System.Drawing.Color.DarkRed;
-                    rtbResolvedPreview.AppendText($"⚠️ Could not resolve Talk ID #{rawId} into any valid Talk.dat dialogue string.");
+                    rtbResolvedPreview.AppendText($" Could not resolve Talk ID #{rawId} into any valid Talk.dat dialogue string.");
 
                     if (rtbStyledPreview != null)
                     {
                         rtbStyledPreview.Clear();
                         rtbStyledPreview.SelectionColor = System.Drawing.Color.DarkRed;
-                        rtbStyledPreview.AppendText($"⚠️ Unresolved Dialogue ID #{rawId}");
+                        rtbStyledPreview.AppendText($" Unresolved Dialogue ID #{rawId}");
                     }
                 }
             }
@@ -3383,7 +3543,7 @@ namespace Wonderland_Private_Server
                 dtTalkExplorer.Columns.Add("Length", typeof(int));
                 dtTalkExplorer.Columns.Add("Dialogue Text", typeof(string));
 
-                string talkPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data", "Talk.dat");
+                string talkPath = RCLibrary.Core.PathHelper.GetDataFilePath("Talk.dat");
                 if (System.IO.File.Exists(talkPath))
                 {
                     byte[] bytes = System.IO.File.ReadAllBytes(talkPath);
@@ -3551,7 +3711,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                tabMapNpcStudio = new TabPage("🗺️ Map NPCs & Events")
+                tabMapNpcStudio = new TabPage(" Map NPCs & Events")
                 {
                     BackColor = System.Drawing.Color.WhiteSmoke,
                     Padding = new Padding(6)
@@ -3574,7 +3734,7 @@ namespace Wonderland_Private_Server
 
                 Label lblSelectMap = new Label
                 {
-                    Text = "🗺️ Select Map:",
+                    Text = " Select Map:",
                     Location = new System.Drawing.Point(6, 12),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
@@ -3630,7 +3790,7 @@ namespace Wonderland_Private_Server
 
                 Label lblFilterMap = new Label
                 {
-                    Text = "🔍 Filter:",
+                    Text = " Filter:",
                     Location = new System.Drawing.Point(485, 12),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -3655,7 +3815,7 @@ namespace Wonderland_Private_Server
 
                 Button btnReloadMaps = new Button
                 {
-                    Text = "🔄 Reload",
+                    Text = " Reload",
                     Location = new System.Drawing.Point(920, 8),
                     Size = new System.Drawing.Size(80, 25),
                     BackColor = System.Drawing.Color.LightCyan,
@@ -3690,7 +3850,7 @@ namespace Wonderland_Private_Server
 
                 Label lblNpcSearch = new Label
                 {
-                    Text = "🔍 Search NPCs:",
+                    Text = " Search NPCs:",
                     Location = new System.Drawing.Point(4, 9),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -3753,7 +3913,7 @@ namespace Wonderland_Private_Server
 
                 lblSelectedNpcHeader = new Label
                 {
-                    Text = "⚡ Selected NPC: (Select an NPC from the list)",
+                    Text = " Selected NPC: (Select an NPC from the list)",
                     Location = new System.Drawing.Point(6, 11),
                     AutoSize = true,
                     Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold),
@@ -3778,7 +3938,7 @@ namespace Wonderland_Private_Server
 
                 Button btnSimulate = new Button
                 {
-                    Text = "▶️ Trigger Event on Player",
+                    Text = " Trigger Event on Player",
                     Location = new System.Drawing.Point(610, 8),
                     Size = new System.Drawing.Size(170, 26),
                     BackColor = System.Drawing.Color.LightGreen,
@@ -3921,7 +4081,7 @@ namespace Wonderland_Private_Server
 
                         int evCount = npc.Events != null ? npc.Events.Count : 0;
                         string scriptText = evCount > 0
-                            ? $"⚡ {evCount} Event Trigger{(evCount > 1 ? "s" : "")}"
+                            ? $" {evCount} Event Trigger{(evCount > 1 ? "s" : "")}"
                             : "Static NPC / Prop";
 
                         dtMapNpcs.Rows.Add(npc.clickId, nName, npc.npcId, $"({npc.x}, {npc.y})", scriptText);
@@ -3952,7 +4112,7 @@ namespace Wonderland_Private_Server
                 else
                 {
                     if (rtbEventSequenceFlow != null) rtbEventSequenceFlow.Clear();
-                    if (lblSelectedNpcHeader != null) lblSelectedNpcHeader.Text = "⚡ Selected NPC: (No NPCs on this map)";
+                    if (lblSelectedNpcHeader != null) lblSelectedNpcHeader.Text = " Selected NPC: (No NPCs on this map)";
                 }
             }
             catch (Exception ex)
@@ -4007,7 +4167,7 @@ namespace Wonderland_Private_Server
 
                 if (lblSelectedNpcHeader != null)
                 {
-                    lblSelectedNpcHeader.Text = $"⚡ Selected: {npcName} (Click ID: {clickId}, TID: {templateId}) on Map #{_currentSelectedMapId}";
+                    lblSelectedNpcHeader.Text = $" Selected: {npcName} (Click ID: {clickId}, TID: {templateId}) on Map #{_currentSelectedMapId}";
                 }
 
                 if (rtbEventSequenceFlow != null)
@@ -4028,14 +4188,14 @@ namespace Wonderland_Private_Server
             var eve = cGlobal.gGameDataBase?.EveDat;
             if (eve == null)
             {
-                sb.AppendLine("⚠️ Eve.Emg database is not loaded.");
+                sb.AppendLine(" Eve.Emg database is not loaded.");
                 return sb.ToString();
             }
 
             var mapData = eve.GetMapData(mapId);
             if (mapData == null)
             {
-                sb.AppendLine("⚠️ No Eve map data found for this map ID.");
+                sb.AppendLine(" No Eve map data found for this map ID.");
                 return sb.ToString();
             }
 
@@ -4064,7 +4224,7 @@ namespace Wonderland_Private_Server
 
             if (matchingEvents.Count == 0)
             {
-                sb.AppendLine($"ℹ️ No interactive Eve.Emg bytecode event linked to ClickID {clickId}.");
+                sb.AppendLine($"ℹ No interactive Eve.Emg bytecode event linked to ClickID {clickId}.");
                 sb.AppendLine("   This NPC operates as a standard non-event ambient entity or roaming monster.");
                 return sb.ToString();
             }
@@ -4073,13 +4233,13 @@ namespace Wonderland_Private_Server
             {
                 var eventEntry = matchingEvents[eIdx];
                 string formattedEventName = FormatEveName(eventEntry.Name, eventEntry.clickID);
-                sb.AppendLine($"📜 Event Entry #{eventEntry.clickID}: '{formattedEventName}' | Total Branches: {eventEntry.SubEntry.Count}\r\n");
+                sb.AppendLine($" Event Entry #{eventEntry.clickID}: '{formattedEventName}' | Total Branches: {eventEntry.SubEntry.Count}\r\n");
 
                 for (int b = 0; b < eventEntry.SubEntry.Count; b++)
                 {
                     var sub = eventEntry.SubEntry[b];
                     sb.AppendLine("-------------------------------------------------------------------------------");
-                    sb.AppendLine($"📌 BRANCH #{b + 1} (Sub #{sub.subIndex}) -> Condition: {FormatSubCondition(sub)}");
+                    sb.AppendLine($" BRANCH #{b + 1} (Sub #{sub.subIndex}) -> Condition: {FormatSubCondition(sub)}");
                     sb.AppendLine("-------------------------------------------------------------------------------");
 
                     if (sub.SubEntry == null || sub.SubEntry.Count == 0)
@@ -4138,13 +4298,13 @@ namespace Wonderland_Private_Server
                     {
                         ushort gId = op.dialog3;
                         int count = Math.Max(1, (int)op.dialog2);
-                        return $"   🎁 [OPCODE 1 - GRANT ITEM] Award Item #{gId} ({GetItemDisplayName(gId)}) x{count} + Fanfare";
+                        return $"    [OPCODE 1 - GRANT ITEM] Award Item #{gId} ({GetItemDisplayName(gId)}) x{count} + Fanfare";
                     }
                     // 2. Quest Flag: d1=2 and d3 >= 10000
                     if (op.dialog1 == 2 && op.dialog3 >= 10000)
                     {
                         string st = op.dialog4 >= 32768 ? "Completed" : "InProgress";
-                        return $"   🚩 [QUEST FLAG]: Set Flag #{op.dialog3} -> Step {op.dialog2} ({st})";
+                        return $"    [QUEST FLAG]: Set Flag #{op.dialog3} -> Step {op.dialog2} ({st})";
                     }
                     // 3. Spoken Dialogue
                     uint diaId1 = op.dialog2 > 0 ? (uint)op.dialog2 : (uint)op.dialog3;
@@ -4152,14 +4312,14 @@ namespace Wonderland_Private_Server
                     {
                         string text = DataFiles.TalkResolver.Resolve(diaId1, "Adventurer");
                         string spk = (op.dialog1 == 2) ? "[PLAYER SPEECH]" : (op.dialog1 > 0 ? $"[NPC SPEECH (ClickID {op.dialog1})]" : $"[NPC SPEECH (ClickID {clickId})]");
-                        return $"   💬 {spk} TalkID #{diaId1}:\r\n      \"{text ?? "(Dialogue not found)"}\"";
+                        return $"    {spk} TalkID #{diaId1}:\r\n      \"{text ?? "(Dialogue not found)"}\"";
                     }
-                    return $"   ⚙️ [ACTION]: (type={op.dialog1}, val1={op.dialog2}, val2={op.dialog3}, val3={op.dialog4})";
+                    return $"    [ACTION]: (type={op.dialog1}, val1={op.dialog2}, val2={op.dialog3}, val3={op.dialog4})";
 
                 case 2:
-                    if (op.dialog2 == 6) return "   ❓ [CHOICE PROMPT]: Player Dialogue Choice Selection Prompt";
-                    if (op.dialog2 == 5) return "   💥 [ANIMATION]: Prop Break / Chest Open Animation (AC 22:1)";
-                    if (op.dialog2 == 2 && op.dialog1 == 0 && op.dialog3 == 0) return "   🌿 [DESPAWN]: Entity / Gathering Node Despawn (AC 22:10)";
+                    if (op.dialog2 == 6) return "    [CHOICE PROMPT]: Player Dialogue Choice Selection Prompt";
+                    if (op.dialog2 == 5) return "    [ANIMATION]: Prop Break / Chest Open Animation (AC 22:1)";
+                    if (op.dialog2 == 2 && op.dialog1 == 0 && op.dialog3 == 0) return "    [DESPAWN]: Entity / Gathering Node Despawn (AC 22:10)";
 
                     uint diaId2 = 0;
                     if (op.dialog3 >= 10000 && op.dialog3 <= 65535) diaId2 = op.dialog3;
@@ -4171,51 +4331,51 @@ namespace Wonderland_Private_Server
                     {
                         string text = DataFiles.TalkResolver.Resolve(diaId2, "Adventurer");
                         string spk = (op.dialog2 == 2 || op.dialog1 == 2) ? "[PLAYER SPEECH]" : (op.dialog1 > 0 ? $"[NPC SPEECH (ClickID {op.dialog1})]" : $"[NPC SPEECH (ClickID {clickId})]");
-                        return $"   💬 {spk} TalkID #{diaId2}:\r\n      \"{text ?? "(Dialogue not found)"}\"";
+                        return $"    {spk} TalkID #{diaId2}:\r\n      \"{text ?? "(Dialogue not found)"}\"";
                     }
-                    return $"   ⚙️ [ANIMATION / FRAME]: (dialog1={op.dialog1}, dialog2={op.dialog2}, dialog3={op.dialog3}, dialog4={op.dialog4})";
+                    return $"    [ANIMATION / FRAME]: (dialog1={op.dialog1}, dialog2={op.dialog2}, dialog3={op.dialog3}, dialog4={op.dialog4})";
 
                 case 3:
                     string petName = Game.Battle.PvEBattleManager.ResolveMonsterName((uint)op.dialog2);
-                    return $"   👥 [OPCODE 3 - RECRUITMENT] Recruit Companion Pet #{op.dialog2} ({petName})";
+                    return $"    [OPCODE 3 - RECRUITMENT] Recruit Companion Pet #{op.dialog2} ({petName})";
 
                 case 5:
                     if (op.dialog1 >= 12000 && op.dialog1 < 20000)
                     {
                         string qState = (op.dialog2 == 2 || op.dialog4 >= 32768) ? "Completed" : (op.dialog2 == 1 ? $"In-Progress (Step {Math.Max(1, (int)op.dialog3)})" : $"State {op.dialog2}");
-                        return $"   🚩 [OPCODE 5 - QUEST FLAG] Set Quest Flag #{op.dialog1} -> {qState}";
+                        return $"    [OPCODE 5 - QUEST FLAG] Set Quest Flag #{op.dialog1} -> {qState}";
                     }
                     if (op.dialog2 == 2)
                     {
-                        return $"   🔻 [OPCODE 5 - CONSUME ITEM] Consume Item #{op.dialog1} ({GetItemDisplayName(op.dialog1)}) x{Math.Max(1, (int)op.dialog3)}";
+                        return $"    [OPCODE 5 - CONSUME ITEM] Consume Item #{op.dialog1} ({GetItemDisplayName(op.dialog1)}) x{Math.Max(1, (int)op.dialog3)}";
                     }
                     if (op.dialog2 == 1)
                     {
                         ushort gId = op.dialog1;
-                        return $"   🎁 [OPCODE 5 - GRANT ITEM] Award Item #{gId} ({GetItemDisplayName(gId)}) x{Math.Max(1, (int)op.dialog3)} + Fanfare";
+                        return $"    [OPCODE 5 - GRANT ITEM] Award Item #{gId} ({GetItemDisplayName(gId)}) x{Math.Max(1, (int)op.dialog3)} + Fanfare";
                     }
-                    return $"   🚩 [OPCODE 5 - QUEST UPDATE] Update Quest #{op.dialog1} State={op.dialog2}, Step={op.dialog3}";
+                    return $"    [OPCODE 5 - QUEST UPDATE] Update Quest #{op.dialog1} State={op.dialog2}, Step={op.dialog3}";
 
                 case 6:
-                    return $"   ⚔️ [OPCODE 6 - BATTLE] Initiate PvE Battle Encounter: Monster Group #{op.dialog1}";
+                    return $"    [OPCODE 6 - BATTLE] Initiate PvE Battle Encounter: Monster Group #{op.dialog1}";
 
                 case 7:
-                    return $"   🚪 [OPCODE 7 - TELEPORT] Real Map Teleport to Map #{op.dialog1} ({GetMapDisplayName(op.dialog1)}) at ({op.dialog2}, {op.dialog3})";
+                    return $"    [OPCODE 7 - TELEPORT] Real Map Teleport to Map #{op.dialog1} ({GetMapDisplayName(op.dialog1)}) at ({op.dialog2}, {op.dialog3})";
 
                 case 8:
-                    return $"   🎵 [OPCODE 8 - FANFARE] Play Sound Effect / Cinematic Cutscene (ID #{op.dialog1})";
+                    return $"    [OPCODE 8 - FANFARE] Play Sound Effect / Cinematic Cutscene (ID #{op.dialog1})";
 
                 case 9:
-                    return $"   🎯 [OPCODE 9 - MINIGAME] Launch Interactive Arcade Minigame #{op.dialog1}";
+                    return $"    [OPCODE 9 - MINIGAME] Launch Interactive Arcade Minigame #{op.dialog1}";
 
                 case 10:
-                    return $"   💰 [OPCODE 10 - GOLD] Award {op.dialog1} Gold Coins to Player";
+                    return $"    [OPCODE 10 - GOLD] Award {op.dialog1} Gold Coins to Player";
 
                 case 11:
-                    return $"   ⭐ [OPCODE 11 - EXP] Award {op.dialog1} Experience Points to Player";
+                    return $"    [OPCODE 11 - EXP] Award {op.dialog1} Experience Points to Player";
 
                 default:
-                    return $"   ⚙️ [OPCODE {op.DialogPtr}] dialog1={op.dialog1}, dialog2={op.dialog2}, dialog3={op.dialog3}, dialog4={op.dialog4}";
+                    return $"    [OPCODE {op.DialogPtr}] dialog1={op.dialog1}, dialog2={op.dialog2}, dialog3={op.dialog3}, dialog4={op.dialog4}";
             }
         }
 
@@ -4335,7 +4495,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                tabNpcResolver = new TabPage("🧙 NPC Name Resolver")
+                tabNpcResolver = new TabPage(" NPC Name Resolver")
                 {
                     BackColor = System.Drawing.Color.WhiteSmoke,
                     Padding = new Padding(6)
@@ -4349,7 +4509,7 @@ namespace Wonderland_Private_Server
                 // Top GroupBox: Live Template Resolver & Quick Lookup
                 GroupBox grpResolver = new GroupBox
                 {
-                    Text = "⚡ Live NPC Template Resolver & Inspection",
+                    Text = " Live NPC Template Resolver & Inspection",
                     Dock = DockStyle.Top,
                     Height = 135,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
@@ -4372,7 +4532,7 @@ namespace Wonderland_Private_Server
 
                 Button btnResolve = new Button
                 {
-                    Text = "🔍 Resolve Template",
+                    Text = " Resolve Template",
                     Location = new System.Drawing.Point(235, 3),
                     Size = new System.Drawing.Size(135, 25),
                     BackColor = System.Drawing.Color.LightSkyBlue,
@@ -4383,7 +4543,7 @@ namespace Wonderland_Private_Server
 
                 Button btnReloadNpcDat = new Button
                 {
-                    Text = "🔄 Reload Npc.dat",
+                    Text = " Reload Npc.dat",
                     Location = new System.Drawing.Point(380, 3),
                     Size = new System.Drawing.Size(135, 25),
                     BackColor = System.Drawing.Color.LightCyan,
@@ -4450,7 +4610,7 @@ namespace Wonderland_Private_Server
 
                 // Left Panel: Directory Grid & Filters
                 Panel pnlDirectoryHeader = new Panel { Dock = DockStyle.Top, Height = 34 };
-                Label lblSearch = new Label { Text = "🔍 Filter Search:", Location = new System.Drawing.Point(4, 7), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
+                Label lblSearch = new Label { Text = " Filter Search:", Location = new System.Drawing.Point(4, 7), AutoSize = true, Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold) };
                 txtNpcResolverSearch = new TextBox
                 {
                     Location = new System.Drawing.Point(105, 4),
@@ -4502,7 +4662,7 @@ namespace Wonderland_Private_Server
                 // Right Panel: World Map Spawn Inspector
                 GroupBox grpSpawns = new GroupBox
                 {
-                    Text = "🗺️ World Map Spawns & Placements",
+                    Text = " World Map Spawns & Placements",
                     Dock = DockStyle.Fill,
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.MidnightBlue,
@@ -4640,7 +4800,7 @@ namespace Wonderland_Private_Server
 
                 if (lblNpcResolvedName != null)
                 {
-                    lblNpcResolvedName.Text = $"🏷️ NPC Name: {authenticName}";
+                    lblNpcResolvedName.Text = $" NPC Name: {authenticName}";
                 }
 
                 if (lblNpcResolvedCategory != null)
@@ -4689,7 +4849,7 @@ namespace Wonderland_Private_Server
             var eve = cGlobal.gGameDataBase?.EveDat;
             if (eve == null || eve.AllMaps == null || eve.AllMaps.Count == 0)
             {
-                sb.AppendLine("⚠️ Eve.Emg database is not loaded or has no maps in memory.");
+                sb.AppendLine(" Eve.Emg database is not loaded or has no maps in memory.");
                 return sb.ToString();
             }
 
@@ -4706,7 +4866,7 @@ namespace Wonderland_Private_Server
                     {
                         spawnCount++;
                         string mapName = Game.DataFiles.SceneDataManager.GetMapName(mapId);
-                        sb.AppendLine($"📍 Map #{mapId} ({mapName})");
+                        sb.AppendLine($" Map #{mapId} ({mapName})");
                         sb.AppendLine($"   • Click ID: #{npc.clickId}");
                         sb.AppendLine($"   • Coordinates: X={npc.x}, Y={npc.y}");
                         if (npc.Events != null && npc.Events.Count > 0)
@@ -4724,7 +4884,7 @@ namespace Wonderland_Private_Server
 
             if (spawnCount == 0)
             {
-                sb.AppendLine($"ℹ️ Template #{templateId} is not statically pre-placed on any map via eve.Emg.");
+                sb.AppendLine($"ℹ Template #{templateId} is not statically pre-placed on any map via eve.Emg.");
                 sb.AppendLine("   (It may be dynamically spawned in battles, quest cutscenes, or minigames).");
             }
             else

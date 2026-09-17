@@ -31,10 +31,7 @@ namespace DataBase
         public string Char_Delete_Code_Ref = "char_delete_code";
         public VerifyPassType PassVerification;
 
-
-        List<User> GOnlineUsers;
-
-        bool shutdown = false;
+        List<User> GOnlineUsers = new List<User>();
 
         public UserDataBase()
         {
@@ -294,6 +291,43 @@ namespace DataBase
                 DebugSystem.Write($"[UserDataBase] Error updating IM points: {ex.Message}");
                 return false;
             }
+        }
+
+        public bool SetIMBonusPoints(uint userId, int bonusPoints)
+        {
+            if (userId == 0) return false;
+            try
+            {
+                try
+                {
+                    ExecuteNonQuery("ALTER TABLE " + TableName + " ADD COLUMN im_bonus INTEGER DEFAULT 0");
+                }
+                catch { }
+
+                string query = "UPDATE " + TableName + " SET im_bonus = @bonus WHERE " + DataBaseID_Ref + " = @uid";
+                ExecuteNonQuery(query, new DbParam("@bonus", bonusPoints), new DbParam("@uid", userId));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[UserDataBase] Error updating IM bonus points: {ex.Message}");
+                return false;
+            }
+        }
+
+        public int GetIMBonusPoints(uint user)
+        {
+            if (user == 0) return 0;
+            try
+            {
+                var dt = GetDataTable("SELECT im_bonus FROM " + TableName + " WHERE " + DataBaseID_Ref + " = '" + user + "'");
+                if (dt != null && dt.Rows.Count > 0 && dt.Rows[0]["im_bonus"] != DBNull.Value)
+                {
+                    return Convert.ToInt32(dt.Rows[0]["im_bonus"]);
+                }
+            }
+            catch { }
+            return 0;
         }
 
         public bool UpdateUser(uint user, string delete = null, object im = null, object char1 = null, object char2 = null)

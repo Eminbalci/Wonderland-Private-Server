@@ -230,8 +230,8 @@ namespace Server.API
             sb.AppendLine("</head>");
             sb.AppendLine("<body>");
             sb.AppendLine("  <div class='header'>");
-            sb.AppendLine("    <div class='title'>🛍️ Wonderland Online Item Mall</div>");
-            sb.AppendLine($"    <div class='balance-badge'>💎 {charName}: <span id='user-pts'>{currentPoints}</span> IM Points</div>");
+            sb.AppendLine("    <div class='title'> Wonderland Online Item Mall</div>");
+            sb.AppendLine($"    <div class='balance-badge'> {charName}: <span id='user-pts'>{currentPoints}</span> IM Points</div>");
             sb.AppendLine("  </div>");
             sb.AppendLine("  <div class='grid'>");
 
@@ -470,7 +470,7 @@ namespace Server.API
 </head>
 <body>
     <div class='container'>
-        <div class='logo'>🌟</div>
+        <div class='logo'></div>
         <h1>Wonderland</h1>
         <p class='subtitle'>Create your account</p>
         

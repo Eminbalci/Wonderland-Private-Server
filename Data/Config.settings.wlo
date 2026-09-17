@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Settings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Update>
+    <EnableSchedUpdate>false</EnableSchedUpdate>
+    <WarnofUpdate>false</WarnofUpdate>
+    <UpdtControl>Never</UpdtControl>
+    <UpdtChk_Interval />
+    <AutoUpdt_Schedule />
+  </Update>
+  <DB>
+    <Port>0</Port>
+    <Server_Type>Undefined</Server_Type>
+    <_PassVerifi>0</_PassVerifi>
+    <PassVerification>0</PassVerification>
+  </DB>
+  <ServerName>Wonderland</ServerName>
+  <WelcomeMessage />
+  <WelcomeMessages />
+  <EnableLoginEventPrompts>true</EnableLoginEventPrompts>
+</Settings>

@@ -1,5 +1,4 @@
 WLO Private Server CheatEngine
-==============================
 
 Discord invite link : http://discord.gg/J79ezkpzrT
 

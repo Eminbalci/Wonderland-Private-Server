@@ -92,8 +92,7 @@ namespace Server
                 foreach (MallItemEntry item in catalog)
                 {
                     bw.Write((ushort)item.ItemID); // ItemID (LE ushort)
-                    string cat = (item.Category ?? "").ToLowerInvariant();
-                    byte val = (cat.Contains("hot") || cat.Contains("special")) ? (byte)2 : (byte)3;
+                    byte val = (item.IsHot > 0 || item.Badge == 2 || (item.Category ?? "").ToLowerInvariant().Contains("hot") || (item.Category ?? "").ToLowerInvariant().Contains("special")) ? (byte)2 : (byte)3;
                     bw.Write(val);
                 }
 

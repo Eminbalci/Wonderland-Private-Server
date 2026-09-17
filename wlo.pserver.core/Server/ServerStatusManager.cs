@@ -12,10 +12,10 @@ namespace Server
     public enum ServerLoadColor : byte
     {
         Offline = 0,
-        Green = 1,   // Yeşil (Boş / Smooth)
-        Yellow = 2,  // Sarı (Kalabalık / Crowded)
-        Red = 3,     // Kırmızı (Dolu / Full)
-        Auto = 255   // Online sayısına göre otomatik
+        Green = 1,   // Green (Smooth / Empty)
+        Yellow = 2,  // Yellow (Crowded)
+        Red = 3,     // Red (Full)
+        Auto = 255   // Automatic based on online player count
     }
 
     public static class ServerStatusManager
@@ -28,11 +28,15 @@ namespace Server
         public static byte ClusterId { get; set; } = 1;
         public static ushort ServerId { get; set; } = 1;
         public static ServerLoadColor CurrentMode { get; set; } = ServerLoadColor.Green;
+        public static double ExpRate { get; set; } = 1.0;
+        public static double DropRate { get; set; } = 1.0;
+        public static double GoldRate { get; set; } = 1.0;
+        public static int MaxPlayers { get; set; } = 500;
 
         public static Func<int> OnlinePlayerCountProvider { get; set; }
         public static event Action OnStatusChanged;
 
-        private static string ConfigPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "server_status.txt");
+        private static string ConfigPath => RCLibrary.Core.PathHelper.GetDataFilePath("server_status.txt");
 
         public static void Initialize(int port = 6416)
         {
@@ -164,62 +168,94 @@ namespace Server
             OnStatusChanged?.Invoke();
         }
 
+        public static void VerifyTable()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.Execute("CREATE TABLE IF NOT EXISTS server_settings (key TEXT PRIMARY KEY, value TEXT);");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ServerStatusManager] Error verifying server_settings table: {ex.Message}");
+            }
+        }
+
         public static void SaveConfig()
         {
             try
             {
-                string dir = Path.GetDirectoryName(ConfigPath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
-                var sb = new StringBuilder();
-                sb.AppendLine("# WLO Single Server Status Color Configuration (Port 6416)");
-                sb.AppendLine("# 1=Green (Yeşil), 2=Yellow (Sarı), 3=Red (Kırmızı), 0=Offline, 255=Auto");
-                sb.AppendLine($"CLUSTER={ClusterId}");
-                sb.AppendLine($"SERVER_ID={ServerId}");
-                sb.AppendLine($"MODE={(byte)CurrentMode}");
-
-                File.WriteAllText(ConfigPath, sb.ToString(), Encoding.UTF8);
+                VerifyTable();
+                lock (_lock)
+                {
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('CLUSTER', '{ClusterId}');");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('SERVER_ID', '{ServerId}');");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('MODE', '{(byte)CurrentMode}');");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('EXP_RATE', '{ExpRate}');");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('DROP_RATE', '{DropRate}');");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('GOLD_RATE', '{GoldRate}');");
+                    RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('MAX_PLAYERS', '{MaxPlayers}');");
+                }
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[ServerStatusManager] Error saving config: {ex.Message}");
+                DebugSystem.Write($"[ServerStatusManager] Error saving settings to database: {ex.Message}");
             }
         }
 
         public static void LoadConfig()
         {
-            if (!File.Exists(ConfigPath))
-            {
-                SaveConfig();
-                return;
-            }
-
             try
             {
-                var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
+                VerifyTable();
+                var dt = RCLibrary.Core.DataBase.Query("SELECT key, value FROM server_settings");
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    // Fallback check server_status.txt if exists
+                    if (File.Exists(ConfigPath))
+                    {
+                        var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
+                        foreach (var rawLine in lines)
+                        {
+                            string line = rawLine.Trim();
+                            if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
+                            var parts = line.Split('=');
+                            if (parts.Length == 2)
+                            {
+                                string key = parts[0].Trim().ToUpper();
+                                string val = parts[1].Trim();
+                                if (key == "CLUSTER" && byte.TryParse(val, out byte cId)) ClusterId = cId;
+                                else if (key == "SERVER_ID" && ushort.TryParse(val, out ushort sId)) ServerId = sId;
+                                else if (key == "MODE" && byte.TryParse(val, out byte modeVal)) CurrentMode = (ServerLoadColor)modeVal;
+                            }
+                        }
+                    }
+
+                    // Seed database
+                    SaveConfig();
+                    return;
+                }
+
                 lock (_lock)
                 {
-                    foreach (var rawLine in lines)
+                    foreach (System.Data.DataRow row in dt.Rows)
                     {
-                        string line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("#")) continue;
+                        string key = row["key"]?.ToString()?.ToUpper();
+                        string val = row["value"]?.ToString();
+                        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(val)) continue;
 
-                        var parts = line.Split('=');
-                        if (parts.Length == 2)
-                        {
-                            string key = parts[0].Trim().ToUpper();
-                            string val = parts[1].Trim();
-
-                            if (key == "CLUSTER" && byte.TryParse(val, out byte cId)) ClusterId = cId;
-                            else if (key == "SERVER_ID" && ushort.TryParse(val, out ushort sId)) ServerId = sId;
-                            else if (key == "MODE" && byte.TryParse(val, out byte modeVal)) CurrentMode = (ServerLoadColor)modeVal;
-                        }
+                        if (key == "CLUSTER" && byte.TryParse(val, out byte cId)) ClusterId = cId;
+                        else if (key == "SERVER_ID" && ushort.TryParse(val, out ushort sId)) ServerId = sId;
+                        else if (key == "MODE" && byte.TryParse(val, out byte modeVal)) CurrentMode = (ServerLoadColor)modeVal;
+                        else if (key == "EXP_RATE" && double.TryParse(val, out double exp)) ExpRate = exp;
+                        else if (key == "DROP_RATE" && double.TryParse(val, out double drop)) DropRate = drop;
+                        else if (key == "GOLD_RATE" && double.TryParse(val, out double gold)) GoldRate = gold;
+                        else if (key == "MAX_PLAYERS" && int.TryParse(val, out int max)) MaxPlayers = max;
                     }
                 }
             }
             catch (Exception ex)
             {
-                DebugSystem.Write($"[ServerStatusManager] Error loading config: {ex.Message}");
+                DebugSystem.Write($"[ServerStatusManager] Error loading settings from database: {ex.Message}");
             }
         }
     }

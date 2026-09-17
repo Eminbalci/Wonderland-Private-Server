@@ -1,7 +1,6 @@
 using System;
 using Game;
 using Game.Maps;
-using Wonderland_Private_Server.Code.Objects;
 
 namespace Network.ActionCodes
 {
