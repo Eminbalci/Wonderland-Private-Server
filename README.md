@@ -1,10 +1,10 @@
-# Wonderland Online Private Server & CheatEngine
+WLO Private Server CheatEngine
 
-A high-performance, modular private server emulator and cheat/administration engine for **Wonderland Online (WLO)** written in C# (.NET Framework 4.8 / .NET runtime). Engineered for **100% dynamic portability**, allowing zero-configuration cloning, building, and running across any Windows machine or drive.
+Discord invite link : http://discord.gg/J79ezkpzrT
 
----
+Developing Tools: Visual Studio 2022
 
-## Key Features
+Database: sqlite bypass
 
 - **100% Dynamic Portability**: Zero hardcoded absolute paths. Seamless path resolution across all workstations via `RCLibrary.Core.PathHelper`.
 - **Dual Database Engine (SQLite & MySQL / MariaDB)**: Full GUI-configurable persistence supporting both embedded SQLite (`Data/ServerDataBase.db`) and remote/local MySQL servers. Includes non-blocking connection testing, live runtime switching across all active database instances, automatic database & schema auto-creation (`VerifySetup()`), transparent dialect translation (`TranslateSqlForMySql`), and a built-in 1-click SQLite-to-MySQL data migration engine with real-time progress reporting.
@@ -30,9 +30,14 @@ A high-performance, modular private server emulator and cheat/administration eng
 - **Graceful Shutdown & Diagnostic Countdown**: Non-immediate shutdown saves all player, inventory, and server data, displays the exact canonical log file location on the console, and executes a 10-second countdown before process exit.
 - **Codebase Deduplication & Dead-Code Optimization**: System-wide cleanup purging 13 uncompiled legacy files, eliminating 1,850+ lines of dead commented code across combat, player, and action code subsystems, centralizing database table DDL checks to boot-time execution, extracting unified peer entity replication helpers in Map engine, and enforcing 0-error 0-warning compilation.
 
----
+Running steps:
 
-## Technical Documentation (`docs/`)
+1. rhode island install : [drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY](https://drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY)
+2. Ensure `SERVER.INI` in the client directory is set to `127.0.0.1`
+3. Server DAT files in `./Data` are synchronized with the client data files (`Npc.dat`, `Item.dat`, `Skill.dat`, `Talk.dat`, `Eve.emg`, `Ground.MMG`, `SkillData.MBTM`, etc.).
+   - Note: The large 1.42 GB sprite archive `odd.dat` can be downloaded directly from [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
+4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
+5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
 
 The server technical documentation is organized into a cohesive 11-document master specification suite:
 
@@ -48,32 +53,30 @@ The server technical documentation is organized into a cohesive 11-document mast
 10. [**10 - Deployment Operations and Codebase Integrity**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_deployment_operations_and_codebase_integrity.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), and codebase deduplication audit.
 11. [**11 - Formula.dat Specification and EXP Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/11_formula_dat_and_exp_engine.md): Complete 407-byte binary schema, IEEE-754 double precision coefficients, client `TCalculator` disassembly, normal/reborn/pet EXP formulas, combat monster EXP distribution, real-time GUI multiplier control ($0.1\times$ - $1000\times$), and SQLite persistence.
 
----
+  > Maps : Teleports you to that ID
+  >
 
-## Quick Start Guide
+  > Vehicle : Ride the vehicle
+  >
 
-### 1. Prerequisites
-- Windows 10 / 11 (64-bit)
-- .NET Framework 4.8 or later
-- Visual Studio 2022 or .NET SDK (`dotnet build`)
-- Wonderland Online Client (e.g., [Rhode Island Client](https://drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY))
-  - Note: Large 1.42 GB client sprite archive `odd.dat` is available on [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
+  > Items : Adds the item to your inventory
+  >
 
-### 2. Build the Server
-```powershell
-dotnet build "Wonderland Private Server.sln" --configuration Debug
-```
+  > Npc : Battle/ride the NPC or Pet
+  >
+- Each lists have a search textbox on top of it:
 
-### 3. Launch Server & Client
-1. Ensure client `SERVER.INI` points to `127.0.0.1`.
-2. Run `bin/Debug/Wonderland Private Server.exe`.
-3. Wait until the dashboard displays operational status.
-4. Press `F5` in the server window (or run `aLogin.exe` in the client directory).
-5. Log in with default GM accounts:
-   - User: `admin` / Password: `password` (GM Level 10)
-   - User: `developer` / Password: `password` (GM Level 10)
+  > Type in your search query and then hit Enter
+  >
 
----
+  > To reload all, blank the search then hit Enter
+  >
+- Press `F5` key anywhere in the GUI window to automatically launch `aLogin.exe`.
+- Click the in-game PK button (sword icon) and click any monster/NPC to engage in turn-based combat. Supports attack, skills, defending, fleeing, XP/Gold rewards, and automatic battle exit.
+- Real-time NPC movement and roaming (`AC 22 Sub 2`) ported from Python server with scripted waypoints and random wandering.
+- Character skill unlocking system (`AC 5 Sub 11`, `AC 8 Sub 1`) with character-specific stunt skills, element skills, and `:skill <id> [grade]` chat command.
+- Interactive Quest & Journal System (`AC 39`, `AC 52`, `charquest` DB table) supporting multi-stage NPC dialogues, item delivery verification, automatic reward distribution (Gold, EXP, Items, Companions), and quest battle encounters.
+- In-Game GM Chat Commands:
 
 ## In-Game GM Chat Commands
 
