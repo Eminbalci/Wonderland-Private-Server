@@ -601,10 +601,39 @@ namespace DataBase
                         }
                     }
                 }
+
+                LoadNpcCache();
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[GameDataBase] Error creating npc_data table: {ex.Message}");
+            }
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<ushort, NpcTemplateInfo> _npcCache = new System.Collections.Concurrent.ConcurrentDictionary<ushort, NpcTemplateInfo>();
+
+        public void LoadNpcCache()
+        {
+            try
+            {
+                var dt = GetDataTable("SELECT id, name, level, hp, element FROM npc_data");
+                if (dt != null)
+                {
+                    foreach (System.Data.DataRow row in dt.Rows)
+                    {
+                        ushort id = Convert.ToUInt16(row["id"]);
+                        string name = row["name"]?.ToString() ?? $"NPC_{id}";
+                        int level = Convert.ToInt32(row["level"]);
+                        int hp = Convert.ToInt32(row["hp"]);
+                        int element = Convert.ToInt32(row["element"]);
+                        _npcCache[id] = new NpcTemplateInfo(name, Math.Max(1, level), Math.Max(1, hp), element);
+                    }
+                    DebugSystem.Write($"[GameDataBase] Loaded {_npcCache.Count} NPCs into memory cache.");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error loading NPC cache: {ex.Message}");
             }
         }
 
@@ -726,9 +755,33 @@ namespace DataBase
 
         public NpcTemplateInfo ResolveNpcInfo(ushort mapId, byte clickId, ushort templateId)
         {
-            // Resolve authentic name from SceneDataManager (direct in-memory Npc.dat engine - instant O(1))
+            if (_npcCache.TryGetValue(templateId, out var cached))
+            {
+                return cached;
+            }
+
+            try
+            {
+                var dt = GetDataTable($"SELECT name, level, hp, element FROM npc_data WHERE id = {templateId} LIMIT 1");
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    var row = dt.Rows[0];
+                    string name = row["name"]?.ToString() ?? $"NPC_{templateId}";
+                    int level = Convert.ToInt32(row["level"]);
+                    int hp = Convert.ToInt32(row["hp"]);
+                    int element = Convert.ToInt32(row["element"]);
+                    var info = new NpcTemplateInfo(name, Math.Max(1, level), Math.Max(1, hp), element);
+                    _npcCache[templateId] = info;
+                    return info;
+                }
+            }
+            catch { }
+
+            // Fallback: SceneDataManager
             string authenticName = Game.DataFiles.SceneDataManager.GetNpcName(templateId);
-            return new NpcTemplateInfo(authenticName, 1, 100, 0);
+            var fallback = new NpcTemplateInfo(authenticName, 1, 100, 0);
+            _npcCache[templateId] = fallback;
+            return fallback;
         }
         //{
 

@@ -392,6 +392,47 @@ namespace Game.Code
 
         /// <summary>
         /// A Character's Current EXP
+        /// <summary>
+        /// Adds experience points to character, optionally applying the server's global EXP multiplier.
+        /// </summary>
+        public void AddExp(long amount, bool applyServerRate = true)
+        {
+            if (amount <= 0) return;
+
+            if (applyServerRate && Server.ServerStatusManager.ExpRate > 0 && Server.ServerStatusManager.ExpRate != 1.0)
+            {
+                amount = (long)Math.Max(1, Math.Round(amount * Server.ServerStatusManager.ExpRate));
+            }
+
+            lock (m_Lock)
+            {
+                long expgain = amount;
+
+                while (expgain > 0)
+                {
+                    var exptolvl = CalcMaxExp(BitConverter.GetBytes(Reborn)[0], Level);
+                    var remainexp = exptolvl - m_currexp;
+                    if (m_currexp + expgain >= exptolvl)
+                    {
+                        SkillPoints += 3; // +3 stat points per level (matches Python server: points += levels_gained * 3)
+                        m_currexp = 0;
+                        TotalExp += remainexp;
+                        expgain -= remainexp;
+                        Send8_1(true);
+                    }
+                    else
+                    {
+                        TotalExp += expgain;
+                        m_currexp += (int)expgain;
+                        expgain -= expgain;
+                        SendExp();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// A Character's Current EXP
         /// </summary>
         public Int32 CurExp
         {
@@ -404,31 +445,7 @@ namespace Game.Code
             }
             set
             {
-                lock (m_Lock)
-                {
-                    long expgain = value;
-
-                    while (expgain > 0)
-                    {
-                        var exptolvl = CalcMaxExp(BitConverter.GetBytes(Reborn)[0], Level);
-                        var remainexp = exptolvl - m_currexp;
-                        if (m_currexp + expgain >= exptolvl)
-                        {
-                            SkillPoints += 3; // +3 stat points per level (matches Python server: points += levels_gained * 3)
-                            m_currexp = 0;
-                            TotalExp += remainexp;
-                            expgain -= remainexp;
-                            Send8_1(true);
-                        }
-                        else
-                        {
-                            TotalExp += expgain;
-                            m_currexp += (int)expgain;
-                            expgain -= expgain;
-                            SendExp();
-                        }
-                    }
-                }
+                AddExp(value, false);
             }
         }
 

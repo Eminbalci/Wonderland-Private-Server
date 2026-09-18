@@ -301,15 +301,16 @@ namespace Game
                     if (Quests.TryGetValue(15283, out var q15283) && (q15283.State == Game.QuestRelated.QuestState.InProgress || q15283.State == Game.QuestRelated.QuestState.Completed)) return true;
                     if (Quests.TryGetValue(12040, out var q12040) && (q12040.State == Game.QuestRelated.QuestState.InProgress || q12040.State == Game.QuestRelated.QuestState.Completed)) return true;
                 }
-                // Roca (14161 / 14162 / 14001): Quest 13052 or Quest 13098
-                if (templateId == 14161 || templateId == 14162 || templateId == 14001 || cleanNpcName.IndexOf("Roca", StringComparison.OrdinalIgnoreCase) >= 0)
+                // Roca (14161 / 14162): Quest 13052 or Quest 13098
+                if (templateId == 14161 || templateId == 14162 || cleanNpcName.IndexOf("Roca", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     if (Quests.TryGetValue(13052, out var q13052) && q13052.State == Game.QuestRelated.QuestState.Completed) return true;
                     if (Quests.TryGetValue(13098, out var q13098) && (q13098.State == Game.QuestRelated.QuestState.InProgress || q13098.State == Game.QuestRelated.QuestState.Completed)) return true;
                 }
-                // S. Monkey (17162 / 10727): Quest 12018
+                // S. Monkey (17162 / 10727): Quest 12002 (Recruitment) or Quest 12018
                 if (templateId == 17162 || templateId == 10727 || cleanNpcName.IndexOf("Monkey", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    if (Quests.TryGetValue(12002, out var q12002) && (q12002.State == Game.QuestRelated.QuestState.InProgress || q12002.State == Game.QuestRelated.QuestState.Completed)) return true;
                     if (Quests.TryGetValue(12018, out var q12018) && (q12018.State == Game.QuestRelated.QuestState.InProgress || q12018.State == Game.QuestRelated.QuestState.Completed)) return true;
                 }
             }
@@ -320,6 +321,11 @@ namespace Game
         public bool HasRecruitedCompanion(ushort templateId) => HasRecruitedCompanion("", templateId);
 
         public Action<Player> OnDisconnect { get; set; }
+
+        public Player() : base()
+        {
+            QueueData = new Queue<SendPacket>(25);
+        }
 
         public Player(SocketClient src, global::DataFiles.PhxItemDat itemdat)
             : base(src.SendPacket, itemdat)
@@ -1715,6 +1721,79 @@ namespace Game
         {
             if (recipient == null) return;
             recipient.SendPetStat(slot, statId, val1, val2);
+        }
+
+        /// <summary>
+        /// Computes the authentic required EXP for a pet to reach level + 1 based on Formula.dat:
+        /// PetExpRequired(L) = Round((L + 1)^3.1)
+        /// </summary>
+        public static uint CalcPetMaxExp(int level)
+        {
+            return (uint)Math.Max(1, Math.Round(Math.Pow(level + 1, 3.1)));
+        }
+
+        /// <summary>
+        /// Awards experience points to the specified companion pet, applying the server EXP multiplier,
+        /// resolving level-ups with authentic Formula.dat thresholds, and synchronizing AC 8:2 stat packets.
+        /// </summary>
+        public bool AddPetExp(PlayerPetData pet, uint expAmount, bool applyServerRate = true)
+        {
+            if (pet == null || expAmount <= 0) return false;
+
+            double multiplier = (applyServerRate && Server.ServerStatusManager.ExpRate > 0)
+                ? Server.ServerStatusManager.ExpRate
+                : 1.0;
+
+            uint finalExp = (uint)Math.Max(1, Math.Round(expAmount * multiplier));
+            pet.Exp += finalExp;
+
+            uint reqExp = CalcPetMaxExp(pet.Level);
+            bool petLeveledUp = false;
+
+            while (pet.Exp >= reqExp && pet.Level < 199)
+            {
+                pet.Exp -= reqExp;
+                pet.Level++;
+                pet.MaxHP += 30;
+                pet.HP = pet.MaxHP;
+                pet.MaxSP += 15;
+                pet.SP = pet.MaxSP;
+                pet.SkillPoints += 3;
+                petLeveledUp = true;
+                reqExp = CalcPetMaxExp(pet.Level);
+            }
+
+            // Synchronize Pet Combat Exp Gain (Stat 0x0124) and Pet Current Exp (Stat 0x011E)
+            SendPetStat(pet.Slot, 0x0124, finalExp);
+            SendPetStat(pet.Slot, 0x011E, pet.Exp);
+
+            if (petLeveledUp)
+            {
+                SendPetStat(pet.Slot, 0x011D, (uint)pet.Level);
+                SendPetStat(pet.Slot, 0x0119, (uint)pet.HP);
+                SendPetStat(pet.Slot, 0x011A, (uint)pet.SP);
+                Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{pet.PetName} gained {finalExp} EXP and leveled up to Lv.{pet.Level}!"));
+            }
+            else
+            {
+                SendPetStat(pet.Slot, 0x0119, (uint)pet.HP);
+                SendPetStat(pet.Slot, 0x011A, (uint)pet.SP);
+                Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{pet.PetName} gained {finalExp} EXP!"));
+            }
+
+            return petLeveledUp;
+        }
+
+        /// <summary>
+        /// Convenience overload to award EXP to a pet by roster slot index (1..4).
+        /// </summary>
+        public bool AddPetExp(byte slot, uint expAmount, bool applyServerRate = true)
+        {
+            if (PlayerPets != null && PlayerPets.TryGetValue(slot, out var pet))
+            {
+                return AddPetExp(pet, expAmount, applyServerRate);
+            }
+            return false;
         }
 
         public static void SendTeammateStats(Player recipient, Player teammate)

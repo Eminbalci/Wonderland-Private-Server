@@ -86,14 +86,13 @@ namespace Game.Maps
                     }
                 }
 
-                // Fallback to first available event if no specific state branch was matched
-                if (eventEntry == null && candidates.Count > 0)
+                // If no candidate event had an eligible branch, gracefully unfreeze player and exit
+                if (eventEntry == null || selectedSub == null)
                 {
-                    eventEntry = candidates[0];
+                    player.Send(Tools.FromFormat("bb", 20, 8));
+                    player.Send(Tools.FromFormat("bb", 5, 4));
+                    return true;
                 }
-
-                if (eventEntry == null || eventEntry.SubEntry == null || eventEntry.SubEntry.Count == 0)
-                    return false;
 
                 var qNpc = map.NpcList?.FirstOrDefault(n => n.CickID == clickId) as Game.Maps.QuestNpc;
                 ushort npcTid = qNpc != null ? (ushort)qNpc.TemplateID : (ushort)(npcEntry?.npcId ?? 0);
@@ -796,7 +795,22 @@ namespace Game.Maps
                 return null;
 
             if (eventEntry.SubEntry.Count == 1)
-                return eventEntry.SubEntry[0];
+            {
+                var singleSub = eventEntry.SubEntry[0];
+                if (singleSub.unknownbyte1 == 5 && singleSub.unknownword1 > 0)
+                {
+                    uint qId = singleSub.unknownword1;
+                    var pState = QuestState.NotStarted;
+                    if (player.Quests != null && player.Quests.TryGetValue(qId, out var pq))
+                    {
+                        pState = pq.State;
+                    }
+                    if (singleSub.unknownword2 == 1 && pState != QuestState.InProgress) return null;
+                    if (singleSub.unknownword2 == 3 && pState != QuestState.Completed) return null;
+                    if (singleSub.unknownword2 == 2 && pState != QuestState.NotStarted) return null;
+                }
+                return singleSub;
+            }
 
             int playerFreeSlots = GetPlayerFreeSlots(player);
 
@@ -847,14 +861,32 @@ namespace Game.Maps
                 if (sub.unknownbyte1 != 2) continue;
                 if (sub.SubEntry != null && sub.SubEntry.Count > 0) continue; // Only zero-op gates
 
-                ushort reqItem = (sub.unknownword1 >= 10000 && sub.unknownword1 <= 65000) ? sub.unknownword1 : sub.unknownword3;
-                if (reqItem == 0) continue;
+                bool condMet = false;
+                if (sub.unknownword1 == 2)
+                {
+                    // Companion check gate
+                    ushort compId = sub.unknownword3;
+                    bool hasCompInTeam = (player.PlayerPets != null && player.PlayerPets.Values.Any(p => p != null && p.PetID == compId)) ||
+                                         (player.ActivePetID == compId);
+                    if (sub.unknownword2 == 1) condMet = hasCompInTeam;
+                    else if (sub.unknownword2 == 2) condMet = !hasCompInTeam;
+                    else if (sub.unknownword2 == 9) condMet = player.HasRecruitedCompanion(compId);
+                    else if (sub.unknownword2 == 5) condMet = (player.PlayerPets == null || player.PlayerPets.Count < 4);
+                    else condMet = true;
+                }
+                else
+                {
+                    // Item check gate (unknownword1 == 1 or fallback)
+                    ushort reqItem = (sub.unknownword3 >= 10000 && sub.unknownword3 <= 65000) ? sub.unknownword3 : sub.unknownword1;
+                    if (reqItem == 0) continue;
 
-                byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
-                bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
-                bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
+                    byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
+                    bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
+                    bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
+                    condMet = (reqHave && hasItem) || (!reqHave && !hasItem);
+                }
 
-                if (!((reqHave && hasItem) || (!reqHave && !hasItem))) continue; // Item condition not met
+                if (!condMet) continue;
 
                 var target = GetExecutableBranch(player, eventEntry, sub);
                 if (target == null || target == excludeSub) continue;
@@ -910,7 +942,7 @@ namespace Game.Maps
                     if (hasCompletedQuestOp) continue;
                 }
 
-                DebugSystem.Write($"[SelectMatchingBranch] Item gate priority: item #{reqItem} present={hasItem}, selected gated sub #{eventEntry.SubEntry.IndexOf(target)} for event #{eventEntry.clickID}");
+                DebugSystem.Write($"[SelectMatchingBranch] Gate priority: selected gated sub #{eventEntry.SubEntry.IndexOf(target)} for event #{eventEntry.clickID}");
                 return target;
             }
 
@@ -929,20 +961,38 @@ namespace Game.Maps
                     }
                 }
 
-                // Item Condition (unknownbyte1 == 2)
+                // Item or Companion Condition (unknownbyte1 == 2)
                 if (sub.unknownbyte1 == 2)
                 {
-                    ushort reqItem = (sub.unknownword1 >= 10000 && sub.unknownword1 <= 65000) ? sub.unknownword1 : sub.unknownword3;
-                    if (reqItem > 0)
+                    bool condMet = false;
+                    if (sub.unknownword1 == 2)
                     {
-                        byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
-                        bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
-
-                        // (unknownword4 & 0x01) != 0 or unknownword4 == 2 or 5: Condition is Player MUST HAVE the required item
-                        bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
-                        if ((reqHave && hasItem) || (!reqHave && !hasItem))
+                        // Companion condition check
+                        ushort compId = sub.unknownword3;
+                        bool hasCompInTeam = (player.PlayerPets != null && player.PlayerPets.Values.Any(p => p != null && p.PetID == compId)) ||
+                                             (player.ActivePetID == compId);
+                        if (sub.unknownword2 == 1) condMet = hasCompInTeam;
+                        else if (sub.unknownword2 == 2) condMet = !hasCompInTeam;
+                        else if (sub.unknownword2 == 9) condMet = player.HasRecruitedCompanion(compId);
+                        else if (sub.unknownword2 == 5) condMet = (player.PlayerPets == null || player.PlayerPets.Count < 4);
+                        else condMet = true;
+                    }
+                    else
+                    {
+                        // Item condition check (unknownword1 == 1 or fallback)
+                        ushort reqItem = (sub.unknownword3 >= 10000 && sub.unknownword3 <= 65000) ? sub.unknownword3 : sub.unknownword1;
+                        if (reqItem > 0)
                         {
-                            var target = GetExecutableBranch(player, eventEntry, sub);
+                            byte reqCount = (byte)Math.Max(1, (int)sub.unknownword2);
+                            bool hasItem = player.Inv != null && player.Inv.ContainsItem(reqItem) && player.Inv.GetItemCount(reqItem) >= reqCount;
+                            bool reqHave = (sub.unknownword4 == 2 || sub.unknownword4 == 5 || (sub.unknownword4 & 0x01) != 0);
+                            condMet = (reqHave && hasItem) || (!reqHave && !hasItem);
+                        }
+                    }
+
+                    if (condMet)
+                    {
+                        var target = GetExecutableBranch(player, eventEntry, sub);
                             if (target != null && target != excludeSub)
                             {
                                 // CRITICAL: Skip completion branch if associated quest is already completed
@@ -970,7 +1020,6 @@ namespace Game.Maps
                             }
                         }
                     }
-                }
 
                 // Quest State Condition (unknownbyte1 == 5)
                 // w1 = questId, w2 = required state (1: InProgress, 2: NotStarted, 3: Completed), w4 >> 8 = step
@@ -1238,21 +1287,40 @@ namespace Game.Maps
                         s.unknownbyte1 != 15 &&
                         s.unknownbyte1 != 4 &&
                         s.unknownbyte1 != 7 &&
+                        s.unknownbyte1 != 5 &&
                         (playerFreeSlots < 1 || !IsInventoryFullErrorBranch(s))).ToList();
 
                     var eligibleSubs = candidateSubs.Where(s =>
                     {
                         uint qId = s.unknownword1;
-                        if (qId > 0 && player.Quests != null)
+                        if (qId > 0)
                         {
-                            if (player.Quests.TryGetValue(qId, out var pq))
+                            var pState = QuestState.NotStarted;
+                            byte pStep = 0;
+                            if (player.Quests != null && player.Quests.TryGetValue(qId, out var pq))
                             {
-                                if (pq.State == QuestState.Completed)
-                                    return false;
-                                if (pq.State == QuestState.InProgress && s.unknownword2 == 2)
-                                    return false;
+                                pState = pq.State;
+                                pStep = (byte)pq.Step;
                             }
-                            if (player.Quests.TryGetValue(qId + 1, out var pqNext) && pqNext.State != QuestState.NotStarted)
+
+                            if (s.unknownword2 == 1)
+                            {
+                                if (pState != QuestState.InProgress) return false;
+                                byte reqStep = (byte)(s.unknownword4 >> 8);
+                                if (reqStep == 0 && s.unknownword3 > 1 && s.unknownword3 < 250)
+                                    reqStep = (byte)s.unknownword3;
+                                if (reqStep > 0 && pStep != reqStep) return false;
+                            }
+                            else if (s.unknownword2 == 3)
+                            {
+                                if (pState != QuestState.Completed) return false;
+                            }
+                            else if (s.unknownword2 == 2)
+                            {
+                                if (pState != QuestState.NotStarted) return false;
+                            }
+
+                            if (player.Quests != null && player.Quests.TryGetValue(qId + 1, out var pqNext) && pqNext.State != QuestState.NotStarted)
                             {
                                 return false;
                             }

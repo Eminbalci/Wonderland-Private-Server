@@ -421,6 +421,21 @@ namespace Game.Code
                 return addedTotal;
             }
         }
+
+        public void ClearInventory(bool sendData = true)
+        {
+            lock (mylock)
+            {
+                for (int a = 0; a < 50; a++)
+                {
+                    m_Items[a]?.Clear();
+                }
+                if (sendData && owner != null)
+                {
+                    owner.Send(new SendPacket(GetAC23_5()));
+                }
+            }
+        }
         /// <summary>
         /// Moves and item in the Inventory List
         /// </summary>

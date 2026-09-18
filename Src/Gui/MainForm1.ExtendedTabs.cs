@@ -2270,5 +2270,652 @@ namespace Wonderland_Private_Server
             }
         }
         #endregion
+
+        #region TAB: Database Config (tab_database)
+        private RadioButton ext_rdoDbSqlite;
+        private RadioButton ext_rdoDbMySql;
+        private TextBox ext_txtDbSqlitePath;
+        private TextBox ext_txtDbMySqlHost;
+        private TextBox ext_txtDbMySqlPort;
+        private TextBox ext_txtDbMySqlDatabase;
+        private TextBox ext_txtDbMySqlUser;
+        private TextBox ext_txtDbMySqlPass;
+        private Label ext_lblActiveDbBadge;
+        private TextBox ext_txtDbConsole;
+        private ProgressBar ext_pbDbMigration;
+        private Label ext_lblDbMigrationStatus;
+        private Button ext_btnMigrateDb;
+        private Button ext_btnTestDbConn;
+        private Button ext_btnApplyDbLive;
+        private Button ext_btnSaveDbConfig;
+
+        public void SetupDatabaseConfigTab()
+        {
+            try
+            {
+                RCLibrary.Core.DataBase.LoadGlobalConfig();
+
+                TabPage tabDb = new TabPage(" Database Config");
+                tabDb.BackColor = Color.White;
+
+                // Main Layout
+                Panel pnlHeader = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 60,
+                    Padding = new Padding(12, 8, 12, 8),
+                    BackColor = Color.FromArgb(248, 250, 252)
+                };
+
+                Label lblHeaderTitle = new Label
+                {
+                    Text = "Database Engine & Persistence Configuration",
+                    Location = new Point(12, 8),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(15, 23, 42)
+                };
+
+                Label lblHeaderSub = new Label
+                {
+                    Text = "Configure Database Provider (SQLite / MySQL), connection parameters, test connectivity, and migrate data seamlessly.",
+                    Location = new Point(13, 32),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 8.5f),
+                    ForeColor = Color.FromArgb(100, 116, 139)
+                };
+
+                ext_lblActiveDbBadge = new Label
+                {
+                    Location = new Point(560, 16),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(37, 99, 235),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right
+                };
+
+                pnlHeader.Controls.Add(lblHeaderTitle);
+                pnlHeader.Controls.Add(lblHeaderSub);
+                pnlHeader.Controls.Add(ext_lblActiveDbBadge);
+
+                // Body Container
+                Panel pnlBody = new Panel
+                {
+                    Dock = DockStyle.Fill,
+                    Padding = new Padding(10)
+                };
+
+                // Left Panel: Settings Controls
+                Panel pnlLeft = new Panel
+                {
+                    Dock = DockStyle.Left,
+                    Width = 470,
+                    AutoScroll = true,
+                    Padding = new Padding(0, 0, 10, 0)
+                };
+
+                // Right Panel: Diagnostics Console
+                Panel pnlRight = new Panel
+                {
+                    Dock = DockStyle.Fill,
+                    Padding = new Padding(5, 0, 0, 0)
+                };
+
+                // --- Provider GroupBox ---
+                GroupBox grpProvider = new GroupBox
+                {
+                    Text = " Active Database Provider",
+                    Location = new Point(0, 5),
+                    Size = new Size(455, 62),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(30, 41, 59)
+                };
+
+                ext_rdoDbSqlite = new RadioButton
+                {
+                    Text = "SQLite (Local File)",
+                    Location = new Point(20, 24),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                    Checked = RCLibrary.Core.DataBase.DefaultServType == RCLibrary.Core.DataBaseTypes.Sqlite
+                };
+
+                ext_rdoDbMySql = new RadioButton
+                {
+                    Text = "MySQL / MariaDB Server",
+                    Location = new Point(220, 24),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                    Checked = RCLibrary.Core.DataBase.DefaultServType == RCLibrary.Core.DataBaseTypes.MySQl
+                };
+
+                grpProvider.Controls.Add(ext_rdoDbSqlite);
+                grpProvider.Controls.Add(ext_rdoDbMySql);
+
+                // --- SQLite Settings GroupBox ---
+                GroupBox grpSqlite = new GroupBox
+                {
+                    Text = " SQLite Storage File",
+                    Location = new Point(0, 75),
+                    Size = new Size(455, 82),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(30, 41, 59)
+                };
+
+                Label lblSqlitePath = new Label
+                {
+                    Text = "Database File Path:",
+                    Location = new Point(15, 24),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 8.5f, FontStyle.Regular)
+                };
+
+                ext_txtDbSqlitePath = new TextBox
+                {
+                    Location = new Point(18, 45),
+                    Size = new Size(290, 24),
+                    Font = new Font("Segoe UI", 9f),
+                    Text = string.IsNullOrEmpty(RCLibrary.Core.DataBase.DefaultDBFile) ? "ServerDataBase.db" : RCLibrary.Core.DataBase.DefaultDBFile
+                };
+
+                Button btnBrowseSqlite = new Button
+                {
+                    Text = "Browse...",
+                    Location = new Point(314, 44),
+                    Size = new Size(68, 26),
+                    Font = new Font("Segoe UI", 8.5f),
+                    BackColor = Color.FromArgb(241, 245, 249),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnBrowseSqlite.Click += (s, e) =>
+                {
+                    using (OpenFileDialog ofd = new OpenFileDialog())
+                    {
+                        ofd.Title = "Select SQLite Database File";
+                        ofd.Filter = "SQLite Database (*.db;*.sqlite;*.sqlite3)|*.db;*.sqlite;*.sqlite3|All Files (*.*)|*.*";
+                        if (ofd.ShowDialog() == DialogResult.OK)
+                        {
+                            ext_txtDbSqlitePath.Text = ofd.FileName;
+                        }
+                    }
+                };
+
+                Button btnResetSqlite = new Button
+                {
+                    Text = "Default",
+                    Location = new Point(386, 44),
+                    Size = new Size(58, 26),
+                    Font = new Font("Segoe UI", 8.5f),
+                    BackColor = Color.FromArgb(241, 245, 249),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnResetSqlite.Click += (s, e) =>
+                {
+                    ext_txtDbSqlitePath.Text = "ServerDataBase.db";
+                };
+
+                grpSqlite.Controls.Add(lblSqlitePath);
+                grpSqlite.Controls.Add(ext_txtDbSqlitePath);
+                grpSqlite.Controls.Add(btnBrowseSqlite);
+                grpSqlite.Controls.Add(btnResetSqlite);
+
+                // --- MySQL Settings GroupBox ---
+                GroupBox grpMySql = new GroupBox
+                {
+                    Text = " MySQL / MariaDB Server Connection",
+                    Location = new Point(0, 165),
+                    Size = new Size(455, 235),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(30, 41, 59)
+                };
+
+                Label lblHost = new Label { Text = "Host / IP Address:", Location = new Point(15, 25), AutoSize = true, Font = new Font("Segoe UI", 8.5f, FontStyle.Regular) };
+                ext_txtDbMySqlHost = new TextBox { Text = RCLibrary.Core.DataBase.DefaultServerIP, Location = new Point(18, 45), Size = new Size(250, 24), Font = new Font("Segoe UI", 9f) };
+
+                Label lblPort = new Label { Text = "Port:", Location = new Point(285, 25), AutoSize = true, Font = new Font("Segoe UI", 8.5f, FontStyle.Regular) };
+                ext_txtDbMySqlPort = new TextBox { Text = RCLibrary.Core.DataBase.DefaultPort, Location = new Point(288, 45), Size = new Size(145, 24), Font = new Font("Segoe UI", 9f) };
+
+                Label lblDb = new Label { Text = "Database Name:", Location = new Point(15, 78), AutoSize = true, Font = new Font("Segoe UI", 8.5f, FontStyle.Regular) };
+                ext_txtDbMySqlDatabase = new TextBox { Text = RCLibrary.Core.DataBase.DefaultDB, Location = new Point(18, 98), Size = new Size(250, 24), Font = new Font("Segoe UI", 9f) };
+
+                Label lblUser = new Label { Text = "Username:", Location = new Point(285, 78), AutoSize = true, Font = new Font("Segoe UI", 8.5f, FontStyle.Regular) };
+                ext_txtDbMySqlUser = new TextBox { Text = RCLibrary.Core.DataBase.DefaultUser, Location = new Point(288, 98), Size = new Size(145, 24), Font = new Font("Segoe UI", 9f) };
+
+                Label lblPass = new Label { Text = "Password:", Location = new Point(15, 131), AutoSize = true, Font = new Font("Segoe UI", 8.5f, FontStyle.Regular) };
+                ext_txtDbMySqlPass = new TextBox { Text = RCLibrary.Core.DataBase.DefaultPass, Location = new Point(18, 151), Size = new Size(250, 24), Font = new Font("Segoe UI", 9f), UseSystemPasswordChar = true };
+
+                CheckBox chkShowPass = new CheckBox { Text = "Show Password", Location = new Point(288, 153), AutoSize = true, Font = new Font("Segoe UI", 8.5f, FontStyle.Regular) };
+                chkShowPass.CheckedChanged += (s, e) => ext_txtDbMySqlPass.UseSystemPasswordChar = !chkShowPass.Checked;
+
+                Label lblPresets = new Label { Text = "Quick Presets:", Location = new Point(15, 185), AutoSize = true, Font = new Font("Segoe UI", 8f, FontStyle.Bold), ForeColor = Color.FromArgb(71, 85, 105) };
+                Button btnPresetXampp = new Button
+                {
+                    Text = "XAMPP (root, no pass)",
+                    Location = new Point(18, 202),
+                    Size = new Size(160, 24),
+                    Font = new Font("Segoe UI", 8f),
+                    BackColor = Color.FromArgb(241, 245, 249),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnPresetXampp.Click += (s, e) =>
+                {
+                    ext_txtDbMySqlHost.Text = "127.0.0.1";
+                    ext_txtDbMySqlPort.Text = "3306";
+                    ext_txtDbMySqlDatabase.Text = "wlo";
+                    ext_txtDbMySqlUser.Text = "root";
+                    ext_txtDbMySqlPass.Text = "";
+                };
+
+                Button btnPresetDocker = new Button
+                {
+                    Text = "Docker (root, password)",
+                    Location = new Point(185, 202),
+                    Size = new Size(165, 24),
+                    Font = new Font("Segoe UI", 8f),
+                    BackColor = Color.FromArgb(241, 245, 249),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnPresetDocker.Click += (s, e) =>
+                {
+                    ext_txtDbMySqlHost.Text = "127.0.0.1";
+                    ext_txtDbMySqlPort.Text = "3306";
+                    ext_txtDbMySqlDatabase.Text = "wlo";
+                    ext_txtDbMySqlUser.Text = "root";
+                    ext_txtDbMySqlPass.Text = "password";
+                };
+
+                grpMySql.Controls.AddRange(new Control[] {
+                    lblHost, ext_txtDbMySqlHost, lblPort, ext_txtDbMySqlPort,
+                    lblDb, ext_txtDbMySqlDatabase, lblUser, ext_txtDbMySqlUser,
+                    lblPass, ext_txtDbMySqlPass, chkShowPass,
+                    lblPresets, btnPresetXampp, btnPresetDocker
+                });
+
+                // --- Action Controls GroupBox ---
+                GroupBox grpActions = new GroupBox
+                {
+                    Text = " Actions & Database Management",
+                    Location = new Point(0, 408),
+                    Size = new Size(455, 125),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(30, 41, 59)
+                };
+
+                ext_btnTestDbConn = new Button
+                {
+                    Text = " Test Connection",
+                    Location = new Point(18, 25),
+                    Size = new Size(200, 34),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(241, 245, 249),
+                    ForeColor = Color.FromArgb(15, 23, 42),
+                    FlatStyle = FlatStyle.Flat
+                };
+                ext_btnTestDbConn.Click += (s, e) => ActionTestDbConnection();
+
+                ext_btnSaveDbConfig = new Button
+                {
+                    Text = " Save Configuration",
+                    Location = new Point(232, 25),
+                    Size = new Size(200, 34),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(37, 99, 235),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat
+                };
+                ext_btnSaveDbConfig.Click += (s, e) => ActionSaveDbConfig();
+
+                ext_btnApplyDbLive = new Button
+                {
+                    Text = " Apply Live & Re-init",
+                    Location = new Point(18, 70),
+                    Size = new Size(200, 38),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(16, 185, 129),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat
+                };
+                ext_btnApplyDbLive.Click += (s, e) => ActionApplyDbLive();
+
+                ext_btnMigrateDb = new Button
+                {
+                    Text = " Migrate SQLite -> MySQL",
+                    Location = new Point(232, 70),
+                    Size = new Size(200, 38),
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    BackColor = Color.FromArgb(217, 119, 6),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat
+                };
+                ext_btnMigrateDb.Click += (s, e) => ActionMigrateDb();
+
+                grpActions.Controls.AddRange(new Control[] {
+                    ext_btnTestDbConn, ext_btnSaveDbConfig,
+                    ext_btnApplyDbLive, ext_btnMigrateDb
+                });
+
+                pnlLeft.Controls.Add(grpProvider);
+                pnlLeft.Controls.Add(grpSqlite);
+                pnlLeft.Controls.Add(grpMySql);
+                pnlLeft.Controls.Add(grpActions);
+
+                // --- Right Panel: Log & Console ---
+                GroupBox grpConsole = new GroupBox
+                {
+                    Text = " Diagnostics & Migration Console",
+                    Dock = DockStyle.Fill,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(30, 41, 59)
+                };
+
+                Panel pnlConsoleTop = new Panel
+                {
+                    Dock = DockStyle.Top,
+                    Height = 45,
+                    Padding = new Padding(8, 6, 8, 6)
+                };
+
+                ext_lblDbMigrationStatus = new Label
+                {
+                    Text = "Status: Ready",
+                    Location = new Point(8, 12),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(71, 85, 105)
+                };
+
+                Button btnClearLog = new Button
+                {
+                    Text = "Clear Console",
+                    Location = new Point(360, 8),
+                    Size = new Size(100, 26),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    Font = new Font("Segoe UI", 8.5f),
+                    BackColor = Color.FromArgb(241, 245, 249),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnClearLog.Click += (s, e) =>
+                {
+                    if (ext_txtDbConsole != null) ext_txtDbConsole.Clear();
+                };
+
+                pnlConsoleTop.Controls.Add(ext_lblDbMigrationStatus);
+                pnlConsoleTop.Controls.Add(btnClearLog);
+
+                ext_pbDbMigration = new ProgressBar
+                {
+                    Dock = DockStyle.Top,
+                    Height = 18,
+                    Style = ProgressBarStyle.Blocks,
+                    Value = 0
+                };
+
+                ext_txtDbConsole = new TextBox
+                {
+                    Dock = DockStyle.Fill,
+                    Multiline = true,
+                    ReadOnly = true,
+                    ScrollBars = ScrollBars.Vertical,
+                    BackColor = Color.FromArgb(24, 24, 27),
+                    ForeColor = Color.FromArgb(220, 252, 231),
+                    Font = new Font("Consolas", 9f),
+                    BorderStyle = BorderStyle.None
+                };
+
+                grpConsole.Controls.Add(ext_txtDbConsole);
+                grpConsole.Controls.Add(ext_pbDbMigration);
+                grpConsole.Controls.Add(pnlConsoleTop);
+
+                pnlRight.Controls.Add(grpConsole);
+
+                pnlBody.Controls.Add(pnlRight);
+                pnlBody.Controls.Add(pnlLeft);
+
+                tabDb.Controls.Add(pnlBody);
+                tabDb.Controls.Add(pnlHeader);
+
+                if (this.tabControl3 != null)
+                {
+                    this.tabControl3.TabPages.Add(tabDb);
+                }
+
+                UpdateActiveDbBadge();
+                LogDbMessage("Database configuration tab initialized. Active provider: " + RCLibrary.Core.DataBase.DefaultServType);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GUI] Error setting up Database Config tab: {ex.Message}");
+            }
+        }
+
+        private void LogDbMessage(string text)
+        {
+            if (ext_txtDbConsole == null) return;
+            if (ext_txtDbConsole.InvokeRequired)
+            {
+                ext_txtDbConsole.BeginInvoke(new Action(() => LogDbMessage(text)));
+                return;
+            }
+            string timestamp = DateTime.Now.ToString("HH:mm:ss");
+            ext_txtDbConsole.AppendText($"[{timestamp}] {text}\r\n");
+            ext_txtDbConsole.SelectionStart = ext_txtDbConsole.TextLength;
+            ext_txtDbConsole.ScrollToCaret();
+        }
+
+        private void UpdateActiveDbBadge()
+        {
+            if (ext_lblActiveDbBadge == null) return;
+            if (ext_lblActiveDbBadge.InvokeRequired)
+            {
+                ext_lblActiveDbBadge.BeginInvoke(new Action(UpdateActiveDbBadge));
+                return;
+            }
+            var curType = RCLibrary.Core.DataBase.DefaultServType;
+            if (curType == RCLibrary.Core.DataBaseTypes.MySQl)
+            {
+                ext_lblActiveDbBadge.Text = $"Active Provider: MySQL ({RCLibrary.Core.DataBase.DefaultServerIP}:{RCLibrary.Core.DataBase.DefaultPort}/{RCLibrary.Core.DataBase.DefaultDB})";
+                ext_lblActiveDbBadge.ForeColor = Color.DarkGreen;
+            }
+            else
+            {
+                ext_lblActiveDbBadge.Text = $"Active Provider: SQLite ({RCLibrary.Core.DataBase.DefaultDBFile})";
+                ext_lblActiveDbBadge.ForeColor = Color.FromArgb(37, 99, 235);
+            }
+        }
+
+        private void ActionTestDbConnection()
+        {
+            var type = ext_rdoDbMySql.Checked ? RCLibrary.Core.DataBaseTypes.MySQl : RCLibrary.Core.DataBaseTypes.Sqlite;
+            string ip = ext_txtDbMySqlHost.Text.Trim();
+            string port = ext_txtDbMySqlPort.Text.Trim();
+            string db = ext_txtDbMySqlDatabase.Text.Trim();
+            string user = ext_txtDbMySqlUser.Text.Trim();
+            string pass = ext_txtDbMySqlPass.Text;
+            string file = ext_txtDbSqlitePath.Text.Trim();
+
+            LogDbMessage($"Testing connection for {type}...");
+            ext_lblDbMigrationStatus.Text = "Status: Testing connection...";
+            ext_btnTestDbConn.Enabled = false;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                bool success = RCLibrary.Core.DataBase.TestConnection(type, ip, port, db, user, pass, file, out string error, out string serverVer);
+                this.BeginInvoke(new Action(() =>
+                {
+                    ext_btnTestDbConn.Enabled = true;
+                    if (success)
+                    {
+                        LogDbMessage($"[SUCCESS] Connected to {type}! Server Version: {serverVer}");
+                        ext_lblDbMigrationStatus.Text = "Status: Connection Successful!";
+                        MessageBox.Show($"Connection Successful!\n\nProvider: {type}\nVersion: {serverVer}", "Connection Test", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        LogDbMessage($"[FAILED] Could not connect to {type}: {error}");
+                        ext_lblDbMigrationStatus.Text = "Status: Connection Failed";
+                        MessageBox.Show($"Connection Failed:\n\n{error}", "Connection Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }));
+            });
+        }
+
+        private void ActionSaveDbConfig()
+        {
+            try
+            {
+                var type = ext_rdoDbMySql.Checked ? RCLibrary.Core.DataBaseTypes.MySQl : RCLibrary.Core.DataBaseTypes.Sqlite;
+                string ip = ext_txtDbMySqlHost.Text.Trim();
+                string port = ext_txtDbMySqlPort.Text.Trim();
+                string db = ext_txtDbMySqlDatabase.Text.Trim();
+                string user = ext_txtDbMySqlUser.Text.Trim();
+                string pass = ext_txtDbMySqlPass.Text;
+                string file = ext_txtDbSqlitePath.Text.Trim();
+
+                bool saved = RCLibrary.Core.DataBase.SaveGlobalConfig(type, ip, port, db, user, pass, file, out string error);
+                if (saved)
+                {
+                    UpdateActiveDbBadge();
+                    LogDbMessage($"[CONFIG SAVED] Successfully saved database configuration to database.override.txt. Active: {type}");
+                    MessageBox.Show($"Database configuration saved successfully!\n\nProvider: {type}\nSettings saved to database.override.txt", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    LogDbMessage($"[SAVE FAILED] Error saving configuration: {error}");
+                    MessageBox.Show($"Failed to save configuration:\n\n{error}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogDbMessage($"[ERROR] Save failed: {ex.Message}");
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ActionApplyDbLive()
+        {
+            var type = ext_rdoDbMySql.Checked ? RCLibrary.Core.DataBaseTypes.MySQl : RCLibrary.Core.DataBaseTypes.Sqlite;
+            string ip = ext_txtDbMySqlHost.Text.Trim();
+            string port = ext_txtDbMySqlPort.Text.Trim();
+            string db = ext_txtDbMySqlDatabase.Text.Trim();
+            string user = ext_txtDbMySqlUser.Text.Trim();
+            string pass = ext_txtDbMySqlPass.Text;
+            string file = ext_txtDbSqlitePath.Text.Trim();
+
+            if (MessageBox.Show($"Apply {type} live to all active database instances and verify schemas?\n\nThis will reconfigure runtime database connections.", "Confirm Apply Live", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            LogDbMessage($"Applying {type} configuration to active runtime instances...");
+            ext_lblDbMigrationStatus.Text = "Status: Applying and verifying schema...";
+            ext_btnApplyDbLive.Enabled = false;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    RCLibrary.Core.DataBase.SaveGlobalConfig(type, ip, port, db, user, pass, file, out _);
+
+                    if (type == RCLibrary.Core.DataBaseTypes.MySQl)
+                    {
+                        RCLibrary.Core.DataBase.EnsureMySqlDatabaseExists(ip, port, db, user, pass, out var ensureErr);
+                        if (!string.IsNullOrEmpty(ensureErr))
+                        {
+                            this.BeginInvoke(new Action(() => LogDbMessage($"[WARN] Ensure database existence: {ensureErr}")));
+                        }
+                    }
+
+                    RCLibrary.Core.DataBase.ReconfigureAllInstances(type, ip, port, db, user, pass, file,
+                        cGlobal.gGameDataBase, cGlobal.gCharacterDataBase, cGlobal.gUserDataBase, cGlobal.gPortalDataBase);
+
+                    this.BeginInvoke(new Action(() => LogDbMessage("Executing GameDataBase.VerifySetup()...")));
+                    cGlobal.gGameDataBase?.VerifySetup();
+
+                    this.BeginInvoke(new Action(() => LogDbMessage("Executing CharacterDataBase.VerifySetup()...")));
+                    cGlobal.gCharacterDataBase?.VerifySetup();
+
+                    this.BeginInvoke(new Action(() => LogDbMessage("Executing UserDataBase.VerifySetup()...")));
+                    cGlobal.gUserDataBase?.VerifySetup();
+
+                    this.BeginInvoke(new Action(() => LogDbMessage("Executing PortalDataBase.VerifySetup()...")));
+                    cGlobal.gPortalDataBase?.VerifySetup();
+
+                    this.BeginInvoke(new Action(() =>
+                    {
+                        ext_btnApplyDbLive.Enabled = true;
+                        UpdateActiveDbBadge();
+                        ext_lblDbMigrationStatus.Text = "Status: Live Application Complete";
+                        LogDbMessage($"[APPLY COMPLETE] Active runtime database successfully updated to {type} and verified.");
+                        MessageBox.Show($"Successfully applied {type} live across all database instances and verified schemas!", "Applied Live", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    this.BeginInvoke(new Action(() =>
+                    {
+                        ext_btnApplyDbLive.Enabled = true;
+                        LogDbMessage($"[APPLY ERROR] {ex.Message}");
+                        ext_lblDbMigrationStatus.Text = "Status: Apply Error";
+                        MessageBox.Show($"Error applying database configuration: {ex.Message}", "Apply Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }));
+                }
+            });
+        }
+
+        private void ActionMigrateDb()
+        {
+            string sqliteFile = ext_txtDbSqlitePath.Text.Trim();
+            string ip = ext_txtDbMySqlHost.Text.Trim();
+            string port = ext_txtDbMySqlPort.Text.Trim();
+            string db = ext_txtDbMySqlDatabase.Text.Trim();
+            string user = ext_txtDbMySqlUser.Text.Trim();
+            string pass = ext_txtDbMySqlPass.Text;
+
+            if (MessageBox.Show($"Migrate all tables and records from SQLite to MySQL ({ip}:{port}/{db})?\n\nThis will copy all game and player data.", "Confirm Migration", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            LogDbMessage($"Starting SQLite to MySQL migration...");
+            ext_lblDbMigrationStatus.Text = "Status: Migrating...";
+            ext_btnMigrateDb.Enabled = false;
+            ext_pbDbMigration.Value = 0;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                bool success = RCLibrary.Core.DataBase.MigrateSqliteToMySql(sqliteFile, ip, port, db, user, pass, (msg, curr, total) =>
+                {
+                    this.BeginInvoke(new Action(() =>
+                    {
+                        LogDbMessage(msg);
+                        ext_lblDbMigrationStatus.Text = msg;
+                        if (total > 0)
+                        {
+                            int pct = Math.Min(100, Math.Max(0, (curr * 100) / total));
+                            ext_pbDbMigration.Value = pct;
+                        }
+                    }));
+                }, out string summary);
+
+                this.BeginInvoke(new Action(() =>
+                {
+                    ext_btnMigrateDb.Enabled = true;
+                    if (success)
+                    {
+                        ext_pbDbMigration.Value = 100;
+                        ext_lblDbMigrationStatus.Text = "Status: Migration Complete!";
+                        LogDbMessage($"[MIGRATION SUCCESS] {summary}");
+                        MessageBox.Show($"Migration Completed Successfully!\n\n{summary}", "Migration Succeeded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        ext_lblDbMigrationStatus.Text = "Status: Migration Failed";
+                        LogDbMessage($"[MIGRATION FAILED] {summary}");
+                        MessageBox.Show($"Migration Failed:\n\n{summary}", "Migration Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }));
+            });
+        }
+        #endregion
     }
 }

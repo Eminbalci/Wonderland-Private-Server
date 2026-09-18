@@ -8,12 +8,13 @@ The Wonderland Online private server provides an integrated desktop operator con
 
 ## 2. Windows Forms Operator Dashboard
 
-The administration GUI organizes server management across 13 specialized operational tabs:
+The administration GUI organizes server management across 14 specialized operational tabs:
 
 ### 2.1 Tab Index & Functional Matrix
 
 | Tab Name | Method Target | Operational Capability |
 |:---|:---|:---|
+| **Database Config** | `SetupDatabaseConfigTab()` | Provider switching (SQLite vs MySQL), connection testing, live runtime application, schema self-healing, and 1-click SQLite-to-MySQL data migration. |
 | **Online Sessions** | `SetupOnlineSessionsTab()` | Real-time player session grid, IP inspection, latency tracking, forced disconnection, whisper dispatch. |
 | **Developer & GM Tools** | `SetupGmTab()` | One-click coordinates warp, instant vehicle mounting, custom inventory injection, live NPC battle triggers. |
 | **Character Data Editor**| [`CharacterDataEditorForm`](file:///D:/GitHub/Wonderland-Private-Server/Src/Gui/CharacterDataEditorForm.cs) | Granular modification of character stats (STR, CON, INT, WIS, AGI), 50 bag slots, equipped gear, pet amity, and quests. |

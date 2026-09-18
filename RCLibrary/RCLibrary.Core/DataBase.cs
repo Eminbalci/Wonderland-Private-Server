@@ -20,13 +20,24 @@ public class DataBase {
 
     private MySqlDataAdapter mysqldbAdpter;
 
-    protected DataBaseTypes ServType = DataBaseTypes.MySQl;
+    public static DataBaseTypes DefaultServType { get; set; } = DataBaseTypes.Sqlite;
+    public static string DefaultServerIP { get; set; } = "127.0.0.1";
+    public static string DefaultPort { get; set; } = "3306";
+    public static string DefaultDB { get; set; } = "wlo";
+    public static string DefaultUser { get; set; } = "root";
+    public static string DefaultPass { get; set; } = "";
+    public static string DefaultDBFile { get; set; } = "ServerDataBase.db";
+    private static bool _configLoaded = false;
+
+    public static event Action<DataBaseTypes, string, string, string, string, string, string> OnDatabaseConfigChanged;
+
+    protected DataBaseTypes ServType = DataBaseTypes.Sqlite;
 
     protected string DBFile = "";
 
-    protected string User = "wlodbadmin";
+    protected string User = "root";
 
-    protected string Pass = "0penf1r3";
+    protected string Pass = "";
 
     protected string DB = "wlo";
 
@@ -34,13 +45,24 @@ public class DataBase {
 
     protected string ServerIP = "127.0.0.1";
 
-    private string Connection_String {
+    public DataBaseTypes DatabaseType { get => ServType; set => ServType = value; }
+    public string DatabaseServerIP { get => ServerIP; set => ServerIP = value; }
+    public string DatabasePort { get => Port; set => Port = value; }
+    public string DatabaseName { get => DB; set => DB = value; }
+    public string DatabaseUser { get => User; set => User = value; }
+    public string DatabasePass { get => Pass; set => Pass = value; }
+    public string DatabaseFile { get => DBFile; set => DBFile = value; }
+
+    public string Connection_String {
         get {
             if (ServType == DataBaseTypes.MySQl) {
-                return $"Server = {ServerIP}; Port = {Port}; Database = {DB}; Uid = {User}; Pwd = {Pass};";
+                return $"Server={ServerIP};Port={Port};Database={DB};Uid={User};Pwd={Pass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;ConvertZeroDateTime=true;";
             }
             if (ServType == DataBaseTypes.Sqlite) {
-                return $"Data Source={DBFile};Version=3;";
+                string resolved = !string.IsNullOrEmpty(DBFile)
+                    ? (Path.IsPathRooted(DBFile) ? DBFile : PathHelper.ResolveDatabaseFile(DBFile))
+                    : PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+                return $"Data Source={resolved};Version=3;";
             }
             if (ServType == DataBaseTypes.SQl) {
                 return $"Server={ServerIP};Database={DB};User Id={User};Password={Pass};";
@@ -49,62 +71,216 @@ public class DataBase {
         }
     }
 
-    public DataBase() {
+    public static string GetConfigFilePath() {
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        string candidate = Path.Combine(baseDir, "database.override.txt");
+        if (File.Exists(candidate)) return candidate;
+        string rootCandidate = Path.Combine(PathHelper.AppRootDirectory, "database.override.txt");
+        if (File.Exists(rootCandidate)) return rootCandidate;
+        return candidate;
+    }
+
+    public static void LoadGlobalConfig(bool forceReload = false) {
+        if (_configLoaded && !forceReload) return;
+        _configLoaded = true;
         try {
-            // Default to Sqlite ServerDataBase.db
-            ServType = DataBaseTypes.Sqlite;
-            DBFile = PathHelper.ResolveDatabaseFile("ServerDataBase.db");
-
-            string configPath = "database.override.txt";
-            if (!File.Exists(configPath)) {
-                configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "database.override.txt");
-            }
-
+            string configPath = GetConfigFilePath();
             if (File.Exists(configPath)) {
                 using StreamReader streamReader = new StreamReader(configPath);
                 string text = "";
                 while ((text = streamReader.ReadLine()) != null) {
                     if (string.IsNullOrWhiteSpace(text) || !text.Contains("|")) continue;
-                    var parts = text.Split('|');
-                    switch (parts[0]) {
+                    var parts = text.Split(new char[] { '|' }, 2);
+                    switch (parts[0].Trim()) {
                         case "Type":
-                            ServType = (DataBaseTypes)byte.Parse(parts[1]);
+                            if (byte.TryParse(parts[1].Trim(), out byte t))
+                                DefaultServType = (DataBaseTypes)t;
                             break;
-                        case "User":
-                            User = parts[1];
-                            break;
-                        case "Pass":
-                            Pass = parts[1];
-                            break;
-                        case "DB":
-                            DB = parts[1];
-                            break;
-                        case "Port":
-                            Port = parts[1];
-                            break;
-                        case "IP":
-                            ServerIP = parts[1];
-                            break;
-                        case "File":
-                            DBFile = Path.IsPathRooted(parts[1]) ? parts[1] : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, parts[1]);
-                            break;
+                        case "User": DefaultUser = parts[1].Trim(); break;
+                        case "Pass": DefaultPass = parts[1]; break;
+                        case "DB": DefaultDB = parts[1].Trim(); break;
+                        case "Port": DefaultPort = parts[1].Trim(); break;
+                        case "IP": DefaultServerIP = parts[1].Trim(); break;
+                        case "File": DefaultDBFile = parts[1].Trim(); break;
                     }
                 }
             }
-        } catch {
+        } catch (Exception ex) {
+            DebugSystem.Write($"[DataBase.LoadGlobalConfig] Error: {ex.Message}");
         }
+    }
+
+    public static bool SaveGlobalConfig(DataBaseTypes type, string ip, string port, string db, string user, string pass, string dbFile, out string error) {
+        error = "";
+        try {
+            DefaultServType = type;
+            DefaultServerIP = ip ?? "127.0.0.1";
+            DefaultPort = port ?? "3306";
+            DefaultDB = db ?? "wlo";
+            DefaultUser = user ?? "root";
+            DefaultPass = pass ?? "";
+            DefaultDBFile = !string.IsNullOrEmpty(dbFile) ? dbFile : "ServerDataBase.db";
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine($"Type|{(byte)DefaultServType}");
+            sb.AppendLine($"User|{DefaultUser}");
+            sb.AppendLine($"Pass|{DefaultPass}");
+            sb.AppendLine($"DB|{DefaultDB}");
+            sb.AppendLine($"Port|{DefaultPort}");
+            sb.AppendLine($"IP|{DefaultServerIP}");
+            sb.AppendLine($"File|{DefaultDBFile}");
+
+            string content = sb.ToString();
+
+            string targetPath1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "database.override.txt");
+            File.WriteAllText(targetPath1, content, Encoding.UTF8);
+
+            string targetPath2 = Path.Combine(PathHelper.AppRootDirectory, "database.override.txt");
+            if (!string.Equals(Path.GetFullPath(targetPath1), Path.GetFullPath(targetPath2), StringComparison.OrdinalIgnoreCase)) {
+                try { File.WriteAllText(targetPath2, content, Encoding.UTF8); } catch { }
+            }
+
+            OnDatabaseConfigChanged?.Invoke(DefaultServType, DefaultServerIP, DefaultPort, DefaultDB, DefaultUser, DefaultPass, DefaultDBFile);
+            DebugSystem.Write(DebugItemType.Info_Light, $"[DataBase] Configuration successfully saved. Active Provider: {DefaultServType}");
+            return true;
+        } catch (Exception ex) {
+            error = ex.Message;
+            DebugSystem.Write(DebugItemType.Error, $"[DataBase.SaveGlobalConfig] Error: {ex.Message}");
+            return false;
+        }
+    }
+
+    public void Reconfigure(DataBaseTypes type, string ip, string port, string db, string user, string pass, string dbFile) {
+        ServType = type;
+        ServerIP = ip ?? "127.0.0.1";
+        Port = port ?? "3306";
+        DB = db ?? "wlo";
+        User = user ?? "root";
+        Pass = pass ?? "";
+        DBFile = !string.IsNullOrEmpty(dbFile)
+            ? (Path.IsPathRooted(dbFile) ? dbFile : PathHelper.ResolveDatabaseFile(dbFile))
+            : PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+    }
+
+    public static void ReconfigureAllInstances(DataBaseTypes type, string ip, string port, string db, string user, string pass, string dbFile, params DataBase[] instances) {
+        if (instances == null) return;
+        foreach (var inst in instances) {
+            if (inst != null) {
+                inst.Reconfigure(type, ip, port, db, user, pass, dbFile);
+            }
+        }
+    }
+
+    public DataBase() {
+        LoadGlobalConfig();
+        ServType = DefaultServType;
+        ServerIP = DefaultServerIP;
+        Port = DefaultPort;
+        DB = DefaultDB;
+        User = DefaultUser;
+        Pass = DefaultPass;
+        DBFile = !string.IsNullOrEmpty(DefaultDBFile)
+            ? (Path.IsPathRooted(DefaultDBFile) ? DefaultDBFile : PathHelper.ResolveDatabaseFile(DefaultDBFile))
+            : PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+    }
+
+    public static string TranslateSqlForMySql(string sql) {
+        if (string.IsNullOrWhiteSpace(sql)) return sql;
+
+        string result = sql;
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT", 
+            "INT NOT NULL AUTO_INCREMENT PRIMARY KEY", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"\bAUTOINCREMENT\b", 
+            "AUTO_INCREMENT", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"INTEGER\s+PRIMARY\s+KEY", 
+            "INT PRIMARY KEY", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"TEXT\s+PRIMARY\s+KEY", 
+            "VARCHAR(255) PRIMARY KEY", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"\bINSERT\s+OR\s+REPLACE\s+INTO\b", 
+            "REPLACE INTO", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result,
+            @"ON\s+CONFLICT\s*\(.*?\)\s+DO\s+UPDATE\s+SET",
+            "ON DUPLICATE KEY UPDATE",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"\bBEGIN\s+TRANSACTION;?\b", 
+            "START TRANSACTION;", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"SELECT\s+\*\s+FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*'table'", 
+            "SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"SELECT\s+NAME\s+FROM\s+SQLITE_MASTER\s+WHERE\s+type\s*=\s*'table'\s+ORDER\s+BY\s+NAME;?", 
+            "SELECT table_name AS NAME FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name;", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        result = System.Text.RegularExpressions.Regex.Replace(
+            result, 
+            @"\bCREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS\b)", 
+            "CREATE TABLE IF NOT EXISTS ", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        return result;
     }
 
     public static DataTable Query(string sql) {
         try {
-            string dbFile = PathHelper.ResolveDatabaseFile("ServerDataBase.db");
-            using SQLiteConnection conn = new SQLiteConnection($"Data Source={dbFile};Version=3;");
-            conn.Open();
-            using SQLiteCommand cmd = new SQLiteCommand(sql, conn);
-            using SQLiteDataReader reader = cmd.ExecuteReader();
-            DataTable dt = new DataTable();
-            dt.Load(reader);
-            return dt;
+            LoadGlobalConfig();
+            if (DefaultServType == DataBaseTypes.MySQl) {
+                string connStr = $"Server={DefaultServerIP};Port={DefaultPort};Database={DefaultDB};Uid={DefaultUser};Pwd={DefaultPass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;";
+                using (var conn = new MySqlConnection(connStr)) {
+                    conn.Open();
+                    string transSql = TranslateSqlForMySql(sql);
+                    using (var cmd = new MySqlCommand(transSql, conn)) {
+                        using (var reader = cmd.ExecuteReader()) {
+                            DataTable dt = new DataTable();
+                            dt.Load(reader);
+                            return dt;
+                        }
+                    }
+                }
+            } else {
+                string dbFile = PathHelper.ResolveDatabaseFile(string.IsNullOrEmpty(DefaultDBFile) ? "ServerDataBase.db" : DefaultDBFile);
+                using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        using (var reader = cmd.ExecuteReader()) {
+                            DataTable dt = new DataTable();
+                            dt.Load(reader);
+                            return dt;
+                        }
+                    }
+                }
+            }
         } catch (Exception ex) {
             DebugSystem.Write($"[DataBase.Query] Error: {ex.Message} -> SQL: {sql}");
             return null;
@@ -113,11 +289,25 @@ public class DataBase {
 
     public static int Execute(string sql) {
         try {
-            string dbFile = PathHelper.ResolveDatabaseFile("ServerDataBase.db");
-            using SQLiteConnection conn = new SQLiteConnection($"Data Source={dbFile};Version=3;");
-            conn.Open();
-            using SQLiteCommand cmd = new SQLiteCommand(sql, conn);
-            return cmd.ExecuteNonQuery();
+            LoadGlobalConfig();
+            if (DefaultServType == DataBaseTypes.MySQl) {
+                string connStr = $"Server={DefaultServerIP};Port={DefaultPort};Database={DefaultDB};Uid={DefaultUser};Pwd={DefaultPass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;";
+                using (var conn = new MySqlConnection(connStr)) {
+                    conn.Open();
+                    string transSql = TranslateSqlForMySql(sql);
+                    using (var cmd = new MySqlCommand(transSql, conn)) {
+                        return cmd.ExecuteNonQuery();
+                    }
+                }
+            } else {
+                string dbFile = PathHelper.ResolveDatabaseFile(string.IsNullOrEmpty(DefaultDBFile) ? "ServerDataBase.db" : DefaultDBFile);
+                using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;")) {
+                    conn.Open();
+                    using (var cmd = new SQLiteCommand(sql, conn)) {
+                        return cmd.ExecuteNonQuery();
+                    }
+                }
+            }
         } catch (Exception ex) {
             DebugSystem.Write($"[DataBase.Execute] Error: {ex.Message} -> SQL: {sql}");
             return -1;
@@ -133,34 +323,184 @@ public class DataBase {
         }
     }
 
-    public bool TestConnection() {
-        //IL_004a: Unknown result type (might be due to invalid IL or missing references)
-        //IL_0051: Expected O, but got Unknown
-        switch (ServType) {
-            case DataBaseTypes.Sqlite: {
-                    SQLiteConnection sQLiteConnection = new SQLiteConnection(Connection_String);
-                    try {
-                        sQLiteConnection.Open();
-                        sQLiteConnection.Close();
-                        return true;
-                    } catch (Exception) {
-                        sQLiteConnection.Close();
-                    }
-                    break;
+    public static bool EnsureMySqlDatabaseExists(string ip, string port, string db, string user, string pass, out string error) {
+        error = null;
+        try {
+            string serverConnStr = $"Server={ip};Port={port};Uid={user};Pwd={pass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;Connection Timeout=5;";
+            using (var conn = new MySqlConnection(serverConnStr)) {
+                conn.Open();
+                using (var cmd = new MySqlCommand($"CREATE DATABASE IF NOT EXISTS `{db}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;", conn)) {
+                    cmd.ExecuteNonQuery();
                 }
-            case DataBaseTypes.MySQl: {
-                    MySqlConnection val = new MySqlConnection(Connection_String);
-                    try {
-                        ((DbConnection)(object)val).Open();
-                        ((DbConnection)(object)val).Close();
-                        return true;
-                    } catch (Exception) {
-                        ((DbConnection)(object)val).Close();
-                    }
-                    break;
-                }
+            }
+            return true;
+        } catch (Exception ex) {
+            error = ex.Message;
+            return false;
         }
-        return false;
+    }
+
+    public static bool TestConnection(DataBaseTypes type, string ip, string port, string db, string user, string pass, string dbFile, out string error, out string serverVersion) {
+        error = null;
+        serverVersion = "";
+        try {
+            if (type == DataBaseTypes.Sqlite) {
+                string resolvedPath = !string.IsNullOrEmpty(dbFile)
+                    ? (Path.IsPathRooted(dbFile) ? dbFile : PathHelper.ResolveDatabaseFile(dbFile))
+                    : PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+
+                string dir = Path.GetDirectoryName(resolvedPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) {
+                    Directory.CreateDirectory(dir);
+                }
+
+                using (var conn = new SQLiteConnection($"Data Source={resolvedPath};Version=3;")) {
+                    conn.Open();
+                    serverVersion = $"SQLite {conn.ServerVersion}";
+                    conn.Close();
+                }
+                return true;
+            } else if (type == DataBaseTypes.MySQl) {
+                string connStr = $"Server={ip};Port={port};Database={db};Uid={user};Pwd={pass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;Connection Timeout=5;";
+                try {
+                    using (var conn = new MySqlConnection(connStr)) {
+                        conn.Open();
+                        serverVersion = $"MySQL {conn.ServerVersion}";
+                        conn.Close();
+                    }
+                    return true;
+                } catch (MySqlException mex) when (mex.Number == 1049) {
+                    string rootConnStr = $"Server={ip};Port={port};Uid={user};Pwd={pass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;Connection Timeout=5;";
+                    using (var conn = new MySqlConnection(rootConnStr)) {
+                        conn.Open();
+                        serverVersion = $"MySQL {conn.ServerVersion} (Server Connected, Database '{db}' does not exist yet and will be auto-created)";
+                        conn.Close();
+                    }
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception ex) {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    public static bool MigrateSqliteToMySql(string sqlitePath, string mysqlIp, string mysqlPort, string mysqlDb, string mysqlUser, string mysqlPass, Action<string, int, int> progressCallback, out string resultSummary) {
+        resultSummary = "";
+        try {
+            string resolvedSqlite = !string.IsNullOrEmpty(sqlitePath)
+                ? (Path.IsPathRooted(sqlitePath) ? sqlitePath : PathHelper.ResolveDatabaseFile(sqlitePath))
+                : PathHelper.ResolveDatabaseFile("ServerDataBase.db");
+
+            if (!File.Exists(resolvedSqlite)) {
+                resultSummary = $"SQLite source database file not found at: {resolvedSqlite}";
+                return false;
+            }
+
+            if (!EnsureMySqlDatabaseExists(mysqlIp, mysqlPort, mysqlDb, mysqlUser, mysqlPass, out var createDbErr)) {
+                resultSummary = $"Failed to create/verify target MySQL database '{mysqlDb}': {createDbErr}";
+                return false;
+            }
+
+            string mysqlConnStr = $"Server={mysqlIp};Port={mysqlPort};Database={mysqlDb};Uid={mysqlUser};Pwd={mysqlPass};Charset=utf8mb4;SslMode=none;AllowUserVariables=true;";
+
+            using (var sqliteConn = new SQLiteConnection($"Data Source={resolvedSqlite};Version=3;Read Only=True;"))
+            using (var mysqlConn = new MySqlConnection(mysqlConnStr)) {
+                sqliteConn.Open();
+                mysqlConn.Open();
+
+                using (var cmd = new MySqlCommand("SET FOREIGN_KEY_CHECKS = 0;", mysqlConn)) {
+                    cmd.ExecuteNonQuery();
+                }
+
+                var tables = new List<string>();
+                using (var cmd = new SQLiteCommand("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;", sqliteConn))
+                using (var reader = cmd.ExecuteReader()) {
+                    while (reader.Read()) {
+                        tables.Add(reader.GetString(0));
+                    }
+                }
+
+                int totalTables = tables.Count;
+                int tablesMigrated = 0;
+                int totalRowsMigrated = 0;
+
+                for (int tIdx = 0; tIdx < totalTables; tIdx++) {
+                    string tableName = tables[tIdx];
+                    progressCallback?.Invoke($"Migrating table {tableName} ({tIdx + 1}/{totalTables})...", tIdx + 1, totalTables);
+
+                    string createSql = "";
+                    using (var cmd = new SQLiteCommand($"SELECT sql FROM sqlite_master WHERE type='table' AND name='{tableName}';", sqliteConn)) {
+                        var obj = cmd.ExecuteScalar();
+                        if (obj != null) createSql = obj.ToString();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(createSql)) continue;
+
+                    string mySqlCreate = TranslateSqlForMySql(createSql);
+                    using (var cmd = new MySqlCommand(mySqlCreate, mysqlConn)) {
+                        try { cmd.ExecuteNonQuery(); } catch { }
+                    }
+
+                    var dt = new DataTable();
+                    using (var cmd = new SQLiteCommand($"SELECT * FROM [{tableName}];", sqliteConn))
+                    using (var reader = cmd.ExecuteReader()) {
+                        dt.Load(reader);
+                    }
+
+                    if (dt.Rows.Count > 0) {
+                        using (var trans = mysqlConn.BeginTransaction()) {
+                            try {
+                                var colNames = new List<string>();
+                                var paramNames = new List<string>();
+                                for (int c = 0; c < dt.Columns.Count; c++) {
+                                    colNames.Add($"`{dt.Columns[c].ColumnName}`");
+                                    paramNames.Add($"@p{c}");
+                                }
+
+                                string insertSql = $"REPLACE INTO `{tableName}` ({string.Join(", ", colNames)}) VALUES ({string.Join(", ", paramNames)});";
+
+                                using (var cmd = new MySqlCommand(insertSql, mysqlConn, trans)) {
+                                    for (int c = 0; c < dt.Columns.Count; c++) {
+                                        cmd.Parameters.Add(new MySqlParameter($"@p{c}", MySqlDbType.VarChar));
+                                    }
+
+                                    foreach (DataRow row in dt.Rows) {
+                                        for (int c = 0; c < dt.Columns.Count; c++) {
+                                            object val = row[c];
+                                            cmd.Parameters[c].Value = (val == null || Convert.IsDBNull(val)) ? DBNull.Value : val;
+                                        }
+                                        cmd.ExecuteNonQuery();
+                                        totalRowsMigrated++;
+                                    }
+                                }
+                                trans.Commit();
+                            } catch (Exception ex) {
+                                trans.Rollback();
+                                DebugSystem.Write(DebugItemType.Error, $"[Migration] Error migrating data for {tableName}: {ex.Message}");
+                            }
+                        }
+                    }
+
+                    tablesMigrated++;
+                }
+
+                using (var cmd = new MySqlCommand("SET FOREIGN_KEY_CHECKS = 1;", mysqlConn)) {
+                    cmd.ExecuteNonQuery();
+                }
+
+                resultSummary = $"Successfully migrated {tablesMigrated} tables and {totalRowsMigrated} records to MySQL database '{mysqlDb}'.";
+                return true;
+            }
+        } catch (Exception ex) {
+            resultSummary = $"Migration failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    public bool TestConnection() {
+        return TestConnection(ServType, ServerIP, Port, DB, User, Pass, DBFile, out _, out _);
     }
 
     public void Dispose() {
@@ -244,189 +584,177 @@ public class DataBase {
     }
 
     public DataTable GetDataTable(string query, params DbParam[] parameters) {
-        //IL_00c4: Unknown result type (might be due to invalid IL or missing references)
-        //IL_00cb: Expected O, but got Unknown
-        //IL_00d7: Unknown result type (might be due to invalid IL or missing references)
-        //IL_00de: Expected O, but got Unknown
         DataTable dataTable = null;
         try {
             switch (ServType) {
                 case DataBaseTypes.Sqlite: {
-                        SQLiteConnection sQLiteConnection = new SQLiteConnection(Connection_String);
-                        try {
+                        using (var sQLiteConnection = new SQLiteConnection(Connection_String)) {
                             sQLiteConnection.Open();
-                            SQLiteCommand sQLiteCommand = new SQLiteCommand(sQLiteConnection);
-                            sQLiteCommand.CommandText = query;
-                            for (int j = 0; j < parameters.Length; j++) {
-                                DbParam dbParam2 = parameters[j];
-                                sQLiteCommand.Parameters.AddWithValue(dbParam2.identifier, dbParam2.value);
-                            }
-                            SQLiteDataReader sQLiteDataReader = sQLiteCommand.ExecuteReader();
-                            dataTable = new DataTable();
-                            dataTable.Load(sQLiteDataReader);
-                            sQLiteDataReader.Close();
-                            sQLiteConnection.Close();
-                            return dataTable;
-                        } catch {
-                            sQLiteConnection.Close();
-                        }
-                        break;
-                    }
-                case DataBaseTypes.MySQl: {
-                        MySqlConnection val = new MySqlConnection(Connection_String);
-                        try {
-                            ((DbConnection)(object)val).Open();
-                            MySqlCommand val2 = new MySqlCommand(query, val);
-                            if (parameters != null) {
-                                for (int i = 0; i < parameters.Length; i++) {
-                                    DbParam dbParam = parameters[i];
-                                    val2.Parameters.AddWithValue(dbParam.identifier, (object)dbParam.value);
+                            using (var sQLiteCommand = new SQLiteCommand(sQLiteConnection)) {
+                                sQLiteCommand.CommandText = query;
+                                if (parameters != null) {
+                                    for (int j = 0; j < parameters.Length; j++) {
+                                        DbParam dbParam2 = parameters[j];
+                                        sQLiteCommand.Parameters.AddWithValue(dbParam2.identifier, dbParam2.value);
+                                    }
+                                }
+                                using (var sQLiteDataReader = sQLiteCommand.ExecuteReader()) {
+                                    dataTable = new DataTable();
+                                    dataTable.Load(sQLiteDataReader);
+                                    return dataTable;
                                 }
                             }
-                            MySqlDataReader val3 = val2.ExecuteReader();
-                            dataTable = new DataTable();
-                            dataTable.Load((IDataReader)val3);
-                            ((DbDataReader)(object)val3).Close();
-                            ((DbConnection)(object)val).Close();
-                            return dataTable;
-                        } catch {
-                            ((DbConnection)(object)val).Close();
                         }
-                        break;
+                    }
+                case DataBaseTypes.MySQl: {
+                        using (var val = new MySqlConnection(Connection_String)) {
+                            ((DbConnection)(object)val).Open();
+                            string transQuery = query;
+                            var pragmaMatch = System.Text.RegularExpressions.Regex.Match(transQuery, @"PRAGMA\s+table_info\s*\(\s*['""]?(\w+)['""]?\s*\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (pragmaMatch.Success) {
+                                string targetTable = pragmaMatch.Groups[1].Value;
+                                transQuery = $"SELECT COLUMN_NAME AS name, DATA_TYPE AS type, IS_NULLABLE AS `notnull`, COLUMN_DEFAULT AS dflt_value, CASE WHEN COLUMN_KEY = 'PRI' THEN 1 ELSE 0 END AS pk FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{targetTable}'";
+                            } else {
+                                transQuery = TranslateSqlForMySql(transQuery);
+                            }
+                            using (var val2 = new MySqlCommand(transQuery, val)) {
+                                if (parameters != null) {
+                                    for (int i = 0; i < parameters.Length; i++) {
+                                        DbParam dbParam = parameters[i];
+                                        val2.Parameters.AddWithValue(dbParam.identifier, (object)dbParam.value);
+                                    }
+                                }
+                                using (var val3 = val2.ExecuteReader()) {
+                                    dataTable = new DataTable();
+                                    dataTable.Load((IDataReader)val3);
+                                    return dataTable;
+                                }
+                            }
+                        }
                     }
             }
         } catch (Exception ex) {
-            DebugSystem.Write(new ExceptionData(ex, ExceptionSeverity.Error, "GetDataTable", "C:\\Users\\Rommel JR\\Dropbox\\Wonderland Online Dev Group\\Pserver Core\\CServer\\RCLibrary\\Database\\Database.cs", 319));
-            dataTable = new DataTable();
+            DebugSystem.Write(DebugItemType.DataBase_Heavy, $"[DataBase.GetDataTable] Query: {query} Error: {ex.Message}");
+            return null;
         }
         return dataTable;
     }
 
     public int ExecuteNonQuery(string sql, params DbParam[] parameters) {
-        //IL_00a0: Unknown result type (might be due to invalid IL or missing references)
-        //IL_00a7: Expected O, but got Unknown
-        //IL_00b2: Unknown result type (might be due to invalid IL or missing references)
-        //IL_00b9: Expected O, but got Unknown
         int result = 0;
-        switch (ServType) {
-            case DataBaseTypes.Sqlite: {
-                    SQLiteConnection sQLiteConnection = new SQLiteConnection(Connection_String);
-                    sQLiteConnection.Open();
-                    SQLiteCommand sQLiteCommand = new SQLiteCommand(sQLiteConnection);
-                    sQLiteCommand.CommandText = sql;
-                    if (parameters != null) {
-                        for (int j = 0; j < parameters.Length; j++) {
-                            DbParam dbParam2 = parameters[j];
-                            sQLiteCommand.Parameters.AddWithValue(dbParam2.identifier, dbParam2.value);
+        try {
+            switch (ServType) {
+                case DataBaseTypes.Sqlite: {
+                        using (var sQLiteConnection = new SQLiteConnection(Connection_String)) {
+                            sQLiteConnection.Open();
+                            using (var sQLiteCommand = new SQLiteCommand(sQLiteConnection)) {
+                                sQLiteCommand.CommandText = sql;
+                                if (parameters != null) {
+                                    for (int j = 0; j < parameters.Length; j++) {
+                                        DbParam dbParam2 = parameters[j];
+                                        sQLiteCommand.Parameters.AddWithValue(dbParam2.identifier, dbParam2.value);
+                                    }
+                                }
+                                result = sQLiteCommand.ExecuteNonQuery();
+                            }
                         }
+                        break;
                     }
-                    result = sQLiteCommand.ExecuteNonQuery();
-                    sQLiteConnection.Close();
-                    break;
-                }
-            case DataBaseTypes.MySQl: {
-                    MySqlConnection val = new MySqlConnection(Connection_String);
-                    ((DbConnection)(object)val).Open();
-                    MySqlCommand val2 = new MySqlCommand(sql, val);
-                    if (parameters != null) {
-                        for (int i = 0; i < parameters.Length; i++) {
-                            DbParam dbParam = parameters[i];
-                            val2.Parameters.AddWithValue(dbParam.identifier, (object)dbParam.value);
+                case DataBaseTypes.MySQl: {
+                        using (var val = new MySqlConnection(Connection_String)) {
+                            ((DbConnection)(object)val).Open();
+                            string transSql = TranslateSqlForMySql(sql);
+                            using (var val2 = new MySqlCommand(transSql, val)) {
+                                if (parameters != null) {
+                                    for (int i = 0; i < parameters.Length; i++) {
+                                        DbParam dbParam = parameters[i];
+                                        val2.Parameters.AddWithValue(dbParam.identifier, (object)dbParam.value);
+                                    }
+                                }
+                                DebugSystem.Write(DebugItemType.DataBase_Heavy, "Running MYSQL DB Query: " + ((DbCommand)(object)val2).CommandText);
+                                try {
+                                    result = ((DbCommand)(object)val2).ExecuteNonQuery();
+                                } catch (MySqlException myEx) when (myEx.Number == 1061 || myEx.Number == 1050) {
+                                    // Ignore duplicate key or table already exists
+                                }
+                            }
                         }
+                        break;
                     }
-                    DebugSystem.Write(DebugItemType.DataBase_Heavy, "Running MYSQL DB Query: " + ((DbCommand)(object)val2).CommandText);
-                    result = ((DbCommand)(object)val2).ExecuteNonQuery();
-                    ((DbConnection)(object)val).Close();
-                    break;
-                }
+            }
+        } catch (Exception ex) {
+            DebugSystem.Write(DebugItemType.Error, $"[DataBase.ExecuteNonQuery] Error: {ex.Message} -> SQL: {sql}");
+            return -1;
         }
         return result;
     }
 
     public int ExecuteNonQuery(string sql) {
-        //IL_0054: Unknown result type (might be due to invalid IL or missing references)
-        //IL_005b: Expected O, but got Unknown
-        //IL_0066: Unknown result type (might be due to invalid IL or missing references)
-        //IL_006d: Expected O, but got Unknown
-        int result = 0;
-        switch (ServType) {
-            case DataBaseTypes.Sqlite: {
-                    SQLiteConnection sQLiteConnection = new SQLiteConnection(Connection_String);
-                    sQLiteConnection.Open();
-                    SQLiteCommand sQLiteCommand = new SQLiteCommand(sQLiteConnection);
-                    sQLiteCommand.CommandText = sql;
-                    result = sQLiteCommand.ExecuteNonQuery();
-                    sQLiteConnection.Close();
-                    break;
-                }
-            case DataBaseTypes.MySQl: {
-                    MySqlConnection val = new MySqlConnection(Connection_String);
-                    ((DbConnection)(object)val).Open();
-                    MySqlCommand val2 = new MySqlCommand(sql, val);
-                    DebugSystem.Write(DebugItemType.DataBase_Heavy, "Running MYSQL DB Query: " + ((DbCommand)(object)val2).CommandText);
-                    result = ((DbCommand)(object)val2).ExecuteNonQuery();
-                    ((DbConnection)(object)val).Close();
-                    break;
-                }
-        }
-        return result;
+        return ExecuteNonQuery(sql, (DbParam[])null);
     }
 
     public int ExecuteNonQuery(DbCommand command) {
-        //IL_004a: Unknown result type (might be due to invalid IL or missing references)
-        //IL_0050: Expected O, but got Unknown
         int result = 0;
-        switch (ServType) {
-            case DataBaseTypes.Sqlite: {
-                    SQLiteConnection sQLiteConnection = new SQLiteConnection(Connection_String);
-                    sQLiteConnection.Open();
-                    command.Connection = sQLiteConnection;
-                    result = command.ExecuteNonQuery();
-                    sQLiteConnection.Close();
-                    break;
-                }
-            case DataBaseTypes.MySQl: {
-                    MySqlConnection val = new MySqlConnection(Connection_String);
-                    ((DbConnection)(object)val).Open();
-                    command.Connection = (DbConnection)(object)val;
-                    DebugSystem.Write(DebugItemType.DataBase_Heavy, "Running MYSQL DB Query: " + command.CommandText);
-                    result = command.ExecuteNonQuery();
-                    ((DbConnection)(object)val).Close();
-                    break;
-                }
+        try {
+            switch (ServType) {
+                case DataBaseTypes.Sqlite: {
+                        using (var sQLiteConnection = new SQLiteConnection(Connection_String)) {
+                            sQLiteConnection.Open();
+                            command.Connection = sQLiteConnection;
+                            result = command.ExecuteNonQuery();
+                        }
+                        break;
+                    }
+                case DataBaseTypes.MySQl: {
+                        using (var val = new MySqlConnection(Connection_String)) {
+                            ((DbConnection)(object)val).Open();
+                            command.Connection = (DbConnection)(object)val;
+                            command.CommandText = TranslateSqlForMySql(command.CommandText);
+                            DebugSystem.Write(DebugItemType.DataBase_Heavy, "Running MYSQL DB Query: " + command.CommandText);
+                            try {
+                                result = command.ExecuteNonQuery();
+                            } catch (MySqlException myEx) when (myEx.Number == 1061 || myEx.Number == 1050) {
+                                // Ignore duplicate key or table already exists
+                            }
+                        }
+                        break;
+                    }
+            }
+        } catch (Exception ex) {
+            DebugSystem.Write(DebugItemType.Error, $"[DataBase.ExecuteNonQuery(cmd)] Error: {ex.Message}");
+            return -1;
         }
         return result;
     }
 
     public string ExecuteScalar(string sql) {
-        //IL_0067: Unknown result type (might be due to invalid IL or missing references)
-        //IL_006e: Expected O, but got Unknown
-        //IL_0079: Unknown result type (might be due to invalid IL or missing references)
-        //IL_0080: Expected O, but got Unknown
-        switch (ServType) {
-            case DataBaseTypes.Sqlite: {
-                    SQLiteConnection sQLiteConnection = new SQLiteConnection(DBFile);
-                    sQLiteConnection.Open();
-                    SQLiteCommand sQLiteCommand = new SQLiteCommand(sQLiteConnection);
-                    sQLiteCommand.CommandText = sql;
-                    object obj2 = sQLiteCommand.ExecuteScalar();
-                    sQLiteConnection.Close();
-                    if (obj2 != null) {
-                        return obj2.ToString();
+        try {
+            switch (ServType) {
+                case DataBaseTypes.Sqlite: {
+                        using (var sQLiteConnection = new SQLiteConnection(Connection_String)) {
+                            sQLiteConnection.Open();
+                            using (var sQLiteCommand = new SQLiteCommand(sQLiteConnection)) {
+                                sQLiteCommand.CommandText = sql;
+                                object obj2 = sQLiteCommand.ExecuteScalar();
+                                if (obj2 != null) return obj2.ToString();
+                            }
+                        }
+                        break;
                     }
-                    break;
-                }
-            case DataBaseTypes.MySQl: {
-                    MySqlConnection val = new MySqlConnection(Connection_String);
-                    ((DbConnection)(object)val).Open();
-                    MySqlCommand val2 = new MySqlCommand(sql, val);
-                    object obj = ((DbCommand)(object)val2).ExecuteScalar();
-                    ((DbConnection)(object)val).Close();
-                    if (obj != null) {
-                        return obj.ToString();
+                case DataBaseTypes.MySQl: {
+                        using (var val = new MySqlConnection(Connection_String)) {
+                            ((DbConnection)(object)val).Open();
+                            string transSql = TranslateSqlForMySql(sql);
+                            using (var val2 = new MySqlCommand(transSql, val)) {
+                                object obj = ((DbCommand)(object)val2).ExecuteScalar();
+                                if (obj != null) return obj.ToString();
+                            }
+                        }
+                        break;
                     }
-                    break;
-                }
+            }
+        } catch (Exception ex) {
+            DebugSystem.Write(DebugItemType.Error, $"[DataBase.ExecuteScalar] Error: {ex.Message} -> SQL: {sql}");
         }
         return "";
     }
@@ -544,6 +872,13 @@ public class DataBase {
                 case DataBaseTypes.Sqlite:
                     try {
                         dataTable = GetDataTable("select NAME from SQLITE_MASTER where type='table' order by NAME;");
+                    } catch (Exception) {
+                        return false;
+                    }
+                    break;
+                case DataBaseTypes.MySQl:
+                    try {
+                        dataTable = GetDataTable("SELECT table_name AS NAME FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name;");
                     } catch (Exception) {
                         return false;
                     }

@@ -168,6 +168,18 @@ namespace Server
             OnStatusChanged?.Invoke();
         }
 
+        public static void SetExpRate(double rate)
+        {
+            if (rate <= 0) rate = 1.0;
+            lock (_lock)
+            {
+                ExpRate = Math.Round(rate, 2);
+            }
+            SaveConfig();
+            OnStatusChanged?.Invoke();
+            DebugSystem.Write($"[ServerStatusManager] EXP Rate multiplier updated to {ExpRate:F1}x.");
+        }
+
         public static void VerifyTable()
         {
             try

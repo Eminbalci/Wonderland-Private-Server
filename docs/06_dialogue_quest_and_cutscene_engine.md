@@ -92,16 +92,45 @@ Action buffers in `subentry2` control entity visibility and animation frames:
 * **ActionType `3` (Reveal / Spawn):** Dispatches authentic `AC 22:4` spawn frame (`[ClickID, 0x00FF, X, Y, Type=1, Duration=0, Stance=0]`), setting `*(actor + 0x1eec) = 1` (visible) and clearing it from `player.HiddenNpcClickIDs`.
 * **ActionType `5` (Prop State Animation):** Dispatches `AC 22:4` with custom state values (e.g., opened chest `0x0001` or broken gathering node).
 
-### 4.3 Staged Quest Actor Isolation & Multi-Step Spawning
-The visibility engine enforces per-player isolation for narrative consistency:
-* **Recruited Companions:** Recruited companions (e.g., Robinson on Map 11016, Roca in Kelan Village Map 12000) are automatically suppressed on overworld maps via `AC 22:4` concealment frames (`Duration = 0x03E7FC18`).
-* **Staged Cutscene Actors:** On Map 12000, mourning Roca at the grave (ClickID 34 & 36) is visible only during Quest 13052 ("Death of Roca's Father"), while standard Roca (ClickID 32) is hidden once recruited.
+### 4.3 Compound Rule Grouping & Show-Only Lifecycle Engine
+In official Wonderland Online `eve.Emg` binaries, PreEvent sub-entries (`subentry1`) frequently define multi-part compound conditions (AND logic):
+* **Rule Grouping Architecture:** A rule begins with an action-bearing sub-entry (`subentry2.Count > 0`). Any subsequent sub-entries with zero actions (`subentry2.Count == 0`) represent continuation conditions for that rule. All conditions across the group must evaluate to `true` for the action(s) to execute.
+* **Show-Only vs Dynamic NPC Classification:** The engine classifies each PreEvent-targeted NPC into one of three tiers based on the action types across all PreEvent rules:
+  * **Show-Only Actors** (`hasShowOnlyRuleForThisNpc`): NPCs whose ALL PreEvent actions are `ActionType 3` (Reveal/Spawn) with zero `ActionType 2` (Hide/Despawn) actions. These are staged quest actors hidden by default (`ShouldNpcBeVisible` returns `false`) until their specific reveal conditions are satisfied. Across all 1,119 maps, 1,229 NPCs fall into this category.
+  * **Dynamic Actors**: NPCs with BOTH `ActionType 3` (Reveal) AND `ActionType 2` (Hide) actions. These are persistent world NPCs visible by default, with selective hide/reveal driven by matching compound rules. 569 NPCs fall into this category.
+  * **Hide-Only Actors**: NPCs with only `ActionType 2` (Hide) actions. These are visible by default and hidden when specific conditions match. 1,023 NPCs fall into this category.
+* **Universal Duplicate Cutscene Dummy Suppression:** In official WLO event design, scripters placed ephemeral dummy actors (`Events.Count == 0`) on maps sharing the same Template ID (`npcId > 0`) with primary talking NPCs (`Events.Count > 0`) purely for in-flight cutscene movement and dialogue puppets (e.g. entrance door waypoints, scene transitions). The engine universally identifies these dummy twins on all 1,119 maps and suppresses them by default (`AC 22:4` concealment frames) unless an explicit `ActionType 3` PreEvent reveal rule matches the player's quest progress.
+
+### 4.4 Staged Quest Actor Isolation, Map Disambiguation & Global Duplicate Elimination
+The visibility engine enforces per-player isolation and universal duplicate suppression across all maps:
+* **Global Cutscene Dummy Audit (1,119 Maps Scanned):**
+  * **Pre-fix State:** 108 maps contained talking NPC vs zero-event cutscene dummy duplicates (totaling 230 unsuppressed dummy puppets).
+  * **Post-fix State:** 0 maps with talking vs dummy duplicate anomalies. All 230 cutscene dummy puppets are automatically suppressed on initial map entry.
+  * **Common Examples Resolved:**
+    * **Map 11003 (Holy Village):** Niss ClickID 9 (talking) is visible; ClickIDs 38 & 39 (cutscene puppets) are concealed. Match Girl ClickID 11 (talking) is visible; ClickID 18 (cutscene puppet) is concealed.
+    * **Map 12001 (Chief's House):** Static dialogue Roca ClickID 2 is visible; entrance door cutscene dummy Roca ClickID 3 is concealed.
+    * **Map 12000 (Kelan Village):** Village gate cutscene dummy Roca ClickID 32 is concealed.
+    * **Map 11076:** Static Rocas ClickIDs 1 & 5 are visible; cutscene dummy Roca ClickID 4 is concealed.
+    * **Map 13031:** S. Monkey ClickID 2 is visible; cutscene dummy S. Monkey ClickID 5 is concealed.
+    * **Map 12002:** Sam ClickID 2 is visible; staged Sam ClickID 7 is concealed until Quest 13004 begins.
+* **Beach Map Disambiguation (Map 10035 vs Map 11016):**
+  * **Map 10035 ("Rhode Island Beach"):** Initial shipwreck tutorial island where Robinson (ClickID 1, TID 12032) and the Astrologer Tent are located. S. Monkey is **not** present on Map 10035 in official WLO.
+  * **Map 11016 ("North Island Starter Beach"):** Reached via Warp 1 on Map 10035 ("小猴子海灘" / "Little Monkey Beach", pos `134, 1126`). Contains S. Monkey (ClickID 1, TID 17162, `X=725, Y=388`) perched in the coconut tree for Event 1 ("Looking for Mom", Quest 12002).
+* **S. Monkey Lifecycle & Recruitment:** S. Monkey is visible by default to all unrecruited adventurers on Map 11016. It is concealed immediately upon recruitment (`HasRecruitedCompanion`, active party/storage TID 17162 / 10727, or Quest 12002 `Completed`).
+* **Recruited Companions:** Recruited companions (e.g., Robinson on Map 11016, Roca in Kelan Village Map 12000, S. Monkey on Map 11016, Niss on Map 11003) are automatically suppressed across all overworld maps via `AC 22:4` concealment frames (`Duration = 0x03E7FC18`).
+* **Staged Cutscene Actors:**
+  * **Map 12000 (Kelan Village):** Mourning Roca at the grave (ClickID 34 & 36) is visible only during Quest 13052 ("Death of Roca's Father"). Gate cutscene Roca (ClickID 32, `X=1734, Y=1543`) is an ephemeral cutscene actor dynamically spawned exclusively during Event 45 and Event 49 (Quest 13098 Step 3) via `AC 22:4` `SendActorShow(32)` and hidden immediately upon dialogue completion (`SendActorHide(32)`). It is strictly hidden by default (`PreEventInterpreter.ShouldNpcBeVisible` returns `false`).
+  * **Map 12001 (Kelan Village - Chief's House):** Contains three actors with explicit visibility returns that bypass the universal PreEvent evaluator:
+    * **ClickID 1 (Kelan Leader, TID 14062, `X=523, Y=334`):** Always visible on map entry (`return true`).
+    * **ClickID 2 (Static Roca, TID 14162, `X=487, Y=310`):** A dynamic actor with both reveal (`actType 3`) and hide (`actType 2`) PreEvent actions across 12 sub-entries. Visible by default for players who have not yet recruited Roca (`return !hasRoca`). Concealed once recruited.
+    * **ClickID 3 (Cutscene Dummy Roca, TID 14162, `X=359, Y=432`):** Ephemeral cutscene actor spawned strictly during Event 6 dialogue cutscenes. Strictly concealed by default (`return false`).
+* **PreEvent Opcode 0x02 Mode Decoding:** Supports companion requirement modes where `count == 1` requires the companion to be recruited/present and `count == 2` requires the companion to NOT be recruited (`!hasPet`), correctly evaluating official PreEvent isolation rules.
 * **Quest Props:** Father's Statue (ClickID 33) and Iron Sword (ClickID 35) remain hidden until Quest 13098 ("Remembering Father") begins.
 * **Lost Dog Quest:** Shiba Inu (ClickID 20) is only visible on the hills during Quest 13046 Step 1. Sitting dog (ClickID 28) returns to Lina's side only upon quest completion.
 * **Declarative QuestDefinition Spawning:** Registered quests define `SpawnNpcClickIDs` and `DespawnNpcClickIDs` at both quest-level and step-level ([`QuestDefinition`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestDefinition.cs)). Actors in `SpawnNpcClickIDs` are kept concealed until the prerequisite quest or step condition is satisfied.
 * **Runtime Dynamic Synchronization:** [`QuestManager.SyncPerPlayerNpcVisibility`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/QuestManager.cs) hooks directly into `AcceptQuest`, `AdvanceQuestStep`, `SetPlayerQuestState`, `CompleteQuest`, `ResetQuest`, and `EveEventInterpreter` opcodes (2, 3, 5, battle victory) to trigger immediate, diff-checked visibility updates without requiring a map transition.
 
-### 4.4 Full-Scale Eve.emg Map & Event Extraction Architecture
+### 4.5 Full-Scale Eve.emg Map & Event Extraction Architecture
 The official `eve.Emg` asset binary (5.16 MB) defines the complete global event ecosystem for the game:
 * **Total Maps:** 1,119 scene entries.
 * **Total Event Scripts:** 10,644 events across all maps.
@@ -112,16 +141,25 @@ The official `eve.Emg` asset binary (5.16 MB) defines the complete global event 
 [`EveManager.Load_ScenceData`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataFiles/EveLoader.cs) extracts 11 category offsets (`(dataptr + datalen) - 44` bytes) across all 1,119 maps without early loop termination, ensuring that high-index maps (such as 12544..60015) receive full event tables and PreEvent bytecode.
 
 ### 4.5 Multi-Candidate Event Resolution & Priority Hierarchy
-In the Wonderland Online `Eve.emg` binary, NPC definitions in `Npclist` explicitly specify their event bindings via the `npcEntry.Events` array (e.g. Map 12000 Villager ClickID 4 binds to Event 12, Mary Lou ClickID 5 binds to Events [9, 10]). Over 5,617 native NPCs have assigned Event IDs that differ from their spatial `clickId`.
+In the Wonderland Online `Eve.emg` binary, NPC definitions in `Npclist` explicitly specify their event bindings via the `npcEntry.Events` array (e.g. Map 12000 Villager ClickID 4 binds to Event 12, Guard ClickID 9 binds to Events [45, 8], Guard ClickID 8 binds to Events [49, 7]). Over 5,617 native NPCs have assigned Event IDs that differ from their spatial `clickId`.
 
 In [`EveEventInterpreter.TryExecute`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventInterpreter.cs):
-1. **Linked Event Priority:** If an NPC contains entries in `npcEntry.Events`, those events are populated as primary candidates in their defined order (quest event first, idle dialogue second).
+1. **Linked Event Candidate Pool:** If an NPC contains entries in `npcEntry.Events`, those events are populated as primary candidates in their defined order (e.g. `[Event 45 (Quest 13098), Event 8 (Guard Idle)]`).
 2. **ClickID Fallback:** The direct event match (`event.clickID == clickId`) is only used as a fallback if the entity has no explicit linked events (e.g., chests, gather nodes, interactive props).
-3. **Dialogue Branch Validation:** Fallback branch selection validates that candidate branches contain genuine dialogue opcodes (`(DialogPtr == 1 && d1 == 2 && d2 >= 10000)`, `(DialogPtr == 2 && (d3 >= 10000 || d2 == 6))`, or choice opcodes `DialogPtr == 4 / 6`). Non-dialogue opcodes (such as Warp trigger `DialogPtr == 1, d1 == 3`) are strictly excluded from dialogue candidate pools.
-4. **State Cascade Safety:** `SelectMatchingBranch` enforces `excludeSub` across all branch selectors, preventing recursive infinite loops when advancing post-condition quest states.
+3. **Candidate Branch Validation:** The server iterates over candidate events and calls `SelectMatchingBranch`. Only the first candidate event with an **eligible branch matching the player's quest, companion, or item prerequisites** is selected. If no candidate event has an eligible branch, the server gracefully unlocks the player (`AC 20:8`, `AC 5:4`) without forcibly defaulting to the first candidate.
+4. **Fallback Branch Filtering (Section 5):** In `SelectMatchingBranch`, unconditional fallback branch discovery excludes quest condition branches (`unknownbyte1 != 5`). Fallback branches are restricted to true default idle dialogues (`unknownbyte1 == 6` or unconditional dialogues without quest gates), ensuring NPCs never trigger random quest dialogues when the prerequisite quest is inactive.
+5. **State Cascade Safety:** `SelectMatchingBranch` enforces `excludeSub` across all branch selectors, preventing recursive infinite loops when advancing post-condition quest states.
 
-### 4.6 Zero-Op Item Gate Priority Pattern
-In `eve.Emg` event bytecode, a **zero-op item condition sub** (`b1=2`, `SubEntry.Count == 0`) acts as a prerequisite gate for the **next executable sub** (found by `GetExecutableBranch` walking forward). This pattern appears across 22,171 zero-op subs globally.
+### 4.6 Zero-Op Gate Priority & Dual Condition Decoding (`unknownbyte1 == 2`)
+In `eve.Emg` event bytecode, condition subentries (`unknownbyte1 == 2`) encompass two distinct prerequisite checks based on `unknownword1`:
+* **Item Condition (`unknownword1 == 1` or fallback):** Verifies inventory item `unknownword3` with required quantity `unknownword2` and presence flag `unknownword4` (`2`, `5`, or `& 0x01 != 0`).
+* **Companion Condition (`unknownword1 == 2`):** Verifies pet/companion template ID `unknownword3` against condition mode `unknownword2`:
+  * `w2 == 1`: Companion must be in player's active team (`player.PlayerPets` or `player.ActivePetID`).
+  * `w2 == 2`: Companion must NOT be in player's active team.
+  * `w2 == 5`: Active team capacity check (less than 4 pets).
+  * `w2 == 9`: Companion must have been recruited (`player.HasRecruitedCompanion(w3)`).
+
+A **zero-op condition sub** (`unknownbyte1 == 2`, `SubEntry.Count == 0`) acts as a prerequisite gate for the **next executable sub** (found by `GetExecutableBranch` walking forward). This pattern appears across 22,171 zero-op subs globally.
 
 **Compound Condition Chain Example (Map 12004, Event 2 -- Honeycomb Quest):**
 ```
@@ -132,13 +170,13 @@ Sub 5: b1=5, Quest 13022 InProgress, step=1     -- 17 ops (quest completion bran
 
 Without item-gate priority, the main condition loop matches Sub 2 (quest state) first and returns it immediately, never reaching the item gate at Sub 4. The fix adds a dedicated priority pass **before** the main condition loop:
 
-1. Scan all subs for zero-op `b1=2` item conditions.
-2. If the item condition is satisfied, resolve the gated executable sub via `GetExecutableBranch`.
+1. Scan all subs for zero-op `b1=2` item/companion conditions.
+2. If the prerequisite condition is satisfied, resolve the gated executable sub via `GetExecutableBranch`.
 3. Verify the gated sub's own quest condition (if `b1=5`) matches the player's quest state.
 4. Skip if the associated quest is already completed or contains completed quest ops.
 5. Return the gated sub, overriding any earlier quest-state-only match.
 
-This ensures that **item-gated completion branches take priority** over their unqualified quest-state counterparts when the player possesses the required item.
+This ensures that **condition-gated completion branches take priority** over unqualified quest-state counterparts when conditions are fulfilled.
 
 ---
 

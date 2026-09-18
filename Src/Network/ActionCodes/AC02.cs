@@ -46,7 +46,32 @@ namespace Network.ActionCodes {
                                     }
                                     p.Eqs.Send8_1(false);
                                     p.Send_5_3();
+
+                                    var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle) 
+                                                 ?? (p.ActivePetID > 0 ? p.PlayerPets?.Values?.FirstOrDefault(pet => pet.PetID == p.ActivePetID || pet.Slot == p.ActivePetID) : null)
+                                                 ?? p.PlayerPets?.Values?.FirstOrDefault();
+                                    if (activePet != null) {
+                                        activePet.HP = activePet.MaxHP;
+                                        activePet.SP = activePet.MaxSP;
+                                        p.SendPetStat(activePet.Slot, 0x0119, (uint)activePet.HP);
+                                        p.SendPetStat(activePet.Slot, 0x011A, (uint)activePet.SP);
+                                    }
+
                                     p.SendSystemMessage($"[GM] HP/SP Restored! HP: {p.Eqs.CurHP}/{p.Eqs.FullHP}, SP: {p.Eqs.CurSP}/{p.Eqs.FullSP}");
+                                } catch { }
+                            }
+                            break;
+                        #endregion
+
+                        #region Clear Inventory Command
+                        case ":clearinv":
+                        case "/clearinv":
+                        case ":cleaninv":
+                        case "/cleaninv": {
+                                try {
+                                    p.Inv.ClearInventory(true);
+                                    DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                    p.SendSystemMessage("[GM] Inventory has been cleared!");
                                 } catch { }
                             }
                             break;
@@ -113,6 +138,61 @@ namespace Network.ActionCodes {
                                         p.Eqs.Send8_1(false);
                                         DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
                                         p.SendSystemMessage($"[GM] Total EXP set to {p.Eqs.TotalExp}!");
+                                    }
+                                } catch { }
+                            }
+                            break;
+                        #endregion
+
+                        #region Pet EXP Command
+                        case ":petexp":
+                        case "/petexp": {
+                                try {
+                                    if (words.Length >= 2 && uint.TryParse(words[1], out uint petExpAmt)) {
+                                        var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle) 
+                                                     ?? p.PlayerPets?.Values?.FirstOrDefault();
+                                        if (activePet != null) {
+                                            p.AddPetExp(activePet, petExpAmt, false);
+                                            DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                            p.SendSystemMessage($"[GM] Added {petExpAmt} EXP to {activePet.PetName} (Lv.{activePet.Level}, Exp: {activePet.Exp})!");
+                                        } else {
+                                            p.SendSystemMessage("[GM] No active companion or pet found.");
+                                        }
+                                    } else {
+                                        p.SendSystemMessage("[GM] Usage: :petexp <amount>");
+                                    }
+                                } catch { }
+                            }
+                            break;
+                        #endregion
+
+                        #region Pet Level Command
+                        case ":petlvl":
+                        case ":petlevel":
+                        case "/petlvl":
+                        case "/petlevel": {
+                                try {
+                                    if (words.Length >= 2 && byte.TryParse(words[1], out byte targetLvl) && targetLvl >= 1 && targetLvl <= 199) {
+                                        var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle) 
+                                                     ?? p.PlayerPets?.Values?.FirstOrDefault();
+                                        if (activePet != null) {
+                                            activePet.Level = targetLvl;
+                                            activePet.Exp = 0;
+                                            activePet.MaxHP = 250 + (targetLvl - 1) * 30;
+                                            activePet.HP = activePet.MaxHP;
+                                            activePet.MaxSP = 100 + (targetLvl - 1) * 15;
+                                            activePet.SP = activePet.MaxSP;
+                                            p.SendPetStat(activePet.Slot, 0x011D, (uint)activePet.Level);
+                                            p.SendPetStat(activePet.Slot, 0x0119, (uint)activePet.HP);
+                                            p.SendPetStat(activePet.Slot, 0x011A, (uint)activePet.SP);
+                                            p.SendPetStat(activePet.Slot, 0x011E, activePet.Exp);
+                                            DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                                            p.SendSystemMessage($"[GM] {activePet.PetName} level set to Lv.{activePet.Level}!");
+                                        } else {
+                                            p.SendSystemMessage("[GM] No active companion or pet found.");
+                                        }
+                                    } else {
+                                        p.SendSystemMessage("[GM] Usage: :petlvl <1-199>");
                                     }
                                 } catch { }
                             }

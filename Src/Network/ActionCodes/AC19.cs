@@ -105,7 +105,13 @@ namespace Network.ActionCodes
                 // 2. Authentic AC 19:1 Set Battle Pet confirmation sent to owner
                 player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
 
-                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {activePet.Slot}, Lv.{activePet.Level})");
+                // 3. Synchronize pet stats and EXP to owner interface
+                player.SendPetStat(activePet.Slot, 0x011D, (uint)activePet.Level);
+                player.SendPetStat(activePet.Slot, 0x0119, (uint)activePet.HP);
+                player.SendPetStat(activePet.Slot, 0x011A, (uint)activePet.SP);
+                player.SendPetStat(activePet.Slot, 0x011E, activePet.Exp);
+
+                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {activePet.Slot}, Lv.{activePet.Level}, Exp.{activePet.Exp})");
             }
             catch (Exception ex)
             {

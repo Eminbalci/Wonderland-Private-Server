@@ -462,25 +462,28 @@ namespace Game.Battle
 
             Player.PlayerPetData pet = null;
 
-            // 1. Prioritize designated ActivePetID if it is marked for battle (with companion alias and slot matching)
+            // 1. Prioritize designated ActivePetID if it is marked for battle
             if (p.ActivePetID > 0)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.IsBattle && x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.IsBattle);
+                if (pet == null)
+                {
+                    pet = p.PlayerPets.Values.FirstOrDefault(x => Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID);
+                }
             }
 
-            // 2. Fallback to any pet explicitly marked as IsBattle with positive HP
+            // 2. Fallback to any pet explicitly marked as IsBattle
             if (pet == null)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle && x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle);
             }
 
-            // 3. Fallback: If ActivePetID > 0, match pet even if IsBattle flag was missed
-            if (pet == null && p.ActivePetID > 0)
+            // 3. If still not resolved, fallback to the first companion in roster
+            if (pet == null && p.PlayerPets.Count > 0)
             {
-                pet = p.PlayerPets.Values.FirstOrDefault(x => (Player.IsSamePetOrCompanion(x.PetID, p.ActivePetID) || x.Slot == p.ActivePetID) && x.HP > 0);
+                pet = p.PlayerPets.Values.FirstOrDefault();
             }
 
-            // 4. If no pet is marked for battle or matching ActivePetID, do NOT force an inactive mount into combat
             if (pet == null)
             {
                 return null;
@@ -1061,8 +1064,8 @@ namespace Game.Battle
                 p250.Pack16((ushort)Math.Min(0xFFFF, selfFighter.MaxSP));
                 p250.Pack32((uint)selfFighter.CurHP);
                 p250.Pack16((ushort)Math.Min(0xFFFF, selfFighter.CurSP));
-                p250.Pack8(selfFighter.Element);
                 p250.Pack8(selfFighter.Level);
+                p250.Pack8(selfFighter.Element);
                 p250.Pack8(0); // reborn
                 p250.Pack8(0); // job
                 p250.Pack16(0); // trailing pad
@@ -1095,8 +1098,8 @@ namespace Game.Battle
                     pAlly.Pack16((ushort)Math.Min(0xFFFF, pf.MaxSP));
                     pAlly.Pack32((uint)pf.CurHP);
                     pAlly.Pack16((ushort)Math.Min(0xFFFF, pf.CurSP));
-                    pAlly.Pack8(pf.Element);
                     pAlly.Pack8(pf.Level);
+                    pAlly.Pack8(pf.Element);
                     pAlly.Pack8(0); // reborn
                     pAlly.Pack8(0); // job
                     pAlly.Pack16(0); // trailing pad
@@ -1126,8 +1129,8 @@ namespace Game.Battle
                     pPet.Pack16((ushort)Math.Min(0xFFFF, pet.MaxSP));
                     pPet.Pack32((uint)pet.CurHP);
                     pPet.Pack16((ushort)Math.Min(0xFFFF, pet.CurSP));
-                    pPet.Pack8(petElem); // element
                     pPet.Pack8(pet.Level);
+                    pPet.Pack8(petElem); // element
                     pPet.Pack8(0); // reborn
                     pPet.Pack8(0); // job
                     pPet.Pack16(0); // trailing pad
@@ -1150,8 +1153,8 @@ namespace Game.Battle
                     pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.MaxSP));
                     pEnemy.Pack32((uint)ef.CurHP);
                     pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.CurSP));
-                    pEnemy.Pack8(ef.Element);
                     pEnemy.Pack8(ef.Level);
+                    pEnemy.Pack8(ef.Element);
                     pEnemy.Pack8(0); // reborn
                     pEnemy.Pack8(0); // job
                     pEnemy.Pack16(0); // trailing pad
@@ -2126,8 +2129,15 @@ namespace Game.Battle
                                     {
                                         if (drop != null)
                                         {
-                                            battle.LeaderPlayer.Inv.AddItem(drop.ItemID, drop.Count);
-                                            battle.LeaderPlayer.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtained {drop.ItemName} x{drop.Count}!"));
+                                            int added = battle.LeaderPlayer.Inv.AddItem(drop.ItemID, drop.Count);
+                                            if (added > 0)
+                                            {
+                                                battle.LeaderPlayer.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtained {drop.ItemName} x{added}!"));
+                                            }
+                                            else
+                                            {
+                                                battle.LeaderPlayer.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Envanter dolu! {drop.ItemName} alinamadi."));
+                                            }
                                         }
                                     }
                                     battle.LeaderPlayer.Send(new SendPacket(battle.LeaderPlayer.Inv.GetAC23_5()));
@@ -2148,32 +2158,24 @@ namespace Game.Battle
                         if (p.Eqs != null && (totalGold > 0 || totalExp > 0))
                         {
                             p.Eqs.AddGold((int)totalGold);
-                            p.Eqs.CurExp += (int)totalExp;
+                            p.Eqs.AddExp((int)totalExp, true);
                         }
 
                         // Pet progression
                         var petFighter = battle.Attackers.FirstOrDefault(a => a.PetRef != null && a.OwnerID == p.CharID);
-                        if (petFighter?.PetRef != null)
+                        var companionPet = petFighter?.PetRef ?? GetActivePet(p);
+                        if (companionPet != null)
                         {
-                            petFighter.PetRef.HP = Math.Max(1, petFighter.CurHP);
-                            petFighter.PetRef.SP = Math.Max(0, petFighter.CurSP);
-                            if (totalExp >= 50 && petFighter.PetRef.Level < 199)
+                            if (petFighter != null)
                             {
-                                petFighter.PetRef.Level++;
-                                petFighter.PetRef.MaxHP += 30;
-                                petFighter.PetRef.HP = petFighter.PetRef.MaxHP;
-                                petFighter.PetRef.MaxSP += 15;
-                                petFighter.PetRef.SP = petFighter.PetRef.MaxSP;
-                                p.SendPetStat(petFighter.PetRef.Slot, 0x011D, (uint)petFighter.PetRef.Level);
-                                p.SendPetStat(petFighter.PetRef.Slot, 0x0119, (uint)petFighter.PetRef.HP);
-                                p.SendPetStat(petFighter.PetRef.Slot, 0x011A, (uint)petFighter.PetRef.SP);
-                                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{petFighter.PetRef.PetName} leveled up to Lv.{petFighter.PetRef.Level}!"));
+                                companionPet.HP = Math.Max(1, petFighter.CurHP);
+                                companionPet.SP = Math.Max(0, petFighter.CurSP);
                             }
-                            else
+                            else if (companionPet.HP <= 0)
                             {
-                                p.SendPetStat(petFighter.PetRef.Slot, 0x0119, (uint)petFighter.PetRef.HP);
-                                p.SendPetStat(petFighter.PetRef.Slot, 0x011A, (uint)petFighter.PetRef.SP);
+                                companionPet.HP = Math.Max(50, companionPet.MaxHP);
                             }
+                            p.AddPetExp(companionPet, totalExp, true);
                         }
 
                         // 1. AC 11:12 Combat finish

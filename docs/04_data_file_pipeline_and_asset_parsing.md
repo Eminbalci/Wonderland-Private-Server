@@ -155,5 +155,37 @@ if (dialogue.StartsWith("fffff"))
 * **Item Grants & Removals:** Grants reward items or deducts quest prerequisites.
 * **Gold Grants & Deductions:** Modifies character currency balance.
 * **Mobility & Stage Control:** Issues `AC 20:8` (mobility lock/unlock), camera shakes, and sound playback.
-* **Warp Triggers:** Initiates transitions to target map coordinates (`WarpData`).
 * **Companion Recruitment:** Recruits NPCs into active party slots and triggers companion overworld despawn isolation.
+
+---
+
+### 2.6 Game Formula Database (`Data/Formula.dat`)
+
+`Formula.dat` (407 bytes / `0x197`) is the official binary mathematical coefficient table used by `TFormula` and `TCalculator` across the Wonderland Online engine (`aLogin.exe` / `Main.exe`).
+
+#### Binary Layout
+```
++---------------+---------------+---------------------------------------------------+
+| Offset (Byte) | Type          | Description                                       |
++---------------+---------------+---------------------------------------------------+
+| 0             | Byte          | Format Version (0x02)                             |
+| 1..360        | Double[45]    | 45 IEEE-754 64-bit double-precision coefficients  |
+| 361..364      | UInt32        | Configuration entry count / integer flag (0x05)   |
+| 365..406      | UInt16[21]    | Level threshold offsets and integer constants     |
++---------------+---------------+---------------------------------------------------+
+```
+
+#### Core Mathematical Parameters
+* **Character Level EXP Exponent (Offset `0x00F1` / 241):** `3.1` (double).
+* **Character Level EXP Base Constant (Offset `0x0169` / 361):** `5` (int).
+  $$\text{ExpRequired}(L) = \text{Round}(L^{3.1}) + 5$$
+* **Reborn (Rebirth) Character Formula:**
+  $$\text{ExpRequired}(L) = \begin{cases} \text{Round}(L^{3.3}) + 50, & L < 150 \\ \text{Round}(L^{3.3}) + \text{Round}((L - 150)^{4.9}), & L \ge 150 \end{cases}$$
+* **Companion Pet EXP Formula:**
+  $$\text{PetExpRequired}(L) = \text{Round}(L^{3.1})$$
+* **Attribute Scaling Multipliers:**
+  * STR $\rightarrow$ ATK: Offsets `0x0001` (`2.0`) & `0x0009` (`1.4`)
+  * CON $\rightarrow$ DEF / HP: Offsets `0x0021` (`1.75`) & `0x0029` (`2.0`)
+  * INT $\rightarrow$ MATK: Offsets `0x0041` (`2.0`) & `0x0049` (`1.4`)
+  * WIS $\rightarrow$ MDEF / SP: Offsets `0x0061` (`1.0`) & `0x0069` (`1.6`)
+  * AGI $\rightarrow$ SPD: Offsets `0x0081` (`1.0`) & `0x0089` (`1.6`)

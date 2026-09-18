@@ -40,6 +40,7 @@ namespace Wonderland_Private_Server
             SetupLiveBattlesTab();
             SetupMarriagesTab();
             SetupStarterItemsTab();
+            SetupDatabaseConfigTab();
             SetupServerStatusControl();
         }
 
@@ -3104,6 +3105,10 @@ namespace Wonderland_Private_Server
         #region Server Status Manager (Port 6416)
         private ComboBox cmbServerStatus;
         private bool _isUpdatingServerStatusUi = false;
+        private NumericUpDown numExpMultiplier;
+        private Label lblExpMultiplierStatus;
+        private bool _isUpdatingExpRateUi = false;
+        private Label lblServerStatusDb;
 
         private void SetupServerStatusControl()
         {
@@ -3113,14 +3118,15 @@ namespace Wonderland_Private_Server
 
                 GroupBox grpServerStatus = new GroupBox
                 {
-                    Text = " Server List Traffic Indicator / Cluster Load (Port 6416)",
+                    Text = " Server Traffic Status (Port 6416), Multipliers & Database Engine",
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue,
                     Location = new System.Drawing.Point(6, 68),
-                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 58),
+                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 126),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
                 };
 
+                // Row 1: Traffic Status
                 Label lblStatus = new Label
                 {
                     Text = "Server Status:",
@@ -3132,8 +3138,8 @@ namespace Wonderland_Private_Server
 
                 cmbServerStatus = new ComboBox
                 {
-                    Location = new System.Drawing.Point(125, 21),
-                    Size = new System.Drawing.Size(220, 24),
+                    Location = new System.Drawing.Point(115, 21),
+                    Size = new System.Drawing.Size(200, 24),
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
@@ -3163,8 +3169,8 @@ namespace Wonderland_Private_Server
                 Button btnSetGreen = new Button
                 {
                     Text = " Green",
-                    Location = new System.Drawing.Point(355, 20),
-                    Size = new System.Drawing.Size(90, 26),
+                    Location = new System.Drawing.Point(325, 20),
+                    Size = new System.Drawing.Size(85, 26),
                     BackColor = System.Drawing.Color.LightGreen,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
@@ -3173,8 +3179,8 @@ namespace Wonderland_Private_Server
                 Button btnSetYellow = new Button
                 {
                     Text = " Yellow",
-                    Location = new System.Drawing.Point(450, 20),
-                    Size = new System.Drawing.Size(90, 26),
+                    Location = new System.Drawing.Point(415, 20),
+                    Size = new System.Drawing.Size(85, 26),
                     BackColor = System.Drawing.Color.Khaki,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
@@ -3183,8 +3189,8 @@ namespace Wonderland_Private_Server
                 Button btnSetRed = new Button
                 {
                     Text = " Red",
-                    Location = new System.Drawing.Point(545, 20),
-                    Size = new System.Drawing.Size(95, 26),
+                    Location = new System.Drawing.Point(505, 20),
+                    Size = new System.Drawing.Size(85, 26),
                     BackColor = System.Drawing.Color.MistyRose,
                     ForeColor = System.Drawing.Color.DarkRed,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -3194,26 +3200,263 @@ namespace Wonderland_Private_Server
                 Button btnSetAuto = new Button
                 {
                     Text = " Auto",
-                    Location = new System.Drawing.Point(645, 20),
-                    Size = new System.Drawing.Size(105, 26),
+                    Location = new System.Drawing.Point(595, 20),
+                    Size = new System.Drawing.Size(95, 26),
                     BackColor = System.Drawing.Color.LightCyan,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
                 btnSetAuto.Click += (s, e) => { Server.ServerStatusManager.SetMode(Server.ServerLoadColor.Auto); RefreshServerStatusUi(); };
 
+                // Row 2: EXP Rate Multiplier
+                Label lblExpTitle = new Label
+                {
+                    Text = "EXP Multiplier:",
+                    Location = new System.Drawing.Point(10, 60),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateGray
+                };
+
+                numExpMultiplier = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(115, 57),
+                    Size = new System.Drawing.Size(75, 24),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    Minimum = 0.1M,
+                    Maximum = 1000.0M,
+                    DecimalPlaces = 1,
+                    Increment = 0.5M,
+                    Value = (decimal)Math.Max(0.1, Server.ServerStatusManager.ExpRate)
+                };
+
+                Label lblX = new Label
+                {
+                    Text = "x",
+                    Location = new System.Drawing.Point(193, 60),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                Button btnExp1x = new Button
+                {
+                    Text = "1x Normal",
+                    Location = new System.Drawing.Point(215, 56),
+                    Size = new System.Drawing.Size(85, 26),
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp1x.Click += (s, e) => { SetExpRateFromUi(1.0); };
+
+                Button btnExp2x = new Button
+                {
+                    Text = "2x Double",
+                    Location = new System.Drawing.Point(305, 56),
+                    Size = new System.Drawing.Size(85, 26),
+                    BackColor = System.Drawing.Color.LemonChiffon,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp2x.Click += (s, e) => { SetExpRateFromUi(2.0); };
+
+                Button btnExp5x = new Button
+                {
+                    Text = "5x",
+                    Location = new System.Drawing.Point(395, 56),
+                    Size = new System.Drawing.Size(55, 26),
+                    BackColor = System.Drawing.Color.LightYellow,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp5x.Click += (s, e) => { SetExpRateFromUi(5.0); };
+
+                Button btnExp10x = new Button
+                {
+                    Text = "10x",
+                    Location = new System.Drawing.Point(455, 56),
+                    Size = new System.Drawing.Size(55, 26),
+                    BackColor = System.Drawing.Color.PeachPuff,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp10x.Click += (s, e) => { SetExpRateFromUi(10.0); };
+
+                Button btnApplyExp = new Button
+                {
+                    Text = " Apply & Save",
+                    Location = new System.Drawing.Point(520, 56),
+                    Size = new System.Drawing.Size(100, 26),
+                    BackColor = System.Drawing.Color.SteelBlue,
+                    ForeColor = System.Drawing.Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnApplyExp.Click += (s, e) => { SetExpRateFromUi((double)numExpMultiplier.Value); };
+
+                lblExpMultiplierStatus = new Label
+                {
+                    Text = $"Active: {Server.ServerStatusManager.ExpRate:F1}x",
+                    Location = new System.Drawing.Point(628, 60),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkGreen
+                };
+
+                numExpMultiplier.ValueChanged += (s, e) =>
+                {
+                    if (_isUpdatingExpRateUi) return;
+                    SetExpRateFromUi((double)numExpMultiplier.Value);
+                };
+
+                numExpMultiplier.KeyDown += (s, e) =>
+                {
+                    if (e.KeyCode == Keys.Enter)
+                    {
+                        SetExpRateFromUi((double)numExpMultiplier.Value);
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                };
+
+                // Row 3: Database Engine
+                Label lblDbTitle = new Label
+                {
+                    Text = "Database Engine:",
+                    Location = new System.Drawing.Point(10, 95),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateGray
+                };
+
+                lblServerStatusDb = new Label
+                {
+                    Text = RCLibrary.Core.DataBase.DefaultServType == RCLibrary.Core.DataBaseTypes.MySQl
+                        ? $"MySQL ({RCLibrary.Core.DataBase.DefaultServerIP}:{RCLibrary.Core.DataBase.DefaultPort}/{RCLibrary.Core.DataBase.DefaultDB})"
+                        : $"SQLite ({RCLibrary.Core.DataBase.DefaultDBFile})",
+                    Location = new System.Drawing.Point(125, 95),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = RCLibrary.Core.DataBase.DefaultServType == RCLibrary.Core.DataBaseTypes.MySQl ? System.Drawing.Color.DarkGreen : System.Drawing.Color.FromArgb(37, 99, 235)
+                };
+
+                Button btnOpenDbConfig = new Button
+                {
+                    Text = "Configure Database...",
+                    Location = new System.Drawing.Point(455, 91),
+                    Size = new System.Drawing.Size(165, 26),
+                    BackColor = System.Drawing.Color.FromArgb(241, 245, 249),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnOpenDbConfig.Click += (s, e) =>
+                {
+                    if (this.tabControl3 != null)
+                    {
+                        foreach (TabPage tab in this.tabControl3.TabPages)
+                        {
+                            if (tab.Text.Contains("Database Config"))
+                            {
+                                this.tabControl3.SelectedTab = tab;
+                                break;
+                            }
+                        }
+                    }
+                };
+
                 grpServerStatus.Controls.AddRange(new Control[] {
-                    lblStatus, cmbServerStatus, btnSetGreen, btnSetYellow, btnSetRed, btnSetAuto
+                    lblStatus, cmbServerStatus, btnSetGreen, btnSetYellow, btnSetRed, btnSetAuto,
+                    lblExpTitle, numExpMultiplier, lblX, btnExp1x, btnExp2x, btnExp5x, btnExp10x, btnApplyExp, lblExpMultiplierStatus,
+                    lblDbTitle, lblServerStatusDb, btnOpenDbConfig
                 });
 
                 this.tabPage7.Controls.Add(grpServerStatus);
 
                 // Adjust MainOutput position
-                this.MainOutput.Location = new System.Drawing.Point(6, 130);
-                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 136);
+                this.MainOutput.Location = new System.Drawing.Point(6, 200);
+                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 206);
 
                 RefreshServerStatusUi();
+                RefreshExpRateUi();
+
+                RCLibrary.Core.DataBase.OnDatabaseConfigChanged += (t, ip, p, d, u, pass, f) =>
+                {
+                    try
+                    {
+                        if (lblServerStatusDb != null && this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                if (t == RCLibrary.Core.DataBaseTypes.MySQl)
+                                {
+                                    lblServerStatusDb.Text = $"MySQL ({ip}:{p}/{d})";
+                                    lblServerStatusDb.ForeColor = System.Drawing.Color.DarkGreen;
+                                }
+                                else
+                                {
+                                    lblServerStatusDb.Text = $"SQLite ({f})";
+                                    lblServerStatusDb.ForeColor = System.Drawing.Color.FromArgb(37, 99, 235);
+                                }
+                            }));
+                        }
+                    }
+                    catch { }
+                };
+
+                Server.ServerStatusManager.OnStatusChanged += () =>
+                {
+                    try
+                    {
+                        if (this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                RefreshServerStatusUi();
+                                RefreshExpRateUi();
+                            }));
+                        }
+                    }
+                    catch { }
+                };
             }
             catch { }
+        }
+
+        private void SetExpRateFromUi(double rate)
+        {
+            try
+            {
+                if (rate <= 0) rate = 1.0;
+                Server.ServerStatusManager.SetExpRate(rate);
+                RefreshExpRateUi();
+                DebugSystem.Write(DebugItemType.Info_Light, $"[EXP Multiplier] Server EXP rate set to {rate:F1}x via Main Console.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[EXP Multiplier] Error updating EXP rate: {ex.Message}");
+            }
+        }
+
+        private void RefreshExpRateUi()
+        {
+            try
+            {
+                _isUpdatingExpRateUi = true;
+                double current = Server.ServerStatusManager.ExpRate;
+                if (numExpMultiplier != null)
+                {
+                    decimal decVal = (decimal)Math.Max(0.1, current);
+                    if (decVal >= numExpMultiplier.Minimum && decVal <= numExpMultiplier.Maximum)
+                    {
+                        numExpMultiplier.Value = decVal;
+                    }
+                }
+                if (lblExpMultiplierStatus != null)
+                {
+                    lblExpMultiplierStatus.Text = $"Active: {current:F1}x";
+                    lblExpMultiplierStatus.ForeColor = current > 1.0 ? System.Drawing.Color.DarkBlue : System.Drawing.Color.DarkGreen;
+                }
+            }
+            catch { }
+            finally
+            {
+                _isUpdatingExpRateUi = false;
+            }
         }
 
         private void RefreshServerStatusUi()

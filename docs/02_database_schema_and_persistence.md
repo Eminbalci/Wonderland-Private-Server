@@ -4,23 +4,38 @@ This technical specification details the database engine, relational schema cata
 
 ---
 
-## 1. Database Architecture
+## 1. Database Architecture & Multi-Provider Engine
 
-The persistence layer is implemented over SQLite, utilizing a single consolidated database file located at:
-```
-<BaseDirectory>/Data/ServerDataBase.db
-```
+The persistence layer supports both **Embedded SQLite** and **Remote / Local MySQL / MariaDB**, with real-time switching, live connection testing, and automated schema synchronization directly through the GUI.
 
-The database is managed through three primary service classes in [`wlo.pserver.core/DataBase/`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataBase/):
-1. **`GameDataBase`**: Oversees global tables (Item Mall, chests, GM accounts, server settings) and orchestrates initial schema self-healing verification.
+### 1.1. Storage Endpoints
+- **SQLite (Default)**: Embedded relational file at `<BaseDirectory>/Data/ServerDataBase.db`.
+- **MySQL / MariaDB**: Remote or local server instance connected via `MySql.Data` driver with configurable host, port, database name, credentials, and connection timeouts.
+- **Dynamic Configuration (`database.override.txt`)**:
+  Both boot-time defaults and GUI adjustments persist to `database.override.txt`:
+  ```text
+  Type|1 (1=SQLite, 2=MySQL)
+  User|root
+  Pass|password
+  DB|wlo
+  Port|3306
+  IP|127.0.0.1
+  File|ServerDataBase.db
+  ```
+
+### 1.2. Service Layer
+The database is managed through four core service classes in [`wlo.pserver.core/DataBase/`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataBase/) derived from [`RCLibrary.Core.DataBase`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/RCLibrary.Core/DataBase.cs):
+1. **`GameDataBase`**: Oversees global tables (Item Mall, chests, GM accounts, server settings, NPC data cache) and orchestrates initial schema self-healing verification.
 2. **`UserDataBase`**: Manages account-level authentication, account passwords, access ciphers, and GM permission levels.
-3. **`CharacterDataBase`**: Manages character profiles, inventory bag slots, equipped items, companion and pet collections, active and completed quest states, and friendship rosters.
+3. **`CharacterDataBase`**: Manages character profiles, inventory bag slots, equipped items, companion and pet collections, active and completed quest states, tent housing, and friendship rosters.
+4. **`PortalDataBase`**: Manages portal triggers and destination coordinates across overworld maps.
 
----
-
-## 2. Boot-Time Self-Healing & Migration Engine
-
-Upon server boot, `GameDataBase.VerifySetup()` is invoked to guarantee schema integrity before any network listener binds to ports.
+### 1.3. GUI Configuration & Migration Engine (`SetupDatabaseConfigTab`)
+- **Interactive Provider Selector**: Switch between SQLite and MySQL instantly with live status badges.
+- **Connection Test**: Non-blocking asynchronous connection verification displaying server version (e.g., `MySQL 8.0.35` / `SQLite 3.x`).
+- **Live Runtime Switch & Re-init**: Instantly updates active database connection strings across running instances (`gGameDataBase`, `gCharacterDataBase`, `gUserDataBase`, `gPortalDataBase`) and triggers schema verification without restarting the server.
+- **1-Click SQLite -> MySQL Migration**: Automated transfer of all 25+ relational tables, schemas, indexes, and existing player/game records from `ServerDataBase.db` to MySQL with progress reporting and foreign key safety guards.
+- **SQL Dialect Translation (`TranslateSqlForMySql`)**: Transparent runtime translation of SQLite DDL and DML (`AUTOINCREMENT` -> `AUTO_INCREMENT`, `TEXT PRIMARY KEY` -> `VARCHAR(255) PRIMARY KEY`, `INSERT OR REPLACE` -> `REPLACE INTO`, `PRAGMA table_info` -> `information_schema.COLUMNS`).
 
 ### Automated Schema Verification (`VerifySetup`)
 1. **Table Creation**: Issues `CREATE TABLE IF NOT EXISTS` for all missing relational tables.

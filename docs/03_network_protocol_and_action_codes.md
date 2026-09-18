@@ -270,6 +270,30 @@ Broadcast to map peers when a player enters or exits battle mode to control the 
 > [!NOTE]
 > Serialized directly using strongly-typed [`SendPacket.Pack32`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Network/Packet.cs#L48) rather than `Tools.FromFormat` to avoid signed/unsigned byte conversion overflow exceptions (`System.OverflowException`) when formatting 32-bit character identifiers.
 
+#### 4.5.3 Combat Entity Spawn Record (`AC 11:5` & `AC 11:250` Server -> Client)
+Defines fighter entities entering the combat grid. Both `11:250` (self) and `11:5` (allies, companions, enemies) share this exact 32-byte layout:
+* **Offset 0..1 (`UInt16`):** Action Code (`11:5` or `11:250` with Background ID).
+* **Offset 2 (`Byte`):** Combat Side (`0x01` = Enemy/Defender, `0x05` = Friendly/Ally).
+* **Offset 3 (`Byte`):** Fighter Type (`0x01` = Monster, `0x02` = Player, `0x04` = Companion Pet).
+* **Offset 4..7 (`UInt32`):** Entity Template ID / Char ID.
+* **Offset 8..9 (`UInt16`):** Click ID / Pet Roster Slot.
+* **Offset 10..13 (`UInt32`):** Owner Character ID (`0` for monsters/wild npcs).
+* **Offset 14 (`Byte`):** Battlefield Grid Slot X.
+* **Offset 15 (`Byte`):** Battlefield Grid Slot Y.
+* **Offset 16..19 (`UInt32`):** Maximum HP (`MaxHP`).
+* **Offset 20..21 (`UInt16`):** Maximum SP (`MaxSP`).
+* **Offset 22..25 (`UInt32`):** Current HP (`CurHP`).
+* **Offset 26 (`Byte`):** Level (`Level` 1..200).
+* **Offset 27 (`Byte`):** Elemental Affinity (`0` = Earth/None, `1` = Water, `2` = Fire, `3` = Wind).
+* **Offset 28 (`Byte`):** Rebirth Flag (`0` = Normal, `1` = Reborn).
+* **Offset 29 (`Byte`):** Job Class (`0` = None, `1` = Killer, `2` = Warrior, etc.).
+* **Offset 30..31 (`UInt16`):** Trailing Padding (`0x0000`).
+
+#### 4.5.4 Post-Combat Companion Pet EXP Sync (`AC 8:2` Stat `0x0124`)
+Following battle victory, the client requires two distinct stat updates for companion pets:
+* **Total Accumulated EXP (`Stat 0x011E`):** Carries the pet's persistent total experience points.
+* **Combat Experience Gain (`Stat 0x0124` / 292):** Wire format `[8, 2, TargetType=4, Slot: UInt16, StatID=0x0124, ExpGain: UInt32, 0: UInt32]`. Directly populates the battle victory summary popup showing EXP awarded to the pet.
+
 ---
 
 ### 4.6 Social & Friend System Protocol (`AC 14`)
@@ -396,6 +420,7 @@ sequenceDiagram
     * `0x0119` (281): Current HP
     * `0x011A` (282): Current SP
     * `0x011D` (285): Level
+    * `0x011E` (286): Current Experience Points (EXP)
     * `0x0129` (297): STR
     * `0x012A` (298): CON
     * `0x012B` (299): INT
