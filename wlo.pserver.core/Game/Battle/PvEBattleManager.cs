@@ -405,6 +405,18 @@ namespace Game.Battle
             }
         }
 
+        public static bool ForceBattleVictory(Player player)
+        {
+            var battle = GetBattle(player);
+            if (battle == null) return false;
+            foreach (var def in battle.Defenders)
+            {
+                def.CurHP = 0;
+            }
+            EndBattleVictory(battle);
+            return true;
+        }
+
         /// <summary>
         /// Cleans up combat session when a player loses socket connection.
         /// </summary>
@@ -899,67 +911,11 @@ namespace Game.Battle
                     uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
                     byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
 
-                    battle.Attackers.Add(new BattleFighter
-                    {
-                        Side = BattleTeamSide.Attacker,
-                        FighterType = BattleFighterType.Pet,
-                        PetRef = pet,
-                        OwnerID = p.CharID,
-                        ID = petTid,
-                        Name = pet.PetName ?? "Pet",
-                        Level = pet.Level,
-                        Element = petElem,
-                        MaxHP = Math.Max(1, pet.MaxHP),
-                        CurHP = Math.Max(1, pet.HP),
-                        MaxSP = Math.Max(0, pet.MaxSP),
-                        CurSP = Math.Max(0, pet.SP),
-                        Atk = Math.Max(15, (int)(pet.Level * 3 + pet.Str * 2)),
-                        Def = Math.Max(10, (int)(pet.Level * 2 + pet.Con * 2)),
-                        Spd = Math.Max(10, (int)(pet.Level * 2 + pet.Agi * 2)),
-                        GridX = AttackerPetGridSlots[i][0],
-                        GridY = AttackerPetGridSlots[i][1]
-                    });
-                }
-            }
+                        CalculatePetEquipmentStats(p, pet, out int petAtkBonus, out int petDefBonus, out int petSpdBonus);
 
-            // 2. Build Defending Team (Left side)
-            if (battle.IsPvP)
-            {
-                battle.Defenders.Clear();
-                for (int i = 0; i < battle.DefendingPlayers.Count && i < DefenderPlayerGridSlots.Length; i++)
-                {
-                    Player p = battle.DefendingPlayers[i];
-                    if (p == null) continue;
-
-                    battle.Defenders.Add(new BattleFighter
-                    {
-                        Side = BattleTeamSide.Defender,
-                        FighterType = BattleFighterType.Player,
-                        PlayerRef = p,
-                        ID = p.CharID,
-                        Name = p.CharName,
-                        Level = p.Eqs?.Level ?? 1,
-                        Element = (byte)(p.Eqs?.Element ?? 0),
-                        MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
-                        CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
-                        MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
-                        CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
-                        Atk = p.Eqs?.FullAtk ?? 20,
-                        Def = p.Eqs?.FullDef ?? 10,
-                        Spd = p.Eqs?.FullSpd ?? 10,
-                        GridX = DefenderPlayerGridSlots[i][0],
-                        GridY = DefenderPlayerGridSlots[i][1]
-                    });
-
-                    var pet = GetActivePet(p);
-                    if (pet != null)
-                    {
-                        uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
-                        byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
-
-                        battle.Defenders.Add(new BattleFighter
+                        battle.Attackers.Add(new BattleFighter
                         {
-                            Side = BattleTeamSide.Defender,
+                            Side = BattleTeamSide.Attacker,
                             FighterType = BattleFighterType.Pet,
                             PetRef = pet,
                             OwnerID = p.CharID,
@@ -971,13 +927,72 @@ namespace Game.Battle
                             CurHP = Math.Max(1, pet.HP),
                             MaxSP = Math.Max(0, pet.MaxSP),
                             CurSP = Math.Max(0, pet.SP),
-                            Atk = Math.Max(15, (int)(pet.Level * 3 + pet.Str * 2)),
-                            Def = Math.Max(10, (int)(pet.Level * 2 + pet.Con * 2)),
-                            Spd = Math.Max(10, (int)(pet.Level * 2 + pet.Agi * 2)),
-                            GridX = DefenderPetGridSlots[i][0],
-                            GridY = DefenderPetGridSlots[i][1]
+                            Atk = Math.Max(15, (int)(pet.Level * 3 + pet.Str * 2) + petAtkBonus),
+                            Def = Math.Max(10, (int)(pet.Level * 2 + pet.Con * 2) + petDefBonus),
+                            Spd = Math.Max(10, (int)(pet.Level * 2 + pet.Agi * 2) + petSpdBonus),
+                            GridX = AttackerPetGridSlots[i][0],
+                            GridY = AttackerPetGridSlots[i][1]
                         });
                     }
+                }
+
+                // 2. Build Defending Team (Left side)
+                if (battle.IsPvP)
+                {
+                    battle.Defenders.Clear();
+                    for (int i = 0; i < battle.DefendingPlayers.Count && i < DefenderPlayerGridSlots.Length; i++)
+                    {
+                        Player p = battle.DefendingPlayers[i];
+                        if (p == null) continue;
+
+                        battle.Defenders.Add(new BattleFighter
+                        {
+                            Side = BattleTeamSide.Defender,
+                            FighterType = BattleFighterType.Player,
+                            PlayerRef = p,
+                            ID = p.CharID,
+                            Name = p.CharName,
+                            Level = p.Eqs?.Level ?? 1,
+                            Element = (byte)(p.Eqs?.Element ?? 0),
+                            MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
+                            CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
+                            MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
+                            CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
+                            Atk = p.Eqs?.FullAtk ?? 20,
+                            Def = p.Eqs?.FullDef ?? 10,
+                            Spd = p.Eqs?.FullSpd ?? 10,
+                            GridX = DefenderPlayerGridSlots[i][0],
+                            GridY = DefenderPlayerGridSlots[i][1]
+                        });
+
+                        var pet = GetActivePet(p);
+                        if (pet != null)
+                        {
+                            uint petTid = (pet.PetID == 12032 || pet.PetID == 12178) ? 12178 : pet.PetID;
+                            byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
+                            CalculatePetEquipmentStats(p, pet, out int dPetAtkBonus, out int dPetDefBonus, out int dPetSpdBonus);
+
+                            battle.Defenders.Add(new BattleFighter
+                            {
+                                Side = BattleTeamSide.Defender,
+                                FighterType = BattleFighterType.Pet,
+                                PetRef = pet,
+                                OwnerID = p.CharID,
+                                ID = petTid,
+                                Name = pet.PetName ?? "Pet",
+                                Level = pet.Level,
+                                Element = petElem,
+                                MaxHP = Math.Max(1, pet.MaxHP),
+                                CurHP = Math.Max(1, pet.HP),
+                                MaxSP = Math.Max(0, pet.MaxSP),
+                                CurSP = Math.Max(0, pet.SP),
+                                Atk = Math.Max(15, (int)(pet.Level * 3 + pet.Str * 2) + dPetAtkBonus),
+                                Def = Math.Max(10, (int)(pet.Level * 2 + pet.Con * 2) + dPetDefBonus),
+                                Spd = Math.Max(10, (int)(pet.Level * 2 + pet.Agi * 2) + dPetSpdBonus),
+                                GridX = DefenderPetGridSlots[i][0],
+                                GridY = DefenderPetGridSlots[i][1]
+                            });
+                        }
                 }
             }
             else
@@ -1270,19 +1285,44 @@ namespace Game.Battle
             {
                 actionType = "catch";
             }
-            else if (skill != null)
+            else if (skillId > 10001 && skill != null)
             {
-                if (skill.IsHeal || skill.IsRevive)
+                // Verify actor knows the skill
+                bool knowsSkill = true;
+                if (actingFighter.PlayerRef != null)
                 {
-                    actionType = "heal";
+                    knowsSkill = actingFighter.PlayerRef.HasSkill(skillId);
                 }
-                else if (skill.IsShield || skill.IsHotBlooded || skill.IsSpeedUp || skill.IsVanish)
+                else if (actingFighter.PetRef != null)
                 {
-                    actionType = "buff";
+                    var petSkills = QuestRelated.QuestManager.GetDefaultPetSkills(actingFighter.PetRef.PetID);
+                    knowsSkill = petSkills.Contains((ushort)skillId) || skillId == 10000 || skillId == 10001;
                 }
-                else if (skill.IsFreeze || skill.IsSleep || skill.IsSeal || skill.IsConfuse || skill.IsPoison || skill.IsParalyze)
+
+                // Verify actor has sufficient SP
+                ushort spCost = skill.SP > 0 ? skill.SP : (ushort)15;
+                bool hasSp = actingFighter.CurSP >= spCost;
+
+                if (!knowsSkill || !hasSp)
                 {
-                    actionType = "status";
+                    // Fallback to basic attack
+                    skillId = 10000;
+                    actionType = "attack";
+                }
+                else
+                {
+                    if (skill.IsHeal || skill.IsRevive)
+                    {
+                        actionType = "heal";
+                    }
+                    else if (skill.IsShield || skill.IsHotBlooded || skill.IsSpeedUp || skill.IsVanish)
+                    {
+                        actionType = "buff";
+                    }
+                    else if (skill.IsFreeze || skill.IsSleep || skill.IsSeal || skill.IsConfuse || skill.IsPoison || skill.IsParalyze)
+                    {
+                        actionType = "status";
+                    }
                 }
             }
 
@@ -1430,6 +1470,13 @@ namespace Game.Battle
 
                         var sk = SkillRelated.SkillManager.GetSkill(sa.SkillId);
                         ushort spCost = sk?.SP ?? 15;
+
+                        // Verify SP before execution
+                        if (actor.CurSP < spCost)
+                        {
+                            DebugSystem.Write($"[PvEBattle] {actor.Name} has insufficient SP ({actor.CurSP}/{spCost}) to cast {sk?.Name ?? sa.SkillId.ToString()}. Action skipped.");
+                            continue;
+                        }
 
                         // Deduct SP
                         if (actor.PlayerRef?.Eqs != null)
@@ -1757,32 +1804,43 @@ namespace Game.Battle
                                 if (a.SkillId > 10001)
                                 {
                                     ushort spCost = sk?.SP ?? 15;
-                                    baseDmg = Math.Max(15, (int)(actor.Atk * 2.8) - (targetFighter.Def / 2));
-                                    if (actor.PlayerRef?.Eqs != null)
+                                    if (actor.CurSP >= spCost)
                                     {
-                                        actor.PlayerRef.Eqs.CurSP = Math.Max(0, actor.PlayerRef.Eqs.CurSP - spCost);
-                                        actor.CurSP = actor.PlayerRef.Eqs.CurSP;
-                                        foreach (var p in battle.AllPlayers)
-                                            SendStatSync(p, actor.GridX, actor.GridY, 0x1a, (uint)actor.CurSP);
-                                    }
-                                    else if (actor.PetRef != null)
-                                    {
-                                        actor.PetRef.SP = Math.Max(0, actor.PetRef.SP - spCost);
-                                        actor.CurSP = actor.PetRef.SP;
-                                        foreach (var p in battle.AllPlayers)
-                                            SendStatSync(p, actor.GridX, actor.GridY, 0x1a, (uint)actor.CurSP);
-
-                                        var owner = battle.AllPlayers.FirstOrDefault(p => p.CharID == actor.OwnerID);
-                                        if (owner != null)
+                                        baseDmg = Math.Max(15, (int)(actor.Atk * 2.8) - (targetFighter.Def / 2));
+                                        if (actor.PlayerRef?.Eqs != null)
                                         {
-                                            owner.SendPetStat(actor.PetRef.Slot, 0x011A, (uint)actor.CurSP);
-                                            if (a.SkillId > 0)
+                                            actor.PlayerRef.Eqs.CurSP = Math.Max(0, actor.PlayerRef.Eqs.CurSP - spCost);
+                                            actor.CurSP = actor.PlayerRef.Eqs.CurSP;
+                                            foreach (var p in battle.AllPlayers)
+                                                SendStatSync(p, actor.GridX, actor.GridY, 0x1a, (uint)actor.CurSP);
+                                        }
+                                        else if (actor.PetRef != null)
+                                        {
+                                            actor.PetRef.SP = Math.Max(0, actor.PetRef.SP - spCost);
+                                            actor.CurSP = actor.PetRef.SP;
+                                            foreach (var p in battle.AllPlayers)
+                                                SendStatSync(p, actor.GridX, actor.GridY, 0x1a, (uint)actor.CurSP);
+
+                                            var owner = battle.AllPlayers.FirstOrDefault(p => p.CharID == actor.OwnerID);
+                                            if (owner != null)
                                             {
-                                                owner.SendPetStat(actor.PetRef.Slot, 0x016F, 2, (uint)a.SkillId);
+                                                owner.SendPetStat(actor.PetRef.Slot, 0x011A, (uint)actor.CurSP);
+                                                if (a.SkillId > 0)
+                                                {
+                                                    owner.SendPetStat(actor.PetRef.Slot, 0x016F, 2, (uint)a.SkillId);
+                                                }
                                             }
                                         }
                                     }
+                                    else
+                                    {
+                                        DebugSystem.Write($"[PvEBattle] {actor.Name} has insufficient SP for skill #{a.SkillId}. Downgraded to basic physical attack.");
+                                    }
                                 }
+
+                                // Apply elemental affinity multiplier
+                                double eleMult = GetElementalMultiplier(actor.Element, targetFighter.Element);
+                                baseDmg = Math.Max(1, (int)(baseDmg * eleMult));
 
                                 // Apply HotBlooded 2x ATK buff
                                 if (actor.HasStatus(FighterStatusType.HotBlooded))
@@ -1856,6 +1914,14 @@ namespace Game.Battle
                             if (targetFighter.IsDead)
                             {
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, targetFighter.GridX, targetFighter.GridY));
+                                if (targetFighter.PetRef != null)
+                                {
+                                    var owner = battle.AllPlayers.FirstOrDefault(p => p.CharID == targetFighter.OwnerID);
+                                    if (owner != null)
+                                    {
+                                        PetRelated.PetAmityManager.OnPetDeath(owner, (ushort)targetFighter.PetRef.PetID);
+                                    }
+                                }
                             }
 
                             await Task.Delay(isCombo ? 1500 : 1200);
@@ -2118,6 +2184,12 @@ namespace Game.Battle
                             if (m.IsCaptured) continue;
                             totalExp += (uint)Math.Max(10, m.MonsterLevel * 15);
                             totalGold += (uint)Math.Max(5, m.MonsterLevel * 8);
+
+                            // Party-wide quest progression: credit every player on the attacking team for defeating this monster
+                            foreach (var p in battle.AttackingPlayers)
+                            {
+                                QuestRelated.QuestManager.OnMonsterDefeated(p, m.MonsterId, m.MonsterName ?? "Monster");
+                            }
 
                             // Drops roll for leader player
                             try
@@ -2488,6 +2560,63 @@ namespace Game.Battle
             p114.Pack8(0);
             p114.Pack8(inBattle ? (byte)1 : (byte)0);
             p.CurMap.Broadcast(p114);
+        }
+
+        private static void CalculatePetEquipmentStats(Player player, Player.PlayerPetData pet, out int bonusAtk, out int bonusDef, out int bonusSpd)
+        {
+            bonusAtk = 0;
+            bonusDef = 0;
+            bonusSpd = 0;
+            if (pet == null) return;
+
+            var itemDat = player?.ItemManager ?? DataBase.CharacterDataBase.GlobalInstance?.ItemDat ?? DataBase.GameDataBase.GlobalInstance?.ItemDat;
+            if (itemDat == null) return;
+
+            ushort[] eqIds = new ushort[] { pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special };
+            foreach (var id in eqIds)
+            {
+                if (id == 0) continue;
+                var info = itemDat.GetItemByID(id);
+                if (info != null && info.StatusType != null && info.StatusUp != null)
+                {
+                    for (int s = 0; s < info.StatusType.Length && s < info.StatusUp.Length; s++)
+                    {
+                        int st = info.StatusType[s];
+                        int raw = info.StatusUp[s];
+                        int delta = raw == 0 ? 0 : raw - 100;
+                        if (st == 210 || st == 41 || st == 28) bonusAtk += delta;
+                        else if (st == 211 || st == 42 || st == 29) bonusDef += delta;
+                        else if (st == 214 || st == 45 || st == 30) bonusSpd += delta;
+                    }
+                }
+            }
+        }
+
+        public static double GetElementalMultiplier(byte hitterElem, byte targetElem)
+        {
+            var hitter = (Affinity)hitterElem;
+            var target = (Affinity)targetElem;
+            switch (hitter)
+            {
+                case Affinity.Earth:
+                    if (target == Affinity.Water) return 1.7;
+                    if (target == Affinity.Wind) return 0.6;
+                    return 1.0;
+                case Affinity.Water:
+                    if (target == Affinity.Fire) return 1.7;
+                    if (target == Affinity.Earth) return 0.6;
+                    return 1.0;
+                case Affinity.Fire:
+                    if (target == Affinity.Wind) return 1.5;
+                    if (target == Affinity.Water) return 0.6;
+                    return 1.0;
+                case Affinity.Wind:
+                    if (target == Affinity.Earth) return 1.7;
+                    if (target == Affinity.Fire) return 0.6;
+                    return 1.0;
+                default:
+                    return 1.0;
+            }
         }
     }
 }

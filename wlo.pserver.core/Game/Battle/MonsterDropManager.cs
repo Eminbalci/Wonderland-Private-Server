@@ -55,6 +55,8 @@ namespace Game.Battle
         // Global fallback drops by monster level brackets
         public static readonly Dictionary<int, List<MonsterDropEntry>> LevelBracketLootTables = new Dictionary<int, List<MonsterDropEntry>>();
 
+        public static double DropRateMultiplier { get; set; } = 1.0;
+
         public static event Action OnLootTablesChanged;
 
         public static Dictionary<uint, List<MonsterDropEntry>> GetAllDrops()
@@ -155,6 +157,11 @@ namespace Game.Battle
         }
 
         static MonsterDropManager()
+        {
+            Initialize();
+        }
+
+        public static void Initialize()
         {
             InitializeLootTables();
             LoadFromFile();
@@ -404,7 +411,7 @@ namespace Game.Battle
                 foreach (var entry in pool)
                 {
                     double roll = _rng.NextDouble() * 100.0;
-                    double calibratedRate = Math.Max(5.0, entry.DropRatePercent * 0.35);
+                    double calibratedRate = Math.Max(5.0, entry.DropRatePercent * 0.35 * Math.Max(0.1, DropRateMultiplier));
                     if (roll <= calibratedRate)
                     {
                         byte count = entry.MinCount;

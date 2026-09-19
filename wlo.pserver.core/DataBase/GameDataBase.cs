@@ -34,7 +34,7 @@ namespace DataBase
         const string DBServer = "GameDataBase";
         //DBConnector.DBOAuth DBAssist;
 
-        public global::DataFiles.PhxItemDat ItemDat { private get; set; }
+        public global::DataFiles.PhxItemDat ItemDat { get; set; }
         public Game.DataFiles.EveManager EveDat { get; set; } // Added Property
         public global::DataFiles.PhxNpcDat NpcDat { get; set; } // Added Property for Npc.dat
         public global::DataFiles.PhxTalkDat TalkDat { get; set; } // Added Property for Talk.dat
@@ -128,7 +128,7 @@ namespace DataBase
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS player_settings (char_id INTEGER PRIMARY KEY, pk_mode INT DEFAULT 0, join_mode INT DEFAULT 1, trade_mode INT DEFAULT 1);");
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_ips (ip TEXT PRIMARY KEY, reason TEXT, banned_at TEXT, banned_by TEXT);");
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_users (userID INT PRIMARY KEY, username TEXT, reason TEXT, banned_at TEXT, banned_by TEXT);");
-                ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_charquest_char_quest ON charquest(charID, quest_started);");
+                try { ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_charquest_char_quest ON charquest(charID, quest_started);"); } catch { }
                 VerifyCharacterPetsTable();
 
                 DebugSystem.Write("[GameDataBase] All GUI and Server subsystem database tables verified & auto-seeded successfully.");
@@ -187,19 +187,10 @@ namespace DataBase
                 try
                 {
                     ExecuteNonQuery("CREATE TABLE IF NOT EXISTS gm_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, username TEXT, added_at TEXT, added_by TEXT);");
-                    var info = GetDataTable("PRAGMA table_info(gm_accounts);");
-                    var colNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    if (info != null)
-                    {
-                        foreach (System.Data.DataRow row in info.Rows)
-                        {
-                            colNames.Add(row["name"].ToString());
-                        }
-                    }
-                    if (!colNames.Contains("name")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN name TEXT;");
-                    if (!colNames.Contains("username")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN username TEXT;");
-                    if (!colNames.Contains("added_at")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN added_at TEXT;");
-                    if (!colNames.Contains("added_by")) ExecuteNonQuery("ALTER TABLE gm_accounts ADD COLUMN added_by TEXT;");
+                    AddColumnIfNotExists("gm_accounts", "name", "TEXT");
+                    AddColumnIfNotExists("gm_accounts", "username", "TEXT");
+                    AddColumnIfNotExists("gm_accounts", "added_at", "TEXT");
+                    AddColumnIfNotExists("gm_accounts", "added_by", "TEXT");
 
                     ExecuteNonQuery("UPDATE gm_accounts SET name = username WHERE (name IS NULL OR name = '') AND username IS NOT NULL;");
                     ExecuteNonQuery("UPDATE gm_accounts SET username = name WHERE (username IS NULL OR username = '') AND name IS NOT NULL;");
@@ -217,16 +208,33 @@ namespace DataBase
             try
             {
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
-                string[] petCols = new string[] {
-                    "exp INT DEFAULT 0", "str INT DEFAULT 10", "con INT DEFAULT 10", "int_ INT DEFAULT 10",
-                    "wis INT DEFAULT 10", "agi INT DEFAULT 10", "potential INT DEFAULT 0", "skillPoints INT DEFAULT 0",
-                    "isHotel TINYINT DEFAULT 0", "reborn TINYINT DEFAULT 0", "job TINYINT DEFAULT 0",
-                    "eq_head INT DEFAULT 0", "eq_body INT DEFAULT 0", "eq_weapon INT DEFAULT 0",
-                    "eq_wrist INT DEFAULT 0", "eq_shoes INT DEFAULT 0", "eq_special INT DEFAULT 0"
+                
+                var existingCols = GetColumnNames("character_pets");
+                string[][] petCols = new string[][] {
+                    new string[] { "exp", "INT DEFAULT 0" },
+                    new string[] { "str", "INT DEFAULT 10" },
+                    new string[] { "con", "INT DEFAULT 10" },
+                    new string[] { "int_", "INT DEFAULT 10" },
+                    new string[] { "wis", "INT DEFAULT 10" },
+                    new string[] { "agi", "INT DEFAULT 10" },
+                    new string[] { "potential", "INT DEFAULT 0" },
+                    new string[] { "skillPoints", "INT DEFAULT 0" },
+                    new string[] { "isHotel", "TINYINT DEFAULT 0" },
+                    new string[] { "reborn", "TINYINT DEFAULT 0" },
+                    new string[] { "job", "TINYINT DEFAULT 0" },
+                    new string[] { "eq_head", "INT DEFAULT 0" },
+                    new string[] { "eq_body", "INT DEFAULT 0" },
+                    new string[] { "eq_weapon", "INT DEFAULT 0" },
+                    new string[] { "eq_wrist", "INT DEFAULT 0" },
+                    new string[] { "eq_shoes", "INT DEFAULT 0" },
+                    new string[] { "eq_special", "INT DEFAULT 0" }
                 };
                 foreach (var col in petCols)
                 {
-                    try { ExecuteNonQuery($"ALTER TABLE character_pets ADD COLUMN {col};"); } catch { }
+                    if (!existingCols.Contains(col[0]))
+                    {
+                        try { ExecuteNonQuery($"ALTER TABLE character_pets ADD COLUMN {col[0]} {col[1]};"); } catch { }
+                    }
                 }
             }
             catch (Exception ex)
@@ -395,6 +403,23 @@ namespace DataBase
                 c.Settings.Load(src.Rows[0]["Settings"].ToString());
 
             src = null;
+            #endregion
+
+            #region Guild
+            try
+            {
+                var dtExt = GetDataTable("SELECT Guild FROM charactersextdata WHERE charID = '" + c.CharID + "'");
+                ushort guildId = 0;
+                if (dtExt != null && dtExt.Rows.Count > 0 && dtExt.Rows[0]["Guild"] != DBNull.Value)
+                {
+                    ushort.TryParse(dtExt.Rows[0]["Guild"].ToString(), out guildId);
+                }
+                Game.PlayerRelated.GuildManager.HandlePlayerLogin(c, guildId);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error loading guild for {c.CharName}: {ex.Message}");
+            }
             #endregion
 
             #region Pets

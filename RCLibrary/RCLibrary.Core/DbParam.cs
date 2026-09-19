@@ -9,6 +9,6 @@ public struct DbParam
 	public DbParam(string identity, object parameter)
 	{
 		identifier = identity;
-		value = parameter.ToString();
+		value = parameter?.ToString() ?? "";
 	}
 }

@@ -46,7 +46,7 @@ namespace DataBase
                         steps_json TEXT
                     )";
                 db.ExecuteNonQuery(createQuestsTable);
-                try { db.ExecuteNonQuery("ALTER TABLE game_quests ADD COLUMN map_id INT DEFAULT 0;"); } catch { }
+                db.AddColumnIfNotExists("game_quests", "map_id", "INT DEFAULT 0");
 
                 // 2. Check if table is empty or has old dummy Mark.dat dumps; if so, populate from Data/Mark.dat
                 var dt = db.GetDataTable("SELECT COUNT(*) as cnt FROM game_quests");

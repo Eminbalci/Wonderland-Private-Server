@@ -32,6 +32,8 @@ namespace Server
         public static double DropRate { get; set; } = 1.0;
         public static double GoldRate { get; set; } = 1.0;
         public static int MaxPlayers { get; set; } = 500;
+        public static string Motd { get; set; } = "Welcome to the WLO Community Server! Enjoy!";
+        public static string ServerName { get; set; } = "Wonderland";
 
         public static Func<int> OnlinePlayerCountProvider { get; set; }
         public static event Action OnStatusChanged;
@@ -192,6 +194,41 @@ namespace Server
             }
         }
 
+        public static bool SaveMotd(string motd, string serverName = null)
+        {
+            try
+            {
+                VerifyTable();
+                lock (_lock)
+                {
+                    if (motd != null)
+                    {
+                        Motd = motd;
+                        RCLibrary.Core.DataBase.Execute(
+                            "INSERT OR REPLACE INTO server_settings (key, value) VALUES (@key, @value);",
+                            new DbParam("@key", "MOTD"),
+                            new DbParam("@value", Motd));
+                    }
+                    if (!string.IsNullOrEmpty(serverName))
+                    {
+                        ServerName = serverName;
+                        RCLibrary.Core.DataBase.Execute(
+                            "INSERT OR REPLACE INTO server_settings (key, value) VALUES (@key, @value);",
+                            new DbParam("@key", "SERVER_NAME"),
+                            new DbParam("@value", ServerName));
+                    }
+                }
+                DebugSystem.Write($"[ServerStatusManager] Server settings updated in database. MOTD: '{Motd}' | Server Name: '{ServerName}'");
+                OnStatusChanged?.Invoke();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[ServerStatusManager] Error saving MOTD to database: {ex.Message}");
+                return false;
+            }
+        }
+
         public static void SaveConfig()
         {
             try
@@ -206,6 +243,20 @@ namespace Server
                     RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('DROP_RATE', '{DropRate}');");
                     RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('GOLD_RATE', '{GoldRate}');");
                     RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO server_settings (key, value) VALUES ('MAX_PLAYERS', '{MaxPlayers}');");
+                    if (!string.IsNullOrEmpty(Motd))
+                    {
+                        RCLibrary.Core.DataBase.Execute(
+                            "INSERT OR REPLACE INTO server_settings (key, value) VALUES (@key, @value);",
+                            new DbParam("@key", "MOTD"),
+                            new DbParam("@value", Motd));
+                    }
+                    if (!string.IsNullOrEmpty(ServerName))
+                    {
+                        RCLibrary.Core.DataBase.Execute(
+                            "INSERT OR REPLACE INTO server_settings (key, value) VALUES (@key, @value);",
+                            new DbParam("@key", "SERVER_NAME"),
+                            new DbParam("@value", ServerName));
+                    }
                 }
             }
             catch (Exception ex)
@@ -249,11 +300,14 @@ namespace Server
 
                 lock (_lock)
                 {
+                    bool hasMotd = false;
+                    bool hasServerName = false;
+
                     foreach (System.Data.DataRow row in dt.Rows)
                     {
                         string key = row["key"]?.ToString()?.ToUpper();
                         string val = row["value"]?.ToString();
-                        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(val)) continue;
+                        if (string.IsNullOrEmpty(key) || val == null) continue;
 
                         if (key == "CLUSTER" && byte.TryParse(val, out byte cId)) ClusterId = cId;
                         else if (key == "SERVER_ID" && ushort.TryParse(val, out ushort sId)) ServerId = sId;
@@ -262,8 +316,27 @@ namespace Server
                         else if (key == "DROP_RATE" && double.TryParse(val, out double drop)) DropRate = drop;
                         else if (key == "GOLD_RATE" && double.TryParse(val, out double gold)) GoldRate = gold;
                         else if (key == "MAX_PLAYERS" && int.TryParse(val, out int max)) MaxPlayers = max;
+                        else if (key == "MOTD") { Motd = val; hasMotd = true; }
+                        else if (key == "SERVER_NAME") { ServerName = val; hasServerName = true; }
+                    }
+
+                    if (!hasMotd && !string.IsNullOrEmpty(Motd))
+                    {
+                        RCLibrary.Core.DataBase.Execute(
+                            "INSERT OR REPLACE INTO server_settings (key, value) VALUES (@key, @value);",
+                            new DbParam("@key", "MOTD"),
+                            new DbParam("@value", Motd));
+                    }
+                    if (!hasServerName && !string.IsNullOrEmpty(ServerName))
+                    {
+                        RCLibrary.Core.DataBase.Execute(
+                            "INSERT OR REPLACE INTO server_settings (key, value) VALUES (@key, @value);",
+                            new DbParam("@key", "SERVER_NAME"),
+                            new DbParam("@value", ServerName));
                     }
                 }
+                DebugSystem.Write($"[ServerStatusManager] Settings loaded from database. MOTD: '{Motd}' | Server Name: '{ServerName}' | EXP: {ExpRate:F1}x");
+                OnStatusChanged?.Invoke();
             }
             catch (Exception ex)
             {

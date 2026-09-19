@@ -7,7 +7,7 @@ Developing Tools: Visual Studio 2022
 Database: sqlite bypass
 
 - **100% Dynamic Portability**: Zero hardcoded absolute paths. Seamless path resolution across all workstations via `RCLibrary.Core.PathHelper`.
-- **Dual Database Engine (SQLite & MySQL / MariaDB)**: Full GUI-configurable persistence supporting both embedded SQLite (`Data/ServerDataBase.db`) and remote/local MySQL servers. Includes non-blocking connection testing, live runtime switching across all active database instances, automatic database & schema auto-creation (`VerifySetup()`), transparent dialect translation (`TranslateSqlForMySql`), and a built-in 1-click SQLite-to-MySQL data migration engine with real-time progress reporting.
+- **Dual Database Engine (SQLite & MySQL / MariaDB)**: Full GUI-configurable persistence supporting both embedded SQLite (`Data/ServerDataBase.db`) and remote/local MySQL servers. Includes non-blocking connection testing, live runtime switching across all active database instances, automatic database & schema auto-creation (`VerifySetup()`), self-healing incremental column migration (`GetColumnNames` / `AddColumnIfNotExists`) eliminating boot-time duplicate column errors, transparent dialect translation (`TranslateSqlForMySql`), and a built-in 1-click SQLite-to-MySQL data migration engine with real-time progress reporting.
 - **Tri-Server Socket Architecture**:
   - **Login Server (Port 6414)**: Authentication, account management, character selection/creation, Item Mall catalog sync (`AC 75`).
   - **World Server (Port 6415)**: Overworld replication, tile pathfinding, turn-based combat engine, quests, dialogue engine, housing.
@@ -18,7 +18,7 @@ Database: sqlite bypass
 - **Authentic Turn-Based Combat Protocol Engine**: Byte-for-byte alignment with official network captures (`session_20260911_150803`). Resolves monster stats and templates via an O(1) in-memory cache loaded from `npc_data` table (4,928 authentic entries), serializes fighter entities in `AC 11:5` & `AC 11:250` with exact byte offsets (Byte 26 = Level, Byte 27 = Element, preventing the "Lv. 0" display defect), prompts turn input via `AC 52:1` without premature `AC 50:6`, acknowledges player moves via `AC 53:5` to advance focus automatically to pet, broadcasts active-turn replay focus via `AC 50:6`, serializes continuous 19-byte `AC 50:1` action animation records, triggers in-combat knockouts via `AC 53:3` without premature entity despawns, synchronizes real-time stats via `AC 51:1`, broadcasts `AC 11:4` crossed-swords combat presence (`[0x02, CharID: UInt32, 0x00, 0x00, State: Byte]`) to map peers via strongly-typed packet serialization eliminating `System.OverflowException` on 32-bit Character IDs, calibrates combat drop engine to authentic MMO rates (capping at 1 item drop per monster kill with full inventory detection and chat alerts, plus `:clearinv` bag cleanup), and executes canonical exit despawn sequencing (`AC 11:12` -> 4-byte pet `AC 11:1` -> 6-byte player `AC 11:0` -> 5-byte player `AC 11:1`).
 - **Authentic Social & Friend Protocol Engine (`AC 14` & `AC 10`)**: Official packet-level implementation of friend tabs (`AC 14:11`, 26 bytes/friend), main roster (`AC 14:5`, 28 bytes/friend), mutual invitation/acceptance handshake (`AC 14:2` -> `AC 14:3` -> `AC 14:9`), dual live online presence notifications (`AC 14:7` and `AC 10:3 [CharID, 0xFF]`), and bilateral friend removal with UI sprite/row de-allocation (`AC 14:4 <TargetCharID>`).
 - **Authentic Asset Parsing**: In-memory decryption and caching of `Npc.dat` (4,928 NPCs via XOR `0x5209`), `Item.dat`, `Skill.dat`, `Talk.dat` (17,494 records), `Mark.dat`, `SceneData.dat`, and `Eve.emg` event scripts (1,119 maps, 10,644 event scripts, 1,412 PreEvents, 8,181 native NPCs, and 2,791 warps).
-- **Comprehensive GUI Management Suite**: Live player monitoring, map inspector, NPC/Mob editor, quest manager, Item Mall studio, chest drop editor, and firewall security center.
+- **Modernized User-Friendly GUI Administration Suite**: Ergonomic operator interface with two-tier horizontal navigation (Level 1: 5 primary categories; Level 2: dynamic sub-module pill strip preserving 100% full screen width for grids and maps), persistent executive header with live telemetry (player count, uptime, RAM, ports), quick jump search (`Ctrl+K`), one-click client launcher (`F5`), database-backed MOTD and server name persistence (`server_settings` relational synchronization across reboots and migrations with automatic boot-time loading and auto-save on blur, Enter key, or manual save), safe shutdown with synchronized countdown, diagnostic console toolbar (clear, copy, auto-scroll toggle, search, export), debounced cheat list search, and modular `ModernTheme` design system with universal Segoe UI / double-buffered DataGrid theming.
 - **Dynamic Ground Items Lifecycle (`AC 23`)**: Automatic map loading of native terrain resources from `Eve.emg` `ItemAreas` (209 items across 77 maps). Real-time authentic batched spawning (`AC 23:4`), terrain slot pickups (`AC 23:2`), gold item banner acquisition popups (`AC 23:6`), and asynchronous heartbeat respawning.
 - **Robust NPC Spatial AI & Wander Boundaries**: Authentic signed bounding-box roaming (`WalkBehavior == 3`), waypoint patrol oscillation (`WalkBehavior == 2 / 5`), and static anchors (`WalkBehavior == 1`) preventing map boundary drift or corner teleports.
 - **State-Verified Dialogue & Quest Safeguards**: Multi-event candidate evaluation prioritizing post-quest resolution over completed stages, multi-candidate event aggregation (direct clickID + linked NPC events) with strict quest/companion condition qualification without premature forced defaults, zero-op condition gate priority pass supporting dual item (`w1=1`) and companion (`w1=2`, active team, capacity, recruitment) condition decoding, Quest State Condition decoding, paired quest completion flags (`questId + 1`), persistent SQLite quest `step` tracking, and irreversible completion locks preventing quest demotion loops.
@@ -39,19 +39,23 @@ Running steps:
 4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
 5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
 
-The server technical documentation is organized into a cohesive 11-document master specification suite:
+The server technical documentation is organized into a cohesive 15-document master specification suite:
 
 1. [**01 - System Architecture and Server Topology**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_system_architecture_and_server_topology.md): Multi-server socket topology, dynamic portability engine (`PathHelper`), threading model, project graph, and graceful shutdown.
-2. [**02 - Database Schema and Persistence Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_schema_and_persistence.md): Centralized SQLite relational tables (`users`, `characters`, `character_inventory`, `character_equipment`, `character_pets`, `character_quests`), startup schema verification, and atomic transaction lifecycles.
-3. [**03 - Network Protocol and Action Codes**](file:///D:/GitHub/Wonderland-Private-Server/docs/03_network_protocol_and_action_codes.md): Binary wire framing, `0x44F4` magic header, little-endian serialization (`Tools.FromFormat`), and exhaustive Action Code reference catalog.
-4. [**04 - Data File Pipeline and Asset Parsing**](file:///D:/GitHub/Wonderland-Private-Server/docs/04_data_file_pipeline_and_asset_parsing.md): In-memory client asset decoders (`Npc.dat` XOR `0x5209` cipher, `Item.dat` 45-byte structs, `Talk.dat` 292-byte dialogues, `SceneData.dat`), `eve.Emg` bytecode engine, and `Formula.dat` coefficients.
-5. [**05 - Map Engine and Entity Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/05_map_engine_and_entity_lifecycle.md): Isometric coordinate systems, NPC roaming AI, 209-item ground harvesting loop, 14-byte `AC 22:4` scene table, concealment frame sequencing, and peer replication.
-6. [**06 - Dialogue, Quest State Machine, and Cutscene Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/06_dialogue_quest_and_cutscene_engine.md): Modal dialogue boxes, 24-bit talk IDs, choice callbacks, quest state monotonic progression, PreEvent condition evaluation, and cinematic timelines.
-7. [**07 - Gameplay Subsystems and Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/docs/07_gameplay_subsystems_and_mechanics.md): 50-slot inventory, companion recruitment and amity, vehicle systems with 7-step raft shore shipwreck sequence, tent housing, and turn-based combat math with elemental wheel.
-8. [**08 - GUI Administration Suite and GM Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_gui_administration_and_gm_engine.md): Windows Forms dashboard, 13 operational management tabs, deep character editor, and in-game GM chat command directory (`:heal`, `:level`, `:item`, `:warp`, etc.).
-9. [**09 - Developer Tooling and Reverse Engineering**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_developer_tooling_and_reverse_engineering.md): Asynchronous rotating diagnostic logs (`DebugSystem`), PCAP packet capture analysis, and Ghidra MCP reverse engineering bridge.
-10. [**10 - Deployment Operations and Codebase Integrity**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_deployment_operations_and_codebase_integrity.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), and codebase deduplication audit.
-11. [**11 - Formula.dat Specification and EXP Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/11_formula_dat_and_exp_engine.md): Complete 407-byte binary schema, IEEE-754 double precision coefficients, client `TCalculator` disassembly, normal/reborn/pet EXP formulas, combat monster EXP distribution, real-time GUI multiplier control ($0.1\times$ - $1000\times$), and SQLite persistence.
+2. [**02 - Database Schema and Persistence Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_schema_and_persistence_lifecycle.md): Centralized SQLite and MySQL relational persistence, self-healing migration (`AddColumnIfNotExists`), automated schema verification (`VerifySetup`), and 1-click migration engine.
+3. [**03 - Network Protocol and Action Codes**](file:///D:/GitHub/Wonderland-Private-Server/docs/03_network_protocol_and_action_codes.md): Binary wire framing, `0x44F4` magic header, XOR `0xAD` encryption, little-endian serialization (`Tools.FromFormat`), and exhaustive Action Code reference catalog (AC 0 to AC 226).
+4. [**04 - Binary Asset Pipeline and Decoders**](file:///D:/GitHub/Wonderland-Private-Server/docs/04_binary_asset_pipeline_and_decoders.md): In-memory client asset decoders (`Npc.dat` XOR `0x5209`, `Item.dat` 45B, `Talk.dat` 292B, `Mark.dat` 526B, `SceneData.dat`, `Eve.emg`, `Formula.dat`, `Compound2.dat`).
+5. [**05 - Map Engine, Spatial AI, and Scene Entity Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/05_map_engine_spatial_ai_and_scene_lifecycle.md): Isometric coordinate systems, NPC roaming AI, 209-item ground harvesting loop, 14-byte `AC 22:4` scene table, concealment frame sequencing, and puppet suppression.
+6. [**06 - Dialogue, Quest State Machine, and Cutscenes**](file:///D:/GitHub/Wonderland-Private-Server/docs/06_dialogue_quest_state_machine_and_cutscenes.md): Modal dialogue boxes, 24-bit talk IDs, choice callbacks, quest state monotonic progression, PreEvent condition evaluation, and cinematic timelines.
+7. [**07 - Turn-Based Combat Engine and Battlefield**](file:///D:/GitHub/Wonderland-Private-Server/docs/07_turn_based_combat_engine_and_battlefield.md): 4v4 isometric battlefield grid, byte-for-byte `AC 11:5` fighter serialization, 30s turn loop, elemental wheel, knockouts, fair-play drops, and 7-step exit handshake.
+8. [**08 - Companion Pet Lifecycle and Vehicles**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_companion_pet_lifecycle_and_vehicles.md): Companion login sync (`AC 15:1`), skill unlocks, amity decay and permanent desertion (<20), rebirth ascension, overworld follower spawning, and 7-step raft shore shipwreck protocol.
+9. [**09 - Tent Housing and Manufacturing System**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_tent_housing_and_manufacturing_system.md): Instanced personal tents keyed by `CharID`, multi-tenant instance isolation, overworld multi-tent replication (`SendOpenTents`), tent security locking, visitor permission guards, overworld coordinate preservation (`TentReturnMap`), crash/disconnect safe DB persistence, non-destructive doorway exit (`AC 65:3`), portal 1 exit, occupant evacuation on tent close, interior furniture placement (`chartent_items`), 2nd floor expansions, and authentic `Compound2.dat` tent machine manufacturing (`AC 64`).
+10. [**10 - Social Systems, Player Trade, Friends, and Chat**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_social_systems_trade_friends_and_chat.md): 50-slot bag with 31-byte records, bilateral friend roster (`AC 14:5`) and removal (`AC 14:4`), 4-phase atomic player trade, and multi-channel chat moderation.
+11. [**11 - GUI Administration Suite and GM Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/11_gui_administration_suite_and_gm_engine.md): Modernized Windows Forms dashboard with two-tier horizontal categorized navigation, 24 operational modules, executive telemetry header, database-backed MOTD persistence, and GM chat commands.
+12. [**12 - Formula.dat Specification and Experience Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/12_formula_dat_specification_and_exp_engine.md): Complete 407-byte binary schema, IEEE-754 double precision coefficients, client `TCalculator` disassembly, normal/reborn/pet EXP formulas, combat monster EXP distribution, and real-time multiplier control.
+13. [**13 - Quest Ecosystem, Census, and Flag Mapping**](file:///D:/GitHub/Wonderland-Private-Server/docs/13_quest_ecosystem_census_and_flag_mapping.md): Comprehensive census across `Mark.dat` and `Eve.emg`, explanation of community ~502 canonical journal quest count vs internal 1,027 master quests and 1,507 flag scripts, regional breakdowns, and pairing mechanics.
+14. [**14 - Developer Tooling, Reverse Engineering, and Deployment**](file:///D:/GitHub/Wonderland-Private-Server/docs/14_developer_tooling_reverse_engineering_and_deployment.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), asynchronous diagnostic logger (`DebugSystem`), PCAP analysis, Ghidra disassembly addresses, and bot testing framework.
+15. [**15 - Gap Analysis, Missing Features, and Feature Roadmap**](file:///D:/GitHub/Wonderland-Private-Server/docs/15_gap_analysis_and_feature_roadmap.md): Protocol gap analysis, unhandled Eve script opcodes (15, 16, 17), anti-exploit security checklist, and phased 5-tier implementation roadmap.
 
   > Maps : Teleports you to that ID
   >
@@ -84,6 +88,21 @@ Type commands into standard in-game chat to execute administrative operations:
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
+| `:b` / `:broadcast` / `:notice` | `:broadcast <message>` | Broadcasts server-wide announcement with HUD notification. |
+| `:kick` | `:kick <character> [reason]` | Disconnects player socket session from server. |
+| `:summon` / `:bring` | `:summon <character>` | Warps target player to GM's current coordinates. |
+| `:goto` / `:tp` | `:goto <character>` | Warps GM directly to target player's position. |
+| `:warp` | `:warp <map_id> [x] [y]` | Teleports player to destination map and coordinates. |
+| `:amity` / `:petamity` | `:amity [1-100]` | Sets active companion's loyalty/amity (default: 100). |
+| `:rebirth` / `:petrebirth` | `:rebirth` | Triggers instant companion Rebirth Ascension. |
+| `:allskills` / `:maxskills` | `:allskills [grade]` | Unlocks all element & stunt skills up to specified grade. |
+| `:god` / `:godmode` | `:god` | Boosts base stats to 999 and full restores player and pet HP/SP. |
+| `:winbattle` / `:killall` | `:winbattle` | Instantly completes active combat encounter in victory. |
+| `:mute` | `:mute <char> [mins]` | Mutes target player's public chat messages. |
+| `:unmute` | `:unmute <char>` | Restores player's public chat privileges. |
+| `:online` / `:who` | `:online` | Lists online players, levels, and current map locations. |
+| `:tent` | `:tent` | Injects authentic Tent item (ID 34001) into inventory. |
+| `:reload` | `:reload [all\|quests\|mall\|drops]` | Hot-reloads server game tables without rebooting. |
 | `:heal` / `:full` | `:heal [hp] [sp]` | Restores character HP and SP to maximum (or specified values). |
 | `:level` / `:lvl` | `:level <1-200>` | Sets character level and recalculates derived base stats. |
 | `:points` / `:sp` | `:points <amount>` | Grants unallocated attribute stat points. |
@@ -92,10 +111,33 @@ Type commands into standard in-game chat to execute administrative operations:
 | `:stats` / `:stat` | `:stat <str> <con> <int> <wis> <agi>` | Distributes character base attribute points. |
 | `:item` | `:item [add] <id> [count]` | Injects item(s) directly into character inventory. |
 | `:skill` | `:skill <id> [grade]` | Unlocks or levels up a specific skill ID. |
-| `:warp` / `:goto` | `:warp <map_id> <x> <y>` | Teleports player and followers to map coordinates. |
 | `:buy` | `:buy <query/id> [quantity]` | Buys or spawns item from Item Mall or Item.dat. |
 | `:pet` | `:pet <pet_id>` | Spawns and recruits specified companion into party. |
 | `:petexp` | `:petexp <amount>` | Awards experience points to the active companion and synchronizes level/stats. |
 | `:petlvl` / `:petlevel` | `:petlvl <1-199>` | Sets the active companion's level, recalculates stats, and persists. |
+| `:carnie` | `:carnie` | Warps character to Carnie mini-game park (Map 11094). |
 | `:unride` | `:unride` | Dismounts active vehicle or riding pet. |
-| `:help` | `:help` | Displays command list and syntax help. |
+| `:invis` / `:ghost` | `:invis` | Toggles GM Ghost Mode (invisibility; hides from map broadcasts). |
+| `:restat` / `:resetstats` | `:restat [char]` | Resets attributes to 10 and refunds all invested stat points. |
+| `:clearskills` | `:clearskills [char]` | Clears learned progression skills in memory and database. |
+| `:repair` / `:fixall` | `:repair [char]` | Restores durability (Damage = 0) on all gear and bag items. |
+| `:im` / `:mallpoints` | `:im <amount> [char]` | Grants Item Mall currency points to account balance. |
+| `:town` | `:town <name>` | Warps player to 16 canonical town locations. |
+| `:jail` / `:unjail` | `:jail <char> [mins]` | Incarcerates or releases players from Jail cell. |
+| `:summonall` | `:summonall` | Warps all online players to GM's current position (Event). |
+| `:kickall` | `:kickall [reason]` | Mass-disconnects all non-GM players for maintenance. |
+| `:battle` / `:fight` | `:battle <mob_tid>` | Spawns a test combat encounter against the specified mob ID. |
+| `:info` / `:whois` | `:info [char]` | Formats comprehensive character diagnostic summary. |
+| `:droprate` | `:droprate <rate>` | Sets global monster loot drop multiplier (0.1x to 100.0x). |
+| `:shutdown` | `:shutdown [secs]` | Initiates graceful countdown shutdown with server alert. |
+| `:help` | `:help` | Displays categorized command list and syntax help. |
+
+## Desktop GM Studio (`tabGm`)
+
+The server console includes an integrated 5-panel **GM Studio**:
+1. **GM Authorization & Access Control:** Database-backed GM permissions (`gm_accounts`) with instant promotion of online players and live counter badges.
+2. **Online Player Live Control & Extended Cheats:** Real-time player selector, Full Heal, Gold (+1M), Stat Points (+100), Level adjustment, Max Companion Amity, Companion Rebirth Ascension, Full Element Skill Tree Unlocking, Teleport to Player, Summon to GM, Socket Kick, Chat Muting, Restat Point Refund, Gear Repair, +1,000 IM Points, Clear Skills, and Character Diagnostic Summary.
+3. **Server Operations & Maintenance:** Server-wide broadcast notice dispatcher with 4 color channels, Live Global EXP Multiplier, Hot-Reload of Quests, Item Mall, Monster Drops, and GM accounts, one-click Companion Spawner for 13 iconic companions, Global Monster Drop Multiplier (0.1x - 100.0x), Mass Non-GM Kick, Graceful 10s Countdown Shutdown, and Map Ground Item Cleanup.
+4. **Spatial Teleportation & World Warps Studio:** 16 Town Presets (Welling, Kelan, Holy, Kyoto, Chang'an, Rome, Maya, Inca, Bangkok, South Pole, Ghost Isle, Carnie Park, Pirate Base, Kaohsiung, Jail), Custom Coordinate Warp, Mass Event Summon All, Jail/Unjail, Ghost Mode Invisibility Toggle, and Combat Encounter Simulator with instant kill/win button.
+5. **Live Player Inventory & Equipment Inspector:** 50-Slot Player Bag DataGridView, 6-Slot Equipped Gear DataGridView with slot names, Item Injector with ID and Count, Delete Selected Bag Item, Clear Bag, and Repair All Gear.
+

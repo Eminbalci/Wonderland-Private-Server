@@ -132,6 +132,8 @@ namespace DataBase
                 }
             }
             #endregion
+            AddColumnIfNotExists(TableName, "banned", "INTEGER DEFAULT 0");
+            AddColumnIfNotExists(TableName, "im_bonus", "INTEGER DEFAULT 0");
             #endregion
         }
 
@@ -298,11 +300,7 @@ namespace DataBase
             if (userId == 0) return false;
             try
             {
-                try
-                {
-                    ExecuteNonQuery("ALTER TABLE " + TableName + " ADD COLUMN im_bonus INTEGER DEFAULT 0");
-                }
-                catch { }
+                AddColumnIfNotExists(TableName, "im_bonus", "INTEGER DEFAULT 0");
 
                 string query = "UPDATE " + TableName + " SET im_bonus = @bonus WHERE " + DataBaseID_Ref + " = @uid";
                 ExecuteNonQuery(query, new DbParam("@bonus", bonusPoints), new DbParam("@uid", userId));

@@ -91,6 +91,16 @@ namespace Game.PlayerRelated
 
             player.ActiveVehicleID = vehicleId;
 
+            var templ = GetTemplate(vehicleId);
+            if (templ != null)
+            {
+                player.VehicleMaxFuel = templ.MaxFuel;
+                if (player.VehicleFuel == 0 && templ.MaxFuel > 0)
+                {
+                    player.VehicleFuel = templ.MaxFuel;
+                }
+            }
+
             // Send Mount Packet (AC 15:10)
             SendPacket vp = new SendPacket();
             vp.Pack8(15);
@@ -101,10 +111,9 @@ namespace Game.PlayerRelated
             player.CurMap?.Broadcast(vp);
 
             // Send Fuel Status (AC 15:14)
-            var templ = GetTemplate(vehicleId);
-            if (templ != null && templ.MaxFuel > 0)
+            if (player.VehicleMaxFuel > 0)
             {
-                SendFuelUpdate(player, templ.CurrentFuel, templ.MaxFuel);
+                SendFuelUpdate(player, player.VehicleFuel, player.VehicleMaxFuel);
             }
 
             SendSystemMsg(player, $"Boarded vehicle {(templ != null ? templ.Name : vehicleId.ToString())}!");
@@ -211,20 +220,19 @@ namespace Game.PlayerRelated
         {
             if (player == null || player.ActiveVehicleID == 0) return;
 
-            var templ = GetTemplate((ushort)player.ActiveVehicleID);
-            if (templ != null && templ.MaxFuel > 0)
+            if (player.VehicleMaxFuel > 0)
             {
-                if (templ.CurrentFuel >= amount)
+                if (player.VehicleFuel >= amount)
                 {
-                    templ.CurrentFuel -= amount;
+                    player.VehicleFuel -= amount;
                 }
                 else
                 {
-                    templ.CurrentFuel = 0;
+                    player.VehicleFuel = 0;
                     SendSystemMsg(player, "Vehicle is out of fuel!");
                 }
 
-                SendFuelUpdate(player, templ.CurrentFuel, templ.MaxFuel);
+                SendFuelUpdate(player, player.VehicleFuel, player.VehicleMaxFuel);
             }
         }
 
@@ -232,12 +240,11 @@ namespace Game.PlayerRelated
         {
             if (player == null || player.ActiveVehicleID == 0) return;
 
-            var templ = GetTemplate((ushort)player.ActiveVehicleID);
-            if (templ != null && templ.MaxFuel > 0)
+            if (player.VehicleMaxFuel > 0)
             {
-                templ.CurrentFuel = (ushort)Math.Min(templ.MaxFuel, templ.CurrentFuel + fuelAmount);
-                SendFuelUpdate(player, templ.CurrentFuel, templ.MaxFuel);
-                SendSystemMsg(player, $"Refueled vehicle! Fuel: {templ.CurrentFuel}/{templ.MaxFuel}");
+                player.VehicleFuel = (ushort)Math.Min((int)player.VehicleMaxFuel, (int)player.VehicleFuel + fuelAmount);
+                SendFuelUpdate(player, player.VehicleFuel, player.VehicleMaxFuel);
+                SendSystemMsg(player, $"Refueled vehicle! Fuel: {player.VehicleFuel}/{player.VehicleMaxFuel}");
             }
         }
 

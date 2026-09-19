@@ -55,6 +55,9 @@ namespace Wonderland_Private_Server
             RefreshInventory();
             RefreshSkills();
             RefreshLearnedSkills();
+
+            // Apply modern UI theme
+            ModernTheme.Apply(this);
         }
 
         private Player GetOnlinePlayer()

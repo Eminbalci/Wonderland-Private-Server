@@ -426,6 +426,7 @@ namespace Server
             cGlobal.gCharacterDataBase.OnCharacterJoin(src);
             src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
             src.Disconnected += (s) => Network.ActionCodes.AC14.NotifyFriendsStatus(s, false);
+            src.Disconnected += (s) => Game.PlayerRelated.GuildManager.HandlePlayerLogout(s);
 
             src.Flags.Add(PlayerFlag.Logging_into_Map);
 
@@ -628,6 +629,11 @@ namespace Server
             {
                 if (src == null) return;
                 var motdList = cGlobal.SrvSettings?.GetAllWelcomeMessages();
+                if ((motdList == null || motdList.Count == 0) && !string.IsNullOrWhiteSpace(Server.ServerStatusManager.Motd))
+                {
+                    motdList = new List<string> { Server.ServerStatusManager.Motd };
+                }
+
                 if (motdList != null && motdList.Count > 0)
                 {
                     SendPopupPrompt(src, motdList[0]);

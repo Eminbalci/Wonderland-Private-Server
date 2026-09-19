@@ -60,6 +60,7 @@ namespace Game.QuestRelated
 
         public uint BattleMonsterID { get; set; }
         public string BattleMonsterName { get; set; }
+        public int RequiredKillCount { get; set; } = 1;
 
         /// <summary>
         /// NPC ClickIDs that should spawn/show during this specific quest step.
@@ -106,6 +107,10 @@ namespace Game.QuestRelated
 
         public uint BattleMonsterID { get; set; }
         public string BattleMonsterName { get; set; }
+        public int RequiredKillCount { get; set; } = 1;
+        public bool IsRepeatable { get; set; } = false;
+        public bool IsDaily { get; set; } = false;
+        public int CooldownMinutes { get; set; } = 0;
 
         /// <summary>
         /// Quests that MUST be completed before this quest can be accepted.

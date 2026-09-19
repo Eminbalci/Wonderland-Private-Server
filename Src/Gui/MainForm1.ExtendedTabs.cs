@@ -1351,11 +1351,7 @@ namespace Wonderland_Private_Server
             {
                 cGlobal.gUserDataBase?.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_ips (ip TEXT PRIMARY KEY, reason TEXT, banned_at TEXT, banned_by TEXT);");
                 cGlobal.gUserDataBase?.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_users (userID INT PRIMARY KEY, username TEXT, reason TEXT, banned_at TEXT, banned_by TEXT);");
-                try
-                {
-                    cGlobal.gUserDataBase?.ExecuteNonQuery("ALTER TABLE users ADD COLUMN banned INTEGER DEFAULT 0;");
-                }
-                catch { }
+                cGlobal.gUserDataBase?.AddColumnIfNotExists("users", "banned", "INTEGER DEFAULT 0");
             }
             catch (Exception ex)
             {

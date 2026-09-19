@@ -249,10 +249,16 @@ public class DataBase {
             "CREATE TABLE IF NOT EXISTS ", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+        var pragmaMatch = System.Text.RegularExpressions.Regex.Match(result, @"PRAGMA\s+table_info\s*\(\s*['""]?(\w+)['""]?\s*\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (pragmaMatch.Success) {
+            string targetTable = pragmaMatch.Groups[1].Value;
+            result = $"SELECT COLUMN_NAME AS name, DATA_TYPE AS type, IS_NULLABLE AS `notnull`, COLUMN_DEFAULT AS dflt_value, CASE WHEN COLUMN_KEY = 'PRI' THEN 1 ELSE 0 END AS pk FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{targetTable}'";
+        }
+
         return result;
     }
 
-    public static DataTable Query(string sql) {
+    public static DataTable Query(string sql, params DbParam[] parameters) {
         try {
             LoadGlobalConfig();
             if (DefaultServType == DataBaseTypes.MySQl) {
@@ -261,6 +267,11 @@ public class DataBase {
                     conn.Open();
                     string transSql = TranslateSqlForMySql(sql);
                     using (var cmd = new MySqlCommand(transSql, conn)) {
+                        if (parameters != null) {
+                            for (int i = 0; i < parameters.Length; i++) {
+                                cmd.Parameters.AddWithValue(parameters[i].identifier, (object)parameters[i].value ?? DBNull.Value);
+                            }
+                        }
                         using (var reader = cmd.ExecuteReader()) {
                             DataTable dt = new DataTable();
                             dt.Load(reader);
@@ -273,6 +284,11 @@ public class DataBase {
                 using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;")) {
                     conn.Open();
                     using (var cmd = new SQLiteCommand(sql, conn)) {
+                        if (parameters != null) {
+                            for (int i = 0; i < parameters.Length; i++) {
+                                cmd.Parameters.AddWithValue(parameters[i].identifier, (object)parameters[i].value ?? DBNull.Value);
+                            }
+                        }
                         using (var reader = cmd.ExecuteReader()) {
                             DataTable dt = new DataTable();
                             dt.Load(reader);
@@ -287,7 +303,9 @@ public class DataBase {
         }
     }
 
-    public static int Execute(string sql) {
+    public static DataTable Query(string sql) => Query(sql, (DbParam[])null);
+
+    public static int Execute(string sql, params DbParam[] parameters) {
         try {
             LoadGlobalConfig();
             if (DefaultServType == DataBaseTypes.MySQl) {
@@ -296,6 +314,11 @@ public class DataBase {
                     conn.Open();
                     string transSql = TranslateSqlForMySql(sql);
                     using (var cmd = new MySqlCommand(transSql, conn)) {
+                        if (parameters != null) {
+                            for (int i = 0; i < parameters.Length; i++) {
+                                cmd.Parameters.AddWithValue(parameters[i].identifier, (object)parameters[i].value ?? DBNull.Value);
+                            }
+                        }
                         return cmd.ExecuteNonQuery();
                     }
                 }
@@ -304,6 +327,11 @@ public class DataBase {
                 using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;")) {
                     conn.Open();
                     using (var cmd = new SQLiteCommand(sql, conn)) {
+                        if (parameters != null) {
+                            for (int i = 0; i < parameters.Length; i++) {
+                                cmd.Parameters.AddWithValue(parameters[i].identifier, (object)parameters[i].value ?? DBNull.Value);
+                            }
+                        }
                         return cmd.ExecuteNonQuery();
                     }
                 }
@@ -311,6 +339,47 @@ public class DataBase {
         } catch (Exception ex) {
             DebugSystem.Write($"[DataBase.Execute] Error: {ex.Message} -> SQL: {sql}");
             return -1;
+        }
+    }
+
+    public static int Execute(string sql) => Execute(sql, (DbParam[])null);
+
+    public static HashSet<string> ParseColumnNamesFromDataTable(DataTable info) {
+        var colNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (info != null && info.Rows.Count > 0) {
+            foreach (DataRow row in info.Rows) {
+                if (row["name"] != null && row["name"] != DBNull.Value) {
+                    colNames.Add(row["name"].ToString().Trim());
+                }
+            }
+        }
+        return colNames;
+    }
+
+    public static HashSet<string> GetTableColumns(string tableName) {
+        if (string.IsNullOrWhiteSpace(tableName)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try {
+            DataTable info = Query($"PRAGMA table_info({tableName});");
+            return ParseColumnNamesFromDataTable(info);
+        } catch (Exception ex) {
+            DebugSystem.Write($"[DataBase.GetTableColumns] Error inspecting table '{tableName}': {ex.Message}");
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public static bool StaticHasColumn(string tableName, string columnName) {
+        if (string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(columnName)) return false;
+        return GetTableColumns(tableName).Contains(columnName);
+    }
+
+    public static bool StaticAddColumnIfNotExists(string tableName, string columnName, string columnDefinition) {
+        if (string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(columnName)) return false;
+        try {
+            if (StaticHasColumn(tableName, columnName)) return true;
+            int res = Execute($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};");
+            return res >= 0;
+        } catch {
+            return false;
         }
     }
 
@@ -674,8 +743,8 @@ public class DataBase {
                                 DebugSystem.Write(DebugItemType.DataBase_Heavy, "Running MYSQL DB Query: " + ((DbCommand)(object)val2).CommandText);
                                 try {
                                     result = ((DbCommand)(object)val2).ExecuteNonQuery();
-                                } catch (MySqlException myEx) when (myEx.Number == 1061 || myEx.Number == 1050) {
-                                    // Ignore duplicate key or table already exists
+                                } catch (MySqlException myEx) when (myEx.Number == 1061 || myEx.Number == 1050 || myEx.Number == 1060) {
+                                    // Ignore duplicate key (1061), table already exists (1050), or duplicate column (1060)
                                 }
                             }
                         }
@@ -683,10 +752,42 @@ public class DataBase {
                     }
             }
         } catch (Exception ex) {
+            if (ex.Message != null && ex.Message.IndexOf("duplicate column name", StringComparison.OrdinalIgnoreCase) >= 0) {
+                // SQLite ALTER TABLE duplicate column - column already exists, safe to ignore
+                return 0;
+            }
             DebugSystem.Write(DebugItemType.Error, $"[DataBase.ExecuteNonQuery] Error: {ex.Message} -> SQL: {sql}");
             return -1;
         }
         return result;
+    }
+
+    public HashSet<string> GetColumnNames(string tableName) {
+        if (string.IsNullOrWhiteSpace(tableName)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try {
+            DataTable info = GetDataTable($"PRAGMA table_info({tableName});");
+            return ParseColumnNamesFromDataTable(info);
+        } catch (Exception ex) {
+            DebugSystem.Write(DebugItemType.Error, $"[DataBase.GetColumnNames] Error inspecting table '{tableName}': {ex.Message}");
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public bool HasColumn(string tableName, string columnName) {
+        if (string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(columnName)) return false;
+        return GetColumnNames(tableName).Contains(columnName);
+    }
+
+    public bool AddColumnIfNotExists(string tableName, string columnName, string columnDefinition) {
+        if (string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(columnName)) return false;
+        try {
+            if (HasColumn(tableName, columnName)) return true;
+            int res = ExecuteNonQuery($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};");
+            return res >= 0;
+        } catch (Exception ex) {
+            DebugSystem.Write(DebugItemType.Error, $"[DataBase.AddColumnIfNotExists] Error adding column '{columnName}' to '{tableName}': {ex.Message}");
+            return false;
+        }
     }
 
     public int ExecuteNonQuery(string sql) {

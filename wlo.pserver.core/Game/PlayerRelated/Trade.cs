@@ -62,6 +62,20 @@ namespace Game.PlayerRelated
                 return;
             }
 
+            if (requester.CurMap == null || target.CurMap == null || requester.CurMap.MapID != target.CurMap.MapID)
+            {
+                SendSystemMsg(requester, "You must be on the same map as the target to trade.");
+                return;
+            }
+
+            double dx = requester.CurX - target.CurX;
+            double dy = requester.CurY - target.CurY;
+            if ((dx * dx) + (dy * dy) > (180 * 180))
+            {
+                SendSystemMsg(requester, $"{target.CharName} is too far away to trade.");
+                return;
+            }
+
             lock (_lock)
             {
                 if (_activeTrades.ContainsKey(requester.CharID) || _activeTrades.ContainsKey(target.CharID))
@@ -107,6 +121,14 @@ namespace Game.PlayerRelated
                 return;
             }
 
+            double dx = target.CurX - requester.CurX;
+            double dy = target.CurY - requester.CurY;
+            if ((dx * dx) + (dy * dy) > (180 * 180))
+            {
+                SendSystemMsg(target, $"{requester.CharName} is too far away to trade.");
+                return;
+            }
+
             var session = new TradeSession(requester, target);
             lock (_lock)
             {
@@ -148,14 +170,19 @@ namespace Game.PlayerRelated
 
             if (session != null)
             {
-                SendPacket pClose = new SendPacket();
-                pClose.Pack8(25);
-                pClose.Pack8(2);
-                pClose.Pack8(3); // Cancel code
+                Player partner = session.GetPartner(player);
 
-                session.Player1?.Send(pClose);
-                session.Player2?.Send(pClose);
-                DebugSystem.Write($"[TradeSystem] Trade cancelled between {session.Player1.CharName} and {session.Player2.CharName}.");
+                // Send Cancel / Close Packet (AC 25:2 [2 = cancel/closed])
+                SendPacket pCancel = new SendPacket();
+                pCancel.Pack8(25);
+                pCancel.Pack8(2);
+                pCancel.Pack8(2); // Cancelled
+
+                player.Send(pCancel);
+                partner?.Send(pCancel);
+
+                SendSystemMsg(player, "Trade cancelled.");
+                SendSystemMsg(partner, "Trade was cancelled by the other player.");
             }
         }
 
@@ -265,20 +292,79 @@ namespace Game.PlayerRelated
             Player p1 = session.Player1;
             Player p2 = session.Player2;
 
-            // 1. Gold Transfer
-            if (session.Player1Gold > 0 && p1.Gold >= (int)session.Player1Gold)
+            if (p1 == null || p2 == null || p1.Inv == null || p2.Inv == null) return;
+
+            // 1. Verify gold balances
+            if (session.Player1Gold > 0 && p1.Gold < (int)session.Player1Gold)
+            {
+                SendSystemMsg(p1, "Trade failed: Not enough gold.");
+                SendSystemMsg(p2, $"{p1.CharName} does not have enough gold.");
+                CancelTrade(p1);
+                return;
+            }
+            if (session.Player2Gold > 0 && p2.Gold < (int)session.Player2Gold)
+            {
+                SendSystemMsg(p2, "Trade failed: Not enough gold.");
+                SendSystemMsg(p1, $"{p2.CharName} does not have enough gold.");
+                CancelTrade(p2);
+                return;
+            }
+
+            // 2. Verify offered items still exist in inventory with requested quantities
+            foreach (var it in session.Player1Items)
+            {
+                var cur = p1.Inv[it.InventorySlot];
+                if (cur == null || cur.ItemID != it.ItemID || cur.Ammt < it.Count)
+                {
+                    SendSystemMsg(p1, "Trade failed: Offered items have changed.");
+                    SendSystemMsg(p2, $"{p1.CharName}'s offered items have changed.");
+                    CancelTrade(p1);
+                    return;
+                }
+            }
+            foreach (var it in session.Player2Items)
+            {
+                var cur = p2.Inv[it.InventorySlot];
+                if (cur == null || cur.ItemID != it.ItemID || cur.Ammt < it.Count)
+                {
+                    SendSystemMsg(p2, "Trade failed: Offered items have changed.");
+                    SendSystemMsg(p1, $"{p2.CharName}'s offered items have changed.");
+                    CancelTrade(p2);
+                    return;
+                }
+            }
+
+            // 3. Verify inventory space
+            int p1Needed = session.Player2Items.Count;
+            int p2Needed = session.Player1Items.Count;
+            if (p1.Inv.FreeSpace < p1Needed)
+            {
+                SendSystemMsg(p1, "Trade failed: Your inventory does not have enough space.");
+                SendSystemMsg(p2, $"Trade failed: {p1.CharName}'s inventory is full.");
+                CancelTrade(p1);
+                return;
+            }
+            if (p2.Inv.FreeSpace < p2Needed)
+            {
+                SendSystemMsg(p2, "Trade failed: Your inventory does not have enough space.");
+                SendSystemMsg(p1, $"Trade failed: {p2.CharName}'s inventory is full.");
+                CancelTrade(p2);
+                return;
+            }
+
+            // 4. Gold Transfer
+            if (session.Player1Gold > 0)
             {
                 p1.TakeGold((int)session.Player1Gold);
                 p2.AddGold((int)session.Player1Gold);
             }
-
-            if (session.Player2Gold > 0 && p2.Gold >= (int)session.Player2Gold)
+            if (session.Player2Gold > 0)
             {
                 p2.TakeGold((int)session.Player2Gold);
                 p1.AddGold((int)session.Player2Gold);
             }
 
-            // 2. Items Transfer
+            // 5. Items Transfer
             foreach (var it in session.Player1Items)
             {
                 p1.Inv.RemoveItem(it.InventorySlot, it.Count);
@@ -291,7 +377,11 @@ namespace Game.PlayerRelated
                 p1.Inv.AddItem(it.ItemID, it.Count);
             }
 
-            // 3. Send Trade Completed Packet (AC 25:2 [4])
+            // 6. Atomic Save
+            p1.SaveCharacterData();
+            p2.SaveCharacterData();
+
+            // 7. Send Trade Completed Packet (AC 25:2 [4])
             SendPacket pDone = new SendPacket();
             pDone.Pack8(25);
             pDone.Pack8(2);

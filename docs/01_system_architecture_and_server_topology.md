@@ -1,120 +1,156 @@
-# 01 - System Architecture and Server Topology
-
-This technical specification documents the system architecture, component topology, network service boundaries, portability engine, and lifecycle management for the **Wonderland Online Private Server** emulator.
-
----
+# System Architecture and Server Topology
 
 ## 1. Architectural Overview
 
-Wonderland Online Private Server is a modular game server emulator engineered in C# targeting the .NET Framework 4.6.2 runtime. The server reproduces the official Wonderland Online MMORPG server environment, implementing authentic binary protocols, game mechanics, event scripting bytecode execution, and spatial simulation.
-
-### Solution Project Graph
-
-```
-Wonderland Private Server.sln
-|-- Wonderland Private Server (Host Executable)
-|   |-- WinForms Administrative Dashboard
-|   |-- Network Service Dispatchers (AC 1 .. AC 186)
-|   +-- Global Node Orchestrator (cGlobal)
-|
-|-- wlo.pserver.core (Engine Library)
-|   |-- Game Entities (Player, Character, Pet, Companion, Vehicle, Tent)
-|   |-- Map Engine (GameMap, Map, Tile Pathfinding, Ground Items)
-|   |-- Database Engine (GameDataBase, CharacterDataBase, UserDataBase, SQLite)
-|   |-- Scripting & Dialogue (EveEventInterpreter, PreEventInterpreter)
-|   +-- Combat Engine (PvEBattleManager, Battle, BattleScene)
-|
-|-- wlo.pserver.maps (Spatial Library)
-|   +-- Map Geometry and Island Object Data
-|
-|-- wlo.pserver.Bot (Automated Entities)
-|   +-- GM Bot Scripts and NPC AI Routines
-|
-|-- Phoenix.Core / PhoenixData / Wlo.Core / RCLibrary (Support Infrastructure)
-    |-- Binary Wire Packet Serialization (Packet, SendPacket, RecievePacket)
-    |-- Dynamic Portability & File Path Resolver (PathHelper)
-    +-- Database Abstraction Wrappers
-```
+Wonderland Online Private Server is an event-driven, multi-threaded game server suite designed to simulate the official server topology of Wonderland Online (WLO). The system decouples network packet framing, world state management, client asset decoders, relational persistence, and administrative tooling into modular, decoupled libraries.
 
 ---
 
-## 2. Server Socket Topology
+## 2. Solution Topology & Project Graph
 
-The server implements a tri-server socket architecture, running concurrent TCP listeners mapped to distinct game lifecycle phases:
-
-| Server Service | Default Port | Protocol | Primary Responsibilities |
-| :--- | :--- | :--- | :--- |
-| **Login Server** | `6414` | TCP / Binary | Client connection handshake, account authentication, cipher verification, character slot selection, character creation (`AC 9`), Item Mall catalog delivery (`AC 75`). |
-| **World Server** | `6415` | TCP / Binary | Overworld player replication, tile movement, NPC dialogues, quest state engine, ground item lifecycles (`AC 23`), turn-based combat (`AC 11`/`50`/`51`), tent housing (`AC 12`). |
-| **Status Service** | `6416` | TCP / Binary | Server cluster heartbeat, operational state indicator (Green/Yellow/Red), experience/drop rate broadcast, online player count replication. |
-| **Embedded Web API** | `8080` (Configurable) | HTTP / REST | Web-based account registration endpoint, server diagnostic queries, operational status reports. |
-
-### Socket Lifecycle and Communication Flow
+The solution [`Wonderland Private Server.sln`](file:///D:/GitHub/Wonderland-Private-Server/Wonderland%20Private%20Server.sln) compiles into eight coordinated projects targeting .NET Framework 4.6.2 (`net462`):
 
 ```
-[Game Client]
-      |
-      |-- 1. Connects to Port 6414 (Login Server)
-      |      --> Transmits credentials (AC 63)
-      |      <-- Receives character list (AC 63:1 / AC 63:2)
-      |      --> Selects slot / creates character (AC 9 / AC 63)
-      |      <-- Receives World Server redirect credentials
-      |
-      |-- 2. Connects to Port 6415 (World Server)
-      |      --> Transmits World authentication handshake
-      |      <-- Receives player stats and attributes (AC 5:3)
-      |      <-- Receives inventory (AC 23:5) and equipment (AC 23:11)
-      |      <-- Receives map load directive (AC 23:102)
-      |      <-- Receives Scene Table entity definition (AC 22:4)
-      |      <-- Receives dynamic actor concealment frames (AC 22:10 / 22:11)
-      |      <-- Receives input unlock directive (AC 20:8, AC 5:4)
-      |
-      +-- 3. Queries Port 6416 (Status Service)
-             <-- Receives server load and player concurrency metrics
++-----------------------------------------------------------------------------------+
+|                           Wonderland Private Server                               |
+|            (WinForms GUI Administration, GM Studio, Server Lifecycle)             |
++-----------------------------------------------------------------------------------+
+       |                    |                    |                   |
+       v                    v                    v                   v
++------------------+ +------------------+ +-----------------+ +-------------------+
+| wlo.pserver.core | | wlo.pserver.maps | | PhoenixData     | | wlo.pserver.Bot   |
+| (Game Engine)    | | (Spatial Engine) | | (Binary Assets) | | (Bot Simulation)  |
++------------------+ +------------------+ +-----------------+ +-------------------+
+       |                    |                    |
+       +--------------------+--------------------+
+                            |
+                            v
+                   +------------------+
+                   |   Phoenix.Core   |
+                   +------------------+
+                            |
+                            v
+                   +------------------+
+                   |     Wlo.Core     |
+                   |  (Data Models)   |
+                   +------------------+
+                            |
+                            v
+                   +------------------+
+                   |    RCLibrary     |
+                   | (Network/DB/IO)  |
+                   +------------------+
 ```
 
----
+### 2.1 Project Catalog
 
-## 3. Dynamic Portability Engine
-
-To eliminate hardcoded drive letters, absolute directory structures, and environment-specific file locations, the solution utilizes a centralized portability engine implemented in [`RCLibrary.Core.PathHelper`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/PathHelper.cs).
-
-### Path Resolution Rules
-1. **Base Directory**: Determined at runtime via `AppDomain.CurrentDomain.BaseDirectory`.
-2. **Data Directory**: Resolved dynamically to `<BaseDirectory>/Data` or repository root relative fallback.
-3. **Database Directory**: Maps directly to `<BaseDirectory>/Data/ServerDataBase.db`.
-4. **Client Assets**: Resolved via user-configurable settings or relative project scan (`SERVER.INI`, `odd.dat`, `Npc.dat`, `Item.dat`, `Skill.dat`, `Talk.dat`, `Eve.emg`).
-5. **Zero Machine Dependencies**: Any clone of the repository compiles and runs immediately on drive `C:`, `D:`, or external volumes without modifying source code or configuration files.
+1. [`Wonderland Private Server`](file:///D:/GitHub/Wonderland-Private-Server/Wonderland%20Private%20Server.csproj): Root Windows Forms host executable. Integrates GUI administration dashboards, runtime telemetry, GM chat studio, configuration forms, and startup bootstrappers.
+2. [`wlo.pserver.core`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/wlo.pserver.core.csproj): Core game domain engine. Contains player state machines, entity replication, turn-based combat, companion AI, vehicle logic, tent manufacturing, quest state machines, and Action Code handlers (`Src/Network/ActionCodes`).
+3. [`wlo.pserver.maps`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.maps/wlo.pserver.maps.csproj): Spatial collision and map coordinate infrastructure.
+4. [`PhoenixData`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/PhoenixData.csproj): Dedicated binary file decoders for client assets (`Talk.dat`, `Item.dat`, `Skill.dat`, `Mark.dat`, `Formula.dat`, `Compound2.dat`).
+5. [`Phoenix.Core`](file:///D:/GitHub/Wonderland-Private-Server/Phoenix.Core/Phoenix.Core.csproj): Data container abstractions and binary parsing primitives.
+6. [`Wlo.Core`](file:///D:/GitHub/Wonderland-Private-Server/Wlo.Core/Wlo.Core.csproj): Shared data contracts, structs, and domain primitives.
+7. [`RCLibrary`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/RCLibrary.csproj): Low-level network framing, TCP server abstractions, XOR ciphers, database persistence providers (SQLite and MySQL), and pathing utilities.
+8. [`wlo.pserver.Bot`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.Bot/wlo.pserver.Bot.csproj): Automated client simulation framework for stress testing and bot integration.
 
 ---
 
-## 4. Threading, Synchronization, and Concurrency
+## 3. Server Socket Topology
 
-The server coordinates high-throughput network packets, database disk operations, spatial navigation, and asynchronous timers:
+The server architecture utilizes an authentic multi-port distributed network model:
 
-### Concurrency Primitives
-- **Network Dispatch Loops**: Asynchronous socket readers running on thread pool threads, isolating network socket reads from engine game tick loops.
-- **Database Thread Safety**: Synchronized access via transaction blocks and thread-safe lock wrappers protecting SQLite read/write operations against concurrency collisions.
-- **Map Broadcasters**: Spatial iteration over thread-safe collections (`ConcurrentDictionary` and locked member lists) to prevent collection modification exceptions during active player joining or departing.
-- **Heartbeat Timers**:
-  - Ground items respawn heartbeat: Evaluates item area respawn timestamps every 1,000 ms.
-  - Map entity roaming heartbeat: Evaluates NPC signed bounding-box wandering and waypoint patrols every 500 ms.
-  - Periodic auto-save loop: Flushes dirty character state to SQLite at configured intervals.
+```
++-------------------+-----------------------+---------------+-----------------------------------------------+
+| Server Service    | Implementation Class  | Default Port  | Primary Responsibility                        |
++-------------------+-----------------------+---------------+-----------------------------------------------+
+| Login Server      | LoginServer           | 6414 TCP      | Client authentication, slot sync, AC 63       |
+| World Server      | WorldServer           | 6415 TCP      | World simulation, combat, map entities, chat  |
+| Item Mall Server  | ItemMallServer        | 6416 TCP      | In-game microtransaction catalog, AC 75       |
+| Server Status     | ServerStatusManager   | 6416 TCP (Alt)| Status probe responder (0xC9 opcode)          |
+| Web API & Reg     | RegistrationServer    | 8080 HTTP     | Web registration API, catalog endpoints, CORS |
+| Embedded Web      | EmbeddedWebServer     | Dynamic HTTP  | Client web0.DAT live patcher                  |
++-------------------+-----------------------+---------------+-----------------------------------------------+
+```
+
+### 3.1 Login Server (Port 6414 TCP)
+* **Implementation:** [`Src/Server/LoginServer.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/LoginServer.cs) inheriting from [`RCLibrary.Core.Networking.TcpServer`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/RCLibrary.Core.Networking/TcpServer.cs).
+* **Connection Lifecycle:**
+  1. Binds an asynchronous TCP listener on `0.0.0.0:6414` with backlog 40.
+  2. The `ListenThread` processes incoming connections via `m_Socket.Accept()`.
+  3. Deduplicates incoming IP connections against `ClientList`.
+  4. Wraps socket in [`LoginClient`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/LoginClient.cs) and triggers `OnNewPlayer(this, Player p)`.
+  5. Coordinates character slot serialization (`AC 63:2`) and character world handoffs (`AC 63:5`).
+* **Exception Handling:** Explicitly filters expected non-fatal network exceptions: `SocketError.WouldBlock`, `SocketError.Interrupted`, `SocketError.OperationAborted`, and WinSock code 10004.
+
+### 3.2 World Server (Port 6415 TCP)
+* **Implementation:** [`Src/Server/WorldServer.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/WorldServer.cs).
+* **Multi-Threaded Execution Model:** Operates four dedicated background synchronization loops:
+  - `Mainthrd` (*World Manager Main Thread*, 2ms sleep): Dequeues authenticated players from `QueuedPlayerLogin`, validates connection vitality (`!src.isDisconnected()`), and initiates `CommenceLogin(Player src)`.
+  - `MapTickThread` (*Map & NPC Tick Thread*, 500ms sleep): Iterates over [`MapManager.Instance.ActiveMaps`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/MapManager.cs), calling `map.Process()` to advance NPC roaming behaviors (`QuestNpc.Update`) and evaluate terrain item respawns.
+  - `AutoSaveThread` (*Auto-Save Thread*, 1,000ms sleep): Periodically flushes online character dirty states, inventories, companion stats, and quest journals to the database.
+  - `Eventthrd` (*World Manager Event Thread*, 120ms sleep): Dispatches scheduled world events and timers.
+
+### 3.3 Item Mall Server (Port 6416 TCP)
+* **Implementation:** [`Src/Server/ItemMallServer.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/ItemMallServer.cs).
+* **Protocol:** Binds `TcpListener(IPAddress.Any, 6416)` with backlog 20. Accepts incoming connections via `ThreadPool.QueueUserWorkItem`. The client connects, receives the complete binary catalog stream via `BuildCatalogPayload()`, and the connection is immediately terminated cleanly using `SocketShutdown.Both` and `Close()`.
+
+### 3.4 Web Registration & Management REST API (Port 8080 HTTP)
+* **Implementation:** [`Src/Server/API/RegistrationServer.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/API/RegistrationServer.cs).
+* **Endpoints:**
+  - `POST /register`: Handles JSON and URL-encoded account creation, enforces username/password length invariants, and invokes [`UserDataBase.RegisterUser`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataBase/UserDataBase.cs).
+  - `GET /register`: Serves responsive HTML account registration interface.
+  - `GET /api/catalog`: Returns JSON item mall catalog.
+  - `GET /api/buy`: Handles web-initiated item deliveries via [`ItemMallManager.PurchaseItem`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/ItemMallManager.cs).
+  - `OPTIONS *`: Injects Cross-Origin Resource Sharing (CORS) headers (`Access-Control-Allow-Origin: *`).
 
 ---
 
-## 5. Graceful Shutdown & Diagnostic Sequence
+## 4. Low-Level Network Ping-Pong Loop
 
-To safeguard database consistency and prevent corrupted player state upon process termination, [`Src/Gui/MainForm1.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Gui/MainForm1.cs) and [`Src/Gui/ShutDown Dialog.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Gui/ShutDown%20Dialog.cs) execute a structured shutdown lifecycle:
+Client packet transmission and reception is implemented in [`RCLibrary/System.Net.Sockets/Client3.cs`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/System.Net.Sockets/Client3.cs) (`SClient` / `Client3`):
 
-1. **Shutdown Initiation**: Triggered via GUI window close or console interrupt.
-2. **Socket Interception**: Halts acceptance of new incoming TCP connections on ports 6414, 6415, and 6416.
-3. **Player State Persistence**:
-   - Iterates through all connected active players across all maps.
-   - Synchronously writes current coordinates, experience, gold, stats, inventory, equipment, pet states, and quest flags to SQLite.
-4. **Log File Reporting**:
-   - Emits canonical final log entries to disk (`bin/Debug/Logs/wlophoenixlogFile_YYYYMMDD.txt`).
-   - Displays exact path of active log file in server output.
-5. **Diagnostic Countdown**:
-   - Executes a second-by-second countdown (10 to 0) with UI progress indication.
-   - Unloads native resources and exits cleanly with return code `0`.
+```
+        [Client Socket]
+               |
+               v
+     +-------------------+
+     |     RecvProc      | <--- 3ms delay loop
+     |   m_Socket.Recv   |
+     +-------------------+
+               |
+               v
+     +-------------------+
+     | UnfinishedPacket  | <--- XOR 0xAD Decryption & 0x44F4 Frame Check
+     |      InData       |
+     +-------------------+
+               | (When Complete Packet Assembled)
+               v
+     +-------------------+
+     |  onPacketRecved   | ---> Player.ProcessSocket(packet)
+     +-------------------+
+               |
+               v
+     +-------------------+
+     |     SendProc      | <--- Drains ConcurrentQueue<OutgoingPacket>
+     |   m_Socket.Send   |
+     +-------------------+
+```
+
+* **Disconnect Recovery:** When `m_Socket.Receive` returns 0 bytes or throws a fatal socket fault, `m_Disconnected` is set to `true`, the `onConnectionLost` event fires, and `Disconnect()` purges lingering socket allocations.
+
+---
+
+## 5. Dynamic Portability Engine
+
+To ensure zero configuration requirements across developer environments, path resolution is unified through [`RCLibrary.Core.PathHelper`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/RCLibrary.Core/PathHelper.cs):
+* **Automatic Discovery:** Resolves relative working directories, execution binaries, project roots, asset directories (`./Data`), and client executable paths (`aLogin.exe`, `WLO.exe`) dynamically.
+* **Elimination of Hardcoded Paths:** All absolute paths have been eliminated from the code graph.
+
+---
+
+## 6. Graceful Shutdown & Diagnostic Countdown
+
+Server termination initiates a non-destructive state flush in [`Src/Gui/MainForm1.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Gui/MainForm1.cs):
+1. **Network Ingress Lock:** Rejects new socket connections across Login, World, and API ports.
+2. **Synchronous Persistence Flush:** Iterates all active players, executing `player.SaveCharacterData()` to commit inventories, equipment durability, companion stats, and quest progressions.
+3. **Diagnostic Shutdown Countdown:** Executes an automated 10-second countdown in the console, outputs log directory locations, and invokes clean process termination.

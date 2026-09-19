@@ -1021,9 +1021,9 @@ namespace Game.Maps
                         }
                     }
 
-                // Quest State Condition (unknownbyte1 == 5)
+                // Quest State Condition (unknownbyte1 == 5 || unknownbyte1 == 14)
                 // w1 = questId, w2 = required state (1: InProgress, 2: NotStarted, 3: Completed), w4 >> 8 = step
-                if (sub.unknownbyte1 == 5 && sub.unknownword1 > 0)
+                if ((sub.unknownbyte1 == 5 || sub.unknownbyte1 == 14) && sub.unknownword1 > 0)
                 {
                     uint qId = sub.unknownword1;
                     ushort reqState = sub.unknownword2;
@@ -2046,7 +2046,11 @@ namespace Game.Maps
                         if (op.dialog1 > 0)
                         {
                             uint exp = (uint)op.dialog1;
-                            if (player.Eqs != null) player.Eqs.CurExp = (int)exp;
+                            if (player.Eqs != null)
+                            {
+                                player.Eqs.AddExp((long)exp, true);
+                                player.SaveCharacterData();
+                            }
                             player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtained {exp} EXP!"));
                             DebugSystem.Write($"[EveEventInterpreter] Granted {exp} EXP to {player.CharName}");
                             return true;
@@ -2099,6 +2103,49 @@ namespace Game.Maps
                             }
                         }
                         break;
+
+                    // Opcode 14: Special / Repeatable Quest Flag State Update
+                    case 14:
+                        if (op.dialog1 > 0)
+                        {
+                            uint questId = op.dialog1;
+                            byte step = (byte)Math.Max(1, (int)(op.dialog3 > 0 ? op.dialog3 : 1));
+                            QuestState state = (op.dialog2 == 2 || step >= 250) ? QuestState.Completed : QuestState.InProgress;
+                            if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+
+                            if (!player.Quests.ContainsKey(questId))
+                            {
+                                player.Quests[questId] = new PlayerQuest(questId, state, step);
+                            }
+                            else
+                            {
+                                player.Quests[questId].Step = step;
+                                player.Quests[questId].State = state;
+                            }
+
+                            if (state == QuestState.Completed)
+                            {
+                                player.Quests[questId].CompletedAt = DateTime.UtcNow;
+                            }
+
+                            QuestManager.SavePlayerQuest(player, questId);
+                            QuestManager.SendQuestUpdate(player, questId, state, step);
+                            if (map != null)
+                            {
+                                QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
+                            }
+                            DebugSystem.Write($"[EveEventInterpreter] Opcode 14: Updated Quest #{questId} -> Step {step} ({state}) for {player.CharName}");
+                            return true;
+                        }
+                        break;
+
+                    // Opcode 17: Instance Dungeon / Trial Wave Signal (Maps 30000+)
+                    case 17:
+                        {
+                            player.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare / Advance
+                            DebugSystem.Write($"[EveEventInterpreter] Opcode 17: Instance Dungeon Wave Signal (d1={op.dialog1}, d2={op.dialog2}, d4={op.dialog4}) on Map #{map.MapID} for {player.CharName}");
+                            return true;
+                        }
 
                     default:
                         DebugSystem.Write($"[EveEventInterpreter] Unhandled Opcode: {op.DialogPtr}");

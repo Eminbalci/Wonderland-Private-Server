@@ -76,9 +76,15 @@ namespace Game
         // Active mount/pet/vehicle tracking for broadcasting to other players
         public uint ActiveVehicleID { get; set; } = 0;
         public byte MountedVehicleSlot { get; set; } = 0; // Inventory slot of current active vehicle
+        public ushort VehicleFuel { get; set; } = 0;
+        public ushort VehicleMaxFuel { get; set; } = 0;
         public uint ActiveMountID { get; set; } = 0; // Riding pet
         public uint ActivePetID { get; set; } = 0; // Battle pet
         public WarpData CarnieReturnMap { get; set; } = null; // Return destination when exiting Carnie (Map 11094)
+        public WarpData TentReturnMap { get; set; } = null; // Return destination when exiting Tent (Map >= 60000)
+        public DateTime? MutedUntil { get; set; } = null;
+        public bool IsMuted => MutedUntil.HasValue && MutedUntil.Value > DateTime.UtcNow;
+        public bool IsInvisible { get; set; } = false;
         public int StepsSinceLastBattle { get; set; } = 0;
         public int NextBattleSteps { get; set; } = 25;
         public DateTime LastTeleportTime { get; set; } = DateTime.MinValue;
@@ -153,6 +159,7 @@ namespace Game
             Send(s);
         }
         public List<Game.SkillRelated.PlayerSkill> PlayerSkills { get; set; } = new List<Game.SkillRelated.PlayerSkill>();
+        public bool HasSkill(ushort skillId) => PlayerSkills != null && PlayerSkills.Any(s => s.SkillID == skillId);
         public Dictionary<uint, Game.QuestRelated.PlayerQuest> Quests { get; set; } = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
         public Dictionary<byte, PlayerPetData> PlayerPets { get; set; } = new Dictionary<byte, PlayerPetData>();
         public Dictionary<byte, PlayerPetData> HotelPets { get; set; } = new Dictionary<byte, PlayerPetData>();
@@ -627,6 +634,20 @@ namespace Game
                         prevMap.DstMap = (ushort)base.CurMap.MapID;
                         prevMap.DstX_Axis = CurX;
                         prevMap.DstY_Axis = CurY;
+
+                        // When entering a tent from an overworld map, record the tent return location
+                        if (value != null && (value is Game.Code.Tent || (value as GameMap)?.Type == MapType.Tent || value.MapID >= 60000))
+                        {
+                            if (base.CurMap.MapID < 60000 && (base.CurMap as GameMap)?.Type != MapType.Tent)
+                            {
+                                TentReturnMap = new WarpData()
+                                {
+                                    DstMap = (ushort)base.CurMap.MapID,
+                                    DstX_Axis = CurX,
+                                    DstY_Axis = CurY
+                                };
+                            }
+                        }
 
                         (base.CurMap as GameMap).onItemDropped_fromMap = null;
                         (base.CurMap as GameMap).onItemPickup_fromMap = null;
@@ -1843,6 +1864,12 @@ namespace Game
 
                 // 0. Clean up active battle state if disconnected during combat
                 Game.Battle.PvEBattleManager.OnPlayerDisconnect(this);
+
+                // 0.1 Clean up deployed tent if open (evacuate occupants to overworld)
+                if (m_tent != null && !m_tent.IsClosed)
+                {
+                    m_tent.Close();
+                }
 
                 // 1. Leave party if in party
                 LeaveParty();

@@ -171,20 +171,13 @@ namespace Server.API
             string itemIdStr = request.QueryString["item"];
             string userStr = request.QueryString["user"];
 
-            if (ushort.TryParse(itemIdStr, out ushort itemId))
+            if (ushort.TryParse(itemIdStr, out ushort itemId) && !string.IsNullOrWhiteSpace(userStr))
             {
                 var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
                 Game.Player target = null;
                 if (online != null && online.Count > 0)
                 {
-                    if (!string.IsNullOrEmpty(userStr))
-                    {
-                        target = online.FirstOrDefault(p => p.CharName.Equals(userStr, StringComparison.OrdinalIgnoreCase) || (p.UserAccount != null && p.UserAccount.UserName.Equals(userStr, StringComparison.OrdinalIgnoreCase)));
-                    }
-                    if (target == null)
-                    {
-                        target = online.FirstOrDefault();
-                    }
+                    target = online.FirstOrDefault(p => p.CharName.Equals(userStr, StringComparison.OrdinalIgnoreCase) || (p.UserAccount != null && p.UserAccount.UserName.Equals(userStr, StringComparison.OrdinalIgnoreCase)));
                 }
 
                 if (target != null)
@@ -194,7 +187,7 @@ namespace Server.API
                 }
             }
 
-            return "{\"success\":false,\"error\":\"No active player found\"}";
+            return "{\"success\":false,\"error\":\"Player not found or not online\"}";
         }
 
         private string GetItemMallPage()

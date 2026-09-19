@@ -154,6 +154,7 @@ namespace Game.Code
     {
         readonly object m_Lock = new object();
         PhxItemDat _ItemManager;
+        public PhxItemDat ItemManager => _ItemManager;
         Equip[] equippedItems;
 
         byte head;

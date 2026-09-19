@@ -198,20 +198,13 @@ namespace Network
             string itemIdStr = ctx.Request.QueryString["item"];
             string userStr = ctx.Request.QueryString["user"];
 
-            if (ushort.TryParse(itemIdStr, out ushort itemId))
+            if (ushort.TryParse(itemIdStr, out ushort itemId) && !string.IsNullOrWhiteSpace(userStr))
             {
                 var online = GetOnlinePlayersHandler?.Invoke();
                 Player target = null;
                 if (online != null && online.Count > 0)
                 {
-                    if (!string.IsNullOrEmpty(userStr))
-                    {
-                        target = online.FirstOrDefault(p => p.CharName.Equals(userStr, StringComparison.OrdinalIgnoreCase) || (p.UserAccount != null && p.UserAccount.UserName.Equals(userStr, StringComparison.OrdinalIgnoreCase)));
-                    }
-                    if (target == null)
-                    {
-                        target = online.FirstOrDefault();
-                    }
+                    target = online.FirstOrDefault(p => p.CharName.Equals(userStr, StringComparison.OrdinalIgnoreCase) || (p.UserAccount != null && p.UserAccount.UserName.Equals(userStr, StringComparison.OrdinalIgnoreCase)));
                 }
 
                 if (target != null)
@@ -227,7 +220,7 @@ namespace Network
                 }
             }
 
-            byte[] fail = Encoding.UTF8.GetBytes("{\"success\":false,\"error\":\"No active player found\"}");
+            byte[] fail = Encoding.UTF8.GetBytes("{\"success\":false,\"error\":\"Player not found or not online\"}");
             ctx.Response.ContentType = "application/json; charset=utf-8";
             ctx.Response.ContentLength64 = fail.Length;
             ctx.Response.OutputStream.Write(fail, 0, fail.Length);
