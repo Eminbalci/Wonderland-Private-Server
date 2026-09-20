@@ -92,18 +92,17 @@ namespace Game.DataFiles
         void Load_ScenceData(ref int ptr2, byte[] d, uint len)
         {
             DebugSystem.Write("Stage2\r\nReading Scene Data Category Offset Entries.....");
-            //used to load Scence Data Entries
 
             foreach (MapData scen in Maps.Values)
             {
-                int count = 0;
+                if (scen == null) continue;
                 int ptr = (int)scen.dataptr;
-                //find the Map that the data belongs to
-                UInt16 id = GetWord(d, ptr); ptr += 2;///skipping        
-                if (scen == null) throw new Exception("Sence NUll found");
-                scen.unknownword = GetWord(d, ptr); ptr += 2;
+                if (ptr < 0 || ptr + 4 > d.Length) continue;
+
+                scen.unknownword = GetWord(d, ptr + 2);
                 ptr = ((int)(scen.datalen + scen.dataptr) - 44);
-                // ptr += ptr2;
+                if (ptr < 0 || ptr + 44 > d.Length) continue;
+
                 #region Offsets to Data
                 categoryoffset j = new categoryoffset();
                 j.NPC = GetDWord(d, ptr); ptr += 4;
@@ -119,33 +118,8 @@ namespace Game.DataFiles
                 j.groupext = GetDWord(d, ptr); ptr += 4;
                 scen.offsetlist = j;
                 #endregion
-
-                #region data Check
-                if (scen.datalen == 1028)
-                {
-                }
-                if (ptr2 > scen.datalen + scen.dataptr)
-                {
-                }
-                if (ptr < scen.datalen + scen.dataptr)
-                {
-                    //DebugSystem.Write("Map" + scen.mapID.ToString() + " data mistmach... counted length-"
-                    //+ count.ToString() + " lower than req" + scen.datalen);
-                    ptr2 += scen.datalen;
-                }
-                else if (count > scen.datalen)
-                {
-                    //DebugSystem.Write("Map" + scen.mapID.ToString() + " data mistmach... counted length-"
-                    //+ count.ToString() + " greater than req" + scen.datalen);
-                    ptr2 += scen.datalen;
-                }
-                ptr2 += scen.datalen;
-                if (ptr2 > 4760262)
-                    break;
-                #endregion
             }
-            DebugSystem.Write("EveData has been Read successfully");
-            DebugSystem.Write("Map Data found -" + Maps.Count.ToString());
+            DebugSystem.Write("EveData has been Read successfully for all " + Maps.Count + " maps");
         }
         void Load_FinalData()
         {

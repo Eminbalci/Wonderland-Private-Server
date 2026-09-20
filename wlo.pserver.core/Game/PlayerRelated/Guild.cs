@@ -95,6 +95,10 @@ namespace Game.PlayerRelated
                 player.CurGuild = this;
             }
 
+            // Persist to database
+            GuildManager.SaveMember(this.GuildID, player.CharID, player.CharName, rank, player.Level, (byte)player.Job, (byte)player.Element);
+            player.SaveCharacterData();
+
             // 1. Send Clean Tab & Guild Info to new member
             SendInfo(player);
 
@@ -118,6 +122,7 @@ namespace Game.PlayerRelated
                     if (removed.PlayerRef != null)
                     {
                         removed.PlayerRef.CurGuild = null;
+                        removed.PlayerRef.SaveCharacterData();
 
                         // Send clear guild UI packet to removed player
                         SendPacket clean = new SendPacket();
@@ -140,6 +145,16 @@ namespace Game.PlayerRelated
 
             if (removed != null)
             {
+                try
+                {
+                    GuildManager.VerifyTables();
+                    RCLibrary.Core.DataBase.Execute($"DELETE FROM guild_members WHERE char_id = {charId};");
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[Guild] Error removing member from database: {ex.Message}");
+                }
+
                 BroadcastMemberList();
                 DebugSystem.Write($"[Guild] Member {removed.CharName} (ID: {charId}) removed from guild '{GuildName}'.");
                 return true;
@@ -448,17 +463,27 @@ namespace Game.PlayerRelated
             }
         }
 
-        public static void HandlePlayerLogin(Player player, ushort guildId)
+        public static void HandlePlayerLogin(Player player, ushort guildId = 0)
         {
-            if (player == null || guildId == 0) return;
+            if (player == null) return;
 
             lock (_lock)
             {
-                if (_guilds.TryGetValue(guildId, out var guild))
+                if (guildId == 0)
+                {
+                    var found = _guilds.Values.FirstOrDefault(g => g.Members.ContainsKey(player.CharID));
+                    if (found != null)
+                    {
+                        guildId = found.GuildID;
+                    }
+                }
+
+                if (guildId != 0 && _guilds.TryGetValue(guildId, out var guild))
                 {
                     if (guild.Members.TryGetValue(player.CharID, out var member))
                     {
                         member.PlayerRef = player;
+                        member.CharName = player.CharName;
                         member.Level = player.Level;
                         member.Job = (byte)player.Job;
                         member.Element = (byte)player.Element;
@@ -470,6 +495,25 @@ namespace Game.PlayerRelated
 
                     player.CurGuild = guild;
                     guild.SendInfo(player);
+                    guild.BroadcastMemberList();
+                    guild.SendInsignia(player);
+                }
+            }
+        }
+
+        public static void HandlePlayerLogout(Player player)
+        {
+            if (player == null) return;
+
+            lock (_lock)
+            {
+                if (player.CurGuild != null)
+                {
+                    if (player.CurGuild.Members.TryGetValue(player.CharID, out var member))
+                    {
+                        member.PlayerRef = null;
+                    }
+                    player.CurGuild.BroadcastMemberList();
                 }
             }
         }

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Network;
 using Game;
+using Game.Maps;
 using Wonderland_Private_Server.Utilities;
 
 namespace Network.ActionCodes
@@ -37,11 +38,45 @@ namespace Network.ActionCodes
         }
         void Recv3(Player r, RecievePacket p)
         {
-            // Exit tent - warp player back to main map
-            if (r.Tent != null)
+            if (r == null) return;
+
+            // Exit tent - warp player back to saved overworld location
+            ushort dstMap = 0, dstX = 0, dstY = 0;
+            if (r.TentReturnMap != null && r.TentReturnMap.DstMap > 0 && r.TentReturnMap.DstMap < 60000)
             {
-                r.Tent.Close();
-                DebugSystem.Write(DebugItemType.Error, "[AC65] Player exiting tent");
+                dstMap = r.TentReturnMap.DstMap;
+                dstX = r.TentReturnMap.DstX_Axis;
+                dstY = r.TentReturnMap.DstY_Axis;
+            }
+            else if (r.Tent != null && r.Tent.OwnerMap != null && r.Tent.OwnerMap.MapID < 60000)
+            {
+                dstMap = (ushort)r.Tent.OwnerMap.MapID;
+                dstX = (ushort)r.Tent.X;
+                dstY = (ushort)r.Tent.Y;
+            }
+            else if (r.PrevMap != null && r.PrevMap.DstMap > 0 && r.PrevMap.DstMap < 60000)
+            {
+                dstMap = r.PrevMap.DstMap;
+                dstX = r.PrevMap.DstX_Axis;
+                dstY = r.PrevMap.DstY_Axis;
+            }
+            else
+            {
+                dstMap = 12000;
+                dstX = 892;
+                dstY = 734;
+            }
+
+            if (r.CurMap != null && (r.CurMap.Type == MapType.Tent || r.CurMap is Game.Code.Tent || r.CurMap.MapID >= 60000))
+            {
+                WarpData warp = new WarpData()
+                {
+                    DstMap = dstMap,
+                    DstX_Axis = dstX,
+                    DstY_Axis = dstY
+                };
+                r.CurMap.Teleport(TeleportType.CmD, r, 0, warp);
+                DebugSystem.Write($"[AC65.Recv3] Player {r.CharName} exited tent to Map {dstMap} ({dstX},{dstY})");
             }
         }
     }

@@ -55,6 +55,9 @@ namespace Wonderland_Private_Server
             RefreshInventory();
             RefreshSkills();
             RefreshLearnedSkills();
+
+            // Apply modern UI theme
+            ModernTheme.Apply(this);
         }
 
         private Player GetOnlinePlayer()
@@ -276,7 +279,7 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                var dt = cGlobal.gCharacterDataBase.GetDataTable($"SELECT slot, petID, petName, level, hp, maxHp, sp, maxSp, amity, isBattle, isRide FROM character_pets WHERE charID = '{_charId}' ORDER BY slot");
+                var dt = cGlobal.gCharacterDataBase.GetDataTable($"SELECT slot, petID, petName, level, exp, hp, maxHp, sp, maxSp, amity, isBattle, isRide FROM character_pets WHERE charID = '{_charId}' ORDER BY slot");
                 dgvPets.DataSource = dt;
             }
             catch (Exception ex)

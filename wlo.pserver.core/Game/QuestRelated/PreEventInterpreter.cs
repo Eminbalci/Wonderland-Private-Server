@@ -83,11 +83,16 @@ namespace Game.QuestRelated
                     }
                 }
 
-                // 5. Add Map 12000 staged actors
+                // 5. Add Map 12000 & 12001 staged actors
                 if (mapId == 12000)
                 {
                     ushort[] map12000Actors = { 10, 14, 15, 16, 17, 18, 19, 20, 28, 29, 31, 32, 33, 34, 35, 36 };
                     foreach (var c in map12000Actors) allClickIds.Add(c);
+                }
+                else if (mapId == 12001)
+                {
+                    ushort[] map12001Actors = { 1, 2, 3 };
+                    foreach (var c in map12001Actors) allClickIds.Add(c);
                 }
 
                 // 6. Add any registered quest spawn/despawn click IDs for this map
@@ -142,25 +147,33 @@ namespace Game.QuestRelated
                 {
                     foreach (var preEvent in mapData.PreEvents)
                     {
-                        if (preEvent.subentry1 == null) continue;
-                        foreach (var sub in preEvent.subentry1)
+                        if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
+
+                        var rules = GroupSubEntriesIntoRules(preEvent);
+                        foreach (var rule in rules)
                         {
-                            if (sub.unknown == null || sub.unknown.Count < 7) continue;
-                            if (EvaluateConditionBlock(player, sub.unknown.ToArray()))
+                            bool allMatch = true;
+                            foreach (var cond in rule.Conditions)
                             {
-                                if (sub.subentry2 != null)
+                                if (!EvaluateConditionBlock(player, cond))
                                 {
-                                    foreach (var act in sub.subentry2)
+                                    allMatch = false;
+                                    break;
+                                }
+                            }
+
+                            if (allMatch && rule.Actions != null && rule.Actions.Count > 0)
+                            {
+                                foreach (var act in rule.Actions)
+                                {
+                                    if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
                                     {
-                                        if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
+                                        ushort actType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
+                                        byte s1 = act.unknown[8];
+                                        byte s2 = act.unknown[9];
+                                        if (actType == 5 || (s1 != 0xFF && s2 != 0xFF && actType != 2 && actType != 3))
                                         {
-                                            ushort actType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
-                                            byte s1 = act.unknown[8];
-                                            byte s2 = act.unknown[9];
-                                            if (actType == 5 || (s1 != 0xFF && s2 != 0xFF && actType != 2 && actType != 3))
-                                            {
-                                                ExecuteActionBlock(player, mapId, act.unknown.ToArray());
-                                            }
+                                            ExecuteActionBlock(player, mapId, act.unknown.ToArray());
                                         }
                                     }
                                 }
@@ -194,12 +207,53 @@ namespace Game.QuestRelated
                 // Check if this map entity is a companion already recruited by the player
                 var eveDat = DataBase.GameDataBase.GlobalInstance?.EveDat;
                 var mapData = eveDat?.GetMapData(mapId);
-                if (mapData?.Npclist != null)
+                var npcDef = mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+
+                if (npcDef != null && npcDef.npcId > 0 && player.HasRecruitedCompanion(npcDef.Name, (ushort)npcDef.npcId))
                 {
-                    var npcDef = mapData.Npclist.FirstOrDefault(n => n.clickId == clickId);
-                    if (npcDef != null && player.HasRecruitedCompanion(npcDef.Name, (ushort)npcDef.npcId))
+                    return false;
+                }
+
+                // Map 11016 (North Island Starter Beach): S. Monkey (ClickID 1, TID 17162)
+                if (mapId == 11016 && clickId == 1)
+                {
+                    bool hasMonkey = (player.PlayerPets != null && player.PlayerPets.Values.Any(pet => pet != null && (pet.PetID == 17162 || pet.PetID == 10727))) ||
+                                     player.ActivePetID == 17162 || player.ActivePetID == 10727 ||
+                                     player.HasRecruitedCompanion("S.Monkey", 17162) ||
+                                     (player.Quests != null && player.Quests.TryGetValue(12002, out var mq) && mq.State == QuestState.Completed);
+
+                    if (hasMonkey) return false;
+                    return true;
+                }
+
+                // Map 12001 (Chief's House in Kelan Village):
+                // ClickID 1 = Kelan Leader, ClickID 2 = Static Roca beside Chief, ClickID 3 = Staged cutscene Roca at entrance door
+                if (mapId == 12001)
+                {
+                    bool hasRoca = player != null && (player.HasRecruitedCompanion("Roca", 14162) || player.HasRecruitedCompanion(14162));
+
+                    // Staged Cutscene Roca at door entrance (ClickID 3, X=359, Y=432):
+                    // Ephemeral cutscene actor dynamically spawned exclusively during Event 6 cutscene
+                    // and hidden immediately when dialogue finishes. Never visible by default on map entry.
+                    if (clickId == 3)
                     {
                         return false;
+                    }
+
+                    // Static Roca standing by Kelan Leader (ClickID 2, X=487, Y=310):
+                    // Visible by default for players who haven't recruited Roca yet.
+                    // Hidden once Roca has been recruited into the player's party.
+                    if (clickId == 2)
+                    {
+                        return !hasRoca;
+                    }
+
+                    // Kelan Village Leader (ClickID 1, X=523, Y=334):
+                    // Always visible on map entry; quest-specific hide rules are handled
+                    // by the compound rule evaluator below when conditions match.
+                    if (clickId == 1)
+                    {
+                        return true;
                     }
                 }
 
@@ -235,11 +289,12 @@ namespace Game.QuestRelated
                         return false; // Staged standing cutscene actor, triggered dynamically via Event 46
                     }
 
-                    // Village Roca (32)
+                    // Staged Cutscene Roca at village gate (ClickID 32):
+                    // Ephemeral cutscene actor dynamically spawned during Event 45/49 (Quest 13098 step 3)
+                    // and hidden immediately when dialogue finishes. Never visible by default on the map.
                     if (clickId == 32)
                     {
-                        if (hasRoca) return false;
-                        return true;
+                        return false;
                     }
 
                     // Lina's Shiba Inus:
@@ -372,23 +427,97 @@ namespace Game.QuestRelated
                     }
                 }
 
-                if (eveDat == null || mapData?.PreEvents == null || mapData.PreEvents.Count == 0) return true;
+                // Universal Duplicate Cutscene Dummy Actor Check:
+                // In official WLO Eve.emg data, scripters placed ephemeral dummy cutscene actors
+                // (with Events == null || Events.Count == 0) sharing the same template ID (npcId > 0) with a primary
+                // talking NPC (Events != null && Events.Count > 0) on the same map.
+                // These puppets were placed solely for in-cutscene animation/movement scripting
+                // and must NEVER be visible on map entry unless an active PreEvent specifically executes an ActionType 3 (Reveal) rule.
+                bool isCutsceneDummyActor = false;
+                if (npcDef != null && npcDef.npcId > 0 && (npcDef.Events == null || npcDef.Events.Count == 0))
+                {
+                    if (mapData?.Npclist != null && mapData.Npclist.Any(n => n.clickId != clickId && n.npcId == npcDef.npcId && n.Events != null && n.Events.Count > 0))
+                    {
+                        isCutsceneDummyActor = true;
+                    }
+                }
 
+                // Determine if this NPC is a "show-only" staged actor across map PreEvents.
+                // A show-only NPC has PreEvent actions that are ALL actType 3 (Reveal) with no
+                // actType 2 (Hide) actions. Such NPCs are hidden by default and only revealed
+                // when their specific quest conditions are met.
+                // NPCs with BOTH reveal and hide actions are "dynamic" NPCs that are visible by
+                // default, with selective hide/reveal driven by matching compound rules.
+                bool hasShowOnlyRuleForThisNpc = false;
+                if (mapData?.PreEvents != null)
+                {
+                    bool foundAnyActionForNpc = false;
+                    bool allActionsAreReveal = true;
+                    foreach (var preEvent in mapData.PreEvents)
+                    {
+                        if (preEvent.subentry1 == null) continue;
+                        foreach (var sub in preEvent.subentry1)
+                        {
+                            if (sub.subentry2 == null) continue;
+                            foreach (var act in sub.subentry2)
+                            {
+                                if (act.unknown != null && act.unknown.Count >= 5 && act.unknown[0] == 0x02)
+                                {
+                                    ushort targetClickId = BitConverter.ToUInt16(act.unknown.ToArray(), 1);
+                                    if (targetClickId == clickId)
+                                    {
+                                        ushort actionType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
+                                        if (actionType == 2 || actionType == 3)
+                                        {
+                                            foundAnyActionForNpc = true;
+                                            if (actionType != 3)
+                                            {
+                                                allActionsAreReveal = false;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    hasShowOnlyRuleForThisNpc = foundAnyActionForNpc && allActionsAreReveal;
+                }
+
+                // If this is an in-flight cutscene dummy puppet with no show-only PreEvent rule, conceal it immediately
+                if (isCutsceneDummyActor && !hasShowOnlyRuleForThisNpc)
+                {
+                    return false;
+                }
+
+                if (eveDat == null || mapData?.PreEvents == null || mapData.PreEvents.Count == 0)
+                {
+                    return !isCutsceneDummyActor;
+                }
+
+                // Symmetrically evaluate compound rules across all PreEvents
                 foreach (var preEvent in mapData.PreEvents)
                 {
                     if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
 
-                    foreach (var sub in preEvent.subentry1)
+                    var rules = GroupSubEntriesIntoRules(preEvent);
+                    foreach (var rule in rules)
                     {
-                        if (sub.unknown == null || sub.unknown.Count < 7) continue;
-
-                        byte[] condData = sub.unknown.ToArray();
-                        if (EvaluateConditionBlock(player, condData))
+                        bool allConditionsMatch = true;
+                        foreach (var cond in rule.Conditions)
                         {
-                            if (sub.subentry2 != null && sub.subentry2.Count > 0)
+                            if (!EvaluateConditionBlock(player, cond))
+                            {
+                                allConditionsMatch = false;
+                                break;
+                            }
+                        }
+
+                        if (allConditionsMatch)
+                        {
+                            if (rule.Actions != null && rule.Actions.Count > 0)
                             {
                                 bool targetsThisNpc = false;
-                                foreach (var act in sub.subentry2)
+                                foreach (var act in rule.Actions)
                                 {
                                     if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
                                     {
@@ -433,6 +562,14 @@ namespace Game.QuestRelated
                             }
                         }
                     }
+                }
+
+                // If this NPC is a staged cutscene dummy or a show-only actor (ALL PreEvent actions
+                // are actType 3 Reveal) and none of the reveal conditions matched: default hidden.
+                // Dynamic NPCs with both reveal and hide rules remain visible by default.
+                if (isCutsceneDummyActor || hasShowOnlyRuleForThisNpc)
+                {
+                    return false;
                 }
             }
             catch (Exception ex)
@@ -533,7 +670,16 @@ namespace Game.QuestRelated
                                    || (petId == 17162 && player.HasRecruitedCompanion("S.Monkey", 17162))
                                    || player.HasRecruitedCompanion(petId);
 
-                        if (!hasPet) return false;
+                        // Mode 1: Companion must be recruited / in active team
+                        // Mode 2: Companion must NOT be recruited / not in active team
+                        if (count == 2)
+                        {
+                            if (hasPet) return false;
+                        }
+                        else
+                        {
+                            if (!hasPet) return false;
+                        }
                     }
                 }
                 // Opcode 0x03: Quest Step Condition (at offset 7) OR Inventory Item Check
@@ -586,6 +732,11 @@ namespace Game.QuestRelated
                             if (!itemMatch) return false;
                         }
                     }
+                }
+                else
+                {
+                    // Unhandled or inactive event/time condition opcodes fail closed
+                    return false;
                 }
             }
 
@@ -740,6 +891,46 @@ namespace Game.QuestRelated
                     player.Send(p);
                 }
             }
+        }
+
+        private class PreEventRule
+        {
+            public List<byte[]> Conditions { get; } = new List<byte[]>();
+            public List<preEventSubSubEntry> Actions { get; set; } = new List<preEventSubSubEntry>();
+            public ushort ParentClickId { get; set; }
+        }
+
+        private static List<PreEventRule> GroupSubEntriesIntoRules(preEventEntries preEvent)
+        {
+            var rules = new List<PreEventRule>();
+            if (preEvent?.subentry1 == null || preEvent.subentry1.Count == 0) return rules;
+
+            PreEventRule currentRule = null;
+            foreach (var sub in preEvent.subentry1)
+            {
+                if (sub.unknown == null || sub.unknown.Count < 7) continue;
+
+                bool hasActions = sub.subentry2 != null && sub.subentry2.Count > 0;
+                if (hasActions || currentRule == null)
+                {
+                    currentRule = new PreEventRule
+                    {
+                        ParentClickId = preEvent.clickID
+                    };
+                    currentRule.Conditions.Add(sub.unknown.ToArray());
+                    if (hasActions)
+                    {
+                        currentRule.Actions = sub.subentry2;
+                    }
+                    rules.Add(currentRule);
+                }
+                else
+                {
+                    currentRule.Conditions.Add(sub.unknown.ToArray());
+                }
+            }
+
+            return rules;
         }
 
         /// <summary>

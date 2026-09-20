@@ -426,6 +426,7 @@ namespace Server
             cGlobal.gCharacterDataBase.OnCharacterJoin(src);
             src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
             src.Disconnected += (s) => Network.ActionCodes.AC14.NotifyFriendsStatus(s, false);
+            src.Disconnected += (s) => Game.PlayerRelated.GuildManager.HandlePlayerLogout(s);
 
             src.Flags.Add(PlayerFlag.Logging_into_Map);
 
@@ -472,6 +473,28 @@ namespace Server
 
             // 3. Send all learned skills and skill tree status
             Game.SkillRelated.SkillManager.SendAllSkills(src);
+
+            // 4. Synchronize player's companions and active battle companion state on login
+            if (src.PlayerPets != null && src.PlayerPets.Count > 0)
+            {
+                foreach (var pet in src.PlayerPets.Values)
+                {
+                    if (pet != null && pet.PetID > 0)
+                    {
+                        SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job);
+                        src.Send(petPkt);
+                        Game.QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
+                    }
+                }
+
+                if (src.ActivePetID > 0)
+                {
+                    uint broadcastPetId = Player.GetCompanionBroadcastId(src.ActivePetID);
+                    src.ActivePetID = broadcastPetId;
+                    src.Send(Tools.FromFormat("bbd", 19, 4, broadcastPetId));
+                    src.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
+                }
+            }
 
             //---------Map Teleport---------------------------------------------------
             GameMap target = MapManager.Instance.GetMap(src.LoginMap);
@@ -606,6 +629,11 @@ namespace Server
             {
                 if (src == null) return;
                 var motdList = cGlobal.SrvSettings?.GetAllWelcomeMessages();
+                if ((motdList == null || motdList.Count == 0) && !string.IsNullOrWhiteSpace(Server.ServerStatusManager.Motd))
+                {
+                    motdList = new List<string> { Server.ServerStatusManager.Motd };
+                }
+
                 if (motdList != null && motdList.Count > 0)
                 {
                     SendPopupPrompt(src, motdList[0]);

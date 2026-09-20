@@ -76,9 +76,15 @@ namespace Game
         // Active mount/pet/vehicle tracking for broadcasting to other players
         public uint ActiveVehicleID { get; set; } = 0;
         public byte MountedVehicleSlot { get; set; } = 0; // Inventory slot of current active vehicle
+        public ushort VehicleFuel { get; set; } = 0;
+        public ushort VehicleMaxFuel { get; set; } = 0;
         public uint ActiveMountID { get; set; } = 0; // Riding pet
         public uint ActivePetID { get; set; } = 0; // Battle pet
         public WarpData CarnieReturnMap { get; set; } = null; // Return destination when exiting Carnie (Map 11094)
+        public WarpData TentReturnMap { get; set; } = null; // Return destination when exiting Tent (Map >= 60000)
+        public DateTime? MutedUntil { get; set; } = null;
+        public bool IsMuted => MutedUntil.HasValue && MutedUntil.Value > DateTime.UtcNow;
+        public bool IsInvisible { get; set; } = false;
         public int StepsSinceLastBattle { get; set; } = 0;
         public int NextBattleSteps { get; set; } = 25;
         public DateTime LastTeleportTime { get; set; } = DateTime.MinValue;
@@ -153,6 +159,7 @@ namespace Game
             Send(s);
         }
         public List<Game.SkillRelated.PlayerSkill> PlayerSkills { get; set; } = new List<Game.SkillRelated.PlayerSkill>();
+        public bool HasSkill(ushort skillId) => PlayerSkills != null && PlayerSkills.Any(s => s.SkillID == skillId);
         public Dictionary<uint, Game.QuestRelated.PlayerQuest> Quests { get; set; } = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
         public Dictionary<byte, PlayerPetData> PlayerPets { get; set; } = new Dictionary<byte, PlayerPetData>();
         public Dictionary<byte, PlayerPetData> HotelPets { get; set; } = new Dictionary<byte, PlayerPetData>();
@@ -301,15 +308,16 @@ namespace Game
                     if (Quests.TryGetValue(15283, out var q15283) && (q15283.State == Game.QuestRelated.QuestState.InProgress || q15283.State == Game.QuestRelated.QuestState.Completed)) return true;
                     if (Quests.TryGetValue(12040, out var q12040) && (q12040.State == Game.QuestRelated.QuestState.InProgress || q12040.State == Game.QuestRelated.QuestState.Completed)) return true;
                 }
-                // Roca (14161 / 14162 / 14001): Quest 13052 or Quest 13098
-                if (templateId == 14161 || templateId == 14162 || templateId == 14001 || cleanNpcName.IndexOf("Roca", StringComparison.OrdinalIgnoreCase) >= 0)
+                // Roca (14161 / 14162): Quest 13052 or Quest 13098
+                if (templateId == 14161 || templateId == 14162 || cleanNpcName.IndexOf("Roca", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     if (Quests.TryGetValue(13052, out var q13052) && q13052.State == Game.QuestRelated.QuestState.Completed) return true;
                     if (Quests.TryGetValue(13098, out var q13098) && (q13098.State == Game.QuestRelated.QuestState.InProgress || q13098.State == Game.QuestRelated.QuestState.Completed)) return true;
                 }
-                // S. Monkey (17162 / 10727): Quest 12018
+                // S. Monkey (17162 / 10727): Quest 12002 (Recruitment) or Quest 12018
                 if (templateId == 17162 || templateId == 10727 || cleanNpcName.IndexOf("Monkey", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    if (Quests.TryGetValue(12002, out var q12002) && (q12002.State == Game.QuestRelated.QuestState.InProgress || q12002.State == Game.QuestRelated.QuestState.Completed)) return true;
                     if (Quests.TryGetValue(12018, out var q12018) && (q12018.State == Game.QuestRelated.QuestState.InProgress || q12018.State == Game.QuestRelated.QuestState.Completed)) return true;
                 }
             }
@@ -320,6 +328,11 @@ namespace Game
         public bool HasRecruitedCompanion(ushort templateId) => HasRecruitedCompanion("", templateId);
 
         public Action<Player> OnDisconnect { get; set; }
+
+        public Player() : base()
+        {
+            QueueData = new Queue<SendPacket>(25);
+        }
 
         public Player(SocketClient src, global::DataFiles.PhxItemDat itemdat)
             : base(src.SendPacket, itemdat)
@@ -621,6 +634,20 @@ namespace Game
                         prevMap.DstMap = (ushort)base.CurMap.MapID;
                         prevMap.DstX_Axis = CurX;
                         prevMap.DstY_Axis = CurY;
+
+                        // When entering a tent from an overworld map, record the tent return location
+                        if (value != null && (value is Game.Code.Tent || (value as GameMap)?.Type == MapType.Tent || value.MapID >= 60000))
+                        {
+                            if (base.CurMap.MapID < 60000 && (base.CurMap as GameMap)?.Type != MapType.Tent)
+                            {
+                                TentReturnMap = new WarpData()
+                                {
+                                    DstMap = (ushort)base.CurMap.MapID,
+                                    DstX_Axis = CurX,
+                                    DstY_Axis = CurY
+                                };
+                            }
+                        }
 
                         (base.CurMap as GameMap).onItemDropped_fromMap = null;
                         (base.CurMap as GameMap).onItemPickup_fromMap = null;
@@ -1119,14 +1146,17 @@ namespace Game
         {
             if (petId == 0) petId = ActivePetID;
             if (petId == 0) return null;
+
+            var pet = PlayerPets?.Values?.FirstOrDefault(x => Player.IsSamePetOrCompanion(x.PetID, petId));
             if (string.IsNullOrEmpty(petName))
             {
-                var pet = PlayerPets?.Values?.FirstOrDefault(x => x.PetID == petId);
                 petName = pet?.PetName;
                 if (string.IsNullOrWhiteSpace(petName)) petName = QuestRelated.QuestManager.GetNpcName(petId);
                 if (string.IsNullOrWhiteSpace(petName)) petName = $"Pet #{petId}";
             }
 
+            // Authentic AC 15:4 layout:
+            // [15, 4, CharID:4B, PetID:4B, 0:1B, 1:1B, PetName:String, 0,0,0,0,0, Weapon:2B, 0,0] (total 8 trailing bytes)
             SendPacket pkt = new SendPacket();
             pkt.Pack8(15);
             pkt.Pack8(4);
@@ -1135,7 +1165,12 @@ namespace Game
             pkt.Pack8(0);
             pkt.Pack8(1);
             pkt.PackString(petName);
-            pkt.Pack16(0);
+
+            ushort weaponId = pet != null ? pet.Eq_Weapon : (ushort)0;
+            pkt.Pack32(0);
+            pkt.Pack8(0);
+            pkt.Pack16(weaponId);
+            pkt.Pack8(0);
             return pkt;
         }
 
@@ -1150,41 +1185,6 @@ namespace Game
                 Send(mapPkt);
                 CurMap?.Broadcast(mapPkt, "Ex", this.CharID);
             }
-
-            var pet = PlayerPets?.Values?.FirstOrDefault(x => x.PetID == petId);
-            SendPacket petPkt;
-            if (pet != null)
-            {
-                petPkt = QuestRelated.QuestManager.CreatePetPacket(this, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level);
-            }
-            else
-            {
-                petPkt = QuestRelated.QuestManager.CreatePetPacket(this, petId, 1);
-            }
-            Send(petPkt);
-            CurMap?.Broadcast(petPkt, "Ex", this.CharID);
-
-            SendPacket followPkt = new SendPacket();
-            followPkt.Pack8(19);
-            followPkt.Pack8(4);
-            followPkt.Pack32(this.CharID);
-            followPkt.Pack32(petId);
-            Send(followPkt);
-            CurMap?.Broadcast(followPkt, "Ex", this.CharID);
-
-            SendPacket petFollow = new SendPacket();
-            petFollow.PackArray(new byte[] { 13, 5 });
-            petFollow.Pack32(this.CharID);
-            petFollow.Pack32(petId);
-            Send(petFollow);
-            CurMap?.Broadcast(petFollow, "Ex", this.CharID);
-
-            SendPacket petRefresh = new SendPacket();
-            petRefresh.PackArray(new byte[] { 5, 8 });
-            petRefresh.Pack32(this.CharID);
-            petRefresh.Pack8(0);
-            Send(petRefresh);
-            CurMap?.Broadcast(petRefresh, "Ex", this.CharID);
         }
 
         public bool AddPetToPartyList(string petID)
@@ -1242,6 +1242,13 @@ namespace Game
 
             // Full broadcast of AC 15:4, AC 15:1, AC 19:4, AC 13:5, and AC 5:8
             BroadcastPetAppearance(pid);
+
+            // Synchronize active companion pet skills to client
+            var activePet = PlayerPets?.Values.FirstOrDefault(p => p.PetID == pid);
+            if (activePet != null)
+            {
+                QuestRelated.QuestManager.SendPetSkills(this, activePet.PetID, activePet.Slot);
+            }
         }
 
         public void PutPetToRide(string petID)
@@ -1714,6 +1721,102 @@ namespace Game
             recipient.Send(p);
         }
 
+        /// <summary>
+        /// Dispatches an authentic AC 8:2 Pet Stat sync packet to this player.
+        /// Wire format: [8, 2, TargetType=4, Slot (UInt16), StatID (UInt16), Val1 (UInt32), Val2 (UInt32)]
+        /// </summary>
+        public void SendPetStat(byte slot, ushort statId, uint val1, uint val2 = 0)
+        {
+            SendPacket p = new SendPacket();
+            p.Pack8(8);
+            p.Pack8(2);
+            p.Pack8(4); // TargetType: Pet
+            p.Pack16((ushort)slot);
+            p.Pack16(statId);
+            p.Pack32(val1);
+            p.Pack32(val2);
+            Send(p);
+        }
+
+        public static void SendPetStat(Player recipient, byte slot, ushort statId, uint val1, uint val2 = 0)
+        {
+            if (recipient == null) return;
+            recipient.SendPetStat(slot, statId, val1, val2);
+        }
+
+        /// <summary>
+        /// Computes the authentic required EXP for a pet to reach level + 1 based on Formula.dat:
+        /// PetExpRequired(L) = Round((L + 1)^3.1)
+        /// </summary>
+        public static uint CalcPetMaxExp(int level)
+        {
+            return (uint)Math.Max(1, Math.Round(Math.Pow(level + 1, 3.1)));
+        }
+
+        /// <summary>
+        /// Awards experience points to the specified companion pet, applying the server EXP multiplier,
+        /// resolving level-ups with authentic Formula.dat thresholds, and synchronizing AC 8:2 stat packets.
+        /// </summary>
+        public bool AddPetExp(PlayerPetData pet, uint expAmount, bool applyServerRate = true)
+        {
+            if (pet == null || expAmount <= 0) return false;
+
+            double multiplier = (applyServerRate && Server.ServerStatusManager.ExpRate > 0)
+                ? Server.ServerStatusManager.ExpRate
+                : 1.0;
+
+            uint finalExp = (uint)Math.Max(1, Math.Round(expAmount * multiplier));
+            pet.Exp += finalExp;
+
+            uint reqExp = CalcPetMaxExp(pet.Level);
+            bool petLeveledUp = false;
+
+            while (pet.Exp >= reqExp && pet.Level < 199)
+            {
+                pet.Exp -= reqExp;
+                pet.Level++;
+                pet.MaxHP += 30;
+                pet.HP = pet.MaxHP;
+                pet.MaxSP += 15;
+                pet.SP = pet.MaxSP;
+                pet.SkillPoints += 3;
+                petLeveledUp = true;
+                reqExp = CalcPetMaxExp(pet.Level);
+            }
+
+            // Synchronize Pet Combat Exp Gain (Stat 0x0124) and Pet Current Exp (Stat 0x011E)
+            SendPetStat(pet.Slot, 0x0124, finalExp);
+            SendPetStat(pet.Slot, 0x011E, pet.Exp);
+
+            if (petLeveledUp)
+            {
+                SendPetStat(pet.Slot, 0x011D, (uint)pet.Level);
+                SendPetStat(pet.Slot, 0x0119, (uint)pet.HP);
+                SendPetStat(pet.Slot, 0x011A, (uint)pet.SP);
+                Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{pet.PetName} gained {finalExp} EXP and leveled up to Lv.{pet.Level}!"));
+            }
+            else
+            {
+                SendPetStat(pet.Slot, 0x0119, (uint)pet.HP);
+                SendPetStat(pet.Slot, 0x011A, (uint)pet.SP);
+                Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{pet.PetName} gained {finalExp} EXP!"));
+            }
+
+            return petLeveledUp;
+        }
+
+        /// <summary>
+        /// Convenience overload to award EXP to a pet by roster slot index (1..4).
+        /// </summary>
+        public bool AddPetExp(byte slot, uint expAmount, bool applyServerRate = true)
+        {
+            if (PlayerPets != null && PlayerPets.TryGetValue(slot, out var pet))
+            {
+                return AddPetExp(pet, expAmount, applyServerRate);
+            }
+            return false;
+        }
+
         public static void SendTeammateStats(Player recipient, Player teammate)
         {
             if (recipient == null || teammate == null || teammate.Eqs == null) return;
@@ -1761,6 +1864,12 @@ namespace Game
 
                 // 0. Clean up active battle state if disconnected during combat
                 Game.Battle.PvEBattleManager.OnPlayerDisconnect(this);
+
+                // 0.1 Clean up deployed tent if open (evacuate occupants to overworld)
+                if (m_tent != null && !m_tent.IsClosed)
+                {
+                    m_tent.Close();
+                }
 
                 // 1. Leave party if in party
                 LeaveParty();

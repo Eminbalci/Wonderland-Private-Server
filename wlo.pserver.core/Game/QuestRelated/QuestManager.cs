@@ -812,7 +812,21 @@ namespace Game.QuestRelated
                     }
                     else if (quest.Type == QuestType.MonsterBattle)
                     {
-                        dialogue = quest.InProgressDialogue;
+                        int reqKills = quest.RequiredKillCount > 0 ? quest.RequiredKillCount : 1;
+                        if (pq.CurrentKillCount >= reqKills)
+                        {
+                            GrantRewards(player, quest);
+                            pq.State = QuestState.Completed;
+                            pq.CompletedAt = DateTime.UtcNow;
+                            SavePlayerQuest(player, quest.QuestID);
+                            SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                            SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
+                            dialogue = quest.CompleteDialogue;
+                        }
+                        else
+                        {
+                            dialogue = quest.InProgressDialogue + $" ({pq.CurrentKillCount}/{reqKills})";
+                        }
                     }
                     else
                     {
@@ -827,6 +841,32 @@ namespace Game.QuestRelated
                     return true;
 
                 case QuestState.Completed:
+                    if (quest.IsRepeatable || quest.IsDaily)
+                    {
+                        bool canRepeat = false;
+                        if (quest.IsDaily && pq.CompletedAt.HasValue && pq.CompletedAt.Value.Date < DateTime.UtcNow.Date)
+                        {
+                            canRepeat = true;
+                        }
+                        else if (quest.IsRepeatable && (!pq.CompletedAt.HasValue || quest.CooldownMinutes == 0 || DateTime.UtcNow >= pq.CompletedAt.Value.AddMinutes(quest.CooldownMinutes)))
+                        {
+                            canRepeat = true;
+                        }
+
+                        if (canRepeat)
+                        {
+                            pq.State = QuestState.InProgress;
+                            pq.Step = 1;
+                            pq.CurrentKillCount = 0;
+                            pq.StartedAt = DateTime.UtcNow;
+                            pq.CompletedAt = null;
+                            SavePlayerQuest(player, quest.QuestID);
+                            SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, 1);
+                            SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
+                            dialogue = quest.IntroDialogue;
+                            return true;
+                        }
+                    }
                     dialogue = quest.AlreadyCompletedDialogue ?? quest.CompleteDialogue;
                     return true;
 
@@ -843,6 +883,32 @@ namespace Game.QuestRelated
 
             if (pq.State == QuestState.Completed)
             {
+                if (quest.IsRepeatable || quest.IsDaily)
+                {
+                    bool canRepeat = false;
+                    if (quest.IsDaily && pq.CompletedAt.HasValue && pq.CompletedAt.Value.Date < DateTime.UtcNow.Date)
+                    {
+                        canRepeat = true;
+                    }
+                    else if (quest.IsRepeatable && (!pq.CompletedAt.HasValue || quest.CooldownMinutes == 0 || DateTime.UtcNow >= pq.CompletedAt.Value.AddMinutes(quest.CooldownMinutes)))
+                    {
+                        canRepeat = true;
+                    }
+
+                    if (canRepeat)
+                    {
+                        pq.State = QuestState.InProgress;
+                        pq.Step = 1;
+                        pq.CurrentKillCount = 0;
+                        pq.StartedAt = DateTime.UtcNow;
+                        pq.CompletedAt = null;
+                        SavePlayerQuest(player, quest.QuestID);
+                        SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, 1);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
+                        dialogue = step.PromptDialogue ?? quest.IntroDialogue;
+                        return true;
+                    }
+                }
                 dialogue = quest.AlreadyCompletedDialogue ?? "Thank you again for your assistance!";
                 return true;
             }
@@ -884,6 +950,7 @@ namespace Game.QuestRelated
                     else
                     {
                         pq.Step++;
+                        pq.CurrentKillCount = 0;
                         SavePlayerQuest(player, quest.QuestID);
                         SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, (byte)pq.Step);
                         SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
@@ -895,7 +962,43 @@ namespace Game.QuestRelated
                     dialogue = step.InProgressDialogue;
                 }
             }
-            else // Dialogue / Delivery / Battle Step
+            else if (step.StepType == QuestType.MonsterBattle)
+            {
+                int reqKills = step.RequiredKillCount > 0 ? step.RequiredKillCount : 1;
+                if (pq.CurrentKillCount >= reqKills)
+                {
+                    if (step.GrantItemsOnStep != null)
+                    {
+                        foreach (var it in step.GrantItemsOnStep)
+                            player.Inv.AddItem(it.Item1, (byte)it.Item2);
+                    }
+
+                    if (pq.Step >= quest.Steps.Count)
+                    {
+                        GrantRewards(player, quest);
+                        pq.State = QuestState.Completed;
+                        pq.CompletedAt = DateTime.UtcNow;
+                        SavePlayerQuest(player, quest.QuestID);
+                        SendQuestUpdate(player, quest.QuestID, QuestState.Completed);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
+                        dialogue = step.CompleteDialogue ?? quest.CompleteDialogue;
+                    }
+                    else
+                    {
+                        pq.Step++;
+                        pq.CurrentKillCount = 0;
+                        SavePlayerQuest(player, quest.QuestID);
+                        SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, (byte)pq.Step);
+                        SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
+                        dialogue = step.CompleteDialogue;
+                    }
+                }
+                else
+                {
+                    dialogue = step.InProgressDialogue + $" ({pq.CurrentKillCount}/{reqKills})";
+                }
+            }
+            else // Dialogue / Delivery Step
             {
                 // Grant step items if any (e.g. Bick handing Black Medicine)
                 if (step.GrantItemsOnStep != null)
@@ -978,7 +1081,7 @@ namespace Game.QuestRelated
             // 2. EXP
             if (quest.Reward.Exp > 0)
             {
-                player.Eqs.CurExp = (int)quest.Reward.Exp;
+                player.Eqs.AddExp((long)quest.Reward.Exp, true);
             }
 
             // 3. Items
@@ -1159,29 +1262,103 @@ namespace Game.QuestRelated
                     skills.Add(25221); // Fury Strike (Water)
                     skills.Add(12046); // Freeze Strike (Water)
                     break;
-                case 17162: // Monkey
+                case 17162:
+                case 10727: // Monkey
                     skills.Add(12026); // Throw Banana Skin (12 SP)
                     skills.Add(12027); // Monkey Trick
                     break;
-                case 12003: // Niss (Water)
-                    skills.Add(11001); // Icicle Attack
+                case 12004:
+                case 14001:
+                case 14161:
+                case 14162: // Roca (Earth)
+                    skills.Add(11041); // Heart Chop
+                    skills.Add(12041); // Earthquake Chop
                     break;
-                case 12002: // Clive (Earth)
+                case 12003:
+                case 14002:
+                case 14081: // Niss (Water)
+                    skills.Add(11001); // Icicle Attack
+                    skills.Add(12046); // Freeze Strike
+                    break;
+                case 12002:
+                case 14003:
+                case 14163: // Clive (Earth)
                     skills.Add(15001); // Exact Combo Hit
                     skills.Add(15002); // Instant Attack
                     break;
-                case 12001: // Xaolan (Fire)
-                    skills.Add(11100); // Fire Light
+                case 12011:
+                case 14004:
+                case 14164: // Fred (Fire)
+                    skills.Add(11116); // Fire Wave
+                    skills.Add(12053); // Volcano Burst
                     break;
-                case 12005: // Sam (Wind)
+                case 12016:
+                case 14005:
+                case 14165: // Elin (Earth)
+                    skills.Add(11060); // Plasma Gun
+                    skills.Add(12070); // Magnetic Storm
+                    break;
+                case 12005:
+                case 14006:
+                case 14166: // Sam (Wind)
                     skills.Add(12025); // Newbie's Stunt
                     skills.Add(11057); // Shield Defence
                     break;
-                case 12015: // Shizune (Fire)
+                case 12015:
+                case 14007:
+                case 14167: // Shizune (Fire)
                     skills.Add(25436); // Random Sword Slash
                     skills.Add(25437); // Fire Dragon Chopper
                     break;
+                case 12012:
+                case 14008:
+                case 14168: // Suzan (Wind)
+                    skills.Add(11075); // Wind Dance
+                    skills.Add(12061); // Flash Sword
+                    break;
+                case 12001: // Xaolan (Fire)
+                    skills.Add(11100); // Fire Light
+                    skills.Add(12052); // Phoenix Rising
+                    break;
+                case 12014: // Victoria (Water)
+                    skills.Add(11025); // Aqua Slash
+                    skills.Add(12048); // Ice Spear
+                    break;
+                case 12006: // Maggie (Fire)
+                    skills.Add(11105); // Flame Arrow
+                    skills.Add(12051); // Blazing Storm
+                    break;
+                case 12017: // Kanako (Wind)
+                    skills.Add(11076); // Gale Strike
+                    skills.Add(12062); // Tornado Blast
+                    break;
+                case 12013: // Charlotte (Wind)
+                    skills.Add(11072); // Swift Blade
+                    skills.Add(12058); // Fairy Dance
+                    break;
             }
+
+            // Fallback & supplement: Query Npc.dat for native SkillID1, SkillID2, SkillID3
+            try
+            {
+                var npcDat = DataBase.GameDataBase.GlobalInstance?.NpcDat;
+                if (npcDat != null)
+                {
+                    var npc = npcDat.GetNpcbyID((ushort)petId);
+                    if (npc == null && petId != Player.GetCompanionBroadcastId(petId))
+                    {
+                        npc = npcDat.GetNpcbyID((ushort)Player.GetCompanionBroadcastId(petId));
+                    }
+                    if (npc != null)
+                    {
+                        if (npc.SkillID1 > 0 && !skills.Contains(npc.SkillID1)) skills.Add(npc.SkillID1);
+                        if (npc.SkillID2 > 0 && !skills.Contains(npc.SkillID2)) skills.Add(npc.SkillID2);
+                        if (npc.SkillID3 > 0 && !skills.Contains(npc.SkillID3)) skills.Add(npc.SkillID3);
+                    }
+                }
+            }
+            catch { }
+
             return skills;
         }
 
@@ -1191,27 +1368,25 @@ namespace Game.QuestRelated
             var skills = GetDefaultPetSkills(petId);
             foreach (var skId in skills)
             {
-                // 1. Authentic AC 8:2 Stat 110 (Pet Skill Learned Notification)
-                SendPacket learnPkt = new SendPacket();
-                learnPkt.Pack8(8);
-                learnPkt.Pack8(2);
-                learnPkt.Pack8(slot);
-                learnPkt.Pack16(1);
-                learnPkt.Pack16(110);
-                learnPkt.Pack32(1);
-                learnPkt.Pack32((uint)skId);
-                player.Send(learnPkt);
+                // Authentic AC 8:2 Stat 367 (0x016F) Pet Skill Unlock
+                // Frame #1984: [8, 2, TargetType=4, Slot (UInt16), StatID=0x016F (UInt16), Val1=Grade/Exp (UInt32), Val2=SkillID (UInt32)]
+                player.SendPetStat(slot, 0x016F, 1, (uint)skId);
+            }
+        }
 
-                // 2. Authentic AC 8:2 Stat 367 (Pet Skill Book / Tree Unlock)
-                SendPacket ac8_2 = new SendPacket();
-                ac8_2.Pack8(8);
-                ac8_2.Pack8(2);
-                ac8_2.Pack8(slot);
-                ac8_2.Pack16(1);
-                ac8_2.Pack16(0x016F);
-                ac8_2.Pack32(1);
-                ac8_2.Pack32((uint)skId);
-                player.Send(ac8_2);
+        /// <summary>
+        /// Maps internal C# QuestState enum values to authentic client packet tab states:
+        /// 1 = In Progress, 2 = Not Started / Available, 3 = Completed, 4 = Failed.
+        /// </summary>
+        public static byte ToClientState(QuestState state)
+        {
+            switch (state)
+            {
+                case QuestState.InProgress: return 1;
+                case QuestState.NotStarted: return 2;
+                case QuestState.Completed: return 3;
+                case QuestState.Failed: return 4;
+                default: return 1;
             }
         }
 
@@ -1231,8 +1406,9 @@ namespace Game.QuestRelated
                     foreach (var kvp in player.Quests)
                     {
                         pkt.Pack16((ushort)kvp.Key);
-                        pkt.Pack8((byte)(kvp.Value.State == QuestState.Completed ? 255 : (byte)kvp.Value.State));
-                        pkt.Pack8((byte)kvp.Value.State);
+                        byte progressByte = (byte)(kvp.Value.State == QuestState.Completed ? 255 : Math.Max(1, kvp.Value.Step));
+                        pkt.Pack8(progressByte);
+                        pkt.Pack8(ToClientState(kvp.Value.State));
                     }
                     player.Send(pkt);
                     DebugSystem.Write($"[QuestManager] Sent AC 24:4 Journal ({player.Quests.Count} quests) to {player.CharName}");
@@ -1327,12 +1503,16 @@ namespace Game.QuestRelated
                                 bool isDespawn = sub.SubEntry != null && sub.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 2);
                                 if (isChest)
                                 {
-                                    player.Send(Tools.FromFormat("bbwb", 22, 1, (ushort)ev.clickID, (byte)1));
+                                    var chestOp = sub.SubEntry?.FirstOrDefault(o => o.DialogPtr == 2 && o.dialog2 == 5);
+                                    ushort targetClickId = (ushort)(chestOp.HasValue && chestOp.Value.dialog1 > 0 ? chestOp.Value.dialog1 : ev.clickID);
+                                    player.Send(Tools.FromFormat("bbwb", 22, 1, targetClickId, (byte)1));
                                 }
                                 else if (isDespawn)
                                 {
-                                    player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
-                                    player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)ev.clickID, (byte)0xFF, (byte)0xFF));
+                                    var despawnOp = sub.SubEntry?.FirstOrDefault(o => o.DialogPtr == 2 && o.dialog2 == 2);
+                                    ushort targetClickId = (ushort)(despawnOp.HasValue && despawnOp.Value.dialog1 > 0 ? despawnOp.Value.dialog1 : ev.clickID);
+                                    player.Send(Tools.FromFormat("bbwbb", 22, 10, targetClickId, (byte)0xFF, (byte)0xFF));
+                                    player.Send(Tools.FromFormat("bbwbb", 22, 11, targetClickId, (byte)0xFF, (byte)0xFF));
                                 }
                             }
                         }
@@ -1364,7 +1544,7 @@ namespace Game.QuestRelated
 
                     case QuestState.Completed:
                         // AC 24 Sub 5 (Quest Completed / Flagged)
-                        player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)questId, (byte)state));
+                        player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)questId, (byte)1));
                         break;
 
                     case QuestState.Failed:
@@ -1373,13 +1553,77 @@ namespace Game.QuestRelated
                         break;
 
                     default:
-                        player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)questId, (byte)state));
+                        player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)questId, ToClientState(state)));
                         break;
                 }
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[QuestManager] Error sending quest update: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles monster defeat callbacks from combat engine.
+        /// Increments kill counts on active bounty / battle quests for the player and advances quest stages.
+        /// </summary>
+        public static void OnMonsterDefeated(Player player, uint monsterId, string monsterName)
+        {
+            if (player == null || player.Quests == null || player.Quests.Count == 0) return;
+
+            try
+            {
+                string mName = (monsterName ?? "").ToLower().Trim();
+
+                foreach (var kvp in player.Quests.ToList())
+                {
+                    var pq = kvp.Value;
+                    if (pq.State != QuestState.InProgress) continue;
+
+                    if (!_registeredQuests.TryGetValue(pq.QuestID, out var quest) && !_masterQuests.TryGetValue(pq.QuestID, out quest))
+                    {
+                        continue;
+                    }
+
+                    bool matched = false;
+                    int reqKills = 1;
+
+                    if (quest.Steps != null && quest.Steps.Count >= pq.Step)
+                    {
+                        var step = quest.Steps[pq.Step - 1];
+                        if (step.StepType == QuestType.MonsterBattle)
+                        {
+                            reqKills = step.RequiredKillCount > 0 ? step.RequiredKillCount : 1;
+                            if (step.BattleMonsterID > 0 && step.BattleMonsterID == monsterId) matched = true;
+                            else if (!string.IsNullOrEmpty(step.BattleMonsterName) && (step.BattleMonsterName.ToLower().Contains(mName) || mName.Contains(step.BattleMonsterName.ToLower()))) matched = true;
+                            else if (step.BattleMonsterID == 0 && string.IsNullOrEmpty(step.BattleMonsterName)) matched = true;
+                        }
+                    }
+                    else if (quest.Type == QuestType.MonsterBattle)
+                    {
+                        reqKills = quest.RequiredKillCount > 0 ? quest.RequiredKillCount : 1;
+                        if (quest.BattleMonsterID > 0 && quest.BattleMonsterID == monsterId) matched = true;
+                        else if (!string.IsNullOrEmpty(quest.BattleMonsterName) && (quest.BattleMonsterName.ToLower().Contains(mName) || mName.Contains(quest.BattleMonsterName.ToLower()))) matched = true;
+                        else if (quest.BattleMonsterID == 0 && string.IsNullOrEmpty(quest.BattleMonsterName)) matched = true;
+                    }
+
+                    if (matched)
+                    {
+                        pq.CurrentKillCount++;
+                        SavePlayerQuest(player, quest.QuestID);
+                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[Quest] {quest.Title}: {pq.CurrentKillCount}/{reqKills} defeated."));
+
+                        if (pq.CurrentKillCount >= reqKills)
+                        {
+                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"[Quest Objective Completed] {quest.Title}"));
+                            SendQuestUpdate(player, quest.QuestID, QuestState.InProgress, (byte)pq.Step);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[QuestManager] Error in OnMonsterDefeated for {player?.CharName}: {ex.Message}");
             }
         }
 
@@ -1397,7 +1641,10 @@ namespace Game.QuestRelated
                 var db = (RCLibrary.Core.DataBase)DataBase.CharacterDataBase.GlobalInstance ?? (RCLibrary.Core.DataBase)DataBase.GameDataBase.GlobalInstance;
                 if (db != null)
                 {
-                    var dt = db.GetDataTable($"SELECT quest_started, quest_pos, step FROM charquest WHERE charID={player.CharID}");
+                    try { db.ExecuteNonQuery("ALTER TABLE charquest ADD COLUMN kill_count INT DEFAULT 0;"); } catch { }
+                    try { db.ExecuteNonQuery("ALTER TABLE charquest ADD COLUMN completed_at TEXT;"); } catch { }
+
+                    var dt = db.GetDataTable($"SELECT * FROM charquest WHERE charID={player.CharID}");
                     if (dt != null && dt.Rows.Count > 0)
                     {
                         foreach (System.Data.DataRow row in dt.Rows)
@@ -1409,7 +1656,23 @@ namespace Game.QuestRelated
                             {
                                 step = Convert.ToByte(row["step"]);
                             }
-                            player.Quests[qId] = new PlayerQuest(qId, (QuestState)qPos, step);
+                            int killCount = 0;
+                            if (dt.Columns.Contains("kill_count") && row["kill_count"] != DBNull.Value)
+                            {
+                                killCount = Convert.ToInt32(row["kill_count"]);
+                            }
+                            DateTime startedAt = DateTime.UtcNow;
+                            DateTime? completedAt = null;
+                            if (dt.Columns.Contains("completed_at") && row["completed_at"] != DBNull.Value && DateTime.TryParse(Convert.ToString(row["completed_at"]), out var dtVal))
+                            {
+                                completedAt = dtVal;
+                            }
+
+                            player.Quests[qId] = new PlayerQuest(qId, (QuestState)qPos, step, killCount)
+                            {
+                                StartedAt = startedAt,
+                                CompletedAt = completedAt
+                            };
                             SendQuestUpdate(player, qId, (QuestState)qPos, step);
                         }
                     }
@@ -1434,14 +1697,19 @@ namespace Game.QuestRelated
                 var db = (RCLibrary.Core.DataBase)DataBase.CharacterDataBase.GlobalInstance ?? (RCLibrary.Core.DataBase)DataBase.GameDataBase.GlobalInstance;
                 if (db != null && player.Quests != null && player.Quests.TryGetValue(questId, out var pq))
                 {
+                    try { db.ExecuteNonQuery("ALTER TABLE charquest ADD COLUMN kill_count INT DEFAULT 0;"); } catch { }
+                    try { db.ExecuteNonQuery("ALTER TABLE charquest ADD COLUMN completed_at TEXT;"); } catch { }
+
+                    string completedAtStr = pq.CompletedAt.HasValue ? $"'{pq.CompletedAt.Value:yyyy-MM-dd HH:mm:ss}'" : "NULL";
+
                     var existing = db.GetDataTable($"SELECT pri_key FROM charquest WHERE charID={player.CharID} AND quest_started={questId} LIMIT 1");
                     if (existing != null && existing.Rows.Count > 0)
                     {
-                        db.ExecuteNonQuery($"UPDATE charquest SET quest_pos={(byte)pq.State}, step={pq.Step} WHERE charID={player.CharID} AND quest_started={questId}");
+                        db.ExecuteNonQuery($"UPDATE charquest SET quest_pos={(byte)pq.State}, step={pq.Step}, kill_count={pq.CurrentKillCount}, completed_at={completedAtStr} WHERE charID={player.CharID} AND quest_started={questId}");
                     }
                     else
                     {
-                        db.ExecuteNonQuery($"INSERT INTO charquest (charID, quest_started, quest_pos, step) VALUES ({player.CharID}, {questId}, {(byte)pq.State}, {pq.Step})");
+                        db.ExecuteNonQuery($"INSERT INTO charquest (charID, quest_started, quest_pos, step, kill_count, completed_at) VALUES ({player.CharID}, {questId}, {(byte)pq.State}, {pq.Step}, {pq.CurrentKillCount}, {completedAtStr})");
                     }
                 }
             }

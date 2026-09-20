@@ -49,22 +49,26 @@ namespace Network.ActionCodes
                 // FORCE FLOOR 0 as requested
                 floor = 0;
 
-                // FORCE PLACE DEBUG MODE
-                // Client is sending Slot=0 / Pos=0,0 so standard placement fails.
-                // We will force-place "Coconut Basin" (38027) to test visibility.
-
                 if (p.Tent != null)
                 {
-                    ushort placeItemId = 38027;
-                    if (p.Inv != null && slotIndex > 0 && slotIndex <= 50 && p.Inv[slotIndex].ItemID > 0)
+                    if (p.CurMap != p.Tent)
                     {
-                        placeItemId = p.Inv[slotIndex].ItemID;
-                        p.Inv.RemoveItem(slotIndex, 1, true);
+                        DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected AC62 placement: {p.CharName} is not inside their own tent.");
+                        return;
                     }
+
+                    if (p.Inv == null || slotIndex == 0 || slotIndex > 50 || p.Inv[slotIndex] == null || p.Inv[slotIndex].ItemID == 0)
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected AC62 placement: Invalid slot {slotIndex} for {p.CharName}");
+                        return;
+                    }
+
+                    ushort placeItemId = p.Inv[slotIndex].ItemID;
+                    p.Inv.RemoveItem(slotIndex, 1, true);
 
                     p.Tent.PlaceItem(placeItemId, (int)x, (int)y, (int)floor, 0);
 
-                    p.Tent.SendTentItemsToPlayer(p);
+                    p.Tent.SendTentItemsToAll();
 
                     // Send Confirmation
                     SendPacket confirmation = new SendPacket();
@@ -97,8 +101,14 @@ namespace Network.ActionCodes
 
                 if (p.Tent != null)
                 {
+                    if (p.CurMap != p.Tent)
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected AC62 move: {p.CharName} is not inside their own tent.");
+                        return;
+                    }
+
                     p.Tent.MoveItem(index, (int)x, (int)y, (int)floor, rotation);
-                    p.Tent.SendTentItemsToPlayer(p);
+                    p.Tent.SendTentItemsToAll();
                     cGlobal.gCharacterDataBase?.SaveTentData(p);
                 }
             }

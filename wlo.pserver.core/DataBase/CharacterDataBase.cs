@@ -24,7 +24,7 @@ namespace DataBase
         const string DBServer = "CharacterDataBase";
         //DBConnector.DBOAuth DBAssist;
 
-        public DataFiles.PhxItemDat ItemDat { private get; set; }
+        public DataFiles.PhxItemDat ItemDat { get; set; }
 
         List<string> client_requested_names = new List<string>();
 
@@ -1387,20 +1387,42 @@ namespace DataBase
             insert.Add("body", ((byte)c.Body).ToString());
             insert.Add("nickname", c.NickName);
 
-            // Safer position saving logic
+            // Safer position saving logic: never persist dynamic tent map IDs (>= 60000)
             string mapID, mapX, mapY;
+            uint currentMid = (c.CurMap != null) ? c.CurMap.MapID : 0;
 
-            // Only save PrevMap if in Tent AND PrevMap is valid
-            if (c.CurMap != null && c.CurMap.Type == MapType.Tent && player.PrevMap != null && player.PrevMap.DstMap != 0)
+            if (c.CurMap != null && (c.CurMap.Type == MapType.Tent || currentMid >= 60000))
             {
-                mapID = player.PrevMap.DstMap.ToString();
-                mapX = player.PrevMap.DstX_Axis.ToString();
-                mapY = player.PrevMap.DstY_Axis.ToString();
+                if (player.TentReturnMap != null && player.TentReturnMap.DstMap != 0 && player.TentReturnMap.DstMap < 60000)
+                {
+                    mapID = player.TentReturnMap.DstMap.ToString();
+                    mapX = player.TentReturnMap.DstX_Axis.ToString();
+                    mapY = player.TentReturnMap.DstY_Axis.ToString();
+                }
+                else if (player.PrevMap != null && player.PrevMap.DstMap != 0 && player.PrevMap.DstMap < 60000)
+                {
+                    mapID = player.PrevMap.DstMap.ToString();
+                    mapX = player.PrevMap.DstX_Axis.ToString();
+                    mapY = player.PrevMap.DstY_Axis.ToString();
+                }
+                else if (player.Tent != null && player.Tent.OwnerMap != null && player.Tent.OwnerMap.MapID < 60000)
+                {
+                    mapID = player.Tent.OwnerMap.MapID.ToString();
+                    mapX = player.Tent.X.ToString();
+                    mapY = player.Tent.Y.ToString();
+                }
+                else
+                {
+                    mapID = "10001";
+                    mapX = "500";
+                    mapY = "500";
+                }
             }
             else
             {
-                // Otherwise always save current map position
-                mapID = (c.CurMap != null) ? c.CurMap.MapID.ToString() : "0";
+                // Otherwise always save current map position (ensure not dynamic tent)
+                if (currentMid >= 60000 || currentMid == 0) currentMid = 10001;
+                mapID = currentMid.ToString();
                 mapX = c.CurX.ToString();
                 mapY = c.CurY.ToString();
             }
@@ -1522,7 +1544,8 @@ namespace DataBase
             #endregion
 
             #region write ext data
-            ExecuteNonQuery(string.Format("UPDATE charactersExtData SET {0} where charID = '" + charID + "';", string.Format(" Settings = '{0}', Friends = '{1}', Guild = '{2}', Mail = '{3}'", player.Settings.ToString(), player.GetFriends_Flag, "0", "")));
+            ushort guildIdToSave = player.CurGuild?.GuildID ?? 0;
+            ExecuteNonQuery(string.Format("UPDATE charactersExtData SET {0} where charID = '" + charID + "';", string.Format(" Settings = '{0}', Friends = '{1}', Guild = '{2}', Mail = '{3}'", player.Settings.ToString(), player.GetFriends_Flag, guildIdToSave.ToString(), "")));
             #endregion
 
             #region write pets
@@ -1649,6 +1672,11 @@ namespace DataBase
                     DataRow row = dt.Rows[0];
                     if (row["floor1Color"] != DBNull.Value) player.Tent.Floor1Color = ushort.Parse(row["floor1Color"].ToString());
                     if (row["floor1wallpaper"] != DBNull.Value) player.Tent.Floor1Wallpaper = ushort.Parse(row["floor1wallpaper"].ToString());
+                    if (row["floor2Color"] != DBNull.Value) player.Tent.Floor2Color = ushort.Parse(row["floor2Color"].ToString());
+                    if (row["floor2wallpaperr"] != DBNull.Value) player.Tent.Floor2Wallpaper = ushort.Parse(row["floor2wallpaperr"].ToString());
+                    if (row["locked"] != DBNull.Value) player.Tent.Locked = row["locked"].ToString() == "1";
+                    if (row["enlarged"] != DBNull.Value) player.Tent.Enlarged = row["enlarged"].ToString() == "1";
+                    if (row["tenttype"] != DBNull.Value) player.Tent.TentType = byte.Parse(row["tenttype"].ToString());
                 }
 
                 // 2. Load Tent Placed Items
@@ -1690,11 +1718,11 @@ namespace DataBase
                 DataTable dt = GetDataTable($"SELECT * FROM chartent WHERE charID = '{player.CharID}'");
                 if (dt == null || dt.Rows.Count == 0)
                 {
-                    ExecuteNonQuery($"INSERT INTO chartent (charID, locked, enlarged, tenttype, floor1Color, floor1wallpaper, floor2Color, floor2wallpaperr) VALUES ('{player.CharID}', '0', '0', '0', '{player.Tent.Floor1Color}', '{player.Tent.Floor1Wallpaper}', '0', '0');");
+                    ExecuteNonQuery($"INSERT INTO chartent (charID, locked, enlarged, tenttype, floor1Color, floor1wallpaper, floor2Color, floor2wallpaperr) VALUES ('{player.CharID}', '{(player.Tent.Locked ? 1 : 0)}', '{(player.Tent.Enlarged ? 1 : 0)}', '{player.Tent.TentType}', '{player.Tent.Floor1Color}', '{player.Tent.Floor1Wallpaper}', '{player.Tent.Floor2Color}', '{player.Tent.Floor2Wallpaper}');");
                 }
                 else
                 {
-                    ExecuteNonQuery($"UPDATE chartent SET floor1Color = '{player.Tent.Floor1Color}', floor1wallpaper = '{player.Tent.Floor1Wallpaper}' WHERE charID = '{player.CharID}';");
+                    ExecuteNonQuery($"UPDATE chartent SET locked = '{(player.Tent.Locked ? 1 : 0)}', enlarged = '{(player.Tent.Enlarged ? 1 : 0)}', tenttype = '{player.Tent.TentType}', floor1Color = '{player.Tent.Floor1Color}', floor1wallpaper = '{player.Tent.Floor1Wallpaper}', floor2Color = '{player.Tent.Floor2Color}', floor2wallpaperr = '{player.Tent.Floor2Wallpaper}' WHERE charID = '{player.CharID}';");
                 }
 
                 // 2. Save chartent_items
@@ -1898,34 +1926,11 @@ namespace DataBase
                             player.Send(broadcastPacket);
                             broadcastCount++;
 
-                            // Also synchronize newPlayer's active companion pet to player
-                            if (newPlayer.PlayerPets != null && newPlayer.PlayerPets.Count > 0)
+                            // Also synchronize newPlayer's active companion visual to map peer
+                            if (newPlayer.ActivePetID > 0 && player.CurMap != null && player.CurMap.MapID == newPlayer.CurMap.MapID)
                             {
-                                var activePet = newPlayer.PlayerPets.Values.FirstOrDefault(pet => pet.IsBattle || pet.PetID == newPlayer.ActivePetID);
-                                if (activePet != null)
-                                {
-                                    SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(newPlayer, activePet.PetID, activePet.Slot, activePet.HP, activePet.MaxHP, activePet.SP, activePet.MaxSP, activePet.Amity, activePet.Level);
-                                    player.Send(petPkt);
-
-                                    SendPacket petFollow = new SendPacket();
-                                    petFollow.PackArray(new byte[] { 13, 5 });
-                                    petFollow.Pack32(newPlayer.CharID);
-                                    petFollow.Pack32(activePet.PetID);
-                                    player.Send(petFollow);
-
-                                    SendPacket followPkt = new SendPacket();
-                                    followPkt.Pack8(19);
-                                    followPkt.Pack8(4);
-                                    followPkt.Pack32(newPlayer.CharID);
-                                    followPkt.Pack32(activePet.PetID);
-                                    player.Send(followPkt);
-
-                                    SendPacket petRefresh = new SendPacket();
-                                    petRefresh.PackArray(new byte[] { 5, 8 });
-                                    petRefresh.Pack32(newPlayer.CharID);
-                                    petRefresh.Pack8(0);
-                                    player.Send(petRefresh);
-                                }
+                                SendPacket petMapPkt = newPlayer.CreatePetMapPacket(newPlayer.ActivePetID);
+                                if (petMapPkt != null) player.Send(petMapPkt);
                             }
 
                             DebugSystem.Write($"[BroadcastNewPlayer] Successfully sent to {player.CharName}");

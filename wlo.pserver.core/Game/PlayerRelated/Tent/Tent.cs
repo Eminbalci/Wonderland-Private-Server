@@ -26,9 +26,18 @@ namespace Game.Code
         bool _closed;
 
         ushort _floorcolor = 39062, _wallcolor = 39064;
+        ushort _floor2color = 0, _wall2color = 0;
+        bool _locked = false;
+        bool _enlarged = false;
+        byte _tenttype = 0;
 
         public ushort Floor1Color { get { return _floorcolor; } set { _floorcolor = value; } }
         public ushort Floor1Wallpaper { get { return _wallcolor; } set { _wallcolor = value; } }
+        public ushort Floor2Color { get { return _floor2color; } set { _floor2color = value; } }
+        public ushort Floor2Wallpaper { get { return _wall2color; } set { _wall2color = value; } }
+        public bool Locked { get { return _locked; } set { _locked = value; } }
+        public bool Enlarged { get { return _enlarged; } set { _enlarged = value; } }
+        public byte TentType { get { return _tenttype; } set { _tenttype = value; } }
         public bool IsClosed { get { return _closed; } }
         public bool IsDirty { get; set; } = false;
 
@@ -53,10 +62,50 @@ namespace Game.Code
 
         public uint X { get { return _mapx; } }
         public uint Y { get { return _mapy; } }
+        public GameMap OwnerMap { get { return _ownerMap; } }
+        public uint OwnerMapID { get { return _ownerMap != null ? _ownerMap.MapID : 0; } }
+
+        public void SetReturnLocation(ushort mapId, ushort x, ushort y)
+        {
+            if (mapId > 0 && mapId < 60000)
+            {
+                if (MapManager.Instance != null)
+                {
+                    _ownerMap = MapManager.Instance.GetMap(mapId);
+                }
+                if (x > 0 && y > 0)
+                {
+                    _mapx = x;
+                    _mapy = y;
+                }
+
+                // Update exit portal 1 target
+                WarpPortal exitPortal;
+                if (this.Portals.ContainsKey(1))
+                {
+                    exitPortal = this.Portals[1];
+                }
+                else
+                {
+                    exitPortal = new WarpPortal();
+                    this.Portals.Add(1, exitPortal);
+                }
+
+                exitPortal.DstID = (int)mapId;
+                exitPortal.x = (int)_mapx;
+                exitPortal.y = (int)_mapy;
+                exitPortal.accessBy = AccessFlags.Any;
+            }
+        }
 
         public void Open()
         {
             if (!_closed) return;
+            if (_owner.CurMap is Game.Code.Tent || _owner.CurMap?.Type == MapType.Tent || _owner.CurMap?.MapID >= 60000)
+            {
+                DebugSystem.Write($"[Tent.Open] {_owner.CharName} attempted to open tent while already inside a tent.");
+                return;
+            }
             _mapx = _owner.CurX;
             _mapy = _owner.CurY;
 
@@ -67,6 +116,24 @@ namespace Game.Code
                 _ownerMap = null;
 
             if (_ownerMap == null) return;
+
+            // Save owner's overworld return point before entering
+            if (_ownerMap.MapID < 60000 && _ownerMap.Type != MapType.Tent)
+            {
+                _owner.TentReturnMap = new WarpData()
+                {
+                    DstMap = (ushort)_ownerMap.MapID,
+                    DstX_Axis = (ushort)_mapx,
+                    DstY_Axis = (ushort)_mapy
+                };
+                _owner.PrevMap = new WarpData()
+                {
+                    DstMap = (ushort)_ownerMap.MapID,
+                    DstX_Axis = (ushort)_mapx,
+                    DstY_Axis = (ushort)_mapy
+                };
+                DebugSystem.Write($"[Tent.Open] Saved return location for {_owner.CharName}: Map {_ownerMap.MapID} ({_mapx},{_mapy})");
+            }
 
             // Create/Update Exit Portal (ID 1) to return player to where they came from
             WarpPortal exitPortal;
@@ -99,13 +166,32 @@ namespace Game.Code
             if (_ownerMap != null)
             {
                 _ownerMap.onTentClosing(this);
-                if (_owner != null && (_owner.CurMap == this || _owner.CurMap?.Type == MapType.Tent))
+
+                // Teleport all occupants currently inside the tent back to the overworld
+                foreach (var player in m_playerlist.ToList())
                 {
-                    WarpData warp = new WarpData();
-                    warp.DstMap = (ushort)_ownerMap.MapID;
-                    warp.DstX_Axis = (ushort)_mapx;
-                    warp.DstY_Axis = (ushort)_mapy;
-                    _owner.CurMap.Teleport(TeleportType.CmD, _owner, 0, warp);
+                    if (player != null && (player.CurMap == this || player.CurMap?.Type == MapType.Tent || player.CurMap?.MapID >= 60000))
+                    {
+                        ushort dstMap = (ushort)_ownerMap.MapID;
+                        ushort dstX = (ushort)_mapx;
+                        ushort dstY = (ushort)_mapy;
+
+                        if (player.TentReturnMap != null && player.TentReturnMap.DstMap > 0 && player.TentReturnMap.DstMap < 60000)
+                        {
+                            dstMap = player.TentReturnMap.DstMap;
+                            dstX = player.TentReturnMap.DstX_Axis;
+                            dstY = player.TentReturnMap.DstY_Axis;
+                        }
+
+                        WarpData warp = new WarpData()
+                        {
+                            DstMap = dstMap,
+                            DstX_Axis = dstX,
+                            DstY_Axis = dstY
+                        };
+                        player.CurMap.Teleport(TeleportType.CmD, player, 0, warp);
+                        DebugSystem.Write($"[Tent.Close] Teleported occupant {player.CharName} out of closing tent to Map {dstMap} ({dstX},{dstY})");
+                    }
                 }
             }
             _closed = true;
@@ -412,6 +498,20 @@ namespace Game.Code
             catch (Exception ex)
             {
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] Error sending items to player: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Send all tent items to all occupants currently inside the tent
+        /// </summary>
+        public void SendTentItemsToAll()
+        {
+            foreach (var player in m_playerlist.ToList())
+            {
+                if (player != null)
+                {
+                    SendTentItemsToPlayer(player);
+                }
             }
         }
         #endregion

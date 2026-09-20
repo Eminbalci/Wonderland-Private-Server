@@ -35,6 +35,10 @@ namespace Server.Config
         public List<string> GetAllWelcomeMessages()
         {
             var list = new List<string>();
+            string activeMotd = !string.IsNullOrWhiteSpace(Server.ServerStatusManager.Motd)
+                ? Server.ServerStatusManager.Motd
+                : WelcomeMessage;
+
             if (WelcomeMessages != null && WelcomeMessages.Count > 0)
             {
                 foreach (var msg in WelcomeMessages)
@@ -43,9 +47,9 @@ namespace Server.Config
                         list.Add(msg.Trim());
                 }
             }
-            if (!string.IsNullOrWhiteSpace(WelcomeMessage))
+            if (!string.IsNullOrWhiteSpace(activeMotd))
             {
-                var split = WelcomeMessage.Split(new[] { "\r\n", "\n", "|", "||" }, StringSplitOptions.RemoveEmptyEntries);
+                var split = activeMotd.Split(new[] { "\r\n", "\n", "|", "||" }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (var s in split)
                 {
                     string trimmed = s.Trim();

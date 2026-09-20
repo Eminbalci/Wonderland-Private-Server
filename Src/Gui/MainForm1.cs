@@ -21,8 +21,8 @@ namespace Wonderland_Private_Server
             InitializeComponent();
             this.KeyPreview = true;
             LoadAllLists();
-            this.Size = new System.Drawing.Size(1200, 780);
-            this.MinimumSize = new System.Drawing.Size(1000, 680);
+            this.Size = new System.Drawing.Size(1280, 820);
+            this.MinimumSize = new System.Drawing.Size(1024, 700);
             if (this.tabControl3 != null)
             {
                 this.tabControl3.Multiline = true;
@@ -40,11 +40,24 @@ namespace Wonderland_Private_Server
             SetupLiveBattlesTab();
             SetupMarriagesTab();
             SetupStarterItemsTab();
+            SetupDatabaseConfigTab();
             SetupServerStatusControl();
+
+            // Initialize Modern User-Friendly UI Layer
+            InitializeModernUi();
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (keyData == (Keys.Control | Keys.K))
+            {
+                if (modernTxtQuickSearch != null && modernTxtQuickSearch.Visible)
+                {
+                    modernTxtQuickSearch.Focus();
+                    modernTxtQuickSearch.SelectAll();
+                    return true;
+                }
+            }
             if (keyData == Keys.F5)
             {
                 RunClientProgram();
@@ -183,11 +196,26 @@ namespace Wonderland_Private_Server
 
             try
             {
-                if (cGlobal.SrvSettings != null)
+                if (!string.IsNullOrEmpty(Server.ServerStatusManager.Motd))
                 {
-                    txtServerName.Text = cGlobal.SrvSettings.ServerName ?? "Wonderland";
+                    if (cGlobal.SrvSettings != null) cGlobal.SrvSettings.WelcomeMessage = Server.ServerStatusManager.Motd;
+                    txtWelcomeMsg.Text = Server.ServerStatusManager.Motd;
+                }
+                else if (cGlobal.SrvSettings != null)
+                {
                     txtWelcomeMsg.Text = cGlobal.SrvSettings.WelcomeMessage ?? "Welcome to the WLO Community Server! Enjoy!";
                 }
+
+                if (!string.IsNullOrEmpty(Server.ServerStatusManager.ServerName))
+                {
+                    if (cGlobal.SrvSettings != null) cGlobal.SrvSettings.ServerName = Server.ServerStatusManager.ServerName;
+                    txtServerName.Text = Server.ServerStatusManager.ServerName;
+                }
+                else if (cGlobal.SrvSettings != null)
+                {
+                    txtServerName.Text = cGlobal.SrvSettings.ServerName ?? "Wonderland";
+                }
+
                 if (cmbBroadcastColor.SelectedIndex < 0) cmbBroadcastColor.SelectedIndex = 0;
                 LoadCharacterFilters();
                 LoadChestDropTargets();
@@ -374,8 +402,20 @@ namespace Wonderland_Private_Server
 
             if (cGlobal.SrvSettings != null)
             {
-                txtServerName.Text = cGlobal.SrvSettings.ServerName ?? "Wonderland";
-                txtWelcomeMsg.Text = cGlobal.SrvSettings.WelcomeMessage ?? "Welcome to the WLO Community Server! Enjoy!";
+                if (!string.IsNullOrEmpty(Server.ServerStatusManager.Motd))
+                    cGlobal.SrvSettings.WelcomeMessage = Server.ServerStatusManager.Motd;
+                if (!string.IsNullOrEmpty(Server.ServerStatusManager.ServerName))
+                    cGlobal.SrvSettings.ServerName = Server.ServerStatusManager.ServerName;
+
+                this.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        txtServerName.Text = cGlobal.SrvSettings.ServerName ?? "Wonderland";
+                        txtWelcomeMsg.Text = cGlobal.SrvSettings.WelcomeMessage ?? "Welcome to the WLO Community Server! Enjoy!";
+                    }
+                    catch { }
+                }));
             }
 
 
@@ -606,6 +646,7 @@ namespace Wonderland_Private_Server
                 try
                 {
                     Game.Maps.ChestDropManager.SaveToFile();
+                    Server.ServerStatusManager.SaveConfig();
                     cGlobal.SrvSettings?.SaveSettings(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo");
                     DebugSystem.Write("[SafeShutdown] Saved server configuration and drop catalogs.");
                 }
@@ -708,6 +749,7 @@ namespace Wonderland_Private_Server
         #region Form Events
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
+            DisposeModernUi();
             if (_isShuttingDown == 0)
             {
                 e.Cancel = true;
@@ -1946,21 +1988,44 @@ namespace Wonderland_Private_Server
         #region Safe Shutdown & Data Save
         private void txtServerInfo_TextChanged(object sender, EventArgs e)
         {
-            if (cGlobal.SrvSettings == null) return;
-            cGlobal.SrvSettings.ServerName = txtServerName.Text;
-            cGlobal.SrvSettings.WelcomeMessage = txtWelcomeMsg.Text;
+            if (cGlobal.SrvSettings != null)
+            {
+                cGlobal.SrvSettings.ServerName = txtServerName.Text;
+                cGlobal.SrvSettings.WelcomeMessage = txtWelcomeMsg.Text;
+            }
+            Server.ServerStatusManager.Motd = txtWelcomeMsg.Text;
+            Server.ServerStatusManager.ServerName = txtServerName.Text;
         }
 
         private void btnSaveServerInfo_Click(object sender, EventArgs e)
         {
             try
             {
+                string motd = txtWelcomeMsg.Text;
+                string srvName = txtServerName.Text;
+                if (string.IsNullOrEmpty(motd)) motd = "Welcome to the WLO Community Server! Enjoy!";
+                if (string.IsNullOrEmpty(srvName)) srvName = "Wonderland";
+
                 if (cGlobal.SrvSettings == null) cGlobal.SrvSettings = new Server.Config.Settings();
-                cGlobal.SrvSettings.ServerName = txtServerName.Text;
-                cGlobal.SrvSettings.WelcomeMessage = txtWelcomeMsg.Text;
-                string path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo";
-                cGlobal.SrvSettings.SaveSettings(path);
-                MessageBox.Show($"Server information saved successfully!\nServer Name: {txtServerName.Text}\nMOTD: {txtWelcomeMsg.Text}", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                cGlobal.SrvSettings.ServerName = srvName;
+                cGlobal.SrvSettings.WelcomeMessage = motd;
+
+                bool dbSaved = Server.ServerStatusManager.SaveMotd(motd, srvName);
+                try
+                {
+                    string path = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\PServer\\Config.settings.wlo";
+                    cGlobal.SrvSettings.SaveSettings(path);
+                }
+                catch { }
+
+                if (dbSaved)
+                {
+                    MessageBox.Show($"Server information and MOTD saved successfully to database!\nServer Name: {srvName}\nMOTD: {motd}", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Server information updated in memory, but database write encountered an issue. Check server logs.\nServer Name: {srvName}\nMOTD: {motd}", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
             catch (Exception ex)
             {
@@ -2040,6 +2105,7 @@ namespace Wonderland_Private_Server
 
                 // Save drop tables and configs
                 Game.Maps.ChestDropManager.SaveToFile();
+                Server.ServerStatusManager.SaveConfig();
 
                 try
                 {
@@ -2073,52 +2139,104 @@ namespace Wonderland_Private_Server
         private TextBox txtGmInput;
         private Button btnAddGm;
         private Button btnRemoveGm;
+        private ComboBox cmbGmTargetPlayer;
+        private Label lblGmCount;
+        private DataGridView dgvGmInventory;
+        private DataGridView dgvGmEquip;
+        private NumericUpDown numGmItemId;
+        private NumericUpDown numGmItemCount;
+        private ComboBox cmbTownPresets;
+        private NumericUpDown numWarpMapId;
+        private NumericUpDown numWarpX;
+        private NumericUpDown numWarpY;
+        private NumericUpDown numTestNpcId;
+        private NumericUpDown numGmDropRate;
+
+        private Player GetSelectedGmPlayer()
+        {
+            try
+            {
+                if (cmbGmTargetPlayer != null && cmbGmTargetPlayer.SelectedItem is Player p && p != null)
+                    return p;
+            }
+            catch { }
+            return GetPrivatePlayer();
+        }
+
+        private void RefreshGmOnlinePlayers()
+        {
+            if (cmbGmTargetPlayer == null) return;
+            try
+            {
+                var selected = cmbGmTargetPlayer.SelectedItem as Player;
+                var online = Game.PlayerRelated.GmManager.GetAllOnlinePlayers();
+                cmbGmTargetPlayer.Items.Clear();
+                foreach (var p in online)
+                {
+                    cmbGmTargetPlayer.Items.Add(p);
+                }
+                if (selected != null && cmbGmTargetPlayer.Items.Contains(selected))
+                {
+                    cmbGmTargetPlayer.SelectedItem = selected;
+                }
+                else if (cmbGmTargetPlayer.Items.Count > 0)
+                {
+                    cmbGmTargetPlayer.SelectedIndex = 0;
+                }
+                RefreshGmInventoryAndEquipment();
+            }
+            catch { }
+        }
 
         private void SetupGmTab()
         {
             try
             {
-                TabPage tabGm = new TabPage(" GM Management");
+                TabPage tabGm = new TabPage("GM Studio");
                 tabGm.BackColor = System.Drawing.Color.White;
+                tabGm.AutoScroll = true;
 
-                Label lblHeader = new Label
+                Game.PlayerRelated.GmManager.ExternalPlayerListProvider = () => cGlobal.gLoginServer?.GetAllPlayers();
+
+                #region GroupBox 1: GM Authorization
+                GroupBox grpGmAuth = new GroupBox
                 {
-                    Text = "GM & Administrator Authorization List\n(Only characters and accounts listed below can use cheat/admin chat commands)",
-                    Location = new System.Drawing.Point(20, 15),
-                    Size = new System.Drawing.Size(600, 35),
-                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold)
+                    Text = "GM Authorization & Access Control",
+                    Location = new System.Drawing.Point(10, 10),
+                    Size = new System.Drawing.Size(240, 435),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
                 };
 
                 lstGmList = new ListBox
                 {
-                    Location = new System.Drawing.Point(20, 55),
-                    Size = new System.Drawing.Size(300, 380),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left,
-                    Font = new System.Drawing.Font("Segoe UI", 10f)
+                    Location = new System.Drawing.Point(10, 22),
+                    Size = new System.Drawing.Size(220, 240),
+                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Regular)
                 };
 
                 Label lblInput = new Label
                 {
-                    Text = "Character Name / Account Username:",
-                    Location = new System.Drawing.Point(340, 55),
-                    Size = new System.Drawing.Size(250, 20),
-                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular)
+                    Text = "Account / Character Name:",
+                    Location = new System.Drawing.Point(10, 268),
+                    Size = new System.Drawing.Size(220, 16),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
                 };
 
                 txtGmInput = new TextBox
                 {
-                    Location = new System.Drawing.Point(340, 80),
-                    Size = new System.Drawing.Size(250, 25),
-                    Font = new System.Drawing.Font("Segoe UI", 10f)
+                    Location = new System.Drawing.Point(10, 287),
+                    Size = new System.Drawing.Size(220, 23),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular)
                 };
 
                 btnAddGm = new Button
                 {
-                    Text = " Add to GM List",
-                    Location = new System.Drawing.Point(340, 115),
-                    Size = new System.Drawing.Size(150, 35),
+                    Text = "Add to GM List",
+                    Location = new System.Drawing.Point(10, 316),
+                    Size = new System.Drawing.Size(105, 30),
                     BackColor = System.Drawing.Color.LightGreen,
-                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold)
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
                 };
                 btnAddGm.Click += (s, e) =>
                 {
@@ -2135,11 +2253,12 @@ namespace Wonderland_Private_Server
 
                 btnRemoveGm = new Button
                 {
-                    Text = " Remove Selected GM",
-                    Location = new System.Drawing.Point(340, 160),
-                    Size = new System.Drawing.Size(180, 35),
+                    Text = "Remove GM",
+                    Location = new System.Drawing.Point(125, 316),
+                    Size = new System.Drawing.Size(105, 30),
                     BackColor = System.Drawing.Color.LightCoral,
-                    Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold)
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
                 };
                 btnRemoveGm.Click += (s, e) =>
                 {
@@ -2154,19 +2273,1333 @@ namespace Wonderland_Private_Server
                     }
                 };
 
-                tabGm.Controls.Add(lblHeader);
-                tabGm.Controls.Add(lstGmList);
-                tabGm.Controls.Add(lblInput);
-                tabGm.Controls.Add(txtGmInput);
-                tabGm.Controls.Add(btnAddGm);
-                tabGm.Controls.Add(btnRemoveGm);
+                Button btnAuthorizeSelected = new Button
+                {
+                    Text = "Grant GM to Selected Online",
+                    Location = new System.Drawing.Point(10, 353),
+                    Size = new System.Drawing.Size(220, 30),
+                    BackColor = System.Drawing.Color.LightSteelBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnAuthorizeSelected.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target != null && !string.IsNullOrEmpty(target.CharName))
+                    {
+                        if (Game.PlayerRelated.GmManager.AddGm(target.CharName))
+                        {
+                            RefreshGmList();
+                            MessageBox.Show($"Player '{target.CharName}' granted GM permissions!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show($"Player '{target.CharName}' is already authorized.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("Please select an online player first.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                };
+
+                lblGmCount = new Label
+                {
+                    Text = "Total Authorized: 0",
+                    Location = new System.Drawing.Point(10, 395),
+                    Size = new System.Drawing.Size(220, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Italic),
+                    ForeColor = System.Drawing.Color.DimGray
+                };
+
+                grpGmAuth.Controls.Add(lstGmList);
+                grpGmAuth.Controls.Add(lblInput);
+                grpGmAuth.Controls.Add(txtGmInput);
+                grpGmAuth.Controls.Add(btnAddGm);
+                grpGmAuth.Controls.Add(btnRemoveGm);
+                grpGmAuth.Controls.Add(btnAuthorizeSelected);
+                grpGmAuth.Controls.Add(lblGmCount);
+                #endregion
+
+                #region GroupBox 2: Selected Player Toolkit
+                GroupBox grpPlayerToolkit = new GroupBox
+                {
+                    Text = "Online Player Live Control & Toolkit",
+                    Location = new System.Drawing.Point(260, 10),
+                    Size = new System.Drawing.Size(280, 435),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                cmbGmTargetPlayer = new ComboBox
+                {
+                    Location = new System.Drawing.Point(10, 24),
+                    Size = new System.Drawing.Size(185, 23),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular)
+                };
+                cmbGmTargetPlayer.DropDown += (s, e) => RefreshGmOnlinePlayers();
+
+                Button btnRefreshGmTarget = new Button
+                {
+                    Text = "Refresh",
+                    Location = new System.Drawing.Point(200, 23),
+                    Size = new System.Drawing.Size(70, 25),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnRefreshGmTarget.Click += (s, e) => RefreshGmOnlinePlayers();
+
+                Button btnGmFullHeal = new Button
+                {
+                    Text = "Full Heal (HP/SP + Companion)",
+                    Location = new System.Drawing.Point(10, 56),
+                    Size = new System.Drawing.Size(260, 28),
+                    BackColor = System.Drawing.Color.LightSkyBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmFullHeal.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) { MessageBox.Show("No online player selected.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    p.Eqs.CurHP = p.Eqs.FullHP;
+                    p.Eqs.CurSP = p.Eqs.FullSP;
+                    p.Eqs.Send8_1(false);
+                    p.Send_5_3();
+                    var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle) 
+                                 ?? (p.ActivePetID > 0 ? p.PlayerPets?.Values?.FirstOrDefault(pet => pet.PetID == p.ActivePetID || pet.Slot == p.ActivePetID) : null)
+                                 ?? p.PlayerPets?.Values?.FirstOrDefault();
+                    if (activePet != null)
+                    {
+                        activePet.HP = activePet.MaxHP;
+                        activePet.SP = activePet.MaxSP;
+                        p.SendPetStat(activePet.Slot, 0x0119, (uint)activePet.HP);
+                        p.SendPetStat(activePet.Slot, 0x011A, (uint)activePet.SP);
+                    }
+                    p.SendSystemMessage("[GM] HP and SP fully restored!");
+                    MessageBox.Show($"Restored HP/SP for {p.CharName} and companion.", "Healed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmAddGold = new Button
+                {
+                    Text = "+1,000,000 Gold",
+                    Location = new System.Drawing.Point(10, 90),
+                    Size = new System.Drawing.Size(125, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmAddGold.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    p.SetGold((int)Math.Min((long)int.MaxValue, (long)p.Gold + 1000000));
+                    p.Send(Tools.FromFormat("bbd", 26, 4, (uint)p.Gold));
+                    DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                    p.SendSystemMessage($"[GM] Added 1,000,000 Gold! Current: {p.Gold:N0}");
+                    MessageBox.Show($"Added 1,000,000 Gold to {p.CharName}. Current: {p.Gold:N0}", "Gold Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmGivePoints = new Button
+                {
+                    Text = "+100 Stat Points",
+                    Location = new System.Drawing.Point(145, 90),
+                    Size = new System.Drawing.Size(125, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmGivePoints.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    p.Eqs.SkillPoints += 100;
+                    p.Eqs.Send8_1(true);
+                    DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                    p.SendSystemMessage($"[GM] Added +100 Stat Points! Available: {p.Eqs.SkillPoints}");
+                    MessageBox.Show($"Added 100 stat points to {p.CharName}. Available: {p.Eqs.SkillPoints}", "Points Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Label lblLevel = new Label
+                {
+                    Text = "Level:",
+                    Location = new System.Drawing.Point(10, 128),
+                    Size = new System.Drawing.Size(42, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                NumericUpDown numGmLevel = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(54, 126),
+                    Size = new System.Drawing.Size(65, 23),
+                    Minimum = 1,
+                    Maximum = 200,
+                    Value = 100,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Button btnGmSetLevel = new Button
+                {
+                    Text = "Set Level",
+                    Location = new System.Drawing.Point(125, 124),
+                    Size = new System.Drawing.Size(145, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmSetLevel.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    byte targetLvl = (byte)numGmLevel.Value;
+                    p.Eqs.SetLevel(targetLvl);
+                    p.Eqs.Send8_1(true);
+                    DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                    p.SendSystemMessage($"[GM] Level updated to Lv.{p.Eqs.Level}!");
+                    MessageBox.Show($"Set {p.CharName}'s level to Lv.{p.Eqs.Level}.", "Level Set", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmMaxAmity = new Button
+                {
+                    Text = "Max Pet Amity",
+                    Location = new System.Drawing.Point(10, 158),
+                    Size = new System.Drawing.Size(125, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmMaxAmity.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.PlayerRelated.GmManager.SetPetAmity(p, 100, out string msg))
+                        MessageBox.Show(msg, "Amity Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show(msg, "Amity Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                };
+
+                Button btnGmPetRebirth = new Button
+                {
+                    Text = "Pet Rebirth",
+                    Location = new System.Drawing.Point(145, 158),
+                    Size = new System.Drawing.Size(125, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmPetRebirth.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.PlayerRelated.GmManager.TriggerPetRebirth(p, out string msg))
+                        MessageBox.Show(msg, "Rebirth Ascension", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show(msg, "Rebirth Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                };
+
+                Button btnGmUnlockSkills = new Button
+                {
+                    Text = "Unlock All Element Skills (Gr.10)",
+                    Location = new System.Drawing.Point(10, 192),
+                    Size = new System.Drawing.Size(260, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmUnlockSkills.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.PlayerRelated.GmManager.UnlockAllSkills(p, 10, out string msg))
+                        MessageBox.Show(msg, "Skills Unlocked", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show(msg, "Skills Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                };
+
+                Button btnGmWarpToPlayer = new Button
+                {
+                    Text = "Teleport to Player",
+                    Location = new System.Drawing.Point(10, 226),
+                    Size = new System.Drawing.Size(125, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmWarpToPlayer.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    var gm = GetPrivatePlayer();
+                    if (target == null || gm == null) return;
+                    if (Game.PlayerRelated.GmManager.GotoPlayer(gm, target, out string msg))
+                        MessageBox.Show(msg, "Teleport", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show(msg, "Teleport Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                };
+
+                Button btnGmSummonPlayer = new Button
+                {
+                    Text = "Summon to GM",
+                    Location = new System.Drawing.Point(145, 226),
+                    Size = new System.Drawing.Size(125, 27),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmSummonPlayer.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    var gm = GetPrivatePlayer();
+                    if (target == null || gm == null) return;
+                    if (Game.PlayerRelated.GmManager.SummonPlayer(gm, target, out string msg))
+                        MessageBox.Show(msg, "Summon", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show(msg, "Summon Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                };
+
+                Button btnGmKickPlayer = new Button
+                {
+                    Text = "Kick Player from Server",
+                    Location = new System.Drawing.Point(10, 262),
+                    Size = new System.Drawing.Size(260, 28),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmKickPlayer.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (MessageBox.Show($"Disconnect player '{target.CharName}'?", "Confirm Kick", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    {
+                        Game.PlayerRelated.GmManager.KickPlayer(target, "Disconnected by Server Administrator");
+                        RefreshGmOnlinePlayers();
+                        MessageBox.Show($"Player '{target.CharName}' has been kicked.", "Kicked", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Label lblMute = new Label
+                {
+                    Text = "Mute (m):",
+                    Location = new System.Drawing.Point(10, 303),
+                    Size = new System.Drawing.Size(55, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                NumericUpDown numGmMuteMins = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(68, 300),
+                    Size = new System.Drawing.Size(52, 23),
+                    Minimum = 1,
+                    Maximum = 1440,
+                    Value = 10,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Button btnGmMute = new Button
+                {
+                    Text = "Mute",
+                    Location = new System.Drawing.Point(125, 299),
+                    Size = new System.Drawing.Size(68, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmMute.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    Game.PlayerRelated.GmManager.MutePlayer(target, (int)numGmMuteMins.Value, out string msg);
+                    MessageBox.Show(msg, "Muted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmUnmute = new Button
+                {
+                    Text = "Unmute",
+                    Location = new System.Drawing.Point(198, 299),
+                    Size = new System.Drawing.Size(72, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmUnmute.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    Game.PlayerRelated.GmManager.UnmutePlayer(target, out string msg);
+                    MessageBox.Show(msg, "Unmuted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmRestat = new Button
+                {
+                    Text = "Restat (Refund)",
+                    Location = new System.Drawing.Point(10, 332),
+                    Size = new System.Drawing.Size(125, 27),
+                    BackColor = System.Drawing.Color.LemonChiffon,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmRestat.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (Game.PlayerRelated.GmManager.RestatPlayer(target, out string msg))
+                    {
+                        RefreshGmInventoryAndEquipment();
+                        MessageBox.Show(msg, "Restat Completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnGmRepair = new Button
+                {
+                    Text = "Repair Gear",
+                    Location = new System.Drawing.Point(145, 332),
+                    Size = new System.Drawing.Size(125, 27),
+                    BackColor = System.Drawing.Color.AliceBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmRepair.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (Game.PlayerRelated.GmManager.RepairAllItems(target, out string msg))
+                    {
+                        RefreshGmInventoryAndEquipment();
+                        MessageBox.Show(msg, "Repair Completed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnGmAddMallPoints = new Button
+                {
+                    Text = "+1,000 IM Pts",
+                    Location = new System.Drawing.Point(10, 365),
+                    Size = new System.Drawing.Size(125, 27),
+                    BackColor = System.Drawing.Color.Honeydew,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmAddMallPoints.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (Game.PlayerRelated.GmManager.AddMallPoints(target, 1000, out string msg))
+                    {
+                        MessageBox.Show(msg, "IM Points Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnGmClearSkills = new Button
+                {
+                    Text = "Clear Skills",
+                    Location = new System.Drawing.Point(145, 365),
+                    Size = new System.Drawing.Size(125, 27),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmClearSkills.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (MessageBox.Show($"Clear learned progression skills for {target.CharName}?", "Confirm Clear Skills", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    {
+                        if (Game.PlayerRelated.GmManager.ClearSkills(target, out string msg))
+                        {
+                            MessageBox.Show(msg, "Skills Cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                    }
+                };
+
+                Button btnGmCharInfo = new Button
+                {
+                    Text = "Inspect Character Summary",
+                    Location = new System.Drawing.Point(10, 398),
+                    Size = new System.Drawing.Size(260, 27),
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmCharInfo.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (Game.PlayerRelated.GmManager.GetPlayerInfo(target, out string report))
+                    {
+                        MessageBox.Show(report, "Character Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                grpPlayerToolkit.Controls.Add(cmbGmTargetPlayer);
+                grpPlayerToolkit.Controls.Add(btnRefreshGmTarget);
+                grpPlayerToolkit.Controls.Add(btnGmFullHeal);
+                grpPlayerToolkit.Controls.Add(btnGmAddGold);
+                grpPlayerToolkit.Controls.Add(btnGmGivePoints);
+                grpPlayerToolkit.Controls.Add(lblLevel);
+                grpPlayerToolkit.Controls.Add(numGmLevel);
+                grpPlayerToolkit.Controls.Add(btnGmSetLevel);
+                grpPlayerToolkit.Controls.Add(btnGmMaxAmity);
+                grpPlayerToolkit.Controls.Add(btnGmPetRebirth);
+                grpPlayerToolkit.Controls.Add(btnGmUnlockSkills);
+                grpPlayerToolkit.Controls.Add(btnGmWarpToPlayer);
+                grpPlayerToolkit.Controls.Add(btnGmSummonPlayer);
+                grpPlayerToolkit.Controls.Add(btnGmKickPlayer);
+                grpPlayerToolkit.Controls.Add(lblMute);
+                grpPlayerToolkit.Controls.Add(numGmMuteMins);
+                grpPlayerToolkit.Controls.Add(btnGmMute);
+                grpPlayerToolkit.Controls.Add(btnGmUnmute);
+                grpPlayerToolkit.Controls.Add(btnGmRestat);
+                grpPlayerToolkit.Controls.Add(btnGmRepair);
+                grpPlayerToolkit.Controls.Add(btnGmAddMallPoints);
+                grpPlayerToolkit.Controls.Add(btnGmClearSkills);
+                grpPlayerToolkit.Controls.Add(btnGmCharInfo);
+                #endregion
+
+                #region GroupBox 3: Server Operations & Spawners
+                GroupBox grpServerOps = new GroupBox
+                {
+                    Text = "Server Operations & Maintenance",
+                    Location = new System.Drawing.Point(550, 10),
+                    Size = new System.Drawing.Size(305, 435),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                Label lblBroadcast = new Label
+                {
+                    Text = "Broadcast Announcement:",
+                    Location = new System.Drawing.Point(10, 22),
+                    Size = new System.Drawing.Size(280, 16),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                TextBox txtGmBroadcastMsg = new TextBox
+                {
+                    Location = new System.Drawing.Point(10, 40),
+                    Size = new System.Drawing.Size(285, 23),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular)
+                };
+
+                ComboBox cmbGmBroadcastColor = new ComboBox
+                {
+                    Location = new System.Drawing.Point(10, 68),
+                    Size = new System.Drawing.Size(155, 23),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                cmbGmBroadcastColor.Items.AddRange(new object[] { "GM Red (Notice)", "World Yellow", "Guild Blue", "Whisper Pink" });
+                cmbGmBroadcastColor.SelectedIndex = 0;
+
+                Button btnGmSendBroadcast = new Button
+                {
+                    Text = "Broadcast to All",
+                    Location = new System.Drawing.Point(170, 67),
+                    Size = new System.Drawing.Size(125, 26),
+                    BackColor = System.Drawing.Color.LemonChiffon,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmSendBroadcast.Click += (s, e) =>
+                {
+                    if (string.IsNullOrWhiteSpace(txtGmBroadcastMsg.Text))
+                    {
+                        MessageBox.Show("Please enter broadcast text.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    byte chatType = 4;
+                    if (cmbGmBroadcastColor.SelectedIndex == 1) chatType = 1;
+                    else if (cmbGmBroadcastColor.SelectedIndex == 2) chatType = 6;
+                    else if (cmbGmBroadcastColor.SelectedIndex == 3) chatType = 3;
+                    int sent = Game.PlayerRelated.GmManager.BroadcastNotice(txtGmBroadcastMsg.Text, chatType);
+                    MessageBox.Show($"Notice broadcasted to {sent} player(s)!", "Broadcast Sent", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Label lblExpRate = new Label
+                {
+                    Text = "Server EXP Multiplier:",
+                    Location = new System.Drawing.Point(10, 106),
+                    Size = new System.Drawing.Size(130, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                NumericUpDown numGmExpRate = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(145, 103),
+                    Size = new System.Drawing.Size(65, 23),
+                    DecimalPlaces = 1,
+                    Increment = 0.5m,
+                    Minimum = 0.1m,
+                    Maximum = 100.0m,
+                    Value = (decimal)Server.ServerStatusManager.ExpRate,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Button btnGmApplyExp = new Button
+                {
+                    Text = "Set EXP",
+                    Location = new System.Drawing.Point(215, 102),
+                    Size = new System.Drawing.Size(80, 25),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmApplyExp.Click += (s, e) =>
+                {
+                    double rate = (double)numGmExpRate.Value;
+                    Server.ServerStatusManager.SetExpRate(rate);
+                    MessageBox.Show($"Global EXP multiplier updated to {rate:F1}x!", "EXP Multiplier Set", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Label lblReload = new Label
+                {
+                    Text = "Hot-Reload Server Tables:",
+                    Location = new System.Drawing.Point(10, 136),
+                    Size = new System.Drawing.Size(280, 16),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Button btnGmReloadQuests = new Button
+                {
+                    Text = "Reload Quests",
+                    Location = new System.Drawing.Point(10, 154),
+                    Size = new System.Drawing.Size(138, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmReloadQuests.Click += (s, e) =>
+                {
+                    Game.QuestRelated.QuestManager.InitializeQuests();
+                    MessageBox.Show($"Quests reloaded! Total registered: {Game.QuestRelated.QuestManager.MasterCount}", "Quests", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmReloadMall = new Button
+                {
+                    Text = "Reload Item Mall",
+                    Location = new System.Drawing.Point(155, 154),
+                    Size = new System.Drawing.Size(140, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmReloadMall.Click += (s, e) =>
+                {
+                    Game.PlayerRelated.ItemMallManager.Initialize();
+                    MessageBox.Show($"Item Mall reloaded! Total catalog items: {Game.PlayerRelated.ItemMallManager.GetCatalog().Count}", "Item Mall", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmReloadDrops = new Button
+                {
+                    Text = "Reload Drops",
+                    Location = new System.Drawing.Point(10, 184),
+                    Size = new System.Drawing.Size(138, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmReloadDrops.Click += (s, e) =>
+                {
+                    Game.Battle.MonsterDropManager.Initialize();
+                    MessageBox.Show("Monster loot drop tables reloaded!", "Monster Drops", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmReloadAll = new Button
+                {
+                    Text = "Reload All Tables",
+                    Location = new System.Drawing.Point(155, 184),
+                    Size = new System.Drawing.Size(140, 26),
+                    BackColor = System.Drawing.Color.Honeydew,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmReloadAll.Click += (s, e) =>
+                {
+                    string summary = Game.PlayerRelated.GmManager.ReloadAll();
+                    RefreshGmList();
+                    MessageBox.Show(summary, "Server Tables Reloaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Label lblCompanionSpawner = new Label
+                {
+                    Text = "Quick Companion Recruiter:",
+                    Location = new System.Drawing.Point(10, 218),
+                    Size = new System.Drawing.Size(280, 18),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                ComboBox cmbGmCompanions = new ComboBox
+                {
+                    Location = new System.Drawing.Point(10, 238),
+                    Size = new System.Drawing.Size(285, 23),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular)
+                };
+                cmbGmCompanions.Items.AddRange(new object[]
+                {
+                    "Robinson (ID: 12178)",
+                    "Roca (ID: 14161)",
+                    "Niss (ID: 14162)",
+                    "Clive (ID: 14163)",
+                    "Fred (ID: 14164)",
+                    "Sam (ID: 14165)",
+                    "Elin (ID: 14166)",
+                    "Shizune (ID: 14167)",
+                    "Victoria (ID: 14168)",
+                    "Angela (ID: 14169)",
+                    "Eva (ID: 14170)",
+                    "Charlotte (ID: 14171)",
+                    "Monkey (ID: 10727)"
+                });
+                cmbGmCompanions.SelectedIndex = 0;
+
+                Button btnGmRecruitCompanion = new Button
+                {
+                    Text = "Recruit Companion to Selected Player",
+                    Location = new System.Drawing.Point(10, 266),
+                    Size = new System.Drawing.Size(285, 30),
+                    BackColor = System.Drawing.Color.LightGreen,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmRecruitCompanion.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null)
+                    {
+                        MessageBox.Show("Please select an online player first.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    if (cmbGmCompanions.SelectedItem != null)
+                    {
+                        string sel = cmbGmCompanions.SelectedItem.ToString();
+                        int idx = sel.IndexOf("(ID: ");
+                        if (idx >= 0)
+                        {
+                            string compName = sel.Substring(0, idx).Trim();
+                            string idStr = sel.Substring(idx + 5).TrimEnd(')', ' ');
+                            if (uint.TryParse(idStr, out uint cId))
+                            {
+                                if (Game.PlayerRelated.GmManager.RecruitCompanion(target, cId, compName, out string msg))
+                                    MessageBox.Show(msg, "Companion Recruited", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                else
+                                    MessageBox.Show(msg, "Recruit Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            }
+                        }
+                    }
+                };
+
+                Label lblDropRate = new Label
+                {
+                    Text = "Drop Multiplier:",
+                    Location = new System.Drawing.Point(10, 308),
+                    Size = new System.Drawing.Size(130, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                numGmDropRate = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(145, 306),
+                    Size = new System.Drawing.Size(65, 23),
+                    DecimalPlaces = 1,
+                    Increment = 0.5m,
+                    Minimum = 0.1m,
+                    Maximum = 100.0m,
+                    Value = (decimal)Game.Battle.MonsterDropManager.DropRateMultiplier,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Button btnGmApplyDropRate = new Button
+                {
+                    Text = "Set Drops",
+                    Location = new System.Drawing.Point(215, 305),
+                    Size = new System.Drawing.Size(80, 25),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnGmApplyDropRate.Click += (s, e) =>
+                {
+                    double dRate = (double)numGmDropRate.Value;
+                    Game.Battle.MonsterDropManager.DropRateMultiplier = dRate;
+                    MessageBox.Show($"Global monster drop rate multiplier set to {dRate:F1}x!", "Drop Rate Set", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnGmKickAll = new Button
+                {
+                    Text = "Kick All Non-GMs",
+                    Location = new System.Drawing.Point(10, 340),
+                    Size = new System.Drawing.Size(138, 30),
+                    BackColor = System.Drawing.Color.LightCoral,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmKickAll.Click += (s, e) =>
+                {
+                    if (MessageBox.Show("Disconnect ALL non-GM players from the server?", "Confirm Mass Kick", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                    {
+                        int kCount = Game.PlayerRelated.GmManager.KickAllPlayers("Server Administration Maintenance", out string kMsg);
+                        RefreshGmOnlinePlayers();
+                        MessageBox.Show(kMsg, "Mass Kick Executed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnGmShutdown = new Button
+                {
+                    Text = "Shutdown (10s)",
+                    Location = new System.Drawing.Point(155, 340),
+                    Size = new System.Drawing.Size(140, 30),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmShutdown.Click += (s, e) =>
+                {
+                    if (MessageBox.Show("Initiate a 10-second graceful server shutdown?", "Confirm Shutdown", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                    {
+                        Game.PlayerRelated.GmManager.BroadcastNotice("Server is shutting down in 10 seconds for maintenance!", 4);
+                        System.Threading.Tasks.Task.Run(async () =>
+                        {
+                            for (int i = 10; i > 0; i--)
+                            {
+                                if (i <= 5 || i == 10)
+                                    Game.PlayerRelated.GmManager.BroadcastNotice($"[ALERT] Server shutdown in {i} second(s)!", 4);
+                                await System.Threading.Tasks.Task.Delay(1000);
+                            }
+                            Game.PlayerRelated.GmManager.KickAllPlayers("Server Scheduled Shutdown", out _);
+                            Environment.Exit(0);
+                        });
+                        MessageBox.Show("10-second shutdown countdown active.", "Shutdown Initiated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnGmClearGround = new Button
+                {
+                    Text = "Clear Ground Items on Current Map",
+                    Location = new System.Drawing.Point(10, 380),
+                    Size = new System.Drawing.Size(285, 30),
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGmClearGround.Click += (s, e) =>
+                {
+                    var gm = GetPrivatePlayer();
+                    var map = gm?.CurMap as Game.GameMap;
+                    if (map != null)
+                    {
+                        map.GroundItemList?.Clear();
+                        MessageBox.Show($"Ground items cleared for Map {map.MapID}.", "Ground Items Cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("No active map reference.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                grpServerOps.Controls.Add(lblBroadcast);
+                grpServerOps.Controls.Add(txtGmBroadcastMsg);
+                grpServerOps.Controls.Add(cmbGmBroadcastColor);
+                grpServerOps.Controls.Add(btnGmSendBroadcast);
+                grpServerOps.Controls.Add(lblExpRate);
+                grpServerOps.Controls.Add(numGmExpRate);
+                grpServerOps.Controls.Add(btnGmApplyExp);
+                grpServerOps.Controls.Add(lblReload);
+                grpServerOps.Controls.Add(btnGmReloadQuests);
+                grpServerOps.Controls.Add(btnGmReloadMall);
+                grpServerOps.Controls.Add(btnGmReloadDrops);
+                grpServerOps.Controls.Add(btnGmReloadAll);
+                grpServerOps.Controls.Add(lblCompanionSpawner);
+                grpServerOps.Controls.Add(cmbGmCompanions);
+                grpServerOps.Controls.Add(btnGmRecruitCompanion);
+                grpServerOps.Controls.Add(lblDropRate);
+                grpServerOps.Controls.Add(numGmDropRate);
+                grpServerOps.Controls.Add(btnGmApplyDropRate);
+                grpServerOps.Controls.Add(btnGmKickAll);
+                grpServerOps.Controls.Add(btnGmShutdown);
+                grpServerOps.Controls.Add(btnGmClearGround);
+                #endregion
+
+                #region GroupBox 4: Spatial Teleportation & World Warps
+                GroupBox grpTeleportStudio = new GroupBox
+                {
+                    Text = "Spatial Teleportation & World Warps",
+                    Location = new System.Drawing.Point(865, 10),
+                    Size = new System.Drawing.Size(375, 435),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                Label lblTownWarp = new Label
+                {
+                    Text = "Quick Town & Hub Warp:",
+                    Location = new System.Drawing.Point(10, 22),
+                    Size = new System.Drawing.Size(355, 16),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                cmbTownPresets = new ComboBox
+                {
+                    Location = new System.Drawing.Point(10, 40),
+                    Size = new System.Drawing.Size(355, 23),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Regular)
+                };
+                foreach (var kvp in Game.PlayerRelated.GmManager.TownDirectory)
+                {
+                    cmbTownPresets.Items.Add($"{kvp.Value.Name} (Map {kvp.Value.MapID}) [{kvp.Key}]");
+                }
+                if (cmbTownPresets.Items.Count > 0) cmbTownPresets.SelectedIndex = 0;
+
+                Button btnWarpPlayerTown = new Button
+                {
+                    Text = "Warp Target Player",
+                    Location = new System.Drawing.Point(10, 68),
+                    Size = new System.Drawing.Size(172, 28),
+                    BackColor = System.Drawing.Color.LightSteelBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnWarpPlayerTown.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) { MessageBox.Show("No target player selected.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    if (cmbTownPresets.SelectedItem != null)
+                    {
+                        string sel = cmbTownPresets.SelectedItem.ToString();
+                        int b1 = sel.IndexOf('[');
+                        int b2 = sel.IndexOf(']');
+                        if (b1 >= 0 && b2 > b1)
+                        {
+                            string key = sel.Substring(b1 + 1, b2 - b1 - 1);
+                            if (Game.PlayerRelated.GmManager.TownDirectory.TryGetValue(key, out var entry))
+                            {
+                                Game.PlayerRelated.GmManager.WarpPlayer(target, entry.MapID, entry.X, entry.Y, out string msg);
+                                MessageBox.Show(msg, "Town Teleport", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                        }
+                    }
+                };
+
+                Button btnWarpGmTown = new Button
+                {
+                    Text = "Warp GM / Host",
+                    Location = new System.Drawing.Point(190, 68),
+                    Size = new System.Drawing.Size(175, 28),
+                    BackColor = System.Drawing.Color.LightSkyBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnWarpGmTown.Click += (s, e) =>
+                {
+                    var gm = GetPrivatePlayer();
+                    if (gm == null) { MessageBox.Show("No active local GM session.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    if (cmbTownPresets.SelectedItem != null)
+                    {
+                        string sel = cmbTownPresets.SelectedItem.ToString();
+                        int b1 = sel.IndexOf('[');
+                        int b2 = sel.IndexOf(']');
+                        if (b1 >= 0 && b2 > b1)
+                        {
+                            string key = sel.Substring(b1 + 1, b2 - b1 - 1);
+                            if (Game.PlayerRelated.GmManager.TownDirectory.TryGetValue(key, out var entry))
+                            {
+                                Game.PlayerRelated.GmManager.WarpPlayer(gm, entry.MapID, entry.X, entry.Y, out string msg);
+                                MessageBox.Show(msg, "GM Teleport", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            }
+                        }
+                    }
+                };
+
+                Label lblCoordWarp = new Label
+                {
+                    Text = "Custom Coordinates Warp:",
+                    Location = new System.Drawing.Point(10, 104),
+                    Size = new System.Drawing.Size(355, 16),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Label lblWarpMap = new Label { Text = "Map:", Location = new System.Drawing.Point(10, 126), Size = new System.Drawing.Size(36, 20), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                numWarpMapId = new NumericUpDown { Location = new System.Drawing.Point(46, 124), Size = new System.Drawing.Size(60, 23), Minimum = 1, Maximum = 65535, Value = 10001, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                Label lblWarpX = new Label { Text = "X:", Location = new System.Drawing.Point(112, 126), Size = new System.Drawing.Size(18, 20), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                numWarpX = new NumericUpDown { Location = new System.Drawing.Point(130, 124), Size = new System.Drawing.Size(55, 23), Minimum = 10, Maximum = 5000, Value = 800, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                Label lblWarpY = new Label { Text = "Y:", Location = new System.Drawing.Point(192, 126), Size = new System.Drawing.Size(18, 20), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                numWarpY = new NumericUpDown { Location = new System.Drawing.Point(210, 124), Size = new System.Drawing.Size(55, 23), Minimum = 10, Maximum = 5000, Value = 750, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+
+                Button btnWarpCoords = new Button
+                {
+                    Text = "Warp",
+                    Location = new System.Drawing.Point(272, 122),
+                    Size = new System.Drawing.Size(93, 26),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnWarpCoords.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    ushort m = (ushort)numWarpMapId.Value;
+                    ushort x = (ushort)numWarpX.Value;
+                    ushort y = (ushort)numWarpY.Value;
+                    Game.PlayerRelated.GmManager.WarpPlayer(target, m, x, y, out string msg);
+                    MessageBox.Show(msg, "Coordinates Warp", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnSummonAll = new Button
+                {
+                    Text = "Summon All Online Players to GM (Event)",
+                    Location = new System.Drawing.Point(10, 158),
+                    Size = new System.Drawing.Size(355, 30),
+                    BackColor = System.Drawing.Color.LemonChiffon,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnSummonAll.Click += (s, e) =>
+                {
+                    var gm = GetPrivatePlayer();
+                    if (gm == null) return;
+                    if (MessageBox.Show("Are you sure you want to summon ALL online players to your current location?", "Confirm Summon All", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    {
+                        int count = Game.PlayerRelated.GmManager.SummonAllPlayers(gm, out string msg);
+                        MessageBox.Show(msg, "Summon All", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnJailPlayer = new Button
+                {
+                    Text = "Send to Jail (10m)",
+                    Location = new System.Drawing.Point(10, 195),
+                    Size = new System.Drawing.Size(172, 28),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnJailPlayer.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (Game.PlayerRelated.GmManager.JailPlayer(target, 10, out string msg))
+                        MessageBox.Show(msg, "Jailed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnUnjailPlayer = new Button
+                {
+                    Text = "Release from Jail",
+                    Location = new System.Drawing.Point(190, 195),
+                    Size = new System.Drawing.Size(175, 28),
+                    BackColor = System.Drawing.Color.LightGreen,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnUnjailPlayer.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer();
+                    if (target == null) return;
+                    if (Game.PlayerRelated.GmManager.UnjailPlayer(target, out string msg))
+                        MessageBox.Show(msg, "Unjailed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnToggleInvis = new Button
+                {
+                    Text = "Toggle GM Invisibility (Ghost Mode)",
+                    Location = new System.Drawing.Point(10, 230),
+                    Size = new System.Drawing.Size(355, 30),
+                    BackColor = System.Drawing.Color.Lavender,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnToggleInvis.Click += (s, e) =>
+                {
+                    var gm = GetPrivatePlayer();
+                    if (gm == null) return;
+                    Game.PlayerRelated.GmManager.ToggleInvisibility(gm, out string msg);
+                    MessageBox.Show(msg, "Invisibility Mode", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Label lblCombatTest = new Label
+                {
+                    Text = "Combat Encounter Simulator Test:",
+                    Location = new System.Drawing.Point(10, 268),
+                    Size = new System.Drawing.Size(355, 16),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+
+                Label lblMobTid = new Label { Text = "Mob TID:", Location = new System.Drawing.Point(10, 292), Size = new System.Drawing.Size(65, 20), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                numTestNpcId = new NumericUpDown { Location = new System.Drawing.Point(75, 290), Size = new System.Drawing.Size(95, 23), Minimum = 1, Maximum = 65535, Value = 11066, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+
+                Button btnStartBattle = new Button
+                {
+                    Text = "Start Test Battle",
+                    Location = new System.Drawing.Point(180, 288),
+                    Size = new System.Drawing.Size(185, 27),
+                    BackColor = System.Drawing.Color.LightCoral,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnStartBattle.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    uint mobId = (uint)numTestNpcId.Value;
+                    Game.Battle.PvEBattleManager.StartBattle(p, 1, mobId);
+                    MessageBox.Show($"Started test combat for {p.CharName} against Mob #{mobId}!", "Battle Started", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnWinActiveBattle = new Button
+                {
+                    Text = "Instant Battle Victory (Kill All)",
+                    Location = new System.Drawing.Point(10, 323),
+                    Size = new System.Drawing.Size(355, 30),
+                    BackColor = System.Drawing.Color.Honeydew,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnWinActiveBattle.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.Battle.PvEBattleManager.ForceBattleVictory(p))
+                        MessageBox.Show("Battle ended in immediate victory!", "Victory", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    else
+                        MessageBox.Show("Player is not in an active battle encounter.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                grpTeleportStudio.Controls.Add(lblTownWarp);
+                grpTeleportStudio.Controls.Add(cmbTownPresets);
+                grpTeleportStudio.Controls.Add(btnWarpPlayerTown);
+                grpTeleportStudio.Controls.Add(btnWarpGmTown);
+                grpTeleportStudio.Controls.Add(lblCoordWarp);
+                grpTeleportStudio.Controls.Add(lblWarpMap);
+                grpTeleportStudio.Controls.Add(numWarpMapId);
+                grpTeleportStudio.Controls.Add(lblWarpX);
+                grpTeleportStudio.Controls.Add(numWarpX);
+                grpTeleportStudio.Controls.Add(lblWarpY);
+                grpTeleportStudio.Controls.Add(numWarpY);
+                grpTeleportStudio.Controls.Add(btnWarpCoords);
+                grpTeleportStudio.Controls.Add(btnSummonAll);
+                grpTeleportStudio.Controls.Add(btnJailPlayer);
+                grpTeleportStudio.Controls.Add(btnUnjailPlayer);
+                grpTeleportStudio.Controls.Add(btnToggleInvis);
+                grpTeleportStudio.Controls.Add(lblCombatTest);
+                grpTeleportStudio.Controls.Add(lblMobTid);
+                grpTeleportStudio.Controls.Add(numTestNpcId);
+                grpTeleportStudio.Controls.Add(btnStartBattle);
+                grpTeleportStudio.Controls.Add(btnWinActiveBattle);
+                #endregion
+
+                #region GroupBox 5: Live Player Inventory & Equipment Inspector
+                GroupBox grpInventoryStudio = new GroupBox
+                {
+                    Text = "Live Player Inventory, Equipment & Item Injector",
+                    Location = new System.Drawing.Point(10, 455),
+                    Size = new System.Drawing.Size(1230, 310),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                Label lblInvHeader = new Label
+                {
+                    Text = "Selected Player Inventory (50 Slots):",
+                    Location = new System.Drawing.Point(10, 22),
+                    Size = new System.Drawing.Size(350, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                Button btnRefreshInv = new Button
+                {
+                    Text = "Inspect / Refresh Bags",
+                    Location = new System.Drawing.Point(380, 18),
+                    Size = new System.Drawing.Size(170, 25),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Regular)
+                };
+                btnRefreshInv.Click += (s, e) => RefreshGmInventoryAndEquipment();
+
+                dgvGmInventory = new DataGridView
+                {
+                    Location = new System.Drawing.Point(10, 46),
+                    Size = new System.Drawing.Size(540, 250),
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = false,
+                    RowHeadersVisible = false,
+                    BackgroundColor = System.Drawing.Color.White,
+                    BorderStyle = BorderStyle.FixedSingle
+                };
+                ModernTheme.StyleGrid(dgvGmInventory);
+
+                Label lblEquipHeader = new Label
+                {
+                    Text = "Equipped Gear (6 Slots):",
+                    Location = new System.Drawing.Point(565, 22),
+                    Size = new System.Drawing.Size(380, 20),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                dgvGmEquip = new DataGridView
+                {
+                    Location = new System.Drawing.Point(565, 46),
+                    Size = new System.Drawing.Size(390, 250),
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    MultiSelect = false,
+                    RowHeadersVisible = false,
+                    BackgroundColor = System.Drawing.Color.White,
+                    BorderStyle = BorderStyle.FixedSingle
+                };
+                ModernTheme.StyleGrid(dgvGmEquip);
+
+                Panel pnlInvActions = new Panel
+                {
+                    Location = new System.Drawing.Point(965, 22),
+                    Size = new System.Drawing.Size(255, 275)
+                };
+
+                Label lblItemInjector = new Label
+                {
+                    Text = "Quick Item Injector:",
+                    Location = new System.Drawing.Point(5, 4),
+                    Size = new System.Drawing.Size(245, 18),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+
+                Label lblItemId = new Label { Text = "Item ID:", Location = new System.Drawing.Point(5, 26), Size = new System.Drawing.Size(55, 20), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                numGmItemId = new NumericUpDown { Location = new System.Drawing.Point(62, 24), Size = new System.Drawing.Size(70, 23), Minimum = 1, Maximum = 65535, Value = 34001, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+
+                Label lblItemCnt = new Label { Text = "Count:", Location = new System.Drawing.Point(140, 26), Size = new System.Drawing.Size(45, 20), Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+                numGmItemCount = new NumericUpDown { Location = new System.Drawing.Point(188, 24), Size = new System.Drawing.Size(55, 23), Minimum = 1, Maximum = 50, Value = 1, Font = new System.Drawing.Font("Segoe UI", 8.5f) };
+
+                Button btnGiveItem = new Button
+                {
+                    Text = "Give Item to Player",
+                    Location = new System.Drawing.Point(5, 52),
+                    Size = new System.Drawing.Size(245, 28),
+                    BackColor = System.Drawing.Color.LightGreen,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnGiveItem.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) { MessageBox.Show("No online player selected.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    ushort id = (ushort)numGmItemId.Value;
+                    byte cnt = (byte)numGmItemCount.Value;
+                    p.Inv.AddItem(id, cnt);
+                    DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                    RefreshGmInventoryAndEquipment();
+                    MessageBox.Show($"Injected {cnt}x Item #{id} into {p.CharName}'s inventory!", "Item Given", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                Button btnDeleteInvItem = new Button
+                {
+                    Text = "Delete Selected Bag Item",
+                    Location = new System.Drawing.Point(5, 86),
+                    Size = new System.Drawing.Size(245, 28),
+                    BackColor = System.Drawing.Color.LightCoral,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnDeleteInvItem.Click += (s, e) =>
+                {
+                    if (dgvGmInventory.SelectedRows.Count == 0)
+                    {
+                        MessageBox.Show("Please select an item row in the inventory grid.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    var row = dgvGmInventory.SelectedRows[0];
+                    int slot = Convert.ToInt32(row.Cells["Slot"].Value);
+                    var p = GetSelectedGmPlayer();
+                    if (p != null && slot >= 1 && slot <= 50)
+                    {
+                        p.Inv.RemoveItem((byte)slot, 255, true);
+                        DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                        RefreshGmInventoryAndEquipment();
+                        MessageBox.Show($"Deleted item at slot {slot}.", "Item Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnClearPlayerInv = new Button
+                {
+                    Text = "Clear Entire Inventory",
+                    Location = new System.Drawing.Point(5, 120),
+                    Size = new System.Drawing.Size(245, 28),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnClearPlayerInv.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (MessageBox.Show($"Clear all 50 inventory slots for {p.CharName}?", "Confirm Clear Inventory", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    {
+                        p.Inv.ClearInventory(true);
+                        DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
+                        RefreshGmInventoryAndEquipment();
+                        MessageBox.Show($"Inventory cleared for {p.CharName}.", "Inventory Cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnRepairGear = new Button
+                {
+                    Text = "Repair All Gear & Bag Items",
+                    Location = new System.Drawing.Point(5, 154),
+                    Size = new System.Drawing.Size(245, 28),
+                    BackColor = System.Drawing.Color.LightSkyBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnRepairGear.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.PlayerRelated.GmManager.RepairAllItems(p, out string msg))
+                    {
+                        RefreshGmInventoryAndEquipment();
+                        MessageBox.Show(msg, "Repair Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnAdd1000Mall = new Button
+                {
+                    Text = "+1,000 Item Mall Points",
+                    Location = new System.Drawing.Point(5, 188),
+                    Size = new System.Drawing.Size(245, 28),
+                    BackColor = System.Drawing.Color.LemonChiffon,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnAdd1000Mall.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.PlayerRelated.GmManager.AddMallPoints(p, 1000, out string msg))
+                    {
+                        MessageBox.Show(msg, "IM Points Granted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                Button btnInspectSummary = new Button
+                {
+                    Text = "Inspect Character Info",
+                    Location = new System.Drawing.Point(5, 222),
+                    Size = new System.Drawing.Size(245, 28),
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnInspectSummary.Click += (s, e) =>
+                {
+                    var p = GetSelectedGmPlayer();
+                    if (p == null) return;
+                    if (Game.PlayerRelated.GmManager.GetPlayerInfo(p, out string report))
+                    {
+                        MessageBox.Show(report, "Character Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
+                pnlInvActions.Controls.Add(lblItemInjector);
+                pnlInvActions.Controls.Add(lblItemId);
+                pnlInvActions.Controls.Add(numGmItemId);
+                pnlInvActions.Controls.Add(lblItemCnt);
+                pnlInvActions.Controls.Add(numGmItemCount);
+                pnlInvActions.Controls.Add(btnGiveItem);
+                pnlInvActions.Controls.Add(btnDeleteInvItem);
+                pnlInvActions.Controls.Add(btnClearPlayerInv);
+                pnlInvActions.Controls.Add(btnRepairGear);
+                pnlInvActions.Controls.Add(btnAdd1000Mall);
+                pnlInvActions.Controls.Add(btnInspectSummary);
+
+                grpInventoryStudio.Controls.Add(lblInvHeader);
+                grpInventoryStudio.Controls.Add(btnRefreshInv);
+                grpInventoryStudio.Controls.Add(dgvGmInventory);
+                grpInventoryStudio.Controls.Add(lblEquipHeader);
+                grpInventoryStudio.Controls.Add(dgvGmEquip);
+                grpInventoryStudio.Controls.Add(pnlInvActions);
+                #endregion
+
+                tabGm.Controls.Add(grpGmAuth);
+                tabGm.Controls.Add(grpPlayerToolkit);
+                tabGm.Controls.Add(grpServerOps);
+                tabGm.Controls.Add(grpTeleportStudio);
+                tabGm.Controls.Add(grpInventoryStudio);
 
                 if (this.tabControl3 != null)
                 {
                     this.tabControl3.TabPages.Add(tabGm);
                 }
 
+                cmbGmTargetPlayer.SelectedIndexChanged += (s, e) => RefreshGmInventoryAndEquipment();
+
                 RefreshGmList();
+                RefreshGmOnlinePlayers();
+
                 Game.PlayerRelated.GmManager.OnGmListChanged += () =>
                 {
                     if (this.IsHandleCreated)
@@ -2185,9 +3618,96 @@ namespace Wonderland_Private_Server
         {
             if (lstGmList == null) return;
             lstGmList.Items.Clear();
-            foreach (var gm in Game.PlayerRelated.GmManager.GetGmList())
+            var list = Game.PlayerRelated.GmManager.GetGmList();
+            foreach (var gm in list)
             {
                 lstGmList.Items.Add(gm);
+            }
+            if (lblGmCount != null)
+            {
+                lblGmCount.Text = $"Total Authorized: {list.Count}";
+            }
+        }
+
+        private string ResolveItemNameForGm(ushort itemId)
+        {
+            try
+            {
+                var item = cGlobal.ItemDatManager?.GetItemByID(itemId);
+                if (item != null && item.ItemName != null && item.ItemName.Length > 0)
+                {
+                    string n = System.Text.Encoding.Default.GetString(item.ItemName).Trim('\0', ' ');
+                    if (!string.IsNullOrEmpty(n)) return n;
+                }
+            }
+            catch { }
+            return $"Item #{itemId}";
+        }
+
+        private void RefreshGmInventoryAndEquipment()
+        {
+            try
+            {
+                var target = GetSelectedGmPlayer();
+
+                if (dgvGmInventory != null)
+                {
+                    var invDt = new System.Data.DataTable();
+                    invDt.Columns.Add("Slot", typeof(int));
+                    invDt.Columns.Add("ItemID", typeof(ushort));
+                    invDt.Columns.Add("ItemName", typeof(string));
+                    invDt.Columns.Add("Count", typeof(int));
+                    invDt.Columns.Add("Damage", typeof(ushort));
+
+                    if (target?.Inv != null)
+                    {
+                        for (byte s = 1; s <= 50; s++)
+                        {
+                            var it = target.Inv[s];
+                            if (it != null && it.ItemID > 0)
+                            {
+                                string name = ResolveItemNameForGm(it.ItemID);
+                                invDt.Rows.Add((int)s, it.ItemID, name, (int)it.Ammt, (ushort)it.Damage);
+                            }
+                        }
+                    }
+                    dgvGmInventory.DataSource = invDt;
+                }
+
+                if (dgvGmEquip != null)
+                {
+                    var eqDt = new System.Data.DataTable();
+                    eqDt.Columns.Add("Slot", typeof(int));
+                    eqDt.Columns.Add("SlotName", typeof(string));
+                    eqDt.Columns.Add("ItemID", typeof(ushort));
+                    eqDt.Columns.Add("ItemName", typeof(string));
+                    eqDt.Columns.Add("Damage", typeof(ushort));
+
+                    string[] slotNames = new string[] { "Head (1)", "Body (2)", "Weapon (3)", "Wrist (4)", "Foot (5)", "Special (6)" };
+
+                    if (target?.Eqs != null)
+                    {
+                        for (byte s = 1; s <= 6; s++)
+                        {
+                            var it = target.Eqs[s];
+                            string slotLabel = (s >= 1 && s <= 6) ? slotNames[s - 1] : $"Slot {s}";
+                            if (it != null && it.ItemID > 0)
+                            {
+                                string name = ResolveItemNameForGm(it.ItemID);
+                                eqDt.Rows.Add((int)s, slotLabel, it.ItemID, name, (ushort)it.Damage);
+                            }
+                            else
+                            {
+                                eqDt.Rows.Add((int)s, slotLabel, (ushort)0, "(Empty)", (ushort)0);
+                            }
+                        }
+                    }
+                    dgvGmEquip.DataSource = eqDt;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GUI] Error refreshing GM inventory and equipment: {ex.Message}");
             }
         }
         #endregion
@@ -3104,6 +4624,10 @@ namespace Wonderland_Private_Server
         #region Server Status Manager (Port 6416)
         private ComboBox cmbServerStatus;
         private bool _isUpdatingServerStatusUi = false;
+        private NumericUpDown numExpMultiplier;
+        private Label lblExpMultiplierStatus;
+        private bool _isUpdatingExpRateUi = false;
+        private Label lblServerStatusDb;
 
         private void SetupServerStatusControl()
         {
@@ -3113,14 +4637,15 @@ namespace Wonderland_Private_Server
 
                 GroupBox grpServerStatus = new GroupBox
                 {
-                    Text = " Server List Traffic Indicator / Cluster Load (Port 6416)",
+                    Text = " Server Traffic Status (Port 6416), Multipliers & Database Engine",
                     Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
                     ForeColor = System.Drawing.Color.DarkSlateBlue,
                     Location = new System.Drawing.Point(6, 68),
-                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 58),
+                    Size = new System.Drawing.Size(this.tabPage7.Width - 12, 126),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
                 };
 
+                // Row 1: Traffic Status
                 Label lblStatus = new Label
                 {
                     Text = "Server Status:",
@@ -3132,8 +4657,8 @@ namespace Wonderland_Private_Server
 
                 cmbServerStatus = new ComboBox
                 {
-                    Location = new System.Drawing.Point(125, 21),
-                    Size = new System.Drawing.Size(220, 24),
+                    Location = new System.Drawing.Point(115, 21),
+                    Size = new System.Drawing.Size(200, 24),
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     Font = new System.Drawing.Font("Segoe UI", 9f)
                 };
@@ -3163,8 +4688,8 @@ namespace Wonderland_Private_Server
                 Button btnSetGreen = new Button
                 {
                     Text = " Green",
-                    Location = new System.Drawing.Point(355, 20),
-                    Size = new System.Drawing.Size(90, 26),
+                    Location = new System.Drawing.Point(325, 20),
+                    Size = new System.Drawing.Size(85, 26),
                     BackColor = System.Drawing.Color.LightGreen,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
@@ -3173,8 +4698,8 @@ namespace Wonderland_Private_Server
                 Button btnSetYellow = new Button
                 {
                     Text = " Yellow",
-                    Location = new System.Drawing.Point(450, 20),
-                    Size = new System.Drawing.Size(90, 26),
+                    Location = new System.Drawing.Point(415, 20),
+                    Size = new System.Drawing.Size(85, 26),
                     BackColor = System.Drawing.Color.Khaki,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
@@ -3183,8 +4708,8 @@ namespace Wonderland_Private_Server
                 Button btnSetRed = new Button
                 {
                     Text = " Red",
-                    Location = new System.Drawing.Point(545, 20),
-                    Size = new System.Drawing.Size(95, 26),
+                    Location = new System.Drawing.Point(505, 20),
+                    Size = new System.Drawing.Size(85, 26),
                     BackColor = System.Drawing.Color.MistyRose,
                     ForeColor = System.Drawing.Color.DarkRed,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
@@ -3194,26 +4719,299 @@ namespace Wonderland_Private_Server
                 Button btnSetAuto = new Button
                 {
                     Text = " Auto",
-                    Location = new System.Drawing.Point(645, 20),
-                    Size = new System.Drawing.Size(105, 26),
+                    Location = new System.Drawing.Point(595, 20),
+                    Size = new System.Drawing.Size(95, 26),
                     BackColor = System.Drawing.Color.LightCyan,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
                 btnSetAuto.Click += (s, e) => { Server.ServerStatusManager.SetMode(Server.ServerLoadColor.Auto); RefreshServerStatusUi(); };
 
+                // Row 2: EXP Rate Multiplier
+                Label lblExpTitle = new Label
+                {
+                    Text = "EXP Multiplier:",
+                    Location = new System.Drawing.Point(10, 60),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateGray
+                };
+
+                numExpMultiplier = new NumericUpDown
+                {
+                    Location = new System.Drawing.Point(115, 57),
+                    Size = new System.Drawing.Size(75, 24),
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    Minimum = 0.1M,
+                    Maximum = 1000.0M,
+                    DecimalPlaces = 1,
+                    Increment = 0.5M,
+                    Value = (decimal)Math.Max(0.1, Server.ServerStatusManager.ExpRate)
+                };
+
+                Label lblX = new Label
+                {
+                    Text = "x",
+                    Location = new System.Drawing.Point(193, 60),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold)
+                };
+
+                Button btnExp1x = new Button
+                {
+                    Text = "1x Normal",
+                    Location = new System.Drawing.Point(215, 56),
+                    Size = new System.Drawing.Size(85, 26),
+                    BackColor = System.Drawing.Color.WhiteSmoke,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp1x.Click += (s, e) => { SetExpRateFromUi(1.0); };
+
+                Button btnExp2x = new Button
+                {
+                    Text = "2x Double",
+                    Location = new System.Drawing.Point(305, 56),
+                    Size = new System.Drawing.Size(85, 26),
+                    BackColor = System.Drawing.Color.LemonChiffon,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp2x.Click += (s, e) => { SetExpRateFromUi(2.0); };
+
+                Button btnExp5x = new Button
+                {
+                    Text = "5x",
+                    Location = new System.Drawing.Point(395, 56),
+                    Size = new System.Drawing.Size(55, 26),
+                    BackColor = System.Drawing.Color.LightYellow,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp5x.Click += (s, e) => { SetExpRateFromUi(5.0); };
+
+                Button btnExp10x = new Button
+                {
+                    Text = "10x",
+                    Location = new System.Drawing.Point(455, 56),
+                    Size = new System.Drawing.Size(55, 26),
+                    BackColor = System.Drawing.Color.PeachPuff,
+                    Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Bold)
+                };
+                btnExp10x.Click += (s, e) => { SetExpRateFromUi(10.0); };
+
+                Button btnApplyExp = new Button
+                {
+                    Text = " Apply & Save",
+                    Location = new System.Drawing.Point(520, 56),
+                    Size = new System.Drawing.Size(100, 26),
+                    BackColor = System.Drawing.Color.SteelBlue,
+                    ForeColor = System.Drawing.Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnApplyExp.Click += (s, e) => { SetExpRateFromUi((double)numExpMultiplier.Value); };
+
+                lblExpMultiplierStatus = new Label
+                {
+                    Text = $"Active: {Server.ServerStatusManager.ExpRate:F1}x",
+                    Location = new System.Drawing.Point(628, 60),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkGreen
+                };
+
+                numExpMultiplier.ValueChanged += (s, e) =>
+                {
+                    if (_isUpdatingExpRateUi) return;
+                    SetExpRateFromUi((double)numExpMultiplier.Value);
+                };
+
+                numExpMultiplier.KeyDown += (s, e) =>
+                {
+                    if (e.KeyCode == Keys.Enter)
+                    {
+                        SetExpRateFromUi((double)numExpMultiplier.Value);
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                };
+
+                // Row 3: Database Engine
+                Label lblDbTitle = new Label
+                {
+                    Text = "Database Engine:",
+                    Location = new System.Drawing.Point(10, 95),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = System.Drawing.Color.DarkSlateGray
+                };
+
+                lblServerStatusDb = new Label
+                {
+                    Text = RCLibrary.Core.DataBase.DefaultServType == RCLibrary.Core.DataBaseTypes.MySQl
+                        ? $"MySQL ({RCLibrary.Core.DataBase.DefaultServerIP}:{RCLibrary.Core.DataBase.DefaultPort}/{RCLibrary.Core.DataBase.DefaultDB})"
+                        : $"SQLite ({RCLibrary.Core.DataBase.DefaultDBFile})",
+                    Location = new System.Drawing.Point(125, 95),
+                    AutoSize = true,
+                    Font = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold),
+                    ForeColor = RCLibrary.Core.DataBase.DefaultServType == RCLibrary.Core.DataBaseTypes.MySQl ? System.Drawing.Color.DarkGreen : System.Drawing.Color.FromArgb(37, 99, 235)
+                };
+
+                Button btnOpenDbConfig = new Button
+                {
+                    Text = "Configure Database...",
+                    Location = new System.Drawing.Point(455, 91),
+                    Size = new System.Drawing.Size(165, 26),
+                    BackColor = System.Drawing.Color.FromArgb(241, 245, 249),
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnOpenDbConfig.Click += (s, e) =>
+                {
+                    if (this.tabControl3 != null)
+                    {
+                        foreach (TabPage tab in this.tabControl3.TabPages)
+                        {
+                            if (tab.Text.Contains("Database Config"))
+                            {
+                                this.tabControl3.SelectedTab = tab;
+                                break;
+                            }
+                        }
+                    }
+                };
+
                 grpServerStatus.Controls.AddRange(new Control[] {
-                    lblStatus, cmbServerStatus, btnSetGreen, btnSetYellow, btnSetRed, btnSetAuto
+                    lblStatus, cmbServerStatus, btnSetGreen, btnSetYellow, btnSetRed, btnSetAuto,
+                    lblExpTitle, numExpMultiplier, lblX, btnExp1x, btnExp2x, btnExp5x, btnExp10x, btnApplyExp, lblExpMultiplierStatus,
+                    lblDbTitle, lblServerStatusDb, btnOpenDbConfig
                 });
 
                 this.tabPage7.Controls.Add(grpServerStatus);
 
                 // Adjust MainOutput position
-                this.MainOutput.Location = new System.Drawing.Point(6, 130);
-                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 136);
+                this.MainOutput.Location = new System.Drawing.Point(6, 200);
+                this.MainOutput.Size = new System.Drawing.Size(this.tabPage7.Width - 12, this.tabPage7.Height - 206);
 
                 RefreshServerStatusUi();
+                RefreshExpRateUi();
+
+                RCLibrary.Core.DataBase.OnDatabaseConfigChanged += (t, ip, p, d, u, pass, f) =>
+                {
+                    try
+                    {
+                        if (lblServerStatusDb != null && this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                if (t == RCLibrary.Core.DataBaseTypes.MySQl)
+                                {
+                                    lblServerStatusDb.Text = $"MySQL ({ip}:{p}/{d})";
+                                    lblServerStatusDb.ForeColor = System.Drawing.Color.DarkGreen;
+                                }
+                                else
+                                {
+                                    lblServerStatusDb.Text = $"SQLite ({f})";
+                                    lblServerStatusDb.ForeColor = System.Drawing.Color.FromArgb(37, 99, 235);
+                                }
+                            }));
+                        }
+                    }
+                    catch { }
+                };
+
+                Server.ServerStatusManager.OnStatusChanged += () =>
+                {
+                    try
+                    {
+                        if (this.IsHandleCreated && !this.IsDisposed)
+                        {
+                            this.BeginInvoke(new Action(() =>
+                            {
+                                RefreshServerStatusUi();
+                                RefreshExpRateUi();
+                                if (txtWelcomeMsg != null && !txtWelcomeMsg.Focused && !string.IsNullOrEmpty(Server.ServerStatusManager.Motd))
+                                {
+                                    txtWelcomeMsg.Text = Server.ServerStatusManager.Motd;
+                                }
+                                if (txtServerName != null && !txtServerName.Focused && !string.IsNullOrEmpty(Server.ServerStatusManager.ServerName))
+                                {
+                                    txtServerName.Text = Server.ServerStatusManager.ServerName;
+                                }
+                            }));
+                        }
+                    }
+                    catch { }
+                };
+
+                // Auto-save MOTD & Server Name on focus lost or Enter key
+                if (txtWelcomeMsg != null)
+                {
+                    txtWelcomeMsg.Leave += (s, e) => { Server.ServerStatusManager.SaveMotd(txtWelcomeMsg.Text, txtServerName.Text); };
+                    txtWelcomeMsg.KeyDown += (s, e) =>
+                    {
+                        if (e.KeyCode == Keys.Enter)
+                        {
+                            Server.ServerStatusManager.SaveMotd(txtWelcomeMsg.Text, txtServerName.Text);
+                            e.Handled = true;
+                            e.SuppressKeyPress = true;
+                        }
+                    };
+                }
+                if (txtServerName != null)
+                {
+                    txtServerName.Leave += (s, e) => { Server.ServerStatusManager.SaveMotd(txtWelcomeMsg.Text, txtServerName.Text); };
+                    txtServerName.KeyDown += (s, e) =>
+                    {
+                        if (e.KeyCode == Keys.Enter)
+                        {
+                            Server.ServerStatusManager.SaveMotd(txtWelcomeMsg.Text, txtServerName.Text);
+                            e.Handled = true;
+                            e.SuppressKeyPress = true;
+                        }
+                    };
+                }
             }
             catch { }
+        }
+
+        private void SetExpRateFromUi(double rate)
+        {
+            try
+            {
+                if (rate <= 0) rate = 1.0;
+                Server.ServerStatusManager.SetExpRate(rate);
+                RefreshExpRateUi();
+                DebugSystem.Write(DebugItemType.Info_Light, $"[EXP Multiplier] Server EXP rate set to {rate:F1}x via Main Console.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[EXP Multiplier] Error updating EXP rate: {ex.Message}");
+            }
+        }
+
+        private void RefreshExpRateUi()
+        {
+            try
+            {
+                _isUpdatingExpRateUi = true;
+                double current = Server.ServerStatusManager.ExpRate;
+                if (numExpMultiplier != null)
+                {
+                    decimal decVal = (decimal)Math.Max(0.1, current);
+                    if (decVal >= numExpMultiplier.Minimum && decVal <= numExpMultiplier.Maximum)
+                    {
+                        numExpMultiplier.Value = decVal;
+                    }
+                }
+                if (lblExpMultiplierStatus != null)
+                {
+                    lblExpMultiplierStatus.Text = $"Active: {current:F1}x";
+                    lblExpMultiplierStatus.ForeColor = current > 1.0 ? System.Drawing.Color.DarkBlue : System.Drawing.Color.DarkGreen;
+                }
+            }
+            catch { }
+            finally
+            {
+                _isUpdatingExpRateUi = false;
+            }
         }
 
         private void RefreshServerStatusUi()

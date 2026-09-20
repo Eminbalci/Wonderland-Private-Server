@@ -218,7 +218,11 @@ namespace Game.PlayerRelated
                 if (_inboxes.TryGetValue(player.CharID, out var list))
                 {
                     target = list.FirstOrDefault(m => m.MailID == mailId);
-                    if (target != null) target.IsRead = true;
+                    if (target != null)
+                    {
+                        target.IsRead = true;
+                        SaveMail(target);
+                    }
                 }
             }
 
@@ -248,19 +252,28 @@ namespace Game.PlayerRelated
 
             if (target != null)
             {
+                // Verify inventory space before claiming items
+                if (target.AttachedItemID > 0 && target.AttachedItemCount > 0)
+                {
+                    if (player.Inv != null && player.Inv.FreeSpace < 1 && !player.Inv.ContainsItem(target.AttachedItemID))
+                    {
+                        SendSystemMsg(player, "Inventory is full! Clear space before claiming attachments.");
+                        return;
+                    }
+                    player.Inv?.AddItem(target.AttachedItemID, target.AttachedItemCount);
+                }
+
                 if (target.AttachedGold > 0)
                 {
                     player.AddGold((int)target.AttachedGold);
-                }
-                if (target.AttachedItemID > 0 && target.AttachedItemCount > 0)
-                {
-                    player.Inv.AddItem(target.AttachedItemID, target.AttachedItemCount);
                 }
 
                 target.IsClaimed = true;
                 target.AttachedGold = 0;
                 target.AttachedItemID = 0;
                 target.AttachedItemCount = 0;
+                SaveMail(target);
+                player.SaveCharacterData();
 
                 SendSystemMsg(player, "Claimed attachments from mail!");
                 OpenInbox(player);
@@ -277,6 +290,15 @@ namespace Game.PlayerRelated
                 {
                     list.RemoveAll(m => m.MailID == mailId);
                 }
+            }
+
+            try
+            {
+                RCLibrary.Core.DataBase.Execute($"DELETE FROM mails WHERE mail_id = {mailId} AND receiver_id = {player.CharID};");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[MailSystem] Error deleting mail from database: {ex.Message}");
             }
 
             OpenInbox(player);

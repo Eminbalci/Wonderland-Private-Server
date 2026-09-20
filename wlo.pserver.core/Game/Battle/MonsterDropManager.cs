@@ -55,6 +55,8 @@ namespace Game.Battle
         // Global fallback drops by monster level brackets
         public static readonly Dictionary<int, List<MonsterDropEntry>> LevelBracketLootTables = new Dictionary<int, List<MonsterDropEntry>>();
 
+        public static double DropRateMultiplier { get; set; } = 1.0;
+
         public static event Action OnLootTablesChanged;
 
         public static Dictionary<uint, List<MonsterDropEntry>> GetAllDrops()
@@ -155,6 +157,11 @@ namespace Game.Battle
         }
 
         static MonsterDropManager()
+        {
+            Initialize();
+        }
+
+        public static void Initialize()
         {
             InitializeLootTables();
             LoadFromFile();
@@ -399,11 +406,13 @@ namespace Game.Battle
 
                 if (pool == null || pool.Count == 0) return drops;
 
-                // Roll each drop entry independently by its drop rate percentage
+                // Roll each drop entry independently by calibrated drop rate percentage
+                // Standard MMO balance: monsters have realistic drop chances and drop at most 1 item per kill
                 foreach (var entry in pool)
                 {
                     double roll = _rng.NextDouble() * 100.0;
-                    if (roll <= entry.DropRatePercent)
+                    double calibratedRate = Math.Max(5.0, entry.DropRatePercent * 0.35 * Math.Max(0.1, DropRateMultiplier));
+                    if (roll <= calibratedRate)
                     {
                         byte count = entry.MinCount;
                         if (entry.MaxCount > entry.MinCount)
@@ -412,8 +421,8 @@ namespace Game.Battle
                         }
                         drops.Add(new RolledDropItem(entry.ItemID, entry.ItemName, count));
 
-                        // In authentic WLO, regular monsters usually drop at most 1 item per kill
-                        if (drops.Count >= 2) break;
+                        // In authentic WLO, regular monsters drop at most 1 item per kill
+                        if (drops.Count >= 1) break;
                     }
                 }
             }

@@ -162,6 +162,10 @@
     <Compile Include="Src\Gui\MainForm1.ExtendedTabs.cs">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Src\Gui\MainForm1.ModernUi.cs">
+      <DependentUpon>MainForm1.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Src\Gui\ModernTheme.cs" />
     <Compile Include="Src\Gui\CharacterDataEditorForm.cs">
       <SubType>Form</SubType>
     </Compile>
