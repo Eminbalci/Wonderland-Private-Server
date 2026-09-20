@@ -750,10 +750,10 @@ namespace Wonderland_Private_Server
             Player livePlayer = GetOnlinePlayer();
             if (livePlayer != null && livePlayer.CurMap?.MapID == _currentMapId)
             {
-                SendPacket unhidePkt = Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0, (byte)0);
+                SendPacket unhidePkt = Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0xFF, (byte)0xFF);
                 livePlayer.Send(unhidePkt);
                 livePlayer.CurMap.Broadcast(unhidePkt);
-                MessageBox.Show($"Dispatched AC 22:10 unhide/respawn packet for ClickID {clickId} to live player!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Dispatched AC 22:11 unhide/respawn packet for ClickID {clickId} to live player!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
@@ -1012,7 +1012,7 @@ namespace Wonderland_Private_Server
                     if (livePlayer != null && livePlayer.CurMap?.MapID == mapLoc)
                     {
                         // Restore NPC visibility
-                        SendPacket p = Tools.FromFormat("bbwbb", 22, 10, clickId, (byte)0, (byte)0);
+                        SendPacket p = Tools.FromFormat("bbwbb", 22, 11, clickId, (byte)0xFF, (byte)0xFF);
                         livePlayer.Send(p);
                         livePlayer.CurMap.Broadcast(p);
                     }

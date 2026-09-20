@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -46,9 +46,10 @@ namespace DataFiles
                     int recOffset = (int)(r * recordSize);
                     if (recOffset + recordSize > data.Length) break;
 
-                    ushort talkId = BitConverter.ToUInt16(data, recOffset);
+                    // Native client 0x3333a9: XOR 0xECEA, then subtract 5 (ushort).
+                    ushort talkId = unchecked((ushort)((BitConverter.ToUInt16(data, recOffset) ^ 0xECEA) - 5));
                     int len = data[recOffset + 2];
-                    if (len <= 0 || len > 250) continue;
+                    if (len <= 0 || len > 254) continue;
 
                     // The reversed text ends right before the 35-byte tail (fffff prefix + 30-byte metadata footer)
                     int textStart = recOffset + recordSize - 35 - len;

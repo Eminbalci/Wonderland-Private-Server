@@ -86,12 +86,12 @@ namespace DataBase
 
                 var query = @"CREATE TABLE IF NOT EXISTS npcs (
                                 npc_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                map_id INT NOT NULL, 
-                                click_id INT NOT NULL, 
+                                map_id INT NOT NULL,
+                                click_id INT NOT NULL,
                                 template_id INT DEFAULT 0,
-                                npc_type VARCHAR(50), 
-                                npc_name VARCHAR(100), 
-                                x INT, 
+                                npc_type VARCHAR(50),
+                                npc_name VARCHAR(100),
+                                x INT,
                                 y INT
                             )";
                 ExecuteNonQuery(query);
@@ -208,7 +208,7 @@ namespace DataBase
             try
             {
                 ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_pets (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, slot TINYINT NOT NULL, petID INT NOT NULL, petName TEXT, level TINYINT DEFAULT 1, exp INT DEFAULT 0, hp INT DEFAULT 250, maxHp INT DEFAULT 250, sp INT DEFAULT 100, maxSp INT DEFAULT 100, str INT DEFAULT 10, con INT DEFAULT 10, int_ INT DEFAULT 10, wis INT DEFAULT 10, agi INT DEFAULT 10, potential INT DEFAULT 0, skillPoints INT DEFAULT 0, amity TINYINT DEFAULT 60, isBattle TINYINT DEFAULT 1, isRide TINYINT DEFAULT 0, isHotel TINYINT DEFAULT 0, reborn TINYINT DEFAULT 0, job TINYINT DEFAULT 0, eq_head INT DEFAULT 0, eq_body INT DEFAULT 0, eq_weapon INT DEFAULT 0, eq_wrist INT DEFAULT 0, eq_shoes INT DEFAULT 0, eq_special INT DEFAULT 0);");
-                
+
                 var existingCols = GetColumnNames("character_pets");
                 string[][] petCols = new string[][] {
                     new string[] { "exp", "INT DEFAULT 0" },
@@ -227,7 +227,9 @@ namespace DataBase
                     new string[] { "eq_weapon", "INT DEFAULT 0" },
                     new string[] { "eq_wrist", "INT DEFAULT 0" },
                     new string[] { "eq_shoes", "INT DEFAULT 0" },
-                    new string[] { "eq_special", "INT DEFAULT 0" }
+                    new string[] { "eq_special", "INT DEFAULT 0" },
+                    new string[] { "skills", "TEXT DEFAULT ''" },
+                    new string[] { "equipment_meta", "TEXT DEFAULT ''" }
                 };
                 foreach (var col in petCols)
                 {
@@ -283,7 +285,7 @@ namespace DataBase
             // Stub to match previous structure replacement target if needed, but VerifyNpcDataSetup is outside block
             // Actually, I am replacing the entire 'VerifySetup' end block where it calls VerifyNpcDataSetup
             // The original code had:
-            // Create NPCs Spawns table ... catch ... 
+            // Create NPCs Spawns table ... catch ...
             // VerifyNpcDataSetup();
             // Create NPCs table if it doesn't exist ... catch ...
         }
@@ -321,6 +323,7 @@ namespace DataBase
                                         data.CopyFrom(baseItem);
                                         data.Ammt = Math.Max((byte)1, qty);
                                         data.Damage = dmg;
+                                        data.Forge = Convert.ToByte(src.Rows[i]["forge"] == DBNull.Value ? 0 : src.Rows[i]["forge"]);
                                         data.Parent = 0;
                                         c.Inv[pos].CopyFrom(data);
                                     }
@@ -331,6 +334,7 @@ namespace DataBase
                                         c[pos].CopyFrom(baseItem);
                                         c[pos].Ammt = 1;
                                         c[pos].Damage = dmg;
+                                        c[pos].Forge = Convert.ToByte(src.Rows[i]["forge"] == DBNull.Value ? 0 : src.Rows[i]["forge"]);
                                     }
                                     break;
                             }
@@ -428,6 +432,7 @@ namespace DataBase
                 var petTable = GetDataTable("SELECT * FROM character_pets WHERE charID = '" + c.CharID + "'");
                 c.PlayerPets.Clear();
                 c.HotelPets.Clear();
+                c.QuestPets.Clear();
                 if (petTable != null && petTable.Rows.Count > 0)
                 {
                     foreach (DataRow row in petTable.Rows)
@@ -435,10 +440,11 @@ namespace DataBase
                         byte slot = byte.Parse(row["slot"].ToString());
                         uint petId = uint.Parse(row["petID"].ToString());
                         if (petId == 12178) petId = 12032;
-                        string petName = row["petName"] != DBNull.Value ? row["petName"].ToString() : "Robinson";
-                        if (petName.StartsWith("Companion #") || petName == "Companion") petName = "Robinson";
+                        string storedPetName = row["petName"] != DBNull.Value ? row["petName"].ToString() : null;
+                        string petName = Game.QuestRelated.QuestManager.ResolveCompanionName(petId, storedPetName);
                         byte lvl = row.Table.Columns.Contains("level") && row["level"] != DBNull.Value ? byte.Parse(row["level"].ToString()) : (byte)1;
-                        uint exp = row.Table.Columns.Contains("exp") && row["exp"] != DBNull.Value ? uint.Parse(row["exp"].ToString()) : 0;
+                        long storedExp = row.Table.Columns.Contains("exp") && row["exp"] != DBNull.Value && long.TryParse(row["exp"].ToString(), out long parsedExp) ? parsedExp : 0;
+                        uint exp = storedExp > 0 ? (uint)Math.Min(uint.MaxValue, storedExp) : 0;
                         int hp = row.Table.Columns.Contains("hp") && row["hp"] != DBNull.Value ? int.Parse(row["hp"].ToString()) : 250;
                         int maxHp = row.Table.Columns.Contains("maxHp") && row["maxHp"] != DBNull.Value ? int.Parse(row["maxHp"].ToString()) : 250;
                         int sp = row.Table.Columns.Contains("sp") && row["sp"] != DBNull.Value ? int.Parse(row["sp"].ToString()) : 100;
@@ -493,8 +499,17 @@ namespace DataBase
                             Eq_Shoes = eqShoes,
                             Eq_Special = eqSpecial
                         };
+                        petData.LoadSkills(row.Table.Columns.Contains("skills") ? row["skills"].ToString() : null);
+                        petData.LoadEquipmentMetadata(row.Table.Columns.Contains("equipment_meta") ? row["equipment_meta"].ToString() : null);
+                        petData.NormalizeExpForLevel();
 
-                        if (isHotel)
+                        if (row.Table.Columns.Contains("isHotel") && row["isHotel"].ToString() == "2")
+                        {
+                            petData.IsBattle = false;
+                            petData.IsRide = false;
+                            c.QuestPets[slot] = petData;
+                        }
+                        else if (isHotel)
                         {
                             c.HotelPets[slot] = petData;
                             DebugSystem.Write($"[GameDataBase] Loaded Hotel pet '{petName}' (ID: {petId}, Hotel Slot: {slot}) for {c.CharName}");
@@ -570,6 +585,7 @@ namespace DataBase
             {
                 string query = $"UPDATE npcs SET map_id={mapId}, click_id={clickId}, npc_type='{type}', npc_name='{name}', x={x}, y={y}, template_id={templateId} WHERE npc_id={npcId}";
                 ExecuteNonQuery(query);
+                _npcCache.Clear();
                 return true;
             }
             catch (Exception ex)
@@ -585,6 +601,7 @@ namespace DataBase
             {
                 string query = $"INSERT INTO npcs (map_id, click_id, npc_type, npc_name, x, y, template_id) VALUES ({mapId}, {clickId}, '{type}', '{name}', {x}, {y}, {templateId})";
                 ExecuteNonQuery(query);
+                _npcCache.Clear();
                 return true;
             }
             catch (Exception ex)
@@ -600,7 +617,7 @@ namespace DataBase
             {
                 // Create npc_data table (Templates)
                 string query = @"CREATE TABLE IF NOT EXISTS npc_data (
-                                    id INT PRIMARY KEY, 
+                                    id INT PRIMARY KEY,
                                     name VARCHAR(100),
                                     level INT DEFAULT 1,
                                     hp INT DEFAULT 100,
@@ -635,7 +652,7 @@ namespace DataBase
             }
         }
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<ushort, NpcTemplateInfo> _npcCache = new System.Collections.Concurrent.ConcurrentDictionary<ushort, NpcTemplateInfo>();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<ushort, NpcTemplateInfo> _npcCache = new System.Collections.Concurrent.ConcurrentDictionary<ushort, NpcTemplateInfo>();
 
         public void LoadNpcCache()
         {
@@ -644,6 +661,7 @@ namespace DataBase
                 var dt = GetDataTable("SELECT id, name, level, hp, element FROM npc_data");
                 if (dt != null)
                 {
+                    _npcCache.Clear();
                     foreach (System.Data.DataRow row in dt.Rows)
                     {
                         ushort id = Convert.ToUInt16(row["id"]);
@@ -724,6 +742,7 @@ namespace DataBase
                 }
 
                 DebugSystem.Write($"[GameDataBase] Successfully Imported {count} NPCs from Npc.dat directly");
+                _npcCache.Clear();
                 return count;
             }
             catch (Exception ex)
@@ -745,6 +764,7 @@ namespace DataBase
             {
                 string query = $"UPDATE npc_data SET name='{name}', level={level}, hp={hp}, element={element} WHERE id={id}";
                 ExecuteNonQuery(query);
+                _npcCache.Clear();
                 return true;
             }
             catch (Exception ex)
@@ -761,6 +781,7 @@ namespace DataBase
                 name = name.Replace("'", "''");
                 string query = $"INSERT INTO npc_data (id, name, level, hp, element) VALUES ({id}, '{name}', {level}, {hp}, {element}) ON DUPLICATE KEY UPDATE name='{name}', level={level}, hp={hp}, element={element}";
                 ExecuteNonQuery(query);
+                _npcCache.Clear();
                 return true;
             }
             catch (Exception ex)
@@ -805,7 +826,6 @@ namespace DataBase
             // Fallback: SceneDataManager
             string authenticName = Game.DataFiles.SceneDataManager.GetNpcName(templateId);
             var fallback = new NpcTemplateInfo(authenticName, 1, 100, 0);
-            _npcCache[templateId] = fallback;
             return fallback;
         }
         //{

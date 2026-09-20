@@ -170,12 +170,21 @@ namespace Server
             OnStatusChanged?.Invoke();
         }
 
+        // Shared by player and pet rewards; clamp before narrowing to native EXP fields.
+        public static long ScaleExperience(long amount)
+        {
+            if (amount <= 0) return 0;
+            double rate = ExpRate;
+            if (double.IsNaN(rate) || double.IsInfinity(rate) || rate <= 0) rate = 1.0;
+            return (long)Math.Min(int.MaxValue, Math.Max(1, Math.Round(amount * rate)));
+        }
+
         public static void SetExpRate(double rate)
         {
-            if (rate <= 0) rate = 1.0;
+            if (double.IsNaN(rate) || double.IsInfinity(rate) || rate <= 0) rate = 1.0;
             lock (_lock)
             {
-                ExpRate = Math.Round(rate, 2);
+                ExpRate = Math.Max(0.01, Math.Round(rate, 2));
             }
             SaveConfig();
             OnStatusChanged?.Invoke();

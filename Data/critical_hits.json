@@ -1,0 +1,1091 @@
+{
+  "damage_multiplier": 1.5,
+  "source_sha256": "041f29cdc94bdfd62e5b7a7a44112f9e8a523f7b2aacdec79ad110be1bbb36cb",
+  "items": [
+    {
+      "item_id": 10068,
+      "name": "Steel Falchion",
+      "chance_percent": 170
+    },
+    {
+      "item_id": 10073,
+      "name": "Warrior Katana",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 10100,
+      "name": "Onikiri",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10101,
+      "name": "Zhangetsu",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10102,
+      "name": "Dragonblade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10103,
+      "name": "Serpentblade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10105,
+      "name": "Eternal Whip",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10106,
+      "name": "Celestial Whip",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10107,
+      "name": "Scarlet Sickle",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10108,
+      "name": "Hell Sickle",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10114,
+      "name": "Blood Reaper",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10115,
+      "name": "Ghost Reaper",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10117,
+      "name": "Ghost Rhapsody",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10118,
+      "name": "Soul Rhapsody",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10129,
+      "name": "Flare Saber",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10130,
+      "name": "Thunder Saber",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10136,
+      "name": "Blood Thirst",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10137,
+      "name": "Jungle Law",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10145,
+      "name": "Vine Whip",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10146,
+      "name": "Gilded Blade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10153,
+      "name": "Sunlight Saber",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10154,
+      "name": "Aegis Saber",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10216,
+      "name": "C.Tassel Blade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10217,
+      "name": "B.Tassel Blade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 10243,
+      "name": "R.Sakura Blade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11048,
+      "name": "Sky Sword+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 11050,
+      "name": "Lord Sword+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 11101,
+      "name": "Sky Sword",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 11102,
+      "name": "Lord Sword",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 11103,
+      "name": "Sky Sword+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 11104,
+      "name": "Lord Sword+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 11105,
+      "name": "Sky Sword+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 11106,
+      "name": "Lord Sword+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 11107,
+      "name": "Sky Sword+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 11108,
+      "name": "Lord Sword+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 11110,
+      "name": "Sky Sword+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 11111,
+      "name": "Lord Sword+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 11114,
+      "name": "Dragon Sword",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 11117,
+      "name": "Sky Sword+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 11118,
+      "name": "Lord Sword+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 11130,
+      "name": "Sky Sword+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 11131,
+      "name": "Lord Sword+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 11133,
+      "name": "Sky Sword+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 11134,
+      "name": "Lord Sword+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 11138,
+      "name": "Sky Sword +9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 11139,
+      "name": "Lord Sword +9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 11146,
+      "name": "Sky Sword +10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11147,
+      "name": "Lord Sword +10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11152,
+      "name": "Damascus Sword",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 11165,
+      "name": "Frozen T.Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11174,
+      "name": "Guardian Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11175,
+      "name": "Souleater Swor",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11177,
+      "name": "Broad Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11181,
+      "name": "Blazing Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11183,
+      "name": "Wind Cut Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11187,
+      "name": "Amethyst Epee",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11188,
+      "name": "G.Red Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11189,
+      "name": "G.Blue Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11212,
+      "name": "Sun Lightsaber",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11213,
+      "name": "Sky Lightsaber",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11238,
+      "name": "Snake Umbrella",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11272,
+      "name": "Shinobi Scythe",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11281,
+      "name": "Execution Swor",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11283,
+      "name": "Viridian Blade",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11289,
+      "name": "Sword of Oath",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11297,
+      "name": "Exalted Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11303,
+      "name": "Snowdrift Lord",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11309,
+      "name": "Misty Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 11310,
+      "name": "Wutong Sword",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12072,
+      "name": "Beast Fork",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 12073,
+      "name": "Spiri Fork",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 12074,
+      "name": "Beast Fork+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 12075,
+      "name": "Spiri Fork+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 12076,
+      "name": "Beast Fork+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 12077,
+      "name": "Spiri Fork+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 12078,
+      "name": "Beast Fork+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 12079,
+      "name": "Spiri Fork+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 12080,
+      "name": "Beast Fork+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 12081,
+      "name": "Spiri Fork+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 12082,
+      "name": "Beast Fork+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 12083,
+      "name": "Spiri Fork+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 12085,
+      "name": "Evil Fork",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 12089,
+      "name": "Acuminate Halb",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 12504,
+      "name": "Beast Fork+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 12505,
+      "name": "Spiri Fork+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 12093,
+      "name": "Beast Fork+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 12094,
+      "name": "Spirit Folk+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 12096,
+      "name": "Beast Fork+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 12097,
+      "name": "Spirit Folk+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 12099,
+      "name": "Beast Fork +9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 12100,
+      "name": "Spiri Fork +9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 12101,
+      "name": "Thunder Spear",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 12102,
+      "name": "ThunderSpear+1",
+      "chance_percent": 26
+    },
+    {
+      "item_id": 12103,
+      "name": "ThunderSpear+2",
+      "chance_percent": 28
+    },
+    {
+      "item_id": 12104,
+      "name": "ThunderSpear+3",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 12105,
+      "name": "ThunderSpear+4",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 12106,
+      "name": "ThunderSpear+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 12107,
+      "name": "ThunderSpear+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 12108,
+      "name": "ThunderSpear+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 12109,
+      "name": "ThunderSpear+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 12110,
+      "name": "ThunderSpear+9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 12115,
+      "name": "ThunderSpea+10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12116,
+      "name": "Beast Fork+10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12117,
+      "name": "Spiri Fork+10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12126,
+      "name": "Abyss Demon Fo",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 12130,
+      "name": "Nightmare Fork",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 12135,
+      "name": "Darkbane Halbe",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12136,
+      "name": "Abyssbane Halb",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12143,
+      "name": "Fire Spear",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 12144,
+      "name": "Deep Sea Spear",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 12165,
+      "name": "War Sp.Shield",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 12175,
+      "name": "Angel Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12176,
+      "name": "Fairy Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12180,
+      "name": "Glacier Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12183,
+      "name": "Quiet Summer",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12186,
+      "name": "Inari Naginata",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12190,
+      "name": "E.Knight Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12196,
+      "name": "Execution Spea",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12208,
+      "name": "W.Knight Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 12209,
+      "name": "Bamboo T.Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 13059,
+      "name": "Crescent Bow+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 13060,
+      "name": "Crescent Bow+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 13061,
+      "name": "Crescent Bow",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 13062,
+      "name": "Crescent Bow+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 13063,
+      "name": "Crescent Bow+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 13068,
+      "name": "Crescent Bow+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 13069,
+      "name": "Crescent Bow+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 13077,
+      "name": "Frost Bow",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 13082,
+      "name": "Fire Karma Bow",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 13083,
+      "name": "Green Vine Bow",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 13084,
+      "name": "Dragon Bow",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 13086,
+      "name": "Wisteria Bow",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 13091,
+      "name": "True Love Bow",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 13097,
+      "name": "Seawing Bow",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 14076,
+      "name": "Polished Wand",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 14078,
+      "name": "Light Wand",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 14079,
+      "name": "Polish Wand+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 14080,
+      "name": "Light Wand+1",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 14081,
+      "name": "Polish Wand+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 14082,
+      "name": "Light Wand+2",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 14083,
+      "name": "Polish Wand+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 14084,
+      "name": "Light Wand+3",
+      "chance_percent": 32
+    },
+    {
+      "item_id": 14085,
+      "name": "Polish Wand+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 14086,
+      "name": "Light Wand+4",
+      "chance_percent": 34
+    },
+    {
+      "item_id": 14114,
+      "name": "Thut's Wand",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 14115,
+      "name": "Dragon Soul Wa",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 14120,
+      "name": "Polish Wand+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 14121,
+      "name": "Light Wand+5",
+      "chance_percent": 36
+    },
+    {
+      "item_id": 14122,
+      "name": "Polish Wand+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 14123,
+      "name": "Light Wand+6",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 14131,
+      "name": "Polish Wand+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 14132,
+      "name": "Light Wand+7",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 14136,
+      "name": "Polish Wand+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 14137,
+      "name": "Light Wand+8",
+      "chance_percent": 42
+    },
+    {
+      "item_id": 14144,
+      "name": "Polish Wand+9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 14145,
+      "name": "Light Wand +9",
+      "chance_percent": 44
+    },
+    {
+      "item_id": 14161,
+      "name": "Polished Wa+10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14162,
+      "name": "Light Wand+10",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14185,
+      "name": "Love Wand",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14193,
+      "name": "Pink Paw Cane",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14194,
+      "name": "Blue Paw Cane",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14204,
+      "name": "E.Seer Wand",
+      "chance_percent": 38
+    },
+    {
+      "item_id": 14205,
+      "name": "Twilight Wand",
+      "chance_percent": 24
+    },
+    {
+      "item_id": 14221,
+      "name": "Bear Wand",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14235,
+      "name": "Floating Star",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14236,
+      "name": "Phantom Moon",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14237,
+      "name": "Cotton Candy",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14240,
+      "name": "Red Rose Staff",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14243,
+      "name": "B.Feather Staf",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14245,
+      "name": "Blue Rose Staf",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14252,
+      "name": "Heaven Staff",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14253,
+      "name": "Mystic Staff",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14254,
+      "name": "Inari Flute",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 14261,
+      "name": "E.Knight Scept",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14262,
+      "name": "Shinobi Scroll",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14269,
+      "name": "Grn Moon Wand",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14270,
+      "name": "Purp Moon Wand",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14278,
+      "name": "Viridian Staff",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14284,
+      "name": "Wisdom Staff",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14286,
+      "name": "Mystic Scroll",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14287,
+      "name": "Primal Scroll",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 14290,
+      "name": "Cloud T.Lance",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 15073,
+      "name": "Gale Claws",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 15076,
+      "name": "Night Claws",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 17074,
+      "name": "Blaze Tomahawk",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 17075,
+      "name": "Ocean Tomahawk",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 17082,
+      "name": "Gold Tomahawk",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 17083,
+      "name": "Silver Tomahaw",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 17084,
+      "name": "Summer Energy",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 17085,
+      "name": "Grave Digger",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 18090,
+      "name": "Titan Hammer",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 18096,
+      "name": "Watch Suitcase",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 18102,
+      "name": "Berserk Guitar",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 18103,
+      "name": "Fervent Guitar",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 18108,
+      "name": "Dual Baguettes",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 18109,
+      "name": "Hymn Bell",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19056,
+      "name": "Dragon Fan",
+      "chance_percent": 14
+    },
+    {
+      "item_id": 19058,
+      "name": "Light Twin Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19062,
+      "name": "Book of Power",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19063,
+      "name": "Book of Magic",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19067,
+      "name": "White Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19068,
+      "name": "Azure Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19074,
+      "name": "GoldDragon Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19078,
+      "name": "Star Fire Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19079,
+      "name": "Star River Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19082,
+      "name": "Green Twin Fan",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 19083,
+      "name": "Snow Twin Fan",
+      "chance_percent": 40
+    },
+    {
+      "item_id": 19085,
+      "name": "Crimson Skygem",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19086,
+      "name": "Clear Skygem",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19087,
+      "name": "Bless Crystal",
+      "chance_percent": 30
+    },
+    {
+      "item_id": 19094,
+      "name": "Hymn Codex",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19105,
+      "name": "Frostnight Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19106,
+      "name": "Bamboo Fan",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19113,
+      "name": "Exalted Ward",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19122,
+      "name": "Snowdrift Rove",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19124,
+      "name": "W.Knight Staff",
+      "chance_percent": 46
+    },
+    {
+      "item_id": 19142,
+      "name": "R.Sakura Fan",
+      "chance_percent": 46
+    }
+  ]
+}

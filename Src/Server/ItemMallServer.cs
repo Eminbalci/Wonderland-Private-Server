@@ -77,7 +77,8 @@ namespace Server
 
         public static byte[] BuildCatalogPayload()
         {
-            List<MallItemEntry> catalog = ItemMallManager.GetCatalog();
+            List<MallItemEntry> catalog = ItemMallManager.GetCatalog()
+                .FindAll(item => cGlobal.ItemDatManager?.GetItemByID(item.ItemID) != null && GachaManager.IsAvailable(item.ItemID));
             using (MemoryStream ms = new MemoryStream())
             using (BinaryWriter bw = new BinaryWriter(ms))
             {
@@ -124,7 +125,7 @@ namespace Server
                     }
                     catch { }
 
-                    DebugSystem.Write($"[ItemMallServer] Catalog dispatched ({catalog.Length}B, {ItemMallManager.GetCatalog().Count} items) and socket closed for {client.Client.RemoteEndPoint}.");
+                    DebugSystem.Write($"[ItemMallServer] Catalog dispatched ({catalog.Length}B, {(catalog.Length - 3) / 3} items) and socket closed for {client.Client.RemoteEndPoint}.");
                 }
             }
             catch (Exception ex)

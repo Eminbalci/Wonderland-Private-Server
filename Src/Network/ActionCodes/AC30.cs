@@ -1,7 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Game;
 using Game.Code;
-using Network;
 
 namespace Network.ActionCodes
 {
@@ -11,237 +11,93 @@ namespace Network.ActionCodes
 
         public override void ProcessPkt(Player p, RecievePacket r)
         {
-            byte sub = r.Unpack8();
-            switch (sub)
+            r.SetPtr(6);
+            int length = r.Buffer.Length - r.GetPtr();
+            if (r.B < 1 || r.B > 5) return;
+            bool changed = false;
+            lock (p.Inv.SyncRoot)
+            lock (p.Storage.SyncRoot)
             {
-                case 1: Recv1(p, r); break; // Withdraw or request
-                case 2: Recv2(p, r); break; // Deposit item from Bag into Storage
-                case 3: Recv3(p, r); break; // Withdraw item from Storage into Bag
-                case 4: Recv4(p, r); break; // Move item within Storage
-                default:
-                    DebugSystem.Write($"[AC30] Unknown subcode {sub} for {p.CharName}");
-                    break;
-            }
-        }
-
-        // Sub 1: Withdraw or Slot click
-        void Recv1(Player p, RecievePacket r)
-        {
-            try
-            {
-                byte storSlot = r.Unpack8();
-                byte ammt = 1;
-                try { ammt = r.Unpack8(); } catch { ammt = 1; }
-                Withdraw(p, storSlot, ammt);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC30.Recv1] Error: {ex.Message}");
-            }
-        }
-
-        // Sub 2: Deposit: Bag Slot -> Storage
-        void Recv2(Player p, RecievePacket r)
-        {
-            try
-            {
-                byte bagSlot = r.Unpack8();
-                byte ammt = 1;
-                try { ammt = r.Unpack8(); } catch { ammt = 1; }
-                if (ammt == 0) ammt = 1;
-
-                if (bagSlot < 1 || bagSlot > 50) return;
-
-                var bagItem = p.Inv[bagSlot];
-                if (bagItem == null || bagItem.ItemID == 0) return;
-
-                byte transferAmmt = Math.Min(bagItem.Ammt, ammt);
-
-                // Find first free slot in storage
-                byte targetSlot = 0;
-                for (byte s = 1; s <= 50; s++)
+                // Native 30:1/2 contains selected slots, not slot + quantity.
+                // Native 30:3 is storage source/destination; 30:4/5 is destination/source.
+                if ((r.B == 1 || r.B == 2) && length > 0 && length <= 50)
                 {
-                    if (p.Storage[s].ItemID == 0)
+                    var slots = new HashSet<byte>();
+                    for (int i = 0; i < length; i++) slots.Add(r.Unpack8());
+                    foreach (byte slot in slots)
+                        changed |= Transfer(p, r.B == 2 ? p.Inv : p.Storage,
+                            r.B == 2 ? p.Storage : p.Inv, slot, 0);
+                }
+                else if (length == 2)
+                {
+                    byte first = r.Unpack8(), second = r.Unpack8();
+                    if (first >= 1 && first <= 50 && second >= 1 && second <= 50)
                     {
-                        targetSlot = s;
-                        break;
+                        if (r.B == 3) changed = Transfer(p, p.Storage, p.Storage, first, second);
+                        else if (r.B == 4) changed = Transfer(p, p.Inv, p.Storage, second, first);
+                        else if (r.B == 5) changed = Transfer(p, p.Storage, p.Inv, second, first);
                     }
                 }
 
-                if (targetSlot == 0)
+                // Storage lists are additive, so clear before sending an authoritative snapshot.
+                // AC29 belongs to the gold bank and must never be emitted by item transfers.
+                p.Send(Tools.FromFormat("bb", 30, 8));
+                p.Send(new SendPacket(p.Storage.GetAC30_5(30, 1)));
+                p.Send(Tools.FromFormat("bb", 30, 6));
+                p.Send(Tools.FromFormat("bb", 30, 7));
+            }
+            if (changed) p.SaveCharacterData();
+        }
+
+        static bool Transfer(Player p, Inventory source, Inventory destination, byte from, byte to)
+        {
+            if (from < 1 || from > 50 || to > 50 || (source == destination && from == to)) return false;
+            var item = source[from];
+            if (item.ItemID == 0 || item.Ammt == 0 || item.isLocked) return false;
+            int remaining = item.Ammt;
+            var additions = new Dictionary<byte, byte>();
+            // Plan capacity first. Automatic transfers must fit completely; a targeted merge
+            // transfers only what fits and leaves the remainder in the source slot.
+            for (int pass = 0; pass < 2 && remaining > 0; pass++)
+            for (byte slot = 1; slot <= 50 && remaining > 0; slot++)
+            {
+                if (to != 0 && slot != to) continue;
+                var target = destination[slot];
+                if (target.isLocked || (source == destination && slot == from)) continue;
+                bool empty = target.ItemID == 0;
+                if (empty != (pass == 1)) continue;
+                if (!empty && (target.ItemID != item.ItemID || !item.Stackable || target.Damage != item.Damage)) continue;
+                int capacity = empty ? (item.Stackable ? 50 : 1) : Math.Max(0, 50 - target.Ammt);
+                byte amount = (byte)Math.Min(remaining, capacity);
+                if (amount == 0) continue;
+                additions.Add(slot, amount);
+                remaining -= amount;
+            }
+            if (additions.Count == 0 || (to == 0 && remaining != 0)) return false;
+            byte moved = (byte)(item.Ammt - remaining);
+            var delta = new SendPacket();
+            delta.Pack8(23); delta.Pack8(5);
+            foreach (var addition in additions)
+            {
+                var target = destination[addition.Key];
+                if (target.ItemID == 0)
                 {
-                    p.SendSystemMessage(" Props Keeper storage is full!");
-                    return;
+                    target.CopyFrom(item);
+                    target.Parent = 0;
+                    target.Ammt = addition.Value;
                 }
-
-                // Copy item to storage slot
-                p.Storage[targetSlot].CopyFrom(bagItem);
-                p.Storage[targetSlot].Ammt = transferAmmt;
-
-                // Remove from bag
-                p.Inv.RemoveItem(bagSlot, transferAmmt, true);
-
-                // Refresh client bag UI so right pane immediately updates
-                p.Send(new SendPacket(p.Inv.GetAC23_5()));
-
-                // Send Storage Update to Client (AC 30:2 with 24 trailing bytes)
-                SendPacket sp = new SendPacket();
-                sp.Pack8(30);
-                sp.Pack8(2);
-                sp.Pack8(targetSlot);
-                sp.Pack16(p.Storage[targetSlot].ItemID);
-                sp.Pack8(p.Storage[targetSlot].Ammt);
-                sp.Pack8(p.Storage[targetSlot].Damage);
-                sp.PackArray(new byte[24]);
-                p.Send(sp);
-
-                // Send AC 30:2 short
-                SendPacket spShort = new SendPacket();
-                spShort.Pack8(30);
-                spShort.Pack8(2);
-                spShort.Pack8(targetSlot);
-                spShort.Pack16(p.Storage[targetSlot].ItemID);
-                spShort.Pack8(p.Storage[targetSlot].Ammt);
-                spShort.Pack8(p.Storage[targetSlot].Damage);
-                p.Send(spShort);
-
-                // Send AC 30:1
-                SendPacket sp1 = new SendPacket();
-                sp1.Pack8(30);
-                sp1.Pack8(1);
-                sp1.Pack8(targetSlot);
-                sp1.Pack16(p.Storage[targetSlot].ItemID);
-                sp1.Pack8(p.Storage[targetSlot].Ammt);
-                sp1.Pack8(p.Storage[targetSlot].Damage);
-                sp1.PackArray(new byte[24]);
-                p.Send(sp1);
-
-                // Send AC 29:1
-                SendPacket sp29 = new SendPacket();
-                sp29.Pack8(29);
-                sp29.Pack8(1);
-                sp29.Pack8(targetSlot);
-                sp29.Pack16(p.Storage[targetSlot].ItemID);
-                sp29.Pack8(p.Storage[targetSlot].Ammt);
-                sp29.Pack8(p.Storage[targetSlot].Damage);
-                sp29.PackArray(new byte[24]);
-                p.Send(sp29);
-
-                // Sync all stored items
-                p.Send(new SendPacket(p.Storage.GetAC30_5(30, 5)));
-                p.Send(new SendPacket(p.Storage.GetAC30_5(30, 1)));
-                p.Send(new SendPacket(p.Storage.GetAC30_5(29, 1)));
-                p.Send(new SendPacket(p.Storage.GetAC30_5(29, 5)));
-
-                // Persist storage and bag changes immediately
-                DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
-
-                p.SendSystemMessage($" Stored '{p.Storage[targetSlot].Name}' x{transferAmmt} into Storage Slot {targetSlot}.");
-                DebugSystem.Write($"[AC30.Recv2] {p.CharName} deposited Item #{p.Storage[targetSlot].ItemID} (x{transferAmmt}) from Bag Slot {bagSlot} to Storage Slot {targetSlot}");
+                else target.Ammt += addition.Value;
+                if (destination == p.Inv)
+                {
+                    delta.Pack8(addition.Key); delta.Pack16(item.ItemID);
+                    delta.Pack8(addition.Value); delta.Pack8(item.Damage);
+                    delta.PackArray(item.InventoryMetadata());
+                }
             }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC30.Recv2] Error: {ex.Message}");
-            }
-        }
-
-        // Sub 3: Withdraw: Storage Slot -> Bag
-        void Recv3(Player p, RecievePacket r)
-        {
-            try
-            {
-                byte storSlot = r.Unpack8();
-                byte ammt = 1;
-                try { ammt = r.Unpack8(); } catch { ammt = 1; }
-                Withdraw(p, storSlot, ammt);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC30.Recv3] Error: {ex.Message}");
-            }
-        }
-
-        void Withdraw(Player p, byte storSlot, byte ammt = 1)
-        {
-            if (storSlot < 1 || storSlot > 50) return;
-
-            var storItem = p.Storage[storSlot];
-            if (storItem == null || storItem.ItemID == 0) return;
-
-            byte transferAmmt = Math.Min(storItem.Ammt, ammt == 0 ? (byte)1 : ammt);
-
-            // Add to player inventory (bag)
-            p.Inv.AddItem(storItem, 0, true);
-
-            // Remove from storage
-            p.Storage.RemoveItem(storSlot, transferAmmt, false);
-
-            // Refresh client bag UI
-            p.Send(new SendPacket(p.Inv.GetAC23_5()));
-
-            // Clear / update storage slot on client
-            SendPacket sp = new SendPacket();
-            sp.Pack8(30);
-            sp.Pack8(3);
-            sp.Pack8(storSlot);
-            p.Send(sp);
-
-            SendPacket sp29 = new SendPacket();
-            sp29.Pack8(29);
-            sp29.Pack8(2);
-            sp29.Pack8(storSlot);
-            p.Send(sp29);
-
-            SendPacket sp1 = new SendPacket();
-            sp1.Pack8(30);
-            sp1.Pack8(1);
-            sp1.Pack8(storSlot);
-            sp1.Pack16(0);
-            sp1.Pack8(0);
-            sp1.Pack8(0);
-            sp1.PackArray(new byte[24]);
-            p.Send(sp1);
-
-            // Sync all stored items
-            p.Send(new SendPacket(p.Storage.GetAC30_5(30, 5)));
-            p.Send(new SendPacket(p.Storage.GetAC30_5(30, 1)));
-            p.Send(new SendPacket(p.Storage.GetAC30_5(29, 1)));
-
-            // Persist storage and bag changes immediately
-            DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
-
-            p.SendSystemMessage($" Withdrew '{storItem.Name}' x{transferAmmt} from Storage Slot {storSlot}.");
-            DebugSystem.Write($"[AC30.Withdraw] {p.CharName} withdrew Item #{storItem.ItemID} (x{transferAmmt}) from Storage Slot {storSlot} to Bag");
-        }
-
-        // Sub 4: Move within storage
-        void Recv4(Player p, RecievePacket r)
-        {
-            try
-            {
-                byte srcSlot = r.Unpack8();
-                byte dstSlot = r.Unpack8();
-                byte ammt = 1;
-                try { ammt = r.Unpack8(); } catch { ammt = 1; }
-
-                if (srcSlot < 1 || srcSlot > 50 || dstSlot < 1 || dstSlot > 50) return;
-
-                p.Storage.MoveItem(srcSlot, dstSlot, ammt);
-
-                // Sync all stored items
-                p.Send(new SendPacket(p.Storage.GetAC30_5(30, 5)));
-                p.Send(new SendPacket(p.Storage.GetAC30_5(30, 1)));
-                p.Send(new SendPacket(p.Storage.GetAC30_5(29, 1)));
-
-                // Persist storage changes immediately
-                DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
-
-                DebugSystem.Write($"[AC30.Recv4] {p.CharName} moved item in storage from {srcSlot} to {dstSlot}");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC30.Recv4] Error: {ex.Message}");
-            }
+            source.RemoveItem(from, moved, source == p.Inv);
+            // Only the newly received quantities are additive bag updates.
+            if (destination == p.Inv) p.Send(delta);
+            return true;
         }
     }
 }
