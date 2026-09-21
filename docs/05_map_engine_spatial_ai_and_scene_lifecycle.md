@@ -27,7 +27,7 @@ Entity visibility and interaction states are synchronized via the 14-byte fixed-
 | Byte Offset   | Field Type    | Description                                   |
 +---------------+---------------+-----------------------------------------------+
 | 0x00..0x01    | UInt16 (LE)   | Target Entity ClickID                         |
-| 0x02..0x03    | UInt16 (LE)   | Entity State Frame (0x00FF Intact, 0x0001 Brk)|
+| 0x02..0x03    | UInt16 (LE)   | Entity State Frame (0x00FF Actor, 0x0000 Prop)|
 | 0x04..0x05    | UInt16 (LE)   | Isometric Coordinate X                        |
 | 0x06..0x07    | UInt16 (LE)   | Isometric Coordinate Y                        |
 | 0x08          | Byte          | Entity Type (1 = Active / Visible, 2 = Hidden)|
@@ -37,12 +37,13 @@ Entity visibility and interaction states are synchronized via the 14-byte fixed-
 ```
 
 ### 3.1 Lifecycle States
-1. **Visible Active Entity:** `State = 0x00FF`, `EntityType = 1`, `Duration = 0`.
-2. **Concealed Entity (Despawn):** `State = 0xFFFF`, `EntityType = 2`, `Duration = 0x03E7FC18` (65,535,000 ms).
-3. **Broken Prop / Opened Chest:** `State = 0x0001`, `EntityType = 1`, `Duration = 0`.
+1. **Living NPC Actor:** `State = 0x00FF` (255 default facing), `EntityType = 1`, `Duration = 0`.
+2. **Interactive Prop / Chest / Gathering Node (Intact):** `State = 0x0000` (frame 0 closed/unbroken), `EntityType = 1`, `Duration = 0`.
+3. **Broken Prop / Opened Chest:** `State = 0x0001` (frame 1 opened/harvested), `EntityType = 1`, `Duration = 0`.
+4. **Concealed Entity (Despawn):** `State = 0xFFFF`, `EntityType = 2`, `Duration = 0x03E7FC18` (65,535,000 ms).
 
-> [!CAUTION]
-> **Client Animation Table Index Trap:** Transmitting `State = 0x0000` is invalid in official WLO client sprite tables; index `0` maps to the broken/cracked animation frame. To render an entity intact and unbroken, the server must transmit `0x00FF` (255).
+> [!NOTE]
+> **Sprite Animation Frame Invariant (Anti-Blinking Bug):** Static props and chests possess only two discrete frames: frame `0` (intact/closed) and frame `1` (opened/broken). Transmitting living NPC actor state `0x00FF` (255) to a prop causes the client sprite engine to cycle out-of-range frames between 0 and 1, resulting in rapid visual blinking/flickering. Official network captures (Session Seq 635 / 971) confirm props always initialize with `State = 0x0000` (intact) and transition to `State = 0x0001` (opened).
 
 ### 3.2 Client Reverse Engineering Verification (`aLogin.exe`)
 * The packet is parsed into actor memory at `PTR_DAT_004c9790 + ClickID * 4`.

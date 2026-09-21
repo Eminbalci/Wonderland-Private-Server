@@ -107,27 +107,79 @@ namespace Network.ActionCodes
                 }
                 else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                 {
-                    // Check if this prop is tied to a one-time per-player quest
+                    // Check if this prop is tied to a one-time per-player quest or chest
                     bool isQuestProp = false;
                     bool isOpened = false;
 
                     if (player?.Quests != null && eveData != null)
                     {
-                        var ev = eveData.Events?.FirstOrDefault(e => e.clickID == qn.CickID);
-                        if (ev != null && ev.SubEntry != null)
+                        // 1. Check linked events via npcDef.Events in Eve.emg
+                        List<Game.DataFiles.EventsinMapEntries> candidates = new List<Game.DataFiles.EventsinMapEntries>();
+                        var npcDef = eveData.Npclist?.FirstOrDefault(n => n.clickId == qn.CickID);
+                        if (npcDef?.Events != null && npcDef.Events.Count > 0 && eveData.Events != null)
                         {
-                            foreach (var s in ev.SubEntry)
+                            foreach (var evId in npcDef.Events)
                             {
-                                if (s.unknownword1 > 0)
+                                var linked = eveData.Events.FirstOrDefault(e => e.clickID == evId);
+                                if (linked != null && !candidates.Contains(linked)) candidates.Add(linked);
+                            }
+                        }
+                        // 2. Fallback to direct event matching clickID
+                        if (candidates.Count == 0 && eveData.Events != null)
+                        {
+                            var direct = eveData.Events.FirstOrDefault(e => e.clickID == qn.CickID);
+                            if (direct != null) candidates.Add(direct);
+                        }
+                        // 3. Fallback to events containing opcodes referencing this clickId
+                        if (candidates.Count == 0 && eveData.Events != null)
+                        {
+                            foreach (var ev in eveData.Events)
+                            {
+                                if (ev.SubEntry != null && ev.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5 && (o.dialog1 == qn.CickID || (o.dialog1 == 0 && ev.clickID == qn.CickID)))))
                                 {
-                                    isQuestProp = true;
-                                    if (player.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == QuestState.Completed)
+                                    candidates.Add(ev);
+                                }
+                            }
+                        }
+
+                        // Evaluate candidates for completion or chest loot state
+                        foreach (var ev in candidates)
+                        {
+                            uint chestKey = (uint)(mapId * 1000 + ev.clickID);
+                            if (player.Quests.TryGetValue(chestKey, out var pqChest) && pqChest.State == QuestState.Completed)
+                            {
+                                isQuestProp = true;
+                                isOpened = true;
+                                break;
+                            }
+
+                            if (ev.SubEntry != null)
+                            {
+                                foreach (var s in ev.SubEntry)
+                                {
+                                    if (s.unknownword1 > 0)
                                     {
-                                        isOpened = true;
-                                        break;
+                                        isQuestProp = true;
+                                        if (player.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == QuestState.Completed)
+                                        {
+                                            isOpened = true;
+                                            break;
+                                        }
                                     }
                                 }
                             }
+                            if (isOpened) break;
+                        }
+                    }
+
+                    // Also check direct chestKey using clickID
+                    if (!isOpened && player?.Quests != null)
+                    {
+                        uint chestKey = (uint)(mapId * 1000 + qn.CickID);
+                        if (player.Quests.TryGetValue(chestKey, out var pqChest) && pqChest.State == QuestState.Completed)
+                        {
+                            isQuestProp = true;
+                            isOpened = true;
                         }
                     }
 
@@ -137,10 +189,11 @@ namespace Network.ActionCodes
                         isOpened = qn.IsBroken;
                     }
 
-                    // Authentic WLO protocol:
-                    // 0x00FF (255) is the default intact animation frame
+                    // Authentic WLO protocol (Official PCAP Seq 635 / 971):
+                    // 0x0000 is the default intact animation frame for static interactive props / chests / gathering nodes
                     // 0x0001 is the opened / broken animation frame
-                    state = isOpened ? (ushort)0x0001 : (ushort)0x00FF;
+                    // Sending 0x00FF (255) to a prop causes the client sprite engine to cycle frames 0 and 1, creating a blinking/flickering bug
+                    state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
                 }
                 else
                 {
@@ -245,6 +298,26 @@ namespace Network.ActionCodes
         public static SendPacket BuildNpcShowPacket(ushort clickId, ushort x = 0, ushort y = 0)
         {
             return BuildNpcSpawnPacket(clickId, x, y);
+        }
+
+        /// <summary>
+        /// AC 22:4 - Restores or reveals an interactive prop/chest on client viewport.
+        /// Payload: [22, 4, ClickID:w, State:w (0x0000 intact or 0x0001 opened), X:w, Y:w, EntityType:b (1), Duration:d (0), Stance:b (0)] (14 bytes total).
+        /// Authentic WLO protocol mandates 0x0000 (intact) or 0x0001 (opened), never 0x00FF.
+        /// </summary>
+        public static SendPacket BuildPropSpawnPacket(ushort clickId, ushort x = 0, ushort y = 0, bool isOpened = false)
+        {
+            SendPacket p = new SendPacket();
+            p.Pack8(22);
+            p.Pack8(4);
+            p.Pack16(clickId);
+            p.Pack16(isOpened ? (ushort)0x0001 : (ushort)0x0000);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(1); // 1 = Visible
+            p.Pack32(0);
+            p.Pack8(0);
+            return p;
         }
 
         /// <summary>

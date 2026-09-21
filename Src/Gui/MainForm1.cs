@@ -287,8 +287,8 @@ namespace Wonderland_Private_Server
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
             cGlobal.ItemDatManager.onDebug = (obj) => { };
-            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
-            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
+            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
+            if (string.IsNullOrEmpty(itemDatPath) || !System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
             if (!string.IsNullOrEmpty(itemDatPath) && System.IO.File.Exists(itemDatPath))
             {
                 cGlobal.ItemDatManager.Load(itemDatPath).Wait();
@@ -4325,9 +4325,12 @@ namespace Wonderland_Private_Server
                         {
                             txtDropItemId.Text = row.Cells["ItemID"].Value.ToString();
                             txtDropItemName.Text = row.Cells["ItemName"]?.Value?.ToString() ?? "";
-                            if (decimal.TryParse(row.Cells["Min"]?.Value?.ToString(), out decimal min)) numDropMinCount.Value = min;
-                            if (decimal.TryParse(row.Cells["Max"]?.Value?.ToString(), out decimal max)) numDropMaxCount.Value = max;
-                            if (decimal.TryParse(row.Cells["Rate%"]?.Value?.ToString(), out decimal rate)) numDropRate.Value = rate;
+                            if (decimal.TryParse(row.Cells["Min"]?.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal min))
+                                numDropMinCount.Value = Math.Max(numDropMinCount.Minimum, Math.Min(numDropMinCount.Maximum, min));
+                            if (decimal.TryParse(row.Cells["Max"]?.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal max))
+                                numDropMaxCount.Value = Math.Max(numDropMaxCount.Minimum, Math.Min(numDropMaxCount.Maximum, max));
+                            if (decimal.TryParse(row.Cells["Rate%"]?.Value?.ToString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal rate))
+                                numDropRate.Value = Math.Max(numDropRate.Minimum, Math.Min(numDropRate.Maximum, rate));
                         }
                     }
                 };

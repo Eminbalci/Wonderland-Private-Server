@@ -18,6 +18,17 @@ The social subsystem facilitates player-to-player trade, persistent bilateral fr
   - Bytes `6..30`: Socket IDs, forge levels, and crystal attributes.
 * **21-Byte Equipment Record Layout (`AC 23:11`):** Serializes active worn gear across 6 equipment slots (Head, Body, Weapon, Wrist, Shoes, Special).
 
+### 2.1 Dynamic Item Placement & Stacking (`Inventory.AddItem`)
+The inventory placement engine operates in two sequential phases:
+1. **Pass 1 (Existing Stack Consolidation):** If `item.Stackable` is true, scans slots 1..50 for identical `ItemID` matches with `SpaceLeft > 0` and increments quantity up to 50 items per slot.
+2. **Pass 2 (Empty Slot Allocation):** Allocates remaining quantity to empty slots (`ItemID == 0`).
+   - For stackable items, allocates up to `Math.Min(needed, 50)` items per slot.
+   - For non-stackable items (`Stackable == false`), allocates exactly 1 item per slot.
+3. **Stackability Invariant:** [`Item.Stackable`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Item.cs) evaluates true for defined consumable/material categories (Food Type 23, Items Type 25, etc.) and falls back to `Ammt > 1`, preventing quantity-stacked items (e.g., starter consumables like Fugu Hot Pot #32176 x50) from flooding all 50 slots when asset definitions are loading.
+
+### 2.2 Starter Item Pack Delivery (`StarterPackManager.DeliverToPlayer`)
+New characters created via `AC 09:1` receive exactly 8 authentic starter items (Notepad x1, Remote Control x1, Fugu Hot Pot x50, Tao Rice Ball x10, Protective EXP Pill x5, Bamboo Dragonfly x1, 10X Holy EXP Potion x3, Training Ticket x5) filling slots 1 through 8 and leaving slots 9 through 50 open.
+
 ---
 
 ## 3. Bilateral Friend System Protocol (`AC 14` & `AC 10`)

@@ -476,6 +476,25 @@ namespace Game.Battle
                 VerifyTable();
                 var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM monster_drops;");
 
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    bool hasCorruptedRates = false;
+                    foreach (System.Data.DataRow row in dt.Rows)
+                    {
+                        if (Convert.ToDouble(row["drop_rate"], System.Globalization.CultureInfo.InvariantCulture) > 100.0)
+                        {
+                            hasCorruptedRates = true;
+                            break;
+                        }
+                    }
+                    if (hasCorruptedRates)
+                    {
+                        DebugSystem.Write("[MonsterDropManager] Detected legacy corrupted drop rates (> 100%). Re-seeding table with InvariantCulture...");
+                        RCLibrary.Core.DataBase.Execute("DELETE FROM monster_drops;");
+                        dt = null;
+                    }
+                }
+
                 if (dt == null || dt.Rows.Count == 0)
                 {
                     // Table empty: seed from txt or defaults
@@ -498,7 +517,7 @@ namespace Game.Battle
                             string itemName = row["item_name"]?.ToString() ?? "";
                             byte minCount = Convert.ToByte(row["min_count"]);
                             byte maxCount = Convert.ToByte(row["max_count"]);
-                            double dropRate = Convert.ToDouble(row["drop_rate"]);
+                            double dropRate = Convert.ToDouble(row["drop_rate"], System.Globalization.CultureInfo.InvariantCulture);
 
                             var entry = new MonsterDropEntry(itemId, itemName, minCount, maxCount, dropRate);
 
@@ -557,9 +576,9 @@ namespace Game.Battle
                                 string itemName = tokens[1].Trim();
                                 byte min = tokens.Length > 2 && byte.TryParse(tokens[2].Trim(), out byte mn) ? mn : (byte)1;
                                 byte max = tokens.Length > 3 && byte.TryParse(tokens[3].Trim(), out byte mx) ? mx : min;
-                                double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), out double r) ? r : 50.0;
+                                double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double r) ? r : 50.0;
 
-                                string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({tid}, '{pattern?.Replace("'", "''")}', {itemId}, '{itemName.Replace("'", "''")}', {min}, {max}, {rate});";
+                                string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({tid}, '{pattern?.Replace("'", "''")}', {itemId}, '{itemName.Replace("'", "''")}', {min}, {max}, {rate.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
                                 RCLibrary.Core.DataBase.Execute(sql);
                             }
                         }
@@ -589,7 +608,7 @@ namespace Game.Battle
                     {
                         foreach (var e in kvp.Value)
                         {
-                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({kvp.Key}, NULL, {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent});";
+                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({kvp.Key}, NULL, {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
                             RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }
@@ -598,7 +617,7 @@ namespace Game.Battle
                     {
                         foreach (var e in kvp.Value)
                         {
-                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, '{kvp.Key.Replace("'", "''")}', {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent});";
+                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, '{kvp.Key.Replace("'", "''")}', {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
                             RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }

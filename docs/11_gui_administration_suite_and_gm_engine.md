@@ -65,3 +65,26 @@ In-game commands are parsed in [`AC02.cs`](file:///D:/GitHub/Wonderland-Private-
 | :unmute                   | :unmute <char>                    | Restores player's public chat privileges      |
 +---------------------------+-----------------------------------+-----------------------------------------------+
 ```
+
+---
+
+## 4. Monster Drop Management Studio
+
+The Monster Drop Studio (`tabDrops`) inside [`MainForm1.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Gui/MainForm1.cs) enables real-time search, inspection, and modification of monster loot tables (`monster_drops` table and `monster_drops.txt`).
+
+* **Monster List (`dgvMonsterList`):** Displays all NPC templates from `npc_data` table.
+* **Loot Table (`dgvMonsterDrops`):** Displays Item ID, Name, Min Count, Max Count, and Drop Rate % for the selected monster.
+* **Selection Synchronizer:** Populates item edit controls on row selection with defensive numeric parsing and boundary clamping.
+* **Drop Rate Multiplier:** Scaled globally in combat via [`MonsterDropManager.DropRateMultiplier`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Battle/MonsterDropManager.cs).
+
+---
+
+## 5. Culture Invariance & Numeric Bounds Guards
+
+To prevent localization and culture bugs (such as Turkish Windows treating `.` as a thousands separator and inflating decimal rates from `35.0` to `350.0`):
+
+* **Global Thread Culture:** Application bootstrap in [`Program.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Program.cs) enforces `CultureInfo.InvariantCulture` across all foreground and background threads.
+* **Defensive Parsing:** All UI grid conversions, database seeders, and configuration parsers enforce `NumberStyles.Float` with `CultureInfo.InvariantCulture`.
+* **Boundary Clamping:** `NumericUpDown.Value` assignments clamp values between `Minimum` and `Maximum` (`Math.Max(control.Minimum, Math.Min(control.Maximum, value))`), preventing runtime `System.ArgumentOutOfRangeException` exceptions.
+* **Self-Healing Table Migration:** [`MonsterDropManager.LoadFromDatabase`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Battle/MonsterDropManager.cs) detects legacy inflated drop rates (`> 100.0%`) and automatically purges and reseeds the table using invariant formatting.
+

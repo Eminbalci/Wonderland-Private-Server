@@ -273,7 +273,7 @@ namespace Game.Code
                     case 52:
                     case 54:
                     case 33: return true;
-                    default: return false;
+                    default: return Ammt > 1;
                 }
             }
         }

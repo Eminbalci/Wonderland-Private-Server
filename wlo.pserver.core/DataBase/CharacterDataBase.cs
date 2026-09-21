@@ -24,7 +24,12 @@ namespace DataBase
         const string DBServer = "CharacterDataBase";
         //DBConnector.DBOAuth DBAssist;
 
-        public DataFiles.PhxItemDat ItemDat { get; set; }
+        private DataFiles.PhxItemDat _itemDat;
+        public DataFiles.PhxItemDat ItemDat
+        {
+            get => _itemDat ?? (GlobalInstance != this ? GlobalInstance?._itemDat : null) ?? GameDataBase.GlobalInstance?.ItemDat;
+            set => _itemDat = value;
+        }
 
         List<string> client_requested_names = new List<string>();
 
@@ -908,7 +913,7 @@ namespace DataBase
             if (Cache.ContainsKey((int)charID))
                 return Cache[(int)charID];
 
-            Character t = new Character();
+            Character t = new Character(null, ItemDat);
 
             DataTable src = null;
 

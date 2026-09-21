@@ -58,7 +58,7 @@ namespace Game
             m_name = "";
         }
         public Character()
-            : base(null,null)
+            : base(null, DataBase.CharacterDataBase.GlobalInstance?.ItemDat ?? DataBase.GameDataBase.GlobalInstance?.ItemDat)
         {
             m_colors = new Dictionary<string, string>();
         }

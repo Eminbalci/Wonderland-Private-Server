@@ -330,11 +330,9 @@ namespace Game.Maps
                 return false;
 
             // Prop / chest / object template ID ranges in WLO:
-            // 12000-12999: containers, crates, beach wreckage props
-            // 19000-19999: static scenery props (statues, swords, guideposts, honeycomb, etc.)
+            // 19000-19999: static scenery props (statues, swords, guideposts, honeycomb, chests, crates, coconuts)
             // 25000-35000: static map props & mechanisms
-            if ((this.TemplateID >= 12000 && this.TemplateID <= 12999) ||
-                (this.TemplateID >= 19000 && this.TemplateID <= 19999) ||
+            if ((this.TemplateID >= 19000 && this.TemplateID <= 19999) ||
                 (this.TemplateID >= 25000 && this.TemplateID <= 35000))
             {
                 return true;
@@ -538,6 +536,19 @@ namespace Game.Maps
 
                 if (this.IsStaticNpc())
                 {
+                    ushort mapId = (ushort)(src.CurMap?.MapID ?? 0);
+                    uint chestKey = (uint)(mapId * 1000 + this.CickID);
+
+                    // Check if player already opened this one-time chest
+                    if (src.Quests != null && src.Quests.TryGetValue(chestKey, out var pq) && pq.State == Game.QuestRelated.QuestState.Completed)
+                    {
+                        src.Send(Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)1));
+                        src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "The chest is empty."));
+                        src.Send(Tools.FromFormat("bb", 20, 8));
+                        src.Send(Tools.FromFormat("bb", 5, 4));
+                        return;
+                    }
+
                     // Static Chest, Crate, Barrel, Ore Vein, Herb, or Gathering Prop
                     if (this.IsBroken)
                     {
@@ -550,10 +561,22 @@ namespace Game.Maps
                     // Play chest open animation (AC 22:1 or AC 22:10)
                     SendPacket anim = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)1);
                     src.Send(anim);
-                    src.CurMap?.Broadcast(anim);
 
-                    this.IsBroken = true;
-                    this.RespawnTime = DateTime.Now.AddSeconds(ChestDropManager.DefaultRespawnSeconds);
+                    bool isOneTimeChest = lowerName.Contains("chest") || lowerName.Contains("box");
+                    if (isOneTimeChest)
+                    {
+                        // One-time chest per player: save completion
+                        if (src.Quests == null) src.Quests = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
+                        src.Quests[chestKey] = new Game.QuestRelated.PlayerQuest(chestKey, Game.QuestRelated.QuestState.Completed, 1);
+                        Game.QuestRelated.QuestManager.SavePlayerQuest(src, chestKey);
+                    }
+                    else
+                    {
+                        // Shared renewable gathering node: broadcast and schedule respawn
+                        src.CurMap?.Broadcast(anim);
+                        this.IsBroken = true;
+                        this.RespawnTime = DateTime.Now.AddSeconds(ChestDropManager.DefaultRespawnSeconds);
+                    }
 
                     // Roll authentic loot from ChestDropManager
                     var drop = ChestDropManager.RollDrop((uint)(src.CurMap?.MapID ?? 0), this.Name);

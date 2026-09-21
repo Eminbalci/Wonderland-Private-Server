@@ -38,15 +38,16 @@ Wonderland Online client assets utilize proprietary binary layouts, reversed str
   - Offset `64..73`: 5 Drop Item IDs (Decrypted via `((raw ^ 0x5209) - 1)`).
   - Offset `74..137`: Model scale, sprite ID, walk speed, animation frames.
 
-### 3.2 Item Database (`Data/Item.dat`)
+### 3.2 Item Database (`Data/itemDat.wpdat` & `Data/Item.dat`)
 * **Decoder:** [`PhxItemDat.Load`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/DataFiles/PhxItemDat.cs).
-* **Record Layout (45 Bytes Fixed Sequential Struct, `Pack = 1`):**
+* **Decrypted Canonical Asset (`itemDat.wpdat`):** The server prioritizes `itemDat.wpdat` (4,776 pre-decrypted items, 47 bytes/record) over raw `Item.dat` to ensure instant zero-overhead deserialization and accurate item category/stackability attributes.
+* **Record Layout (47 Bytes Fixed Sequential Struct, `Pack = 1`):**
   - Offset `0`: Name string length (`len`).
-  - Offset `1..20`: Item name (Reversed ASCII bytes).
-  - Offset `21`: Item Category / Type decrypted via `((b ^ 0x9A) - 9)`.
-  - Offset `22..23`: Item ID decrypted via `((w ^ 0xEFC3) - 9)`.
-  - Offset `24..25`: Icon Index decrypted via `((w ^ 0xEFC3) - 9)`.
-  - Offset `26..27`: Large Icon Index.
+  - Offset `1..20`: Item name (ASCII bytes).
+  - Offset `21`: Item Category / Type (23=Food, 25=Consumable/Material, 12=Body, 15=Shoes, etc.).
+  - Offset `22..23`: Item ID (`UInt16 LE`).
+  - Offset `24..25`: Icon Index (`UInt16 LE`).
+  - Offset `26..27`: Large Icon Index (`UInt16 LE`).
   - Offset `28..29`: Equipment Slot (`Equippos`: 1=Head, 2=Body, 3=Weapon, 4=Wrist, 5=Shoes, 6=Special).
   - Offset `30..31`: Required Level.
   - Offset `32`: Item Rank / Grade.

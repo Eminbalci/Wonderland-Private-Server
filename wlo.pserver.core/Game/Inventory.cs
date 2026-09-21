@@ -301,7 +301,8 @@ namespace Game.Code
 
             if (baseItem == null)
             {
-                baseItem = new PhxItemInfo() { ItemID = ID, ItemName = Encoding.ASCII.GetBytes("Item " + ID), cellwidth = 1, cellheight = 1 };
+                byte fallbackType = (byte)(amt > 1 ? 23 : 0);
+                baseItem = new PhxItemInfo() { ItemID = ID, ItemType = fallbackType, ItemName = Encoding.ASCII.GetBytes("Item " + ID), cellwidth = 1, cellheight = 1 };
             }
             InvItem i = new InvItem();
             i.CopyFrom(baseItem);

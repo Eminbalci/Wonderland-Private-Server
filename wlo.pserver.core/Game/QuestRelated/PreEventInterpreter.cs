@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Game.DataFiles;
+using Game.Maps;
 using Network;
 
 namespace Game.QuestRelated
@@ -137,7 +138,14 @@ namespace Game.QuestRelated
                     {
                         if (force || isHidden)
                         {
-                            SendActorShow(player, clickId);
+                            if (IsStaticPropOrChest(player, mapId, clickId, out _))
+                            {
+                                SendPropShow(player, clickId);
+                            }
+                            else
+                            {
+                                SendActorShow(player, clickId);
+                            }
                         }
                     }
                 }
@@ -421,6 +429,36 @@ namespace Game.QuestRelated
                                     bool stepActive = player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.InProgress && pq.Step == step.StepIndex;
                                     if (!stepActive) return false;
                                     return true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Check if this entity was permanently despawned by a completed one-time event in mapData.Events (dialog2 == 2)
+                if (mapData?.Events != null && player.Quests != null && player.Quests.Count > 0)
+                {
+                    foreach (var ev in mapData.Events)
+                    {
+                        if (ev.SubEntry == null) continue;
+                        foreach (var sub in ev.SubEntry)
+                        {
+                            uint qId = sub.unknownword1;
+                            if (qId > 0 && player.Quests.TryGetValue(qId, out var pq) && pq.State == QuestState.Completed)
+                            {
+                                if (sub.SubEntry != null)
+                                {
+                                    foreach (var op in sub.SubEntry)
+                                    {
+                                        if (op.DialogPtr == 2 && op.dialog2 == 2)
+                                        {
+                                            ushort targetClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : ev.clickID);
+                                            if (targetClickId == clickId)
+                                            {
+                                                return false; // Permanently despawned by completed event
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -830,11 +868,132 @@ namespace Game.QuestRelated
         }
 
         /// <summary>
+        /// Determines if the specified entity on the map is a static interactive prop or chest, and whether it has been opened.
+        /// </summary>
+        public static bool IsStaticPropOrChest(Player player, ushort mapId, ushort clickId, out bool isOpened)
+        {
+            isOpened = false;
+            QuestNpc qn = null;
+            if (player?.CurMap is GameMap gmap && gmap.NpcList != null)
+            {
+                qn = gmap.NpcList.FirstOrDefault(n => n.CickID == clickId) as QuestNpc;
+            }
+
+            var eveDat = DataBase.GameDataBase.GlobalInstance?.EveDat;
+            var mapData = eveDat?.GetMapData(mapId);
+            var npcDef = mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+            uint templateId = qn != null ? qn.TemplateID : (npcDef?.npcId ?? 0);
+            string npcName = qn != null ? qn.Name : (npcDef?.Name ?? "");
+
+            bool isStatic = (qn != null && qn.IsStaticNpc()) || templateId >= 19000;
+            if (!isStatic && npcDef != null)
+            {
+                string lower = (npcName ?? "").ToLower().Trim();
+                if (lower.Contains("chest") || lower.Contains("box") || lower.Contains("crate") ||
+                    lower.Contains("barrel") || lower.Contains("pot") || lower.Contains("wood") ||
+                    lower.Contains("clay") || lower.Contains("mine") || lower.Contains("herb") ||
+                    lower.Contains("coconut") || lower.Contains("ore") || templateId >= 19000)
+                {
+                    isStatic = true;
+                }
+            }
+
+            if (!isStatic) return false;
+
+            // Check if opened for this player
+            if (player?.Quests != null && mapData != null)
+            {
+                List<EventsinMapEntries> candidates = new List<EventsinMapEntries>();
+                if (npcDef?.Events != null && npcDef.Events.Count > 0 && mapData.Events != null)
+                {
+                    foreach (var evId in npcDef.Events)
+                    {
+                        var linked = mapData.Events.FirstOrDefault(e => e.clickID == evId);
+                        if (linked != null && !candidates.Contains(linked)) candidates.Add(linked);
+                    }
+                }
+                if (candidates.Count == 0 && mapData.Events != null)
+                {
+                    var direct = mapData.Events.FirstOrDefault(e => e.clickID == clickId);
+                    if (direct != null) candidates.Add(direct);
+                }
+                if (candidates.Count == 0 && mapData.Events != null)
+                {
+                    foreach (var ev in mapData.Events)
+                    {
+                        if (ev.SubEntry != null && ev.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5 && (o.dialog1 == clickId || (o.dialog1 == 0 && ev.clickID == clickId)))))
+                        {
+                            candidates.Add(ev);
+                        }
+                    }
+                }
+
+                foreach (var ev in candidates)
+                {
+                    uint chestKey = (uint)(mapId * 1000 + ev.clickID);
+                    if (player.Quests.TryGetValue(chestKey, out var pqChest) && pqChest.State == QuestState.Completed)
+                    {
+                        isOpened = true;
+                        return true;
+                    }
+
+                    if (ev.SubEntry != null)
+                    {
+                        foreach (var s in ev.SubEntry)
+                        {
+                            if (s.unknownword1 > 0 && player.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == QuestState.Completed)
+                            {
+                                isOpened = true;
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                uint directChestKey = (uint)(mapId * 1000 + clickId);
+                if (player.Quests.TryGetValue(directChestKey, out var pqDirect) && pqDirect.State == QuestState.Completed)
+                {
+                    isOpened = true;
+                    return true;
+                }
+            }
+
+            if (qn != null)
+            {
+                isOpened = qn.IsBroken;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Sends authentic prop show packet (AC 22:4 reveal frame).
+        /// Props use State = 0x0000 (intact) or 0x0001 (opened/broken), NEVER 0x00FF.
         /// </summary>
         public static void SendPropShow(Player player, ushort clickId)
         {
-            SendActorShow(player, clickId);
+            if (player == null) return;
+            player.HiddenNpcClickIDs.Remove(clickId);
+
+            GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
+            ushort mapId = (ushort)(player.CurMap?.MapID ?? player.MapID);
+            IsStaticPropOrChest(player, mapId, clickId, out bool isOpened);
+            ushort state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
+
+            // Record: [ClickID:w, State:w, X:w, Y:w, EntityType:b (1), Duration:d (0), StateFlag:b (0)] (14 bytes)
+            SendPacket p = new SendPacket();
+            p.Pack8(22);
+            p.Pack8(4);
+            p.Pack16(clickId);
+            p.Pack16(state);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(1); // 1 = Visible
+            p.Pack32(0);
+            p.Pack8(0);
+            player.Send(p);
+
+            DebugSystem.Write($"[PropVisibility] Sent SendPropShow (AC 22:4 spawn state=0x{state:X4}) for ClickID {clickId} at {x},{y} to {player.CharName}");
         }
 
         /// <summary>
@@ -866,7 +1025,14 @@ namespace Game.QuestRelated
                 }
                 else if (actionType == 3)
                 {
-                    SendActorShow(player, clickId);
+                    if (IsStaticPropOrChest(player, mapId, clickId, out _))
+                    {
+                        SendPropShow(player, clickId);
+                    }
+                    else
+                    {
+                        SendActorShow(player, clickId);
+                    }
                 }
                 else if (state1 == 0xFF && state2 == 0xFF)
                 {

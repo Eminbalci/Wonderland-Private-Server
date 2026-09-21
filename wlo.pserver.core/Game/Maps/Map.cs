@@ -1349,27 +1349,79 @@ namespace Game
                     }
                     else if (qn != null && (qn.IsStaticNpc() || qn.TemplateID >= 19000))
                     {
-                        // Check if this prop is tied to a one-time per-player quest
+                        // Check if this prop is tied to a one-time per-player quest or chest
                         bool isQuestProp = false;
                         bool isOpened = false;
 
                         if (t.Quests != null && eveData != null)
                         {
-                            var ev = eveData.Events?.FirstOrDefault(e => e.clickID == qn.CickID);
-                            if (ev != null && ev.SubEntry != null)
+                            // 1. Check linked events via npcDef.Events in Eve.emg
+                            List<Game.DataFiles.EventsinMapEntries> candidates = new List<Game.DataFiles.EventsinMapEntries>();
+                            var npcDef = eveData.Npclist?.FirstOrDefault(n => n.clickId == qn.CickID);
+                            if (npcDef?.Events != null && npcDef.Events.Count > 0 && eveData.Events != null)
                             {
-                                foreach (var s in ev.SubEntry)
+                                foreach (var evId in npcDef.Events)
                                 {
-                                    if (s.unknownword1 > 0)
+                                    var linked = eveData.Events.FirstOrDefault(e => e.clickID == evId);
+                                    if (linked != null && !candidates.Contains(linked)) candidates.Add(linked);
+                                }
+                            }
+                            // 2. Fallback to direct event matching clickID
+                            if (candidates.Count == 0 && eveData.Events != null)
+                            {
+                                var direct = eveData.Events.FirstOrDefault(e => e.clickID == qn.CickID);
+                                if (direct != null) candidates.Add(direct);
+                            }
+                            // 3. Fallback to events containing opcodes referencing this clickId
+                            if (candidates.Count == 0 && eveData.Events != null)
+                            {
+                                foreach (var ev in eveData.Events)
+                                {
+                                    if (ev.SubEntry != null && ev.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5 && (o.dialog1 == qn.CickID || (o.dialog1 == 0 && ev.clickID == qn.CickID)))))
                                     {
-                                        isQuestProp = true;
-                                        if (t.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == Game.QuestRelated.QuestState.Completed)
+                                        candidates.Add(ev);
+                                    }
+                                }
+                            }
+
+                            // Evaluate candidates for completion or chest loot state
+                            foreach (var ev in candidates)
+                            {
+                                uint chestKey = (uint)(this.MapID * 1000 + ev.clickID);
+                                if (t.Quests.TryGetValue(chestKey, out var pqChest) && pqChest.State == Game.QuestRelated.QuestState.Completed)
+                                {
+                                    isQuestProp = true;
+                                    isOpened = true;
+                                    break;
+                                }
+
+                                if (ev.SubEntry != null)
+                                {
+                                    foreach (var s in ev.SubEntry)
+                                    {
+                                        if (s.unknownword1 > 0)
                                         {
-                                            isOpened = true;
-                                            break;
+                                            isQuestProp = true;
+                                            if (t.Quests.TryGetValue(s.unknownword1, out var pq) && pq.State == Game.QuestRelated.QuestState.Completed)
+                                            {
+                                                isOpened = true;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
+                                if (isOpened) break;
+                            }
+                        }
+
+                        // Also check direct chestKey using clickID
+                        if (!isOpened && t.Quests != null)
+                        {
+                            uint chestKey = (uint)(this.MapID * 1000 + qn.CickID);
+                            if (t.Quests.TryGetValue(chestKey, out var pqChest) && pqChest.State == Game.QuestRelated.QuestState.Completed)
+                            {
+                                isQuestProp = true;
+                                isOpened = true;
                             }
                         }
 
@@ -1379,10 +1431,11 @@ namespace Game
                             isOpened = qn.IsBroken;
                         }
 
-                        // Authentic WLO protocol:
-                        // 0x00FF (255) is the default intact animation frame
+                        // Authentic WLO protocol (Official PCAP Seq 635 / 971):
+                        // 0x0000 is the default intact animation frame for static interactive props / chests / gathering nodes
                         // 0x0001 is the opened / broken animation frame
-                        state = isOpened ? (ushort)0x0001 : (ushort)0x00FF;
+                        // Sending 0x00FF (255) to a prop causes the client sprite engine to cycle frames 0 and 1, creating a blinking/flickering bug
+                        state = isOpened ? (ushort)0x0001 : (ushort)0x0000;
                     }
                     else
                     {

@@ -312,9 +312,9 @@ namespace Server
                         if (key == "CLUSTER" && byte.TryParse(val, out byte cId)) ClusterId = cId;
                         else if (key == "SERVER_ID" && ushort.TryParse(val, out ushort sId)) ServerId = sId;
                         else if (key == "MODE" && byte.TryParse(val, out byte modeVal)) CurrentMode = (ServerLoadColor)modeVal;
-                        else if (key == "EXP_RATE" && double.TryParse(val, out double exp)) ExpRate = exp;
-                        else if (key == "DROP_RATE" && double.TryParse(val, out double drop)) DropRate = drop;
-                        else if (key == "GOLD_RATE" && double.TryParse(val, out double gold)) GoldRate = gold;
+                        else if (key == "EXP_RATE" && double.TryParse(val, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double exp)) ExpRate = exp;
+                        else if (key == "DROP_RATE" && double.TryParse(val, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double drop)) DropRate = drop;
+                        else if (key == "GOLD_RATE" && double.TryParse(val, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double gold)) GoldRate = gold;
                         else if (key == "MAX_PLAYERS" && int.TryParse(val, out int max)) MaxPlayers = max;
                         else if (key == "MOTD") { Motd = val; hasMotd = true; }
                         else if (key == "SERVER_NAME") { ServerName = val; hasServerName = true; }

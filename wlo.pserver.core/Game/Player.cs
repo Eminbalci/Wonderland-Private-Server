@@ -332,14 +332,29 @@ namespace Game
         public Player() : base()
         {
             QueueData = new Queue<SendPacket>(25);
+            m_inv = new Inventory(this, ItemManager);
+            m_storage = new Inventory(this, ItemManager);
+            onWearEquip = m_inv.onWearEquip;
+            onEquip_Remove = m_inv.onUnEquip;
+            m_useracc = new User();
+            m_tent = new Game.Code.Tent(this);
+            Flags = new PlayerFlagManager();
+            m_settings = new ClientSettings();
+            m_friendlist = new Game.PlayerRelated.Friendlist(this, new Action<SendPacket>(Send));
+            m_Mail = new MailManager(this);
+            m_teammembers = new List<Player>();
+            m_riceball = new RiceBall(this);
         }
 
         public Player(SocketClient src, global::DataFiles.PhxItemDat itemdat)
-            : base(src.SendPacket, itemdat)
+            : base(src != null ? src.SendPacket : (Action<IPacket>)null, itemdat)
         {
             m_socket = src;
-            m_socket.onConnectionLost += m_socket_onConnectionLost;
-            m_socket.onPacketRecved = ProcessSocket;
+            if (m_socket != null)
+            {
+                m_socket.onConnectionLost += m_socket_onConnectionLost;
+                m_socket.onPacketRecved = ProcessSocket;
+            }
             QueueData = new Queue<SendPacket>(25);
 
 
@@ -360,7 +375,7 @@ namespace Game
             m_riceball = new RiceBall(this);
             m_started_Quests = new List<Quest>();
 
-            while (m_socket.m_IncomingPackets.Count > 0)
+            while (m_socket != null && m_socket.m_IncomingPackets.Count > 0)
             {
                 IPacket p;
                 m_socket.m_IncomingPackets.TryDequeue(out p);

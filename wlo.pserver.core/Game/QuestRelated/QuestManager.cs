@@ -1511,6 +1511,7 @@ namespace Game.QuestRelated
                                 {
                                     var despawnOp = sub.SubEntry?.FirstOrDefault(o => o.DialogPtr == 2 && o.dialog2 == 2);
                                     ushort targetClickId = (ushort)(despawnOp.HasValue && despawnOp.Value.dialog1 > 0 ? despawnOp.Value.dialog1 : ev.clickID);
+                                    player.HiddenNpcClickIDs.Add(targetClickId);
                                     player.Send(Tools.FromFormat("bbwbb", 22, 10, targetClickId, (byte)0xFF, (byte)0xFF));
                                     player.Send(Tools.FromFormat("bbwbb", 22, 11, targetClickId, (byte)0xFF, (byte)0xFF));
                                 }

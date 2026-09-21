@@ -1570,7 +1570,14 @@ namespace Game.Maps
                             ushort targetClickId = (ushort)(op.dialog1 > 0 ? op.dialog1 : clickId);
                             if (op.dialog2 == 3)
                             {
-                                PreEventInterpreter.SendActorShow(player, targetClickId);
+                                if (PreEventInterpreter.IsStaticPropOrChest(player, (ushort)map.MapID, targetClickId, out _))
+                                {
+                                    PreEventInterpreter.SendPropShow(player, targetClickId);
+                                }
+                                else
+                                {
+                                    PreEventInterpreter.SendActorShow(player, targetClickId);
+                                }
                             }
                             else
                             {

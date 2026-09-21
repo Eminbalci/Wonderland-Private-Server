@@ -237,3 +237,29 @@ CREATE TABLE npc_data (
    - Flushes companion HP/SP, experience points, and amity levels.
    - Flushes quest state transitions.
 3. **Thread Safety:** Database connection instances utilize synchronization locks (`lock (mlock)`) to guarantee query isolation during concurrent socket executions.
+
+---
+
+## 5. Character Loading & Equipment Lifecycle
+
+### 5.1 Character Retrieval (`CharacterDataBase.GetCharacterData`)
+
+When a user logs in via `AC 63`, the server retrieves character data using `GetCharacterData(uint charID)`:
+1. **Cache Verification:** Checks the in-memory `ConcurrentDictionary<int, Character> Cache`. If present, returns the cached entity immediately.
+2. **Entity Instantiation:** Instantiates `Character` with defensive item manager resolution:
+   - Primary: `CharacterDataBase.ItemDat`
+   - Secondary: `CharacterDataBase.GlobalInstance?.ItemDat`
+   - Fallback: `GameDataBase.GlobalInstance?.ItemDat`
+3. **Core Attributes:** Queries `characters` table for slot, body style, head style, map location, coordinates, colors, and gold.
+4. **Stat Allocation:** Queries `stats` table for HP, SP, base attributes (Str, Con, Agi, Int, Wis), Total EXP, and skill points.
+5. **Equipment & Beginner Outfit Fallback:**
+   - Queries `inventory` table for `storID = 1` (equipped items).
+   - If equipped items are present in rows 1..6, resolves `PhxItemInfo` from `ItemDat` and copies attributes.
+   - If no equipped rows exist (e.g., brand-new character), calls `t.SetBeginnerOutfit()`.
+
+### 5.2 Beginner Outfit Resolution (`EquipManager.SetBeginnerOutfit`)
+
+`SetBeginnerOutfit()` equips default starter gear tailored to the character's `BodyStyle` and `Head` hairstyle:
+* **Item Resolution:** Invokes `WearBeginnerItem(ushort itemId)`. If `ItemManager` or `Item.dat` lookup fails, synthesizes fallback item metadata with appropriate `Equippos` slot boundaries (Head = 1, Body = 2, Feet = 5, Weapon = 6).
+* **Socket Safety:** All socket notifications inside `EquipManager` (`SendStat`, `SendExp`, `SendGold`, `SetBreillatOutfit`) use safe invocations (`Send?.Invoke(...)`), preventing `NullReferenceException` when characters are loaded offline or during pre-connection states.
+

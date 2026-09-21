@@ -150,3 +150,30 @@ All inbound client packets are dispatched by [`Network.ActionCodes.AC`](file:///
 2. **Event Notification:** `Client3.onPacketRecved` fires, routing the buffer to [`Player.ProcessSocket(IPacket g)`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Player.cs).
 3. **Dispatch:** `Player.ProcessSocket` inspects byte 4 (`ActionCode`), queries [`Network.ActionCodes.AC.GetAction(int id)`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Network/ActionCodes/AC.cs), and executes `action.ProcessPkt(player, packet)`.
 4. **Unhandled Fallback:** If an Action Code has no active handler registered, the packet is logged to `DebugSystem` with hex dumps without interrupting the socket session.
+
+---
+
+## 6. AC 63: Character Selection and Login Pipeline
+
+### 6.1 SubCode 4: Account Credentials & Character List (`AC 63:4`)
+
+1. Client sends user credentials and password hash to the Login Server.
+2. Server validates user credentials via `UserDataBase.GetUserData(username, password)`.
+3. Server responds with user account identifier:
+   - Header: `bb` (ActionCode 63, SubCode 4)
+   - Payload: Database ID, User ID, and encrypted Session Key.
+4. Server compiles the character roster packet (`AC 63:1`):
+   - Retrieves `Character1ID` and `Character2ID` via `CharacterDataBase.GetCharacterData`.
+   - Serializes existing characters to byte arrays via `Character.ToArray()`.
+   - Skips empty slots without corrupting packet byte offsets.
+   - Dispatches packed character list to the client to render the character selection screen.
+
+### 6.2 SubCode 1: Character Selection & World Entry (`AC 63:1`)
+
+1. User selects character slot (`charNum = 1` or `2`).
+2. Server loads full player state via `CharacterDataBase.GetCharacterData(charID, ref player)`.
+3. If valid, server invokes `WorldServer.OnLogin(player)`:
+   - Registers player with target map.
+   - Synchronizes inventory, stats, skills, friends, and active companions.
+   - Broadcasts visual appearance to surrounding map peers.
+

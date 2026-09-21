@@ -154,8 +154,33 @@ namespace Game.Code
     {
         readonly object m_Lock = new object();
         PhxItemDat _ItemManager;
-        public PhxItemDat ItemManager => _ItemManager;
+        public PhxItemDat ItemManager
+        {
+            get => _ItemManager ?? DataBase.CharacterDataBase.GlobalInstance?.ItemDat ?? DataBase.GameDataBase.GlobalInstance?.ItemDat;
+            set => _ItemManager = value;
+        }
         Equip[] equippedItems;
+
+        private void WearBeginnerItem(ushort itemId)
+        {
+            var mgr = ItemManager;
+            var info = mgr != null ? (PhxItemInfo)mgr.GetObject(itemId) : null;
+            if (info != null)
+            {
+                Wear(new Item(info));
+                return;
+            }
+
+            // Fallback if item data not loaded
+            byte slot = 2; // default body
+            if (itemId >= 22000 && itemId < 23000) slot = 1; // head
+            else if (itemId >= 21000 && itemId < 22000) slot = 2; // body
+            else if (itemId >= 24000 && itemId < 25000) slot = 5; // feet
+            else if (itemId >= 10000 && itemId < 11000) slot = 6; // weapon
+
+            info = new PhxItemInfo { ItemID = itemId, Equippos = slot, ItemName = Encoding.ASCII.GetBytes("Item " + itemId) };
+            Wear(slot, new Item(info));
+        }
 
         byte head;
         int m_currexp, m_curhp, m_cursp, gold, m_skillpoint, m_potential;
@@ -1193,12 +1218,12 @@ namespace Game.Code
 
         public void SendStat(byte statId, int val)
         {
-            Send(Tools.FromFormat("bbbbdd", 8, 1, statId, 1, val, 0));
+            Send?.Invoke(Tools.FromFormat("bbbbdd", 8, 1, statId, 1, val, 0));
         }
 
         public void SendStat64(byte statId, long val)
         {
-            Send(Tools.FromFormat("bbbbl", 8, 1, statId, 1, val));
+            Send?.Invoke(Tools.FromFormat("bbbbl", 8, 1, statId, 1, val));
         }
 
         public void Send8_1(bool levelup = false) // sends full updated stats to client
@@ -1250,7 +1275,7 @@ namespace Game.Code
             p.Pack8(36);
             p.Pack8(1);
             p.Pack64((ulong)TotalExp);
-            Send(p);
+            Send?.Invoke(p);
         }
 
         public void SetBeginnerOutfit()
@@ -1265,53 +1290,53 @@ namespace Game.Code
                         {
                             case "Iris":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22005)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21006)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(23001)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24006)));
+                                    WearBeginnerItem(22005);
+                                    WearBeginnerItem(21006);
+                                    WearBeginnerItem(23001);
+                                    WearBeginnerItem(24006);
                                 } break;
                             case "Lique":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21007)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(23002)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24007)));
+                                    WearBeginnerItem(21007);
+                                    WearBeginnerItem(23002);
+                                    WearBeginnerItem(24007);
                                 } break;
                             case "Maria":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22006)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21011)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(10004)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24011)));
+                                    WearBeginnerItem(22006);
+                                    WearBeginnerItem(21011);
+                                    WearBeginnerItem(10004);
+                                    WearBeginnerItem(24011);
                                 } break;
                             case "Vanessa":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21008)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24008)));
+                                    WearBeginnerItem(21008);
+                                    WearBeginnerItem(24008);
                                 } break;
                             case "Breillat":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22007)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21009)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(10002)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24009)));
+                                    WearBeginnerItem(22007);
+                                    WearBeginnerItem(21009);
+                                    WearBeginnerItem(10002);
+                                    WearBeginnerItem(24009);
                                 } break;
                             case "Karin":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21015)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22008)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24015)));
+                                    WearBeginnerItem(21015);
+                                    WearBeginnerItem(22008);
+                                    WearBeginnerItem(24015);
                                 } break;
                             case "Konnotsuroko":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24013)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21013)));
+                                    WearBeginnerItem(24013);
+                                    WearBeginnerItem(21013);
                                 } break;
                             case "Jessica":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22002)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21010)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(10003)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24010)));
+                                    WearBeginnerItem(22002);
+                                    WearBeginnerItem(21010);
+                                    WearBeginnerItem(10003);
+                                    WearBeginnerItem(24010);
                                 } break;
                         }
                     } break;
@@ -1325,25 +1350,25 @@ namespace Game.Code
                         {
                             case "Daniel":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21004)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24004)));
+                                    WearBeginnerItem(21004);
+                                    WearBeginnerItem(24004);
                                 } break;
                             case "Sid":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21005)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24005)));
+                                    WearBeginnerItem(21005);
+                                    WearBeginnerItem(24005);
                                 } break;
                             case "More":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21012)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24012)));
+                                    WearBeginnerItem(21012);
+                                    WearBeginnerItem(24012);
                                 } break;
                             case "Kurogane":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22009)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21014)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(18002)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24014)));
+                                    WearBeginnerItem(22009);
+                                    WearBeginnerItem(21014);
+                                    WearBeginnerItem(18002);
+                                    WearBeginnerItem(24014);
                                 } break;
                         }
                     } break;
@@ -1357,15 +1382,15 @@ namespace Game.Code
                         {
                             case "Nina":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22003)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21002)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24002)));
+                                    WearBeginnerItem(22003);
+                                    WearBeginnerItem(21002);
+                                    WearBeginnerItem(24002);
                                 } break;
                             case "Betty":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(22001)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21003)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24003)));
+                                    WearBeginnerItem(22001);
+                                    WearBeginnerItem(21003);
+                                    WearBeginnerItem(24003);
                                 } break;
                         }
                     } break;
@@ -1379,8 +1404,8 @@ namespace Game.Code
                         {
                             case "Rocco":
                                 {
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(21001)));
-                                    Wear(new Item((PhxItemInfo)_ItemManager.GetObject(24001)));
+                                    WearBeginnerItem(21001);
+                                    WearBeginnerItem(24001);
                                 } break;
                         }
 
@@ -1404,26 +1429,27 @@ namespace Game.Code
                     if (equippedItems[s - 1].ItemID > 0)
                     {
                         equippedItems[s - 1].Clear();
-                        Send(Tools.FromFormat("bbb", 23, 19, s));
+                        Send?.Invoke(Tools.FromFormat("bbb", 23, 19, s));
                     }
                 }
 
                 // Equip Breillat Maid Dress (#21991) at Slot 2 (Body)
-                var dressInfo = _ItemManager != null ? (PhxItemInfo)_ItemManager.GetObject(21991) : null;
+                var mgr = ItemManager;
+                var dressInfo = mgr != null ? (PhxItemInfo)mgr.GetObject(21991) : null;
                 if (dressInfo != null)
                 {
                     Wear(2, new Item(dressInfo));
                 }
 
                 // Equip Breillat Maid Shoes (#21009) at Slot 5 (Feet)
-                var shoesInfo = _ItemManager != null ? (PhxItemInfo)_ItemManager.GetObject(21009) : null;
+                var shoesInfo = mgr != null ? (PhxItemInfo)mgr.GetObject(21009) : null;
                 if (shoesInfo != null)
                 {
                     Wear(5, new Item(shoesInfo));
                 }
 
                 // Send AC 23:11 full equipment grid sync
-                Send(new SendPacket(_23_11Data));
+                Send?.Invoke(new SendPacket(_23_11Data));
 
                 // Send AC 8:1 updated stats
                 Send8_1();
@@ -1433,7 +1459,7 @@ namespace Game.Code
         #region Gold Methods
         public void SendGold()
         {
-            Send(new SendPacket(Tools.FromFormat("bbd", 26, 4, Gold)));
+            Send?.Invoke(new SendPacket(Tools.FromFormat("bbd", 26, 4, Gold)));
         }
         public bool AddGold(int g)
         {
