@@ -100,13 +100,6 @@ namespace Game.Code
             }
         }
 
-        public Int32 Crit
-        {
-            get
-            {
-                return 0;// (Data.SpecialStatus == eSpecialStatus.Critical_Increase) ? Data.ItemRank * 2 + 10 : 0;
-            }
-        }
 
     }
 
@@ -196,9 +189,10 @@ namespace Game.Code
         /// <summary>
         /// an Item's Data
         /// </summary>
-        protected PhxItemInfo Data { get { return data ?? new PhxItemInfo(); } }
+        protected internal PhxItemInfo Data { get { return data ?? new PhxItemInfo(); } }
         public string Name { get { return ASCIIEncoding.ASCII.GetString(Data.ItemName); } }
         public UInt16 ItemID { get { return (Data != null) ? Data.ItemID : (ushort)0; } }
+        public int Crit => Game.Battle.CriticalHitManager.GetItemChance(ItemID);
         public virtual int Height => 1;
         public virtual int Width => 1;
         //public ushort Control { get { return Data.Control; } }
@@ -293,9 +287,18 @@ namespace Game.Code
 
         #endregion
 
-        /// <summary>
-        /// Clears the Values from this Item object
-        /// </summary>
+        // Native per-item point-forging progress, separate from IM item-ID upgrades.
+        public byte Forge { get; set; }
+
+        // AC23:5/AC30:1 tail follows slot, ID, count and damage; forge is record byte23.
+        public byte[] InventoryMetadata()
+        {
+            var bytes = new byte[26];
+            bytes[18] = Forge;
+            return bytes;
+        }
+
+        /// <summary>Clears this item, including its individual forging progress.</summary>
         public void Clear()
         {
             data = null;
@@ -303,6 +306,7 @@ namespace Game.Code
             damage = 0;
             parentSlot = 0;
             locked = false;
+            Forge = 0;
         }
         /// <summary>
         /// Copys values from another Item object
@@ -318,6 +322,7 @@ namespace Game.Code
                 damage = i.Damage;
                 parentSlot = i.Parent;
                 locked = i.isLocked;
+                Forge = i.Forge;
             }
         }
         public void CopyFrom(PhxItemInfo
@@ -330,6 +335,7 @@ namespace Game.Code
                 damage = 0;
                 parentSlot = 0;
                 locked = false;
+                Forge = 0;
             }
         }
     }

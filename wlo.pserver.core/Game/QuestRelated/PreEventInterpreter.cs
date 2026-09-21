@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Game.DataFiles;
@@ -181,6 +181,8 @@ namespace Game.QuestRelated
                         }
                     }
                 }
+                if (player.CurMap is GameMap markerMap && markerMap.MapID == mapId)
+                    Game.Maps.EveEventInterpreter.SyncQuestMinimapMarkers(player, markerMap, force);
             }
             catch (Exception ex)
             {
@@ -197,6 +199,10 @@ namespace Game.QuestRelated
             try
             {
                 if (player == null) return true;
+                var mapNpc = player.CurMap?.MapID == mapId
+                    ? (player.CurMap as GameMap)?.NpcList?.OfType<Game.Maps.QuestNpc>().FirstOrDefault(n => n.CickID == clickId)
+                    : null;
+                if (mapNpc != null && mapNpc.IsBroken && mapNpc.IsWildMonster()) return false;
 
                 // Permanent guideposts (10, 31) and honeycomb (17) on Map 12000 are always visible initially
                 if (mapId == 12000 && (clickId == 17 || clickId == 10 || clickId == 31))
@@ -209,7 +215,7 @@ namespace Game.QuestRelated
                 var mapData = eveDat?.GetMapData(mapId);
                 var npcDef = mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
 
-                if (npcDef != null && npcDef.npcId > 0 && player.HasRecruitedCompanion(npcDef.Name, (ushort)npcDef.npcId))
+                if (npcDef != null && npcDef.npcId > 0 && player.HasStoryCompanionInParty((ushort)npcDef.npcId))
                 {
                     return false;
                 }
@@ -226,69 +232,12 @@ namespace Game.QuestRelated
                     return true;
                 }
 
-                // Map 12001 (Chief's House in Kelan Village):
-                // ClickID 1 = Kelan Leader, ClickID 2 = Static Roca beside Chief, ClickID 3 = Staged cutscene Roca at entrance door
-                if (mapId == 12001)
-                {
-                    bool hasRoca = player != null && (player.HasRecruitedCompanion("Roca", 14162) || player.HasRecruitedCompanion(14162));
-
-                    // Staged Cutscene Roca at door entrance (ClickID 3, X=359, Y=432):
-                    // Ephemeral cutscene actor dynamically spawned exclusively during Event 6 cutscene
-                    // and hidden immediately when dialogue finishes. Never visible by default on map entry.
-                    if (clickId == 3)
-                    {
-                        return false;
-                    }
-
-                    // Static Roca standing by Kelan Leader (ClickID 2, X=487, Y=310):
-                    // Visible by default for players who haven't recruited Roca yet.
-                    // Hidden once Roca has been recruited into the player's party.
-                    if (clickId == 2)
-                    {
-                        return !hasRoca;
-                    }
-
-                    // Kelan Village Leader (ClickID 1, X=523, Y=334):
-                    // Always visible on map entry; quest-specific hide rules are handled
-                    // by the compound rule evaluator below when conditions match.
-                    if (clickId == 1)
-                    {
-                        return true;
-                    }
-                }
+                // Roca's house/grave actors follow native PreEvents below. Hardcoded
+                // "always visible/hidden" rules bypassed her return and death stages.
 
                 // Map 12000 (Kelan Village): Exact lifecycle visibility rules
                 if (mapId == 12000)
                 {
-                    bool hasRoca = player != null && (player.HasRecruitedCompanion("Roca", 14162) || player.HasRecruitedCompanion(14162));
-
-                    // Father's Statue (33) & Iron Sword (35):
-                    // Staged quest props for Quest 13098 ("Remembering Father").
-                    // Hidden while Quest 13098 is NotStarted (state 2).
-                    if (clickId == 33 || clickId == 35)
-                    {
-                        if (GetPlayerQuestState(player, 13098) == 2)
-                        {
-                            return false;
-                        }
-                        return true;
-                    }
-
-                    // Grave Rocas (34 & 36) are only visible during active Quest 13052 grave cutscene
-                    if (clickId == 34)
-                    {
-                        ushort q13052 = GetPlayerQuestState(player, 13052);
-                        if (q13052 == 1 && !hasRoca)
-                        {
-                            return true; // Mourning at grave during Quest 13052 InProgress
-                        }
-                        return false;
-                    }
-                    if (clickId == 36)
-                    {
-                        return false; // Staged standing cutscene actor, triggered dynamically via Event 46
-                    }
-
                     // Staged Cutscene Roca at village gate (ClickID 32):
                     // Ephemeral cutscene actor dynamically spawned during Event 45/49 (Quest 13098 step 3)
                     // and hidden immediately when dialogue finishes. Never visible by default on the map.
@@ -427,150 +376,55 @@ namespace Game.QuestRelated
                     }
                 }
 
-                // Universal Duplicate Cutscene Dummy Actor Check:
-                // In official WLO Eve.emg data, scripters placed ephemeral dummy cutscene actors
-                // (with Events == null || Events.Count == 0) sharing the same template ID (npcId > 0) with a primary
-                // talking NPC (Events != null && Events.Count > 0) on the same map.
-                // These puppets were placed solely for in-cutscene animation/movement scripting
-                // and must NEVER be visible on map entry unless an active PreEvent specifically executes an ActionType 3 (Reveal) rule.
-                bool isCutsceneDummyActor = false;
-                if (npcDef != null && npcDef.npcId > 0 && (npcDef.Events == null || npcDef.Events.Count == 0))
-                {
-                    if (mapData?.Npclist != null && mapData.Npclist.Any(n => n.clickId != clickId && n.npcId == npcDef.npcId && n.Events != null && n.Events.Count > 0))
-                    {
-                        isCutsceneDummyActor = true;
-                    }
-                }
+                // EVE's first NPC flag byte uses bit 0 for initial visibility.
+                // A staged actor can have its own click events; duplicate-name heuristics
+                // cannot determine whether it belongs to the current quest phase.
+                bool visible = npcDef == null || (npcDef.unknownbyte1 & 1) != 0;
+                if (mapData?.PreEvents == null) return visible;
 
-                // Determine if this NPC is a "show-only" staged actor across map PreEvents.
-                // A show-only NPC has PreEvent actions that are ALL actType 3 (Reveal) with no
-                // actType 2 (Hide) actions. Such NPCs are hidden by default and only revealed
-                // when their specific quest conditions are met.
-                // NPCs with BOTH reveal and hide actions are "dynamic" NPCs that are visible by
-                // default, with selective hide/reveal driven by matching compound rules.
-                bool hasShowOnlyRuleForThisNpc = false;
-                if (mapData?.PreEvents != null)
-                {
-                    bool foundAnyActionForNpc = false;
-                    bool allActionsAreReveal = true;
-                    foreach (var preEvent in mapData.PreEvents)
-                    {
-                        if (preEvent.subentry1 == null) continue;
-                        foreach (var sub in preEvent.subentry1)
-                        {
-                            if (sub.subentry2 == null) continue;
-                            foreach (var act in sub.subentry2)
-                            {
-                                if (act.unknown != null && act.unknown.Count >= 5 && act.unknown[0] == 0x02)
-                                {
-                                    ushort targetClickId = BitConverter.ToUInt16(act.unknown.ToArray(), 1);
-                                    if (targetClickId == clickId)
-                                    {
-                                        ushort actionType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
-                                        if (actionType == 2 || actionType == 3)
-                                        {
-                                            foundAnyActionForNpc = true;
-                                            if (actionType != 3)
-                                            {
-                                                allActionsAreReveal = false;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    hasShowOnlyRuleForThisNpc = foundAnyActionForNpc && allActionsAreReveal;
-                }
-
-                // If this is an in-flight cutscene dummy puppet with no show-only PreEvent rule, conceal it immediately
-                if (isCutsceneDummyActor && !hasShowOnlyRuleForThisNpc)
-                {
-                    return false;
-                }
-
-                if (eveDat == null || mapData?.PreEvents == null || mapData.PreEvents.Count == 0)
-                {
-                    return !isCutsceneDummyActor;
-                }
-
-                // Symmetrically evaluate compound rules across all PreEvents
                 foreach (var preEvent in mapData.PreEvents)
                 {
-                    if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
-
-                    var rules = GroupSubEntriesIntoRules(preEvent);
-                    foreach (var rule in rules)
+                    foreach (var rule in GroupSubEntriesIntoRules(preEvent))
                     {
-                        bool allConditionsMatch = true;
-                        foreach (var cond in rule.Conditions)
+                        if (!rule.Conditions.All(cond => EvaluateConditionBlock(player, cond))) continue;
+                        if (rule.Actions != null)
                         {
-                            if (!EvaluateConditionBlock(player, cond))
+                            foreach (var action in rule.Actions)
                             {
-                                allConditionsMatch = false;
-                                break;
+                                var data = action.unknown;
+                                if (data == null || data.Count < 5 || data[0] != 2) continue;
+                                var bytes = data.ToArray();
+                                if (BitConverter.ToUInt16(bytes, 1) != clickId) continue;
+                                ushort actionType = BitConverter.ToUInt16(bytes, 3);
+                                if (actionType == 2) visible = false;
+                                else if (actionType == 3) visible = true;
                             }
                         }
-
-                        if (allConditionsMatch)
-                        {
-                            if (rule.Actions != null && rule.Actions.Count > 0)
-                            {
-                                bool targetsThisNpc = false;
-                                foreach (var act in rule.Actions)
-                                {
-                                    if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
-                                    {
-                                        ushort targetClickId = BitConverter.ToUInt16(act.unknown.ToArray(), 1);
-                                        if (targetClickId == clickId)
-                                        {
-                                            targetsThisNpc = true;
-                                            ushort actionType = BitConverter.ToUInt16(act.unknown.ToArray(), 3);
-                                            byte s1 = act.unknown[8];
-                                            byte s2 = act.unknown[9];
-
-                                            if (actionType == 2)
-                                            {
-                                                return false; // ActionType 2 is strictly Conceal / Hide
-                                            }
-                                            else if (actionType == 3)
-                                            {
-                                                return true; // ActionType 3 is strictly Reveal / Show
-                                            }
-                                            else if (s1 == 0xFF && s2 == 0xFF)
-                                            {
-                                                return false; // Action specifies complete concealment / despawn frame (FF FF)
-                                            }
-                                            else
-                                            {
-                                                return true; // Visible with custom state/animation
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (targetsThisNpc)
-                                {
-                                    break; // First matching rule targeting this specific NPC applies for this PreEvent
-                                }
-                            }
-                            else if (preEvent.clickID == clickId && mapId != 12000)
-                            {
-                                // Sub matched but has no action data (sub2_count=0).
-                                // The parent PreEvent's clickID is the implicit hide target (only on non-12000 maps).
-                                return false;
-                            }
-                        }
+                        // PreEvent rules are cumulative. Apply every matching rule in
+                        // file order, including hide/show pairs targeting the same actor.
                     }
                 }
-
-                // If this NPC is a staged cutscene dummy or a show-only actor (ALL PreEvent actions
-                // are actType 3 Reveal) and none of the reveal conditions matched: default hidden.
-                // Dynamic NPCs with both reveal and hide rules remain visible by default.
-                if (isCutsceneDummyActor || hasShowOnlyRuleForThisNpc)
-                {
+                // Event 60002:51 explicitly shows the standing pair when they leave
+                // the party. Its high-amity branch also sets CG eligibility mark 50046,
+                // which makes the map-entry PreEvent omit them. Preserve the authored
+                // departure scene, then restore the shore pair after the CG while
+                // the original companions are still waiting to return.
+                if (mapId == 60002 && (clickId == 43 || clickId == 44) &&
+                    player.Quests != null && player.Quests.TryGetValue(50042, out var spring) &&
+                    spring.State == QuestState.InProgress &&
+                    (spring.Step == 1 || (spring.Step > 1 && GetPlayerQuestState(player, 50047) == 1)))
+                    return true;
+                if (mapId == 12002 && (clickId == 2 || clickId == 7) && QuestManager.IsXaolanInFate(player))
                     return false;
-                }
+                // Rescue and Unknown Fate are separate stages. The first rescue clears
+                // actors 2/3 before the replacement actors 6/7 have an active story mark.
+                // Keep the original farewell speakers until that next stage starts.
+                if (mapId == 12002 && (clickId == 2 || clickId == 3) &&
+                    player.Quests != null && player.Quests.TryGetValue(13033, out var rescue) &&
+                    rescue.State == QuestState.InProgress && rescue.Step == 1 &&
+                    GetPlayerQuestState(player, 13004) != 1 && GetPlayerQuestState(player, 13005) != 1)
+                    return clickId != 2 || !player.HasStoryCompanionInParty(14156);
+                return visible;
             }
             catch (Exception ex)
             {
@@ -580,167 +434,10 @@ namespace Game.QuestRelated
             return true;
         }
 
-        /// <summary>
-        /// Evaluates a single bytecode condition block from eve.Emg PreEvents.
-        /// In official Wonderland Online Eve files, quest conditions (op 5) define:
-        /// Chunk 0: flagId (offset 1), reqState (offset 3; 1: InProgress, 2: NotStarted, 3: Completed), compType (offset 5)
-        /// Chunk 7: reqStep (offset 8), stepCompType (offset 12)
-        /// </summary>
+        // A PreEvent condition is one 21-byte record, not three independent chunks.
         private static bool EvaluateConditionBlock(Player player, byte[] data)
         {
-            if (data == null || data.Length == 0) return true;
-
-            ushort activeFlagId = 0;
-
-            // Iterate over all 7-byte condition chunks in the 21-byte condition buffer
-            for (int offset = 0; offset + 7 <= data.Length; offset += 7)
-            {
-                byte op = data[offset];
-                if (op == 0x00) break; // End of condition chunks
-
-                // Opcode 0x05: Quest Mark / Flag Condition
-                if (op == 0x05)
-                {
-                    if (offset == 0)
-                    {
-                        activeFlagId = BitConverter.ToUInt16(data, offset + 1);
-                        ushort reqState = BitConverter.ToUInt16(data, offset + 3);
-                        ushort compType = BitConverter.ToUInt16(data, offset + 5);
-
-                        ushort playerState = GetPlayerQuestState(player, activeFlagId);
-
-                        bool chunkMatch = false;
-                        switch (compType)
-                        {
-                            case 1: chunkMatch = (playerState == reqState); break;
-                            case 2: chunkMatch = (playerState >= reqState); break;
-                            case 3: chunkMatch = (playerState <= reqState); break;
-                            case 4: chunkMatch = (playerState != reqState); break;
-                            default: chunkMatch = (playerState == reqState); break;
-                        }
-
-                        if (!chunkMatch) return false;
-                    }
-                    else if (offset == 7)
-                    {
-                        // Chunk 7: Step condition for InProgress quest
-                        ushort reqStep = BitConverter.ToUInt16(data, offset + 1);
-                        ushort stepComp = BitConverter.ToUInt16(data, offset + 5);
-
-                        if (reqStep > 0 && activeFlagId > 0)
-                        {
-                            byte playerStep = 0;
-                            if (player?.Quests != null && player.Quests.TryGetValue(activeFlagId, out var pq) && pq.State == QuestState.InProgress)
-                            {
-                                playerStep = (byte)Math.Max(1, (int)pq.Step);
-                            }
-
-                            bool stepMatch = false;
-                            switch (stepComp)
-                            {
-                                case 1: stepMatch = (playerStep == reqStep); break;
-                                case 2: stepMatch = (playerStep >= reqStep); break;
-                                case 3: stepMatch = (playerStep <= reqStep); break;
-                                case 4: stepMatch = (playerStep != reqStep); break;
-                                default: stepMatch = (playerStep == reqStep); break;
-                            }
-
-                            if (!stepMatch) return false;
-                        }
-                    }
-                }
-                // Opcode 0x01: Unconditional / Always True
-                else if (op == 0x01)
-                {
-                    continue;
-                }
-                // Opcode 0x02: Companion / Pet Recruitment Check
-                else if (op == 0x02)
-                {
-                    ushort subType = BitConverter.ToUInt16(data, offset + 1);
-                    ushort count = BitConverter.ToUInt16(data, offset + 3);
-                    ushort petId = BitConverter.ToUInt16(data, offset + 5);
-
-                    if (subType == 2 && petId > 0)
-                    {
-                        if (player == null) return false;
-                        // Check if player has recruited this pet
-                        bool hasPet = (player.PlayerPets != null && player.PlayerPets.Values.Any(p => p.PetID == petId || (petId == 12178 && p.PetID == 12032) || (petId == 12032 && p.PetID == 12178)))
-                                   || player.ActivePetID == petId
-                                   || (petId == 17162 && player.HasRecruitedCompanion("S.Monkey", 17162))
-                                   || player.HasRecruitedCompanion(petId);
-
-                        // Mode 1: Companion must be recruited / in active team
-                        // Mode 2: Companion must NOT be recruited / not in active team
-                        if (count == 2)
-                        {
-                            if (hasPet) return false;
-                        }
-                        else
-                        {
-                            if (!hasPet) return false;
-                        }
-                    }
-                }
-                // Opcode 0x03: Quest Step Condition (at offset 7) OR Inventory Item Check
-                else if (op == 0x03)
-                {
-                    if (offset == 7 && activeFlagId > 0)
-                    {
-                        ushort reqStep = BitConverter.ToUInt16(data, offset + 1);
-                        ushort stepComp = BitConverter.ToUInt16(data, offset + 5);
-
-                        if (reqStep > 0)
-                        {
-                            byte playerStep = 0;
-                            if (player?.Quests != null && player.Quests.TryGetValue(activeFlagId, out var pq) && pq.State == QuestState.InProgress)
-                            {
-                                playerStep = (byte)Math.Max(1, (int)pq.Step);
-                            }
-
-                            bool stepMatch = false;
-                            switch (stepComp)
-                            {
-                                case 1: stepMatch = (playerStep == reqStep); break;
-                                case 2: stepMatch = (playerStep >= reqStep); break;
-                                case 3: stepMatch = (playerStep <= reqStep); break;
-                                case 4: stepMatch = (playerStep != reqStep); break;
-                                default: stepMatch = (playerStep == reqStep); break;
-                            }
-
-                            if (!stepMatch) return false;
-                        }
-                    }
-                    else
-                    {
-                        ushort itemId = BitConverter.ToUInt16(data, offset + 1);
-                        ushort count = BitConverter.ToUInt16(data, offset + 3);
-                        ushort comp = BitConverter.ToUInt16(data, offset + 5);
-
-                        if (itemId >= 10000)
-                        {
-                            int hasCount = player?.Inv?.GetItemCount(itemId) ?? 0;
-                            bool itemMatch = false;
-                            switch (comp)
-                            {
-                                case 1: itemMatch = (hasCount == count); break;
-                                case 2: itemMatch = (hasCount >= count); break;
-                                case 3: itemMatch = (hasCount <= count); break;
-                                case 4: itemMatch = (hasCount != count); break;
-                                default: itemMatch = (hasCount >= (count > 0 ? count : 1)); break;
-                            }
-                            if (!itemMatch) return false;
-                        }
-                    }
-                }
-                else
-                {
-                    // Unhandled or inactive event/time condition opcodes fail closed
-                    return false;
-                }
-            }
-
-            return true;
+            return Game.Maps.EveEventInterpreter.MatchesPreEventCondition(player, data);
         }
 
         private static void GetNpcCoordinates(Player player, ushort clickId, out ushort x, out ushort y)
@@ -805,12 +502,16 @@ namespace Game.QuestRelated
 
             GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
 
-            // Record: [ClickID:w, State:w (0x00FF), X:w, Y:w, EntityType:b (1), Duration:d (0), StateFlag:b (0)] (14 bytes)
+            // Record: [ClickID:w, Frame:w (0 for props, 0x00FF for animated actors), X:w, Y:w, EntityType:b (1), Duration:d (0), StateFlag:b (0)] (14 bytes)
             SendPacket p = new SendPacket();
             p.Pack8(22);
             p.Pack8(4);
             p.Pack16(clickId);
-            p.Pack16(0x00FF);
+            var npc = (player.CurMap as GameMap)?.NpcList?.OfType<Game.Maps.QuestNpc>()
+                .FirstOrDefault(n => n.CickID == clickId);
+            uint templateId = npc?.TemplateID ?? DataBase.GameDataBase.GlobalInstance?.EveDat?
+                .GetMapData((ushort)player.MapID)?.Npclist?.FirstOrDefault(n => n.clickId == clickId)?.npcId ?? 0;
+            p.Pack16(Game.Maps.QuestNpc.GetIdleAnimationFrame(templateId));
             p.Pack16(x);
             p.Pack16(y);
             p.Pack8(1); // 1 = Visible
@@ -840,6 +541,14 @@ namespace Game.QuestRelated
         /// <summary>
         /// Executes a single bytecode action block from eve.Emg PreEvents.
         /// </summary>
+        // Client AC22:9 -> 0x4464dc -> 0x430f90: actor, animation, facing.
+        internal static bool SendActorPose(Player player, ushort clickId, ushort animation, byte facing)
+        {
+            if (animation > byte.MaxValue) return false;
+            player.Send(Tools.FromFormat("bbwbb", 22, 9, clickId, (byte)animation, facing));
+            return true;
+        }
+
         private static void ExecuteActionBlock(Player player, ushort mapId, byte[] data)
         {
             if (player == null || data == null || data.Length < 10) return;
@@ -860,7 +569,13 @@ namespace Game.QuestRelated
                     return;
                 }
 
-                if (actionType == 2)
+                if (actionType == 7)
+                {
+                    // EVE action 2/7 specifies the actor animation in word 3,
+                    // with facing in the packed value; it is not a prop frame.
+                    SendActorPose(player, clickId, BitConverter.ToUInt16(data, 5), state1);
+                }
+                else if (actionType == 2)
                 {
                     SendActorHide(player, clickId);
                 }
@@ -891,6 +606,42 @@ namespace Game.QuestRelated
                     player.Send(p);
                 }
             }
+        }
+
+        // Rebuild authored icons from current marks on every map/quest refresh.
+        // Declared but inactive targets clear to zero; unrelated NPCs use the derived fallback.
+        internal static Dictionary<uint, byte> GetNativeMinimapMarkers(Player player, ushort mapId)
+        {
+            var markers = new Dictionary<uint, byte>();
+            var preEvents = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(mapId)?.PreEvents;
+            if (preEvents == null) return markers;
+            foreach (var preEvent in preEvents)
+                foreach (var sub in preEvent.subentry1)
+                    foreach (var action in sub.subentry2)
+                    {
+                        var raw = action.unknown;
+                        if (raw == null || raw.Count < 7 || raw[0] != 13) continue;
+                        byte[] bytes = raw.ToArray();
+                        ushort kind = BitConverter.ToUInt16(bytes, 1);
+                        if (kind >= 1 && kind <= 3)
+                            markers[((uint)(kind - 1) << 16) | BitConverter.ToUInt16(bytes, 3)] = 0;
+                    }
+            foreach (var preEvent in preEvents)
+                foreach (var rule in GroupSubEntriesIntoRules(preEvent))
+                {
+                    if (!rule.Conditions.All(c => EvaluateConditionBlock(player, c))) continue;
+                    foreach (var action in rule.Actions)
+                    {
+                        var raw = action.unknown;
+                        if (raw == null || raw.Count < 7 || raw[0] != 13) continue;
+                        byte[] bytes = raw.ToArray();
+                        ushort kind = BitConverter.ToUInt16(bytes, 1);
+                        ushort icon = BitConverter.ToUInt16(bytes, 5);
+                        if (kind >= 1 && kind <= 3 && icon >= 1 && icon <= 256)
+                            markers[((uint)(kind - 1) << 16) | BitConverter.ToUInt16(bytes, 3)] = (byte)(icon - 1);
+                    }
+                }
+            return markers;
         }
 
         private class PreEventRule

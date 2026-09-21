@@ -67,7 +67,7 @@ namespace Game.Code
 
         public void SetReturnLocation(ushort mapId, ushort x, ushort y)
         {
-            if (mapId > 0 && mapId < 60000)
+            if (mapId > 0)
             {
                 if (MapManager.Instance != null)
                 {
@@ -101,7 +101,7 @@ namespace Game.Code
         public void Open()
         {
             if (!_closed) return;
-            if (_owner.CurMap is Game.Code.Tent || _owner.CurMap?.Type == MapType.Tent || _owner.CurMap?.MapID >= 60000)
+            if (_owner.CurMap is Game.Code.Tent || _owner.CurMap?.Type == MapType.Tent)
             {
                 DebugSystem.Write($"[Tent.Open] {_owner.CharName} attempted to open tent while already inside a tent.");
                 return;
@@ -118,7 +118,7 @@ namespace Game.Code
             if (_ownerMap == null) return;
 
             // Save owner's overworld return point before entering
-            if (_ownerMap.MapID < 60000 && _ownerMap.Type != MapType.Tent)
+            if (_ownerMap.Type != MapType.Tent)
             {
                 _owner.TentReturnMap = new WarpData()
                 {
@@ -170,13 +170,13 @@ namespace Game.Code
                 // Teleport all occupants currently inside the tent back to the overworld
                 foreach (var player in m_playerlist.ToList())
                 {
-                    if (player != null && (player.CurMap == this || player.CurMap?.Type == MapType.Tent || player.CurMap?.MapID >= 60000))
+                    if (player != null && player.CurMap == this)
                     {
                         ushort dstMap = (ushort)_ownerMap.MapID;
                         ushort dstX = (ushort)_mapx;
                         ushort dstY = (ushort)_mapy;
 
-                        if (player.TentReturnMap != null && player.TentReturnMap.DstMap > 0 && player.TentReturnMap.DstMap < 60000)
+                        if (player.TentReturnMap != null && player.TentReturnMap.DstMap > 0)
                         {
                             dstMap = player.TentReturnMap.DstMap;
                             dstX = player.TentReturnMap.DstX_Axis;

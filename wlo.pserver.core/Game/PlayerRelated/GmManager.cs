@@ -351,7 +351,7 @@ namespace Game.PlayerRelated
 
             amity = Math.Min((byte)100, amity);
             pet.Amity = amity;
-            player.SendPetStat(pet.Slot, 0x011B, pet.Amity);
+            QuestManager.SendPetAmity(player, pet);
             DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(player.CharID, player);
             player.SendSystemMessage($"[GM] {pet.PetName}'s Amity has been set to {amity}/100.");
             statusMsg = $"{pet.PetName}'s Amity set to {amity}/100.";
@@ -396,9 +396,9 @@ namespace Game.PlayerRelated
             resp.Pack8(1);
             player.Send(resp);
 
-            SendPacket petPkt = QuestManager.CreatePetPacket(player, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job);
-            player.Send(petPkt);
-            QuestManager.SendPetSkills(player, pet.PetID, pet.Slot);
+            pet.NormalizeClientStats(true, player.Inv);
+            player.Send(QuestManager.CreatePetListPacket(player));
+            QuestManager.SendPetProgression(player, pet);
 
             player.SendSystemMessage($"[Rebirth] {pet.PetName} has attained Rebirth Ascension via GM powers!");
             statusMsg = $"{pet.PetName} (Slot {pet.Slot}) successfully underwent Rebirth!";
