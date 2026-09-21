@@ -64,7 +64,6 @@ namespace DataBase
 
         public void VerifySetup()
         {
-            ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_monster_book (charID INTEGER NOT NULL, npcID INTEGER NOT NULL, PRIMARY KEY (charID, npcID))");
 
             #region characters Columns
             Dictionary<string, string> col = new Dictionary<string, string>();
@@ -866,9 +865,6 @@ namespace DataBase
             try { ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
-            try { ExecuteNonQuery("DELETE FROM character_monster_book WHERE charID = '" + ID + "';"); }
-            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
-
             try { ExecuteNonQuery("DELETE FROM charquest WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
@@ -909,9 +905,8 @@ namespace DataBase
 
         public Character GetCharacterData(uint charID)
         {
-            Character cached;
-            if (Cache.TryGetValue((int)charID, out cached))
-                return cached;
+            if (Cache.ContainsKey((int)charID))
+                return Cache[(int)charID];
 
             Character t = new Character();
 
@@ -1005,52 +1000,28 @@ namespace DataBase
                             t[pos].CopyFrom(baseItem);
                             t[pos].Ammt = 1;
                             t[pos].Damage = byte.Parse(rows[i]["dmg"].ToString());
-                            t[pos].Forge = Convert.ToByte(rows[i]["forge"] == DBNull.Value ? 0 : rows[i]["forge"]);
                         }
                     }
                 }
             }
-            // An empty saved equipment set is valid (all items may be in the bag).
+            else
+            {
+                t.SetBeginnerOutfit();
+            }
             #endregion
 
             Cache[(int)charID] = t;
             return t;
         }
 
-        // A separate table avoids changing the legacy characters-table rebuild path.
-        private void EnsureRecordPoints()
-        {
-            ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_record_points (charID INTEGER PRIMARY KEY, mapID INTEGER NOT NULL, posX INTEGER NOT NULL, posY INTEGER NOT NULL)");
-        }
-
-        public bool SaveRecordPoint(uint charID, Game.Maps.WarpData point)
-        {
-            if (charID == 0 || point == null) return false;
-            EnsureRecordPoints();
-            return ExecuteNonQuery($"REPLACE INTO character_record_points (charID,mapID,posX,posY) VALUES ({charID},{point.DstMap},{point.DstX_Axis},{point.DstY_Axis})") > 0;
-        }
-
-        public void LoadRecordPoint(Player player)
-        {
-            if (player == null || player.CharID == 0) return;
-            EnsureRecordPoints();
-            var data = GetDataTable($"SELECT mapID,posX,posY FROM character_record_points WHERE charID={player.CharID}");
-            player.ReturnSpawnMap = data != null && data.Rows.Count > 0 ? new Game.Maps.WarpData {
-                DstMap = Convert.ToUInt16(data.Rows[0]["mapID"]),
-                DstX_Axis = Convert.ToUInt16(data.Rows[0]["posX"]),
-                DstY_Axis = Convert.ToUInt16(data.Rows[0]["posY"])
-            } : null;
-        }
-
         public bool GetCharacterData(uint charID, ref Player t)
         {
             if (charID == 0) return false;
 
-            Character c;
-            if (Cache.TryGetValue((int)charID, out c))
+            if (Cache.ContainsKey((int)charID))
             {
+                var c = Cache[(int)charID];
                 t.CharID = c.CharID;
-                LoadRecordPoint(t);
                 t.Head = c.Head;
                 t.Body = c.Body;
                 t.CharName = c.CharName;
@@ -1082,7 +1053,6 @@ namespace DataBase
                         t[i].CopyFrom(c[i]);
                         t[i].Ammt = c[i].Ammt;
                         t[i].Damage = c[i].Damage;
-                        t[i].Forge = c[i].Forge;
                     }
                 }
                 return true;
@@ -1099,7 +1069,6 @@ namespace DataBase
                 rows = new DataRow[src.Rows.Count];
                 src.Rows.CopyTo(rows, 0);
                 t.CharID = uint.Parse(rows[0]["charID"].ToString());
-                LoadRecordPoint(t);
                 t.Head = byte.Parse(rows[0]["head"].ToString());
                 t.Body = (BodyStyle)uint.Parse(rows[0]["body"].ToString());
                 t.CharName = rows[0]["name"].ToString();
@@ -1169,12 +1138,14 @@ namespace DataBase
                             t[pos].CopyFrom(baseItem);
                             t[pos].Ammt = 1;
                             t[pos].Damage = byte.Parse(rows[i]["dmg"].ToString());
-                            t[pos].Forge = Convert.ToByte(rows[i]["forge"] == DBNull.Value ? 0 : rows[i]["forge"]);
                         }
                     }
                 }
             }
-            // An empty saved equipment set is valid (all items may be in the bag).
+            else
+            {
+                t.SetBeginnerOutfit();
+            }
 
             #region load storage (Props Keeper vault)
             try
@@ -1202,7 +1173,6 @@ namespace DataBase
                                 t.Storage[pos].CopyFrom(baseItem);
                                 t.Storage[pos].Ammt = qty;
                                 t.Storage[pos].Damage = dmg;
-                                t.Storage[pos].Forge = Convert.ToByte(rows[i]["forge"] == DBNull.Value ? 0 : rows[i]["forge"]);
                             }
                         }
                     }
@@ -1256,7 +1226,6 @@ namespace DataBase
             try
             {
                 ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
-                ExecuteNonQuery("DELETE FROM character_monster_book WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM charquest WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM chartent WHERE charID = '" + charID + "';");
                 ExecuteNonQuery("DELETE FROM chartent_items WHERE charID = '" + charID + "';");
@@ -1395,8 +1364,8 @@ namespace DataBase
                 ExecuteNonQuery(string.Format("INSERT INTO inventory (invIdx,charID,storID,itemID,dmg,qty,pos,socketID,bombID,sewID,forge) VALUES {0}", t));
             }
 
-            Character cached;
-            Cache.TryRemove((int)charID, out cached);
+            if (Cache.ContainsKey((int)charID))
+                Cache[(int)charID] = player;
             #endregion
 
             return true;
@@ -1406,10 +1375,8 @@ namespace DataBase
             bool rem = false;
             if (charID == 0) return rem;
 
-            // Cache only detached database snapshots. A live Player keeps its old
-            // LoginMap while CurX/CurY change, producing a mixed location on reconnect.
-            Character cached;
-            Cache.TryRemove((int)charID, out cached);
+            if (Cache.ContainsKey((int)charID))
+                Cache[(int)charID] = player;
 
             DataTable src = null;
 
@@ -1420,24 +1387,25 @@ namespace DataBase
             insert.Add("body", ((byte)c.Body).ToString());
             insert.Add("nickname", c.NickName);
 
-            // Save the exterior location only for actual tents; map 60000+ includes authored field maps.
+            // Safer position saving logic: never persist dynamic tent map IDs (>= 60000)
             string mapID, mapX, mapY;
+            uint currentMid = (c.CurMap != null) ? c.CurMap.MapID : 0;
 
-            if (c.CurMap != null && (c.CurMap.Type == MapType.Tent))
+            if (c.CurMap != null && (c.CurMap.Type == MapType.Tent || currentMid >= 60000))
             {
-                if (player.TentReturnMap != null && player.TentReturnMap.DstMap != 0)
+                if (player.TentReturnMap != null && player.TentReturnMap.DstMap != 0 && player.TentReturnMap.DstMap < 60000)
                 {
                     mapID = player.TentReturnMap.DstMap.ToString();
                     mapX = player.TentReturnMap.DstX_Axis.ToString();
                     mapY = player.TentReturnMap.DstY_Axis.ToString();
                 }
-                else if (player.PrevMap != null && player.PrevMap.DstMap != 0)
+                else if (player.PrevMap != null && player.PrevMap.DstMap != 0 && player.PrevMap.DstMap < 60000)
                 {
                     mapID = player.PrevMap.DstMap.ToString();
                     mapX = player.PrevMap.DstX_Axis.ToString();
                     mapY = player.PrevMap.DstY_Axis.ToString();
                 }
-                else if (player.Tent != null && player.Tent.OwnerMap != null)
+                else if (player.Tent != null && player.Tent.OwnerMap != null && player.Tent.OwnerMap.MapID < 60000)
                 {
                     mapID = player.Tent.OwnerMap.MapID.ToString();
                     mapX = player.Tent.X.ToString();
@@ -1452,8 +1420,9 @@ namespace DataBase
             }
             else
             {
-                // Otherwise always save current map position
-                mapID = (c.CurMap != null) ? c.CurMap.MapID.ToString() : c.LoginMap.ToString();
+                // Otherwise always save current map position (ensure not dynamic tent)
+                if (currentMid >= 60000 || currentMid == 0) currentMid = 10001;
+                mapID = currentMid.ToString();
                 mapX = c.CurX.ToString();
                 mapY = c.CurY.ToString();
             }
@@ -1493,32 +1462,29 @@ namespace DataBase
             #endregion
 
             #region write inv
-            lock (player.Inv.SyncRoot)
+            try
             {
-                try
+                ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "' AND storID = '0';");
+                if (player.Inv.InventoryDBData != null)
                 {
-                    ExecuteNonQuery("DELETE FROM inventory WHERE charID = '" + charID + "' AND storID = '0';");
-                    if (player.Inv.InventoryDBData != null)
+                    List<string> invRows = new List<string>();
+                    foreach (var u in player.Inv.InventoryDBData)
                     {
-                        List<string> invRows = new List<string>();
-                        foreach (var u in player.Inv.InventoryDBData)
+                        if (u.Value[0] > 0) // itemID > 0
                         {
-                            if (u.Value[0] > 0) // itemID > 0
-                            {
-                                invRows.Add(string.Format("('{0}','{1}','0','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}')",
-                                     u.Key, charID, u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]));
-                            }
-                        }
-                        if (invRows.Count > 0)
-                        {
-                            ExecuteNonQuery(string.Format("INSERT INTO inventory (invIdx,charID,storID,itemID,dmg,qty,pos,socketID,bombID,sewID,forge) VALUES {0};", string.Join(",", invRows)));
+                            invRows.Add(string.Format("('{0}','{1}','0','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}')",
+                                 u.Key, charID, u.Value[0], u.Value[1], u.Value[2], u.Value[3], u.Value[4], u.Value[5], u.Value[6], u.Value[7]));
                         }
                     }
+                    if (invRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT INTO inventory (invIdx,charID,storID,itemID,dmg,qty,pos,socketID,bombID,sewID,forge) VALUES {0};", string.Join(",", invRows)));
+                    }
                 }
-                catch (Exception ex)
-                {
-                    DebugSystem.Write($"[CharacterDataBase] Error saving inventory for charID {charID}: {ex.Message}");
-                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving inventory for charID {charID}: {ex.Message}");
             }
             #endregion
 
@@ -1585,6 +1551,7 @@ namespace DataBase
             #region write pets
             try
             {
+                ExecuteNonQuery("DELETE FROM character_pets WHERE charID = '" + charID + "';");
                 List<string> petRows = new List<string>();
 
                 // 1. Active Player Pets (isHotel = 0)
@@ -1596,8 +1563,8 @@ namespace DataBase
                         {
                             uint pId = (pet.PetID == 12178) ? 12032 : pet.PetID;
                             string pName = (pet.PetName == "Companion #12178" || pet.PetName == "Companion") ? "Robinson" : (pet.PetName ?? "");
-                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','{18}','{19}','0','{20}','{21}','{22}','{23}','{24}','{25}','{26}','{27}','{28}','{29}')",
-                                charID, pet.Slot, pId, pName.Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special, pet.SerializeSkills(), Convert.ToBase64String(pet.EquipmentMetadata)));
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','{18}','{19}','0','{20}','{21}','{22}','{23}','{24}','{25}','{26}','{27}')",
+                                charID, pet.Slot, pId, pName.Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.IsBattle ? 1 : 0, pet.IsRide ? 1 : 0, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special));
                         }
                     }
                 }
@@ -1609,50 +1576,20 @@ namespace DataBase
                     {
                         if (pet.PetID > 0)
                         {
-                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','0','0','1','{18}','{19}','{20}','{21}','{22}','{23}','{24}','{25}','{26}','{27}')",
-                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special, pet.SerializeSkills(), Convert.ToBase64String(pet.EquipmentMetadata)));
+                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','0','0','1','{18}','{19}','{20}','{21}','{22}','{23}','{24}','{25}')",
+                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special));
                         }
                     }
                 }
 
-                // 3. Story companions temporarily away (isHotel = 2, not shown in Hotel)
-                if (player.QuestPets != null && player.QuestPets.Count > 0)
+                if (petRows.Count > 0)
                 {
-                    foreach (var pet in player.QuestPets.Values)
-                    {
-                        if (pet.PetID > 0)
-                        {
-                            petRows.Add(string.Format("('{0}','{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{12}','{13}','{14}','{15}','{16}','{17}','0','0','2','{18}','{19}','{20}','{21}','{22}','{23}','{24}','{25}','{26}','{27}')",
-                                charID, pet.Slot, pet.PetID, (pet.PetName ?? "").Replace("'", "''"), pet.Level, pet.Exp, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Potential, pet.SkillPoints, pet.Amity, pet.Reborn ? 1 : 0, pet.Job, pet.Eq_Head, pet.Eq_Body, pet.Eq_Weapon, pet.Eq_Wrist, pet.Eq_Shoes, pet.Eq_Special, pet.SerializeSkills(), Convert.ToBase64String(pet.EquipmentMetadata)));
-                        }
-                    }
-                }
-
-                // Replace the roster atomically: a failed insert must retain the old pets.
-                using (System.Data.Common.DbConnection connection = ServType == DataBaseTypes.Sqlite
-                    ? (System.Data.Common.DbConnection)new System.Data.SQLite.SQLiteConnection(Connection_String)
-                    : new MySqlConnection(Connection_String))
-                {
-                    connection.Open();
-                    using (var transaction = connection.BeginTransaction())
-                    using (var command = connection.CreateCommand())
-                    {
-                        command.Transaction = transaction;
-                        command.CommandText = "DELETE FROM character_pets WHERE charID = " + charID;
-                        command.ExecuteNonQuery();
-                        if (petRows.Count > 0)
-                        {
-                            command.CommandText = string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,exp,hp,maxHp,sp,maxSp,str,con,int_,wis,agi,potential,skillPoints,amity,isBattle,isRide,isHotel,reborn,job,eq_head,eq_body,eq_weapon,eq_wrist,eq_shoes,eq_special,skills,equipment_meta) VALUES {0};", string.Join(",", petRows));
-                            command.ExecuteNonQuery();
-                        }
-                        transaction.Commit();
-                    }
+                    ExecuteNonQuery(string.Format("INSERT INTO character_pets (charID,slot,petID,petName,level,exp,hp,maxHp,sp,maxSp,str,con,int_,wis,agi,potential,skillPoints,amity,isBattle,isRide,isHotel,reborn,job,eq_head,eq_body,eq_weapon,eq_wrist,eq_shoes,eq_special) VALUES {0};", string.Join(",", petRows)));
                 }
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[CharacterDataBase] Error saving pets for charID {charID}: {ex.Message}");
-                return false;
             }
             #endregion
 
@@ -1687,9 +1624,19 @@ namespace DataBase
             {
                 if (player.Quests != null && player.Quests.Count > 0)
                 {
-                    foreach (var quest in player.Quests.Values)
-                        if (quest != null && quest.QuestID > 0)
-                            Game.QuestRelated.QuestManager.SavePlayerQuest(player, quest.QuestID);
+                    ExecuteNonQuery("CREATE TABLE IF NOT EXISTS charquest (pri_key INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, quest_started INT NOT NULL, quest_pos INT NOT NULL, UNIQUE(charID, quest_started));");
+                    List<string> questRows = new List<string>();
+                    foreach (var q in player.Quests.Values)
+                    {
+                        if (q != null && q.QuestID > 0)
+                        {
+                            questRows.Add(string.Format("('{0}', '{1}', '{2}')", charID, q.QuestID, (byte)q.State));
+                        }
+                    }
+                    if (questRows.Count > 0)
+                    {
+                        ExecuteNonQuery(string.Format("INSERT OR REPLACE INTO charquest (charID, quest_started, quest_pos) VALUES {0};", string.Join(",", questRows)));
+                    }
                 }
             }
             catch (Exception ex)
@@ -1709,7 +1656,6 @@ namespace DataBase
             }
             #endregion
 
-            Cache.TryRemove((int)charID, out cached);
             return true;
         }
 
@@ -1912,24 +1858,6 @@ namespace DataBase
             }
         }
 
-        public void LoadMonsterBook(Player player)
-        {
-            lock (player.DiscoveredMonsters)
-            {
-                player.DiscoveredMonsters.Clear();
-                var rows = GetDataTable($"SELECT npcID FROM character_monster_book WHERE charID={player.CharID}");
-                if (rows != null)
-                    foreach (DataRow row in rows.Rows)
-                        player.DiscoveredMonsters.Add(Convert.ToUInt32(row["npcID"]));
-            }
-        }
-
-        public bool SaveMonsterDiscovery(uint characterId, uint npcId)
-        {
-            var insert = ServType == DataBaseTypes.MySQl ? "INSERT IGNORE" : "INSERT OR IGNORE";
-            return ExecuteNonQuery($"{insert} INTO character_monster_book (charID,npcID) VALUES ({characterId},{npcId})") >= 0;
-        }
-
         public void OnCharacterJoin(Player src)
         {
             Characters_Online.TryAdd((int)src.CharID, src);
@@ -1998,35 +1926,11 @@ namespace DataBase
                             player.Send(broadcastPacket);
                             broadcastCount++;
 
-                            // Also synchronize newPlayer's active companion pet to player
-                            if (newPlayer.PlayerPets != null && newPlayer.PlayerPets.Count > 0)
+                            // Also synchronize newPlayer's active companion visual to map peer
+                            if (newPlayer.ActivePetID > 0 && player.CurMap != null && player.CurMap.MapID == newPlayer.CurMap.MapID)
                             {
-                                var activePet = newPlayer.PlayerPets.Values.FirstOrDefault(pet => pet.IsBattle || pet.PetID == newPlayer.ActivePetID);
-                                if (activePet != null)
-                                {
-                                    activePet.NormalizeExpForLevel();
-                                    SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(newPlayer, activePet.PetID, activePet.Slot, activePet.HP, activePet.MaxHP, activePet.SP, activePet.MaxSP, activePet.Amity, activePet.Level, activePet.Str, activePet.Con, activePet.Int, activePet.Wis, activePet.Agi, activePet.Exp, activePet.Reborn, activePet.Job);
-                                    player.Send(petPkt);
-
-                                    SendPacket petFollow = new SendPacket();
-                                    petFollow.PackArray(new byte[] { 13, 5 });
-                                    petFollow.Pack32(newPlayer.CharID);
-                                    petFollow.Pack32(activePet.PetID);
-                                    player.Send(petFollow);
-
-                                    SendPacket followPkt = new SendPacket();
-                                    followPkt.Pack8(19);
-                                    followPkt.Pack8(4);
-                                    followPkt.Pack32(newPlayer.CharID);
-                                    followPkt.Pack32(activePet.PetID);
-                                    player.Send(followPkt);
-
-                                    SendPacket petRefresh = new SendPacket();
-                                    petRefresh.PackArray(new byte[] { 5, 8 });
-                                    petRefresh.Pack32(newPlayer.CharID);
-                                    petRefresh.Pack8(0);
-                                    player.Send(petRefresh);
-                                }
+                                SendPacket petMapPkt = newPlayer.CreatePetMapPacket(newPlayer.ActivePetID);
+                                if (petMapPkt != null) player.Send(petMapPkt);
                             }
 
                             DebugSystem.Write($"[BroadcastNewPlayer] Successfully sent to {player.CharName}");

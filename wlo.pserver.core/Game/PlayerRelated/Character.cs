@@ -112,10 +112,9 @@ namespace Game
             // Offset 62..63 (0x3E..0x3F): SkillCount (ushort)
             p.Add((ushort)0);
 
-            // Native trailer starts with permanent HP/SP bonuses, not POINT/Potential.
-            // POINT and Potential are synchronized separately through AC8:1 stats 38/37.
-            p.Add((ushort)0);                            // 2 bytes: Additional maximum HP
-            p.Add((ushort)0);                            // 2 bytes: Additional maximum SP
+            // Post-skill trailer offsets
+            p.Add((ushort)SkillPoints);                  // 2 bytes: Available Stat Points (StatusUp)
+            p.Add((ushort)Potential);                    // 2 bytes: Potential
             p.Add((byte)0);                              // 1 byte: Padding
             p.Add((byte)(Reborn ? 1 : 0));               // 1 byte: Reborn flag
             p.Add((byte)Potential);                      // 1 byte: Potential byte
@@ -158,9 +157,7 @@ namespace Game
             temp.Add((uint)src.FullHP);
             temp.Add((uint)src.CurSP);
             temp.Add((uint)src.FullSP);
-            // Native character selection reads EXP and Gold as separate DWORDs.
-            temp.Add((uint)src.TotalExp);
-            temp.Add((uint)src.Gold);
+            temp.Add((ulong)src.TotalExp);
             temp.Add((ushort)src.Body);
             temp.Add((ushort)src.Head);
             temp.Add((uint)src.ColorCode1);

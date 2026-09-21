@@ -255,7 +255,7 @@ namespace Game.PlayerRelated
                 // Verify inventory space before claiming items
                 if (target.AttachedItemID > 0 && target.AttachedItemCount > 0)
                 {
-                    if (player.Inv == null || !player.Inv.CanAddItems(new Dictionary<ushort, int> { { target.AttachedItemID, target.AttachedItemCount } }))
+                    if (player.Inv != null && player.Inv.FreeSpace < 1 && !player.Inv.ContainsItem(target.AttachedItemID))
                     {
                         SendSystemMsg(player, "Inventory is full! Clear space before claiming attachments.");
                         return;

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -82,7 +81,6 @@ namespace Game.Battle
 
         public static void AddOrUpdateDrop(uint monsterTid, ushort itemId, string itemName, byte minCount, byte maxCount, double dropRate)
         {
-            dropRate = Math.Max(0.0, Math.Min(100.0, dropRate));
             lock (_lock)
             {
                 if (!MonsterLootTables.ContainsKey(monsterTid))
@@ -409,36 +407,21 @@ namespace Game.Battle
                 if (pool == null || pool.Count == 0) return drops;
 
                 // Roll each drop entry independently by calibrated drop rate percentage
-                // Server balance policy: scale configured rates by 0.35 with a 5% floor.
+                // Standard MMO balance: monsters have realistic drop chances and drop at most 1 item per kill
                 foreach (var entry in pool)
                 {
                     double roll = _rng.NextDouble() * 100.0;
                     double calibratedRate = Math.Max(5.0, entry.DropRatePercent * 0.35 * Math.Max(0.1, DropRateMultiplier));
                     if (roll <= calibratedRate)
                     {
-                        string resolvedItemName = null;
-                        try
-                        {
-                            resolvedItemName = ItemNameResolver?.Invoke(entry.ItemID);
-                        }
-                        catch { }
-
-                        // Never send a made-up item record to the client. Unknown IDs caused
-                        // acquisition popups followed by missing items / false full-bag errors.
-                        if (string.IsNullOrWhiteSpace(resolvedItemName))
-                        {
-                            DebugSystem.Write($"[MonsterDropManager] Skipped unknown drop item #{entry.ItemID} for monster #{monsterTid}.");
-                            continue;
-                        }
-
                         byte count = entry.MinCount;
                         if (entry.MaxCount > entry.MinCount)
                         {
                             count = (byte)_rng.Next(entry.MinCount, entry.MaxCount + 1);
                         }
-                        drops.Add(new RolledDropItem(entry.ItemID, resolvedItemName, count));
+                        drops.Add(new RolledDropItem(entry.ItemID, entry.ItemName, count));
 
-                        // Award at most one loot entry; its configured stack quantity is retained.
+                        // In authentic WLO, regular monsters drop at most 1 item per kill
                         if (drops.Count >= 1) break;
                     }
                 }
@@ -491,20 +474,6 @@ namespace Game.Battle
             try
             {
                 VerifyTable();
-
-                // Older seeds were parsed with the machine locale, turning values such as
-                // 35.0 into 350. Detect that known invalid scale once and repair the table.
-                var rateCheck = RCLibrary.Core.DataBase.Query("SELECT MAX(drop_rate) AS max_rate FROM monster_drops;");
-                if (rateCheck != null && rateCheck.Rows.Count > 0 && rateCheck.Rows[0]["max_rate"] != DBNull.Value)
-                {
-                    double maxRate = Convert.ToDouble(rateCheck.Rows[0]["max_rate"], CultureInfo.InvariantCulture);
-                    if (maxRate > 100.0)
-                    {
-                        RCLibrary.Core.DataBase.Execute("UPDATE monster_drops SET drop_rate = drop_rate / 10.0;");
-                        DebugSystem.Write("[MonsterDropManager] Migrated legacy drop rates from x10 scale to percentages.");
-                    }
-                }
-
                 var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM monster_drops;");
 
                 if (dt == null || dt.Rows.Count == 0)
@@ -529,8 +498,7 @@ namespace Game.Battle
                             string itemName = row["item_name"]?.ToString() ?? "";
                             byte minCount = Convert.ToByte(row["min_count"]);
                             byte maxCount = Convert.ToByte(row["max_count"]);
-                            double dropRate = Math.Max(0.0, Math.Min(100.0,
-                                Convert.ToDouble(row["drop_rate"], CultureInfo.InvariantCulture)));
+                            double dropRate = Convert.ToDouble(row["drop_rate"]);
 
                             var entry = new MonsterDropEntry(itemId, itemName, minCount, maxCount, dropRate);
 
@@ -589,12 +557,9 @@ namespace Game.Battle
                                 string itemName = tokens[1].Trim();
                                 byte min = tokens.Length > 2 && byte.TryParse(tokens[2].Trim(), out byte mn) ? mn : (byte)1;
                                 byte max = tokens.Length > 3 && byte.TryParse(tokens[3].Trim(), out byte mx) ? mx : min;
-                                double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double r)
-                                    ? Math.Max(0.0, Math.Min(100.0, r))
-                                    : 50.0;
+                                double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), out double r) ? r : 50.0;
 
-                                string rateSql = rate.ToString(CultureInfo.InvariantCulture);
-                                string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({tid}, '{pattern?.Replace("'", "''")}', {itemId}, '{itemName.Replace("'", "''")}', {min}, {max}, {rateSql});";
+                                string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({tid}, '{pattern?.Replace("'", "''")}', {itemId}, '{itemName.Replace("'", "''")}', {min}, {max}, {rate});";
                                 RCLibrary.Core.DataBase.Execute(sql);
                             }
                         }
@@ -624,8 +589,7 @@ namespace Game.Battle
                     {
                         foreach (var e in kvp.Value)
                         {
-                            string rateSql = Math.Max(0.0, Math.Min(100.0, e.DropRatePercent)).ToString(CultureInfo.InvariantCulture);
-                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({kvp.Key}, NULL, {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {rateSql});";
+                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({kvp.Key}, NULL, {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent});";
                             RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }
@@ -634,8 +598,7 @@ namespace Game.Battle
                     {
                         foreach (var e in kvp.Value)
                         {
-                            string rateSql = Math.Max(0.0, Math.Min(100.0, e.DropRatePercent)).ToString(CultureInfo.InvariantCulture);
-                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, '{kvp.Key.Replace("'", "''")}', {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {rateSql});";
+                            string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, '{kvp.Key.Replace("'", "''")}', {e.ItemID}, '{e.ItemName.Replace("'", "''")}', {e.MinCount}, {e.MaxCount}, {e.DropRatePercent});";
                             RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }

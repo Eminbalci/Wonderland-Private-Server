@@ -21,15 +21,6 @@ namespace Game.Code
             return rawStatusUp - 100;
         }
 
-        private int ForgedStat(int index)
-        {
-            int value = ParseItemDelta(Data.StatusUp[index]);
-            if (Forge == 0 || Data.StatusType[index] == 0 || Data.StatusType[index] == 250 || Data.StatusUp[index] < 100) return value;
-            int count = Enumerable.Range(0, Math.Min(2, Math.Min(Data.StatusType.Length, Data.StatusUp.Length)))
-                .Count(i => Data.StatusType[i] != 0 && Data.StatusType[i] != 250 && Data.StatusUp[i] >= 100);
-            return value + Forge * (count == 1 ? 2 : 1);
-        }
-
         public Int32 HP
         {
             get
@@ -37,8 +28,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 207 || Data.StatusType[0] == 205 || Data.StatusType[0] == 25)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 207 || Data.StatusType[1] == 205 || Data.StatusType[1] == 25)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 207 || Data.StatusType[0] == 205 || Data.StatusType[0] == 25)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 207 || Data.StatusType[1] == 205 || Data.StatusType[1] == 25)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -51,8 +42,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 208 || Data.StatusType[0] == 206 || Data.StatusType[0] == 26)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 208 || Data.StatusType[1] == 206 || Data.StatusType[1] == 26)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 208 || Data.StatusType[0] == 206 || Data.StatusType[0] == 26)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 208 || Data.StatusType[1] == 206 || Data.StatusType[1] == 26)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -65,8 +56,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 210 || Data.StatusType[0] == 41 || Data.StatusType[0] == 28)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 210 || Data.StatusType[1] == 41 || Data.StatusType[1] == 28)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 210 || Data.StatusType[0] == 41 || Data.StatusType[0] == 28)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 210 || Data.StatusType[1] == 41 || Data.StatusType[1] == 28)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -79,8 +70,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 211 || Data.StatusType[0] == 42 || Data.StatusType[0] == 29)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 211 || Data.StatusType[1] == 42 || Data.StatusType[1] == 29)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 211 || Data.StatusType[0] == 42 || Data.StatusType[0] == 29)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 211 || Data.StatusType[1] == 42 || Data.StatusType[1] == 29)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -93,8 +84,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 215 || Data.StatusType[0] == 43 || Data.StatusType[0] == 27)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 215 || Data.StatusType[1] == 43 || Data.StatusType[1] == 27)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 215 || Data.StatusType[0] == 43 || Data.StatusType[0] == 27)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 215 || Data.StatusType[1] == 43 || Data.StatusType[1] == 27)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -107,8 +98,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 216 || Data.StatusType[0] == 44 || Data.StatusType[0] == 33)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 216 || Data.StatusType[1] == 44 || Data.StatusType[1] == 33)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 216 || Data.StatusType[0] == 44 || Data.StatusType[0] == 33)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 216 || Data.StatusType[1] == 44 || Data.StatusType[1] == 33)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -121,8 +112,8 @@ namespace Game.Code
                 int val = 0;
                 if (Data.StatusType != null && Data.StatusUp != null)
                 {
-                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 214 || Data.StatusType[0] == 45 || Data.StatusType[0] == 30)) val += ForgedStat(0);
-                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 214 || Data.StatusType[1] == 45 || Data.StatusType[1] == 30)) val += ForgedStat(1);
+                    if (Data.StatusType.Length > 0 && (Data.StatusType[0] == 214 || Data.StatusType[0] == 45 || Data.StatusType[0] == 30)) val += ParseItemDelta(Data.StatusUp[0]);
+                    if (Data.StatusType.Length > 1 && (Data.StatusType[1] == 214 || Data.StatusType[1] == 45 || Data.StatusType[1] == 30)) val += ParseItemDelta(Data.StatusUp[1]);
                 }
                 return val;
             }
@@ -137,6 +128,13 @@ namespace Game.Code
             }
         }
 
+        public Int32 Crit
+        {
+            get
+            {
+                return /*(Data.SpecialStatus == eSpecialStatus.Critical_Increase) ? Data.ItemRank * 2 + 10 :*/ 0;
+            }
+        }
 
         #endregion
 
@@ -160,7 +158,7 @@ namespace Game.Code
         Equip[] equippedItems;
 
         byte head;
-        int m_curhp, m_cursp, gold, m_skillpoint, m_potential;
+        int m_currexp, m_curhp, m_cursp, gold, m_skillpoint, m_potential;
         long m_totalexp = 0;
         BodyStyle body;
         Affinity element;
@@ -308,26 +306,23 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
-                    long remainingExp;
-                    return GetLevelProgress(out remainingExp);
+                    int level = 1;
+
+                    long tmp = m_totalexp;
+
+                    while (tmp >= (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], level))
+                    {
+                        if (!Reborn && level + 1 > 199) break;
+                        tmp -= (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], level);
+                        level++;
+                    }
+
+                    if (Reborn) return (byte)(level - 100);
+                    else
+                        return (byte)level;
                 }
             }
         }
-        // Both level and within-level EXP must come from the persisted total.
-        byte GetLevelProgress(out long remainingExp)
-        {
-            int level = 1;
-            byte rebirth = Reborn ? (byte)1 : (byte)0;
-            remainingExp = m_totalexp;
-            while (remainingExp >= (uint)CalcMaxExp(rebirth, level))
-            {
-                if (!Reborn && level + 1 > 199) break;
-                remainingExp -= (uint)CalcMaxExp(rebirth, level);
-                level++;
-            }
-            return Reborn ? (byte)(level - 100) : (byte)level;
-        }
-
         /// <summary>
         /// A Character's Current Hp
         /// </summary>
@@ -337,6 +332,8 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
+                    if (m_curhp <= 0 && FullHP > 0)
+                        m_curhp = FullHP;
                     return m_curhp;
                 }
             }
@@ -357,6 +354,8 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
+                    if (m_cursp <= 0 && FullSP > 0)
+                        m_cursp = FullSP;
                     return m_cursp;
                 }
             }
@@ -393,27 +392,43 @@ namespace Game.Code
         }
 
         /// <summary>
+        /// A Character's Current EXP
+        /// <summary>
         /// Adds experience points to character, optionally applying the server's global EXP multiplier.
         /// </summary>
         public void AddExp(long amount, bool applyServerRate = true)
         {
             if (amount <= 0) return;
 
-            if (applyServerRate) amount = Server.ServerStatusManager.ScaleExperience(amount);
+            if (applyServerRate && Server.ServerStatusManager.ExpRate > 0 && Server.ServerStatusManager.ExpRate != 1.0)
+            {
+                amount = (long)Math.Max(1, Math.Round(amount * Server.ServerStatusManager.ExpRate));
+            }
 
             lock (m_Lock)
             {
-                byte oldLevel = Level;
-                TotalExp += amount;
-                int levelsGained = Math.Max(0, Level - oldLevel);
-                if (levelsGained > 0)
-                    SkillPoints = (ushort)Math.Min(ushort.MaxValue, SkillPoints + levelsGained * 3);
+                long expgain = amount;
 
-                // Update the client's EXP/level before derived stats and available points,
-                // including rewards that land exactly on a level boundary.
-                SendExp();
-                if (levelsGained > 0)
-                    Send8_1(true);
+                while (expgain > 0)
+                {
+                    var exptolvl = CalcMaxExp(BitConverter.GetBytes(Reborn)[0], Level);
+                    var remainexp = exptolvl - m_currexp;
+                    if (m_currexp + expgain >= exptolvl)
+                    {
+                        SkillPoints += 3; // +3 stat points per level (matches Python server: points += levels_gained * 3)
+                        m_currexp = 0;
+                        TotalExp += remainexp;
+                        expgain -= remainexp;
+                        Send8_1(true);
+                    }
+                    else
+                    {
+                        TotalExp += expgain;
+                        m_currexp += (int)expgain;
+                        expgain -= expgain;
+                        SendExp();
+                    }
+                }
             }
         }
 
@@ -426,9 +441,7 @@ namespace Game.Code
             {
                 lock (m_Lock)
                 {
-                    long remainingExp;
-                    GetLevelProgress(out remainingExp);
-                    return (int)Math.Min(int.MaxValue, remainingExp);
+                    return m_currexp;
                 }
             }
             set
@@ -724,15 +737,6 @@ namespace Game.Code
         public Int32 FullSpd { get { lock (m_Lock) { return (int)(Spd + EquippedSPD); } } }
         #endregion
 
-        public int Crit
-        {
-            get
-            {
-                lock (m_Lock)
-                    return Math.Min(100, equippedItems.Sum(item => item.Crit));
-            }
-        }
-
         #region Equipment Bonuses
         /// <summary>
         /// Total Equipped MAXHP
@@ -980,9 +984,7 @@ namespace Game.Code
                             {
                                 tmp.Add(this[n].ItemID);
                                 tmp.Add(this[n].Damage);
-                                var metadata = new byte[18];
-                                metadata[12] = this[n].Forge; // Native AC23:11 forge is item-record byte15.
-                                tmp.Add(metadata);
+                                tmp.Add(new byte[18]); // Official WLO Protocol: 18 zero padding bytes per item (21 bytes total per item)
                             }
                         }
                     }
@@ -1083,7 +1085,7 @@ namespace Game.Code
                 {
                     Dictionary<byte, uint[]> tmp = new Dictionary<byte, uint[]>();
                     for (byte a = 1; a < 7; a++)
-                        tmp.Add(a, new uint[] { this[a].ItemID, this[a].Damage, this[a].Ammt, (uint)this[a].Wear_At, 0, 0, 0, this[a].Forge });
+                        tmp.Add(a, new uint[] { this[a].ItemID, this[a].Damage, this[a].Ammt, (uint)this[a].Wear_At, 0, 0, 0, 0 });
                     return tmp;
                 }
             }
@@ -1203,16 +1205,20 @@ namespace Game.Code
         {
             lock (m_Lock)
             {
-                if (levelup)
+                if (levelup || m_curhp <= 0)
                 {
                     CurHP = FullHP;
                 }
-                if (levelup)
+                if (levelup || m_cursp <= 0)
                 {
                     CurSP = FullSP;
                 }
 
-                // Derived Combat Stats:
+                // Equipment & Status Bonuses followed by Derived Combat Stats:
+                SendStat(0xCF, EquippedMaxHP);
+                SendStat(0x19, FullHP);
+                SendStat(0xD0, EquippedMaxSP);
+                SendStat(0x1A, FullSP);
                 SendStat(0x29, Str * 2 + EquippedATK);
                 SendStat(0x2A, Con * 2 + EquippedDEF);
                 SendStat(0x2B, Int * 2 + EquippedMAT);
@@ -1229,15 +1235,6 @@ namespace Game.Code
                 // Available Stat Points (POINT Stat 38) and Potential (Stat 37):
                 SendStat(38, SkillPoints);
                 SendStat(37, Potential);
-
-                // Native stats207/208 recalculate maxima and copy them to the HUD.
-                // Send them after CON/WIS so the HUD does not retain the old maxima.
-                SendStat(0xCF, EquippedMaxHP);
-                SendStat(0xD0, EquippedMaxSP);
-
-                // Current vitals must follow the maximum/base-stat updates.
-                SendStat(0x19, CurHP);
-                SendStat(0x1A, CurSP);
             }
 
             if (this is Player player && player.hasParty)

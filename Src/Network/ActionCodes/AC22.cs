@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Game;
@@ -94,13 +94,12 @@ namespace Network.ActionCodes
             {
                 p.Pack16(npc.CickID);
                 QuestNpc qn = npc as QuestNpc;
-                bool isRecruited = qn != null && player != null && player.HasStoryCompanionInParty((ushort)qn.TemplateID);
+                bool isRecruited = qn != null && player != null && player.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
                 bool isHiddenByPreEvent = player != null && !PreEventInterpreter.ShouldNpcBeVisible(player, mapId, (ushort)npc.CickID);
                 bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
                 bool isHidden = isRecruited || isHiddenByPreEvent || isDead;
 
-                ushort idleFrame = QuestNpc.GetIdleAnimationFrame(qn?.TemplateID ?? 0);
-                ushort state = idleFrame;
+                ushort state = 0x00FF; // Authentic default for all living NPCs (wire: FF 00)
 
                 if (isHidden)
                 {
@@ -139,13 +138,13 @@ namespace Network.ActionCodes
                     }
 
                     // Authentic WLO protocol:
-                    // Hold frame 0 for interactive props; FF would loop their frames
+                    // 0x00FF (255) is the default intact animation frame
                     // 0x0001 is the opened / broken animation frame
-                    state = isOpened ? (ushort)0x0001 : idleFrame;
+                    state = isOpened ? (ushort)0x0001 : (ushort)0x00FF;
                 }
                 else
                 {
-                    state = idleFrame;
+                    state = 0x00FF; // Normal living NPC actor
                 }
 
                 byte entityType = isHidden ? (byte)2 : (byte)1;
@@ -249,8 +248,8 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// AC 22:12 - Sets a minimap icon (1 = actor, 2/3 = map target).
-        /// Payload: [22, 12, Subtype:b, ClickID:w, Icon:b] (6 bytes total on wire).
+        /// AC 22:12 - Configures NPC speed or patrol behavior.
+        /// Payload: [22, 12, Subtype:b, ClickID:w, Speed:b] (6 bytes total on wire).
         /// </summary>
         public static SendPacket BuildNpcSpeedPacket(byte subtype, ushort clickId, byte speed)
         {

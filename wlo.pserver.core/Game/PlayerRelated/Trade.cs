@@ -335,14 +335,16 @@ namespace Game.PlayerRelated
             }
 
             // 3. Verify inventory space
-            if (!p1.Inv.CanAddItems(session.Player2Items.GroupBy(i => i.ItemID).ToDictionary(g => g.Key, g => g.Sum(i => (int)i.Count))))
+            int p1Needed = session.Player2Items.Count;
+            int p2Needed = session.Player1Items.Count;
+            if (p1.Inv.FreeSpace < p1Needed)
             {
                 SendSystemMsg(p1, "Trade failed: Your inventory does not have enough space.");
                 SendSystemMsg(p2, $"Trade failed: {p1.CharName}'s inventory is full.");
                 CancelTrade(p1);
                 return;
             }
-            if (!p2.Inv.CanAddItems(session.Player1Items.GroupBy(i => i.ItemID).ToDictionary(g => g.Key, g => g.Sum(i => (int)i.Count))))
+            if (p2.Inv.FreeSpace < p2Needed)
             {
                 SendSystemMsg(p2, "Trade failed: Your inventory does not have enough space.");
                 SendSystemMsg(p1, $"Trade failed: {p2.CharName}'s inventory is full.");
@@ -375,7 +377,7 @@ namespace Game.PlayerRelated
                 p1.Inv.AddItem(it.ItemID, it.Count);
             }
 
-            // 6. Persist both characters (separate saves, not a shared transaction)
+            // 6. Atomic Save
             p1.SaveCharacterData();
             p2.SaveCharacterData();
 

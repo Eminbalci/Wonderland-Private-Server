@@ -33,15 +33,6 @@ namespace Network.ActionCodes
             {
                 if (c == null || c.CurMap == null) return;
 
-                // A menu warp must not strand a registered battle on the old map.
-                // Registration remains active until the departure animation finishes.
-                if (Game.Battle.PvEBattleManager.IsInBattle(c))
-                {
-                    DebugSystem.Write($"[AC5.Recv17] Teleport rejected for {c.CharName}: battle is still active or leaving.");
-                    c.SendHeadBanner("Leave the battle before teleporting.");
-                    return;
-                }
-
                 byte destChoice = p.Buffer.Length > 6 ? p[6] : (byte)1;
                 WarpData warp = new WarpData();
 

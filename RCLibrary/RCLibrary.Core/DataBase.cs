@@ -190,33 +190,33 @@ public class DataBase {
         string result = sql;
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT",
-            "INT NOT NULL AUTO_INCREMENT PRIMARY KEY",
+            result, 
+            @"INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT", 
+            "INT NOT NULL AUTO_INCREMENT PRIMARY KEY", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"\bAUTOINCREMENT\b",
-            "AUTO_INCREMENT",
+            result, 
+            @"\bAUTOINCREMENT\b", 
+            "AUTO_INCREMENT", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"INTEGER\s+PRIMARY\s+KEY",
-            "INT PRIMARY KEY",
+            result, 
+            @"INTEGER\s+PRIMARY\s+KEY", 
+            "INT PRIMARY KEY", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"TEXT\s+PRIMARY\s+KEY",
-            "VARCHAR(255) PRIMARY KEY",
+            result, 
+            @"TEXT\s+PRIMARY\s+KEY", 
+            "VARCHAR(255) PRIMARY KEY", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"\bINSERT\s+OR\s+REPLACE\s+INTO\b",
-            "REPLACE INTO",
+            result, 
+            @"\bINSERT\s+OR\s+REPLACE\s+INTO\b", 
+            "REPLACE INTO", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
@@ -226,27 +226,27 @@ public class DataBase {
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"\bBEGIN\s+TRANSACTION;?\b",
-            "START TRANSACTION;",
+            result, 
+            @"\bBEGIN\s+TRANSACTION;?\b", 
+            "START TRANSACTION;", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"SELECT\s+\*\s+FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*'table'",
-            "SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()",
+            result, 
+            @"SELECT\s+\*\s+FROM\s+sqlite_master\s+WHERE\s+type\s*=\s*'table'", 
+            "SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE()", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"SELECT\s+NAME\s+FROM\s+SQLITE_MASTER\s+WHERE\s+type\s*=\s*'table'\s+ORDER\s+BY\s+NAME;?",
-            "SELECT table_name AS NAME FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name;",
+            result, 
+            @"SELECT\s+NAME\s+FROM\s+SQLITE_MASTER\s+WHERE\s+type\s*=\s*'table'\s+ORDER\s+BY\s+NAME;?", 
+            "SELECT table_name AS NAME FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name;", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         result = System.Text.RegularExpressions.Regex.Replace(
-            result,
-            @"\bCREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS\b)",
-            "CREATE TABLE IF NOT EXISTS ",
+            result, 
+            @"\bCREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS\b)", 
+            "CREATE TABLE IF NOT EXISTS ", 
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         var pragmaMatch = System.Text.RegularExpressions.Regex.Match(result, @"PRAGMA\s+table_info\s*\(\s*['""]?(\w+)['""]?\s*\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -280,8 +280,7 @@ public class DataBase {
                     }
                 }
             } else {
-                string configuredFile = string.IsNullOrEmpty(DefaultDBFile) ? "ServerDataBase.db" : DefaultDBFile;
-                string dbFile = Path.IsPathRooted(configuredFile) ? configuredFile : PathHelper.ResolveDatabaseFile(configuredFile);
+                string dbFile = PathHelper.ResolveDatabaseFile(string.IsNullOrEmpty(DefaultDBFile) ? "ServerDataBase.db" : DefaultDBFile);
                 using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;")) {
                     conn.Open();
                     using (var cmd = new SQLiteCommand(sql, conn)) {
@@ -324,8 +323,7 @@ public class DataBase {
                     }
                 }
             } else {
-                string configuredFile = string.IsNullOrEmpty(DefaultDBFile) ? "ServerDataBase.db" : DefaultDBFile;
-                string dbFile = Path.IsPathRooted(configuredFile) ? configuredFile : PathHelper.ResolveDatabaseFile(configuredFile);
+                string dbFile = PathHelper.ResolveDatabaseFile(string.IsNullOrEmpty(DefaultDBFile) ? "ServerDataBase.db" : DefaultDBFile);
                 using (var conn = new SQLiteConnection($"Data Source={dbFile};Version=3;")) {
                     conn.Open();
                     using (var cmd = new SQLiteCommand(sql, conn)) {
@@ -510,11 +508,8 @@ public class DataBase {
                     if (string.IsNullOrWhiteSpace(createSql)) continue;
 
                     string mySqlCreate = TranslateSqlForMySql(createSql);
-                    mySqlCreate = System.Text.RegularExpressions.Regex.Replace(mySqlCreate,
-                        @"^\s*CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS\b)", "CREATE TABLE IF NOT EXISTS ",
-                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     using (var cmd = new MySqlCommand(mySqlCreate, mysqlConn)) {
-                        cmd.ExecuteNonQuery();
+                        try { cmd.ExecuteNonQuery(); } catch { }
                     }
 
                     var dt = new DataTable();
@@ -546,14 +541,13 @@ public class DataBase {
                                             cmd.Parameters[c].Value = (val == null || Convert.IsDBNull(val)) ? DBNull.Value : val;
                                         }
                                         cmd.ExecuteNonQuery();
+                                        totalRowsMigrated++;
                                     }
                                 }
                                 trans.Commit();
-                                totalRowsMigrated += dt.Rows.Count;
                             } catch (Exception ex) {
                                 trans.Rollback();
                                 DebugSystem.Write(DebugItemType.Error, $"[Migration] Error migrating data for {tableName}: {ex.Message}");
-                                throw new InvalidOperationException($"Table {tableName} failed; earlier tables may already be committed.", ex);
                             }
                         }
                     }

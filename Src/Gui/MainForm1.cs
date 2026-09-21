@@ -287,8 +287,8 @@ namespace Wonderland_Private_Server
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
             cGlobal.ItemDatManager.onDebug = (obj) => { };
-            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
-            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
+            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
+            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
             if (!string.IsNullOrEmpty(itemDatPath) && System.IO.File.Exists(itemDatPath))
             {
                 cGlobal.ItemDatManager.Load(itemDatPath).Wait();
@@ -327,10 +327,6 @@ namespace Wonderland_Private_Server
             Game.PlayerRelated.MarriageManager.Initialize();
             Game.PlayerRelated.MailSystem.Initialize();
             Game.PlayerRelated.GmManager.Initialize();
-            Game.PlayerRelated.GachaManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("gacha_packs.json"));
-            Game.PetRelated.PetVoucherManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("pet_vouchers.json"));
-            Game.PlayerRelated.MallForgingManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("mall_forging.json"));
-            Game.Battle.CriticalHitManager.Load(RCLibrary.Core.PathHelper.GetDataFilePath("critical_hits.json"));
             Game.PlayerRelated.ItemMallManager.Initialize();
             Game.Crafting.GatheringManager.Initialize();
             Game.Crafting.AlchemyManager.InitializeRecipes();
@@ -913,8 +909,8 @@ namespace Wonderland_Private_Server
             catch { }
 
             // Update ComboBox items if list changed (simple check by count or just refresh)
-            // For smoother UI, we can clear and re-add.
-            // Improve: check if list is actually different to avoid flickering?
+            // For smoother UI, we can clear and re-add. 
+            // Improve: check if list is actually different to avoid flickering? 
             // For now, just refresh every time but keep selection if valid.
 
             comboBox_OnlinePlayers.Items.Clear();
@@ -992,12 +988,14 @@ namespace Wonderland_Private_Server
                     return;
                 }
 
-                int ptsToAdd = Math.Min((int)numStatPoints.Value, ushort.MaxValue - targetPlayer.Eqs.SkillPoints);
+                ushort ptsToAdd = (ushort)numStatPoints.Value;
+                if (ptsToAdd <= 0) ptsToAdd = 1;
 
-                targetPlayer.Eqs.SkillPoints += (ushort)ptsToAdd;
+                targetPlayer.Eqs.SkillPoints += ptsToAdd;
 
-                // Granting unallocated points must not reload or heal the character.
-                targetPlayer.Eqs.SendStat(38, targetPlayer.Eqs.SkillPoints);
+                // Sync full updated stats and stat points to client status window immediately
+                targetPlayer.Send_5_3();
+                targetPlayer.Eqs.Send8_1(true);
 
                 // Persist to database
                 cGlobal.gCharacterDataBase?.WritePlayer(targetPlayer.CharID, targetPlayer);
@@ -1525,9 +1523,9 @@ namespace Wonderland_Private_Server
             {
                 // Query Friends table with character names
                 var friendsData = cGlobal.gGameDataBase.GetDataTable(@"
-                    SELECT
-                        f.CharID1,
-                        f.CharID2,
+                    SELECT 
+                        f.CharID1, 
+                        f.CharID2, 
                         f.AddedDate,
                         c1.name as CharName1,
                         c2.name as CharName2
@@ -1608,7 +1606,7 @@ namespace Wonderland_Private_Server
 
                 // Query inventory with item names
                 var inventoryData = cGlobal.gGameDataBase.GetDataTable($@"
-                    SELECT
+                    SELECT 
                         i.charID,
                         c.name as CharName,
                         i.pos as Slot,
@@ -1689,7 +1687,7 @@ namespace Wonderland_Private_Server
 
                 // Query stats
                 var statsData = cGlobal.gCharacterDataBase.GetDataTable($@"
-                    SELECT
+                    SELECT 
                         s.charID,
                         c.name as CharName,
                         s.statID,
@@ -2055,7 +2053,7 @@ namespace Wonderland_Private_Server
                     {
                         try
                         {
-                            byte chatType = 0; // Notification box is the default announcement target.
+                            byte chatType = 4; //  Red (GM Announcement - AC 2:4)
                             if (colorIdx == 1) chatType = 1; //  Yellow (World Chat - AC 2:1)
                             else if (colorIdx == 2) chatType = 6; //  Blue (Guild Chat - AC 2:6)
                             else if (colorIdx == 3) chatType = 3; //  Pink (Whisper - AC 2:3)
@@ -2064,8 +2062,7 @@ namespace Wonderland_Private_Server
                             {
                                 string trimmed = line.Trim();
                                 if (string.IsNullOrEmpty(trimmed)) continue;
-                                if (colorIdx == 0) p.SendHeadBanner(trimmed);
-                                else Server.WorldServer.SendChatMessage(p, chatType, trimmed);
+                                Server.WorldServer.SendChatMessage(p, chatType, trimmed);
                             }
                         }
                         catch { }
@@ -2368,14 +2365,15 @@ namespace Wonderland_Private_Server
                     p.Eqs.CurSP = p.Eqs.FullSP;
                     p.Eqs.Send8_1(false);
                     p.Send_5_3();
-                    var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle)
+                    var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle) 
                                  ?? (p.ActivePetID > 0 ? p.PlayerPets?.Values?.FirstOrDefault(pet => pet.PetID == p.ActivePetID || pet.Slot == p.ActivePetID) : null)
                                  ?? p.PlayerPets?.Values?.FirstOrDefault();
                     if (activePet != null)
                     {
                         activePet.HP = activePet.MaxHP;
                         activePet.SP = activePet.MaxSP;
-                        Game.QuestRelated.QuestManager.SendPetProgression(p, activePet);
+                        p.SendPetStat(activePet.Slot, 0x0119, (uint)activePet.HP);
+                        p.SendPetStat(activePet.Slot, 0x011A, (uint)activePet.SP);
                     }
                     p.SendSystemMessage("[GM] HP and SP fully restored!");
                     MessageBox.Show($"Restored HP/SP for {p.CharName} and companion.", "Healed", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -2410,8 +2408,8 @@ namespace Wonderland_Private_Server
                 {
                     var p = GetSelectedGmPlayer();
                     if (p == null) return;
-                    p.Eqs.SkillPoints = (ushort)Math.Min(ushort.MaxValue, p.Eqs.SkillPoints + 100);
-                    p.Eqs.SendStat(38, p.Eqs.SkillPoints);
+                    p.Eqs.SkillPoints += 100;
+                    p.Eqs.Send8_1(true);
                     DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
                     p.SendSystemMessage($"[GM] Added +100 Stat Points! Available: {p.Eqs.SkillPoints}");
                     MessageBox.Show($"Added 100 stat points to {p.CharName}. Available: {p.Eqs.SkillPoints}", "Points Added", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -3501,7 +3499,7 @@ namespace Wonderland_Private_Server
                     if (p == null) return;
                     if (MessageBox.Show($"Clear all 50 inventory slots for {p.CharName}?", "Confirm Clear Inventory", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                     {
-                        p.Inv.RemoveAll(false);
+                        p.Inv.ClearInventory(true);
                         DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
                         RefreshGmInventoryAndEquipment();
                         MessageBox.Show($"Inventory cleared for {p.CharName}.", "Inventory Cleared", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -4137,7 +4135,7 @@ namespace Wonderland_Private_Server
             Player targetPlayer = null;
             if (online != null)
             {
-                targetPlayer = online.FirstOrDefault(p =>
+                targetPlayer = online.FirstOrDefault(p => 
                     p.CharName.Equals(targetNameOrId, StringComparison.OrdinalIgnoreCase) ||
                     (p.UserAccount != null && p.UserAccount.UserName.Equals(targetNameOrId, StringComparison.OrdinalIgnoreCase)) ||
                     (uint.TryParse(targetNameOrId, out uint uid) && (p.UserID == uid || p.CharID == uid))
@@ -4166,7 +4164,7 @@ namespace Wonderland_Private_Server
             {
                 try
                 {
-                    string query = uint.TryParse(targetNameOrId, out uint uId)
+                    string query = uint.TryParse(targetNameOrId, out uint uId) 
                         ? $"SELECT * FROM users WHERE userID = {uId} LIMIT 1"
                         : $"SELECT * FROM users WHERE username = '{targetNameOrId}' LIMIT 1";
 
@@ -5082,7 +5080,7 @@ namespace Wonderland_Private_Server
                 };
 
                 Panel pnlInputs = new Panel { Dock = DockStyle.Top, Height = 32 };
-
+                
                 Label lblId = new Label { Text = "Talk ID / Offset:", Location = new System.Drawing.Point(4, 6), AutoSize = true, ForeColor = System.Drawing.Color.Black };
                 numResolverTalkId = new NumericUpDown
                 {

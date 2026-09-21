@@ -1,3 +1,10 @@
 {
-    "dotrush.roslyn.projectOrSolutionFiles": []
+    "dotrush.roslyn.projectOrSolutionFiles": [
+        "Wonderland Private Server.sln"
+    ],
+    "dotrush.roslyn.skipUnrecognizedProjects": true,
+    "dotrush.roslyn.loadMetadataForReferencedProjects": true,
+    "dotrush.roslyn.restoreProjectsBeforeLoading": false,
+    "dotnet.defaultSolution": "Wonderland Private Server.sln",
+    "omnisharp.defaultSolution": "Wonderland Private Server.sln"
 }

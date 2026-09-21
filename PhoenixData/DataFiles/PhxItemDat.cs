@@ -176,7 +176,12 @@ public class PhxItemDat : IDataManager
 							}
 						}
 						num -= Marshal.SizeOf(typeof(PhxItemInfo));
+						if (m_List.Count % 1000 == 0)
+						{
+							onLoadProgressChanged?.Invoke(this, new ProgressChangedEventArgs((int)Math.Round((decimal)((fileStream.Length - num) / (double)fileStream.Length * 100)), null));
+						}
 					}
+					onLoadProgressChanged?.Invoke(this, new ProgressChangedEventArgs(100, null));
 					fileStream.Close();
 					fileStream.Dispose();
 					if (onDebug != null)

@@ -33,13 +33,16 @@ namespace Network.ActionCodes
                     RecvRestBattlePet(player, p);
                     break;
                 default:
-                    DebugSystem.Write($"[AC19] Ignored unsupported subcode {sub}");
+                    DebugSystem.Write($"[AC19] Action Code 19,{sub} received for player {player.CharName}");
                     break;
             }
         }
 
         /// <summary>
-        /// Set Active Battle Pet: C->S [19, 1/4, pet_id or slot]
+        /// Set Active Battle Pet: C->S [19, 1, pet_id (4B)]
+        /// Official server responds with:
+        /// 1. S->C AC 15:4 broadcast to player and map peers (spawns follower sprite)
+        /// 2. S->C AC 19:1 [PetID: 4B] sent to owner
         /// </summary>
         private void RecvSetBattlePet(Player player, RecievePacket p)
         {
@@ -62,47 +65,53 @@ namespace Network.ActionCodes
                 Player.PlayerPetData activePet = null;
 
                 // 1. If petId matches a slot number (1..4) in player's pet list
-                if (petId >= 1 && petId <= 4)
+                if (petId <= 4 && player.PlayerPets != null && player.PlayerPets.TryGetValue((byte)petId, out var slotPet))
                 {
-                    activePet = player.GetClientPet((byte)petId);
+                    activePet = slotPet;
                 }
 
                 // 2. Match by exact PetID or companion alias equivalence (e.g. 12178 <-> 12032)
                 if (activePet == null && player.PlayerPets != null)
                 {
-                    activePet = player.PlayerPets.Values.FirstOrDefault(pet => pet.ClientSlot != 0 && Player.IsSamePetOrCompanion(pet.PetID, petId));
+                    activePet = player.PlayerPets.Values.FirstOrDefault(pet => Player.IsSamePetOrCompanion(pet.PetID, petId));
+                }
+
+                // 3. Match by dictionary key if petId <= 255
+                if (activePet == null && petId <= 255 && player.PlayerPets != null && player.PlayerPets.ContainsKey((byte)petId))
+                {
+                    activePet = player.PlayerPets[(byte)petId];
+                }
+
+                // 4. Fallback to first pet in player's bag
+                if (activePet == null && player.PlayerPets != null && player.PlayerPets.Count > 0)
+                {
+                    activePet = player.PlayerPets.Values.FirstOrDefault();
                 }
 
                 if (activePet == null) return;
 
                 // Resolve the broadcast-safe companion ID (e.g. Robinson: 12032 DB -> 12178 client display)
                 uint broadcastPetId = Player.GetCompanionBroadcastId(activePet.PetID);
-                // Battle selection changes state only. AC 15:2 releases a roster
-                // entry and must not be sent when switching to another owned pet.
                 player.ActivePetID = broadcastPetId;
 
                 foreach (var kvp in player.PlayerPets)
                 {
-                    if (kvp.Value == activePet)
-                    {
-                        kvp.Value.IsBattle = true;
-                    }
-                    else
-                    {
-                        kvp.Value.IsBattle = false;
-                    }
+                    kvp.Value.IsBattle = (kvp.Value == activePet);
                 }
 
-                // Select the existing companion and refresh its appearance.
-                player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
+                // 1. Authentic AC 15:4 Map Pet Visual Entity broadcast to player and map peers
                 player.BroadcastPetAppearance(broadcastPetId, activePet.PetName);
 
-                // BroadcastPetAppearance already synchronizes this pet's stats.
-                byte slot = activePet.Slot;
-                player.SaveCharacterData();
+                // 2. Authentic AC 19:1 Set Battle Pet confirmation sent to owner
+                player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
 
-                player.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"{activePet.PetName ?? "Pet"} is now in Battle Mode!"));
-                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {slot}, Lv.{activePet.Level})");
+                // 3. Synchronize pet stats and EXP to owner interface
+                player.SendPetStat(activePet.Slot, 0x011D, (uint)activePet.Level);
+                player.SendPetStat(activePet.Slot, 0x0119, (uint)activePet.HP);
+                player.SendPetStat(activePet.Slot, 0x011A, (uint)activePet.SP);
+                player.SendPetStat(activePet.Slot, 0x011E, activePet.Exp);
+
+                DebugSystem.Write($"[AC19] Player {player.CharName} set active battle pet '{activePet.PetName}' ID {broadcastPetId} (Slot {activePet.Slot}, Lv.{activePet.Level}, Exp.{activePet.Exp})");
             }
             catch (Exception ex)
             {
@@ -111,7 +120,10 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// Rest Companion from Battle.
+        /// Rest Companion from Battle / Standby: C->S [19, 2]
+        /// Official server responds with:
+        /// 1. S->C AC 19:7 [CharID: 4B] broadcast to player and map peers (despawns pet follower)
+        /// 2. S->C AC 19:2 (empty body) broadcast to player and map peers
         /// </summary>
         private void RecvRestBattlePet(Player player, RecievePacket p)
         {
@@ -126,16 +138,20 @@ namespace Network.ActionCodes
                     }
                 }
 
-                // Native dispatcher: 19:2 clears the owner's selection; 19:7 clears a map peer.
-                player.Send(Tools.FromFormat("bb", 19, 2));
-                player.CurMap?.Broadcast(Tools.FromFormat("bbd", 19, 7, player.CharID), "Ex", player.CharID);
+                if (player.ActiveMountID > 0)
+                {
+                    player.UnridePet();
+                }
 
-                // Rest preserves roster membership; do not send AC 15:2 here.
-                // Send AC 5:8 appearance refresh
-                SendPacket refreshPkt = Tools.FromFormat("bbdb", 5, 8, player.CharID, (byte)0);
-                player.Send(refreshPkt);
-                player.CurMap?.Broadcast(refreshPkt, "Ex", player.CharID);
-                player.SaveCharacterData();
+                // 1. Authentic AC 19:7 [CharID: 4B] despawns pet follower sprite from overworld
+                SendPacket despawnPkt = Tools.FromFormat("bbd", 19, 7, player.CharID);
+                player.Send(despawnPkt);
+                player.CurMap?.Broadcast(despawnPkt, "Ex", player.CharID);
+
+                // 2. Authentic AC 19:2 standby stance confirmation
+                SendPacket togglePkt = Tools.FromFormat("bb", 19, 2);
+                player.Send(togglePkt);
+                player.CurMap?.Broadcast(togglePkt, "Ex", player.CharID);
 
                 DebugSystem.Write($"[AC19] Player {player.CharName} rested active battle companion");
             }
@@ -144,6 +160,5 @@ namespace Network.ActionCodes
                 DebugSystem.Write($"[AC19.RecvRestBattlePet] Error: {ex.Message}");
             }
         }
-
     }
 }

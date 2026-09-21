@@ -1,7 +1,5 @@
 WLO Private Server CheatEngine
 
-> Local changes (2026-09-21): see [the local gameplay changelog](docs/CHANGELOG-merge-20260921.md) for this branch's changes relative to upstream Develop and their verification limits.
-
 Discord invite link : http://discord.gg/J79ezkpzrT
 
 Developing Tools: Visual Studio 2022
@@ -142,3 +140,4 @@ The server console includes an integrated 5-panel **GM Studio**:
 3. **Server Operations & Maintenance:** Server-wide broadcast notice dispatcher with 4 color channels, Live Global EXP Multiplier, Hot-Reload of Quests, Item Mall, Monster Drops, and GM accounts, one-click Companion Spawner for 13 iconic companions, Global Monster Drop Multiplier (0.1x - 100.0x), Mass Non-GM Kick, Graceful 10s Countdown Shutdown, and Map Ground Item Cleanup.
 4. **Spatial Teleportation & World Warps Studio:** 16 Town Presets (Welling, Kelan, Holy, Kyoto, Chang'an, Rome, Maya, Inca, Bangkok, South Pole, Ghost Isle, Carnie Park, Pirate Base, Kaohsiung, Jail), Custom Coordinate Warp, Mass Event Summon All, Jail/Unjail, Ghost Mode Invisibility Toggle, and Combat Encounter Simulator with instant kill/win button.
 5. **Live Player Inventory & Equipment Inspector:** 50-Slot Player Bag DataGridView, 6-Slot Equipped Gear DataGridView with slot names, Item Injector with ID and Count, Delete Selected Bag Item, Clear Bag, and Repair All Gear.
+

@@ -14,17 +14,19 @@ public abstract class WebServer
 
 	private int port = 25580;
 
-	private Thread mthread;
+	public int Port => port;
 
-	private string webDir;
+	private Thread mthread;
 
 	public WebServer(int bindport)
 	{
+		port = bindport;
 		mylistener = new TcpListener(IPAddress.Loopback, bindport);
 	}
 
 	public WebServer(IPAddress bindip, int bindport)
 	{
+		port = bindport;
 		mylistener = new TcpListener(bindip, bindport);
 	}
 
@@ -38,8 +40,8 @@ public abstract class WebServer
 		{
 			mylistener.Start();
 			DebugSystem.Write("Web Server Started on " + mylistener.LocalEndpoint.ToString());
-			Thread src = new Thread(ListenThread);
-			src.Init();
+			mthread = new Thread(ListenThread);
+			mthread.Init();
 		}
 		catch (Exception data)
 		{
@@ -49,7 +51,7 @@ public abstract class WebServer
 
 	public void Stop()
 	{
-		mthread.Kill();
+		mthread?.Kill();
 	}
 
 	private void ListenThread()
@@ -115,7 +117,7 @@ public abstract class WebServer
 									SendHeader(text4, "", text9.Length, " 404 Not Found", socket);
 									SendToBrowser(text9, socket);
 									socket.Close();
-									goto IL_03fd;
+									continue;
 								}
 							}
 							string mimeType = GetMimeType(text6);
@@ -151,9 +153,6 @@ public abstract class WebServer
 					}
 				}
 			}
-			goto IL_03fd;
-			IL_03fd:
-			bool flag = true;
 		}
 	}
 

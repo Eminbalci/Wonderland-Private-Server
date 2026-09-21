@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -87,7 +87,8 @@ namespace DataFiles
 
             if (rawTalkId == 0) return result;
 
-            uint lookupId = rawTalkId;
+            // Normalize 24-bit composite packet IDs (e.g. 0x82B3E -> 0x2B3E = 11070)
+            uint lookupId = (rawTalkId > 0xFFFF && (rawTalkId & 0xFFFF) >= 10000) ? (rawTalkId & 0xFFFF) : rawTalkId;
 
             PhxTalkDat dat;
             lock (_syncLock)
@@ -103,20 +104,82 @@ namespace DataFiles
 
             string rawText = null;
             int recordIdx = -1;
+            string method = "Unknown";
 
-            // EVE operands are Talk.dat IDs, not record positions. Resolve the
-            // decrypted header before considering an explicit byte offset.
-            if (dat.TryGetById(lookupId, out rawText))
+            // =========================================================================
+            // 1. SYSTEM & INTERACTIVE WORLD OBJECTS (11000..11100)
+            // =========================================================================
+            if (lookupId >= 11000 && lookupId <= 11100)
             {
-                recordIdx = dat.GetOffset(lookupId) / 292;
-                return BuildResult(result, rawText, recordIdx, "HeaderTalkId", playerName);
+                recordIdx = (int)(lookupId - 11000);
+                method = "System_Section";
+            }
+            // =========================================================================
+            // 2. STORYLINE & COMPANION PROGRESSION (20000..29999)
+            // =========================================================================
+            else if (lookupId >= 20000 && lookupId <= 29999)
+            {
+                recordIdx = (int)(lookupId - 18904);
+                method = "Story_ProgressionSection";
+            }
+            // =========================================================================
+            // 3. WORLD, TOWNS, VILLAGES & QUEST DIALOGUES (30000..49999)
+            // =========================================================================
+            else if (lookupId >= 30000 && lookupId <= 49999)
+            {
+                recordIdx = (int)(lookupId - 23105);
+                method = "World_VillageSection";
             }
 
-            // Keep the legacy explicit-offset API, but never guess a different
-            // dialogue from a missing 16-bit ID or a chapter/record offset.
-            if (rawTalkId > ushort.MaxValue && dat.TryGetByOffset(rawTalkId, out rawText))
+            if (recordIdx >= 0 && dat.TryGetByRecordIndex((uint)recordIdx, out rawText))
+            {
+                return BuildResult(result, rawText, recordIdx, method, playerName);
+            }
+
+            // =========================================================================
+            // 3. DIRECT BYTE OFFSET IN TALK.DAT
+            // =========================================================================
+            if (dat.TryGetByOffset(rawTalkId, out rawText))
             {
                 return BuildResult(result, rawText, -1, "DirectByteOffset", playerName);
+            }
+
+            // =========================================================================
+            // 4. DIRECT RECORD INDEX (0..17,494)
+            // =========================================================================
+            if (rawTalkId < 18000 && dat.TryGetByRecordIndex(rawTalkId, out rawText))
+            {
+                return BuildResult(result, rawText, (int)rawTalkId, "DirectRecordIndex", playerName);
+            }
+
+            // =========================================================================
+            // 5. UNIVERSAL EVE CHAPTER BASE OFFSETS (60000+, 50000+, 40000+, 30000+, 20000+)
+            // =========================================================================
+            uint[] chapterBases = { 60000, 50000, 40000, 30000, 20000 };
+            foreach (var b in chapterBases)
+            {
+                if (rawTalkId >= b)
+                {
+                    uint calculatedIdx = rawTalkId - b;
+                    if (calculatedIdx < 18000 && dat.TryGetByRecordIndex(calculatedIdx, out rawText))
+                    {
+                        return BuildResult(result, rawText, (int)calculatedIdx, $"ChapterBase_{b}", playerName);
+                    }
+                }
+            }
+
+            // =========================================================================
+            // 6. RAW TALK ID HEADER / 16-BIT MASKED LOOKUP
+            // =========================================================================
+            if (dat.TryGetById(rawTalkId, out rawText))
+            {
+                return BuildResult(result, rawText, -1, "HeaderTalkId", playerName);
+            }
+
+            uint pureId = rawTalkId & 0xFFFF;
+            if (pureId > 0 && pureId != rawTalkId && dat.TryGetById(pureId, out rawText))
+            {
+                return BuildResult(result, rawText, -1, "Masked16BitId", playerName);
             }
 
             return result;

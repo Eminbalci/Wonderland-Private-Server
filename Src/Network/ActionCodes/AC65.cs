@@ -42,19 +42,19 @@ namespace Network.ActionCodes
 
             // Exit tent - warp player back to saved overworld location
             ushort dstMap = 0, dstX = 0, dstY = 0;
-            if (r.TentReturnMap != null && r.TentReturnMap.DstMap > 0)
+            if (r.TentReturnMap != null && r.TentReturnMap.DstMap > 0 && r.TentReturnMap.DstMap < 60000)
             {
                 dstMap = r.TentReturnMap.DstMap;
                 dstX = r.TentReturnMap.DstX_Axis;
                 dstY = r.TentReturnMap.DstY_Axis;
             }
-            else if (r.Tent != null && r.Tent.OwnerMap != null)
+            else if (r.Tent != null && r.Tent.OwnerMap != null && r.Tent.OwnerMap.MapID < 60000)
             {
                 dstMap = (ushort)r.Tent.OwnerMap.MapID;
                 dstX = (ushort)r.Tent.X;
                 dstY = (ushort)r.Tent.Y;
             }
-            else if (r.PrevMap != null && r.PrevMap.DstMap > 0)
+            else if (r.PrevMap != null && r.PrevMap.DstMap > 0 && r.PrevMap.DstMap < 60000)
             {
                 dstMap = r.PrevMap.DstMap;
                 dstX = r.PrevMap.DstX_Axis;
@@ -67,7 +67,7 @@ namespace Network.ActionCodes
                 dstY = 734;
             }
 
-            if (r.CurMap != null && (r.CurMap.Type == MapType.Tent || r.CurMap is Game.Code.Tent))
+            if (r.CurMap != null && (r.CurMap.Type == MapType.Tent || r.CurMap is Game.Code.Tent || r.CurMap.MapID >= 60000))
             {
                 WarpData warp = new WarpData()
                 {

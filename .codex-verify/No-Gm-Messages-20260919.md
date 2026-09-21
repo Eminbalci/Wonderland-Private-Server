@@ -1,9 +1,0 @@
-# Disable GM chat notifications
-
-User requests all GM messages removed, with existing dialogue feedback retained. Source audit found 66 qualified Player.SendSystemMessage callers plus one unqualified caller, and the separate WorldServer.SendChatMessage path used by login MOTD and the GUI broadcast tool. Other helpers named SendSystemMsg and MarriageManager.SendSystemMessage send 23:57 dialogue packets, not GM chat, and were left intact.
-
-A broad caller-deletion codemod was rejected by automatic review before execution. Safer bounded implementation approved and applied: remove AC2:4 construction from Player.SendSystemMessage while retaining an empty compatibility method so gameplay control flow and side effects are unchanged. WorldServer.SendChatMessage rejects channel4. Remove duplicate MOTD GM loop, retain MOTD dialogue. GUI default announcement option now explicitly sends a notification box instead of GM chat; other existing channels retain their behavior. Existing SendHeadBanner notifications, native dialogues and server logs remain.
-
-Build succeeded with the same two existing CS1998 warnings. 2620 inventory/storage/amity/message assertions passed, including both GM send paths silent, unchanged currency/HP, notification box preserved, login dialogue only, ordinary channels1/2/3/6 preserved. 233 Item Mall assertions and 123 login Gold assertions passed. git diff --check passed. This is protocol fixture verification; live client replay pending deployment.
-
-Stage no-gm-bin includes pending native Item Mall category correction, explicit missing-item warning, login Gold DWORD fix, and vault-open text removal. Deploy-NoGmMessages.ps1 supersedes prior deployment scripts: checks server stopped, backs up/verifies four runtime files and unchanged database, leaves server stopped. No database or point edits. Not deployed yet.

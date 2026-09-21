@@ -53,15 +53,6 @@ namespace Game.Maps
             }
         }
 
-        public void DefeatOverworldMonster(GameMap map)
-        {
-            if (map == null || !IsWildMonster() || IsBroken) return;
-            IsBroken = true;
-            RespawnTime = DateTime.Now.AddSeconds(60);
-            foreach (var viewer in map.PlayersList.ToArray())
-                Game.QuestRelated.PreEventInterpreter.SendActorHide(viewer, CickID);
-        }
-
         public virtual void Update(DateTime now, GameMap map)
         {
             if (map == null || map.PlayersList == null || map.PlayersList.Count == 0) return;
@@ -72,18 +63,9 @@ namespace Game.Maps
                 if (now >= RespawnTime)
                 {
                     IsBroken = false;
-                    if (IsWildMonster())
-                    {
-                        X = SpawnX; Y = SpawnY; CurStep = 0;
-                        NextWalkTime = now.AddSeconds(3);
-                        foreach (var viewer in map.PlayersList.ToArray())
-                            if (Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(viewer, (ushort)map.MapID, CickID))
-                                Game.QuestRelated.PreEventInterpreter.SendActorShow(viewer, CickID);
-                        return;
-                    }
-                    // Restore each client and its per-player visibility cache together.
-                    foreach (var viewer in map.PlayersList.ToArray())
-                        Game.QuestRelated.PreEventInterpreter.SendActorShow(viewer, this.CickID);
+                    // Broadcast un-hide / respawn packet (AC 22:10 state 0, 0)
+                    SendPacket respawnPkt = Tools.FromFormat("bbwbb", 22, 10, (ushort)this.CickID, (byte)0, (byte)0);
+                    map.Broadcast(respawnPkt);
                     // Restore unbroken sprite animation frame (AC 22:1 action 0)
                     SendPacket restoreFrame = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)0);
                     map.Broadcast(restoreFrame);
@@ -249,7 +231,7 @@ namespace Game.Maps
             foreach (var p in map.PlayersList)
             {
                 if (p == null) continue;
-                if (p.HasStoryCompanionInParty((ushort)this.TemplateID)) continue;
+                if (p.HasRecruitedCompanion(this.Name, (ushort)this.TemplateID)) continue;
                 if (!Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(p, (ushort)map.MapID, (ushort)this.CickID)) continue;
                 p.Send(pkt);
             }
@@ -271,9 +253,6 @@ namespace Game.Maps
         {
             if (this.TemplateID == 0)
                 return false;
-
-            if (EveEventInterpreter.IsRoamingBattleNpc(MapID, (ushort)CickID)) return true;
-            if (EveEventInterpreter.HasLinkedEvent(MapID, (ushort)CickID)) return false;
 
             string lower = (Name ?? "").ToLower().Trim();
 
@@ -341,15 +320,6 @@ namespace Game.Maps
                    lower.Contains("natasha") || lower.Contains("breillat");
         }
 
-        public static ushort GetIdleAnimationFrame(uint templateId)
-        {
-            // The client stores this byte in actor+0x11f for Npc.dat types 6, 9
-            // and 10. FF advances sprite frames; 0 holds the intact prop frame.
-            var info = DataFiles.SceneDataManager.GetNpcBaseStats(templateId);
-            return info != null && (info.Type == 6 || info.Type == 9 || info.Type == 10)
-                ? (ushort)0 : (ushort)0x00FF;
-        }
-
         public bool IsStaticNpc()
         {
             if (this.TemplateID == 0)
@@ -412,16 +382,6 @@ namespace Game.Maps
             {
                 string lowerName = (Name ?? "").ToLower();
 
-                if (IsBroken && IsWildMonster())
-                {
-                    src.Send(Tools.FromFormat("bb", 20, 8));
-                    return;
-                }
-                // Native roaming battles keep their EVE formation and outcome callbacks.
-                if (src.CurMap is GameMap nativeMap &&
-                    EveEventInterpreter.IsRoamingBattleNpc((ushort)nativeMap.MapID, (ushort)CickID) &&
-                    EveEventInterpreter.TryExecute(src, nativeMap, (ushort)CickID)) return;
-
                 // --- 0.0 WILD MONSTER / OVERWORLD MOB CLICK (Immediate PvE Combat Trigger) ---
                 if (this.IsWildMonster())
                 {
@@ -465,7 +425,7 @@ namespace Game.Maps
                 {
                     src.Send(Tools.FromFormat("bbb", 6, 2, 1)); // Lock movementent
 
-                    // Step 1: Send Choice Menu (Choice ID 3: Heal, Save Memory Point, Pet Hotel)
+                    // Step 1: Send Choice Menu (Choice ID 3: 1=Heal, 2=Save Memory Point, 3=Cancel)
                     SendPacket cPkt = new SendPacket();
                     cPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 6, 3, (byte)this.CickID, 0, 0, 0, 0, 0, 0, 3, 0, 1 });
 
@@ -474,32 +434,45 @@ namespace Game.Maps
                         DebugSystem.Write($"[QuestNpc] Witch Doctor choice 0x{choice:X} ({choice}) from {src.CharName}");
                         if (choice == 0x1E || choice == 1) // Option 1: Full Heal HP/SP
                         {
-                            src.BeginNpcRest();
+                            if (src.Eqs != null)
+                            {
+                                src.Eqs.CurHP = src.Eqs.FullHP;
+                                src.Eqs.CurSP = src.Eqs.FullSP;
+                                src.Eqs.Send8_1(true);
+                            }
+                            src.Send(Tools.FromFormat("bbd", 5, 18, (uint)src.CharID));
+                            src.Send(Tools.FromFormat("bbd", 31, 2, (uint)0xFFFFFFFF));
+                            src.Send(Tools.FromFormat("bb", 20, 9));
+                            src.Send(Tools.FromFormat("bb", 20, 8));
+                            src.Send(Tools.FromFormat("bb", 5, 4));
+                            src.SendSystemMessage($" [{Name}]: HP and SP fully restored!");
                         }
                         else if (choice == 0x1F || choice == 2) // Option 2: Save Respawn / Memory Point
                         {
-                            var point = new WarpData { DstMap = (ushort)src.CurMap.MapID, DstX_Axis = src.CurX, DstY_Axis = src.CurY };
-                            if (DataBase.CharacterDataBase.GlobalInstance?.SaveRecordPoint(src.CharID, point) == false)
+                            try
                             {
-                                src.CancelInteraction();
-                                return;
+                                DataBase.CharacterDataBase.GlobalInstance?.ExecuteNonQuery(
+                                    $"UPDATE characters SET location_map = '{src.CurMap?.MapID ?? 12000}', location_x = '{src.CurX}', location_y = '{src.CurY}' WHERE charID = '{src.CharID}';");
                             }
-                            src.ReturnSpawnMap = point;
+                            catch { }
 
                             // TalkID 0x0379B6 ("Memory point saved!")
                             SendPacket savePkt = new SendPacket();
                             savePkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 1, 3, (byte)this.CickID, 0, 1, 0, 0, 0, 0, 0xB6, 0x79, 0x03 });
                             src.Send(savePkt);
-                            src.SendRecordPointStatus();
+                            src.Send(Tools.FromFormat("bbb", 5, 21, (byte)1));
                             src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare music
                             src.Send(Tools.FromFormat("bb", 20, 8));
+                            src.Send(Tools.FromFormat("bb", 5, 4));
                             src.SendSystemMessage($" [{Name}]: Memory point saved at Map {src.CurMap?.MapID} pos({src.CurX},{src.CurY})!");
                         }
-                        else if (choice == 32) // Native doctor's third option is Pet Hotel.
+                        else // Option 3: Cancel
                         {
-                            src.OpenPetHotel();
+                            src.Send(Tools.FromFormat("bb", 31, 7));
+                            src.Send(Tools.FromFormat("bb", 20, 9));
+                            src.Send(Tools.FromFormat("bb", 20, 8));
+                            src.Send(Tools.FromFormat("bb", 5, 4));
                         }
-                        src.CancelInteraction();
                     };
 
                     src.Send(cPkt);
@@ -542,8 +515,8 @@ namespace Game.Maps
                             {
                                 DebugSystem.Write($"[QuestNpc] Shop Step 2 (Buy/Sell) choice: 0x{choice2:X} ({choice2}) for '{Name}'");
                                 src.Send(Tools.FromFormat("bb", 20, 8)); // Close dialog
-                                if (choice2 == 30 || choice2 == 31)
-                                    src.OpenNpcSale((byte)(shopCatalogId == 0x0001FB85u ? 1 : 0));
+                                src.Send(Tools.FromFormat("bbdb", 35, 12, shopCatalogId, 0)); // AC 35:12 Open Shop UI
+                                src.Send(Tools.FromFormat("bb", 5, 4));
                             };
 
                             src.Send(cPkt2);
@@ -553,6 +526,7 @@ namespace Game.Maps
                             src.Send(Tools.FromFormat("bb", 27, 3));
                             src.Send(Tools.FromFormat("bb", 20, 9));
                             src.Send(Tools.FromFormat("bb", 20, 8));
+                            src.Send(Tools.FromFormat("bb", 5, 4));
                         }
                     };
 
@@ -569,6 +543,7 @@ namespace Game.Maps
                     {
                         src.SendSystemMessage(" This node/chest is currently empty and will respawn soon.");
                         src.Send(Tools.FromFormat("bb", 20, 8));
+                        src.Send(Tools.FromFormat("bb", 5, 4));
                         return;
                     }
 
@@ -585,6 +560,7 @@ namespace Game.Maps
                     if (drop != null && drop.ItemID > 0)
                     {
                         src.Inv?.AddItem(drop.ItemID, drop.Count);
+                        src.Send(new SendPacket(src.Inv?.GetAC23_5()));
                         string itemName = Game.Battle.MonsterDropManager.ResolveItemName(drop.ItemID) ?? drop.ItemName;
                         src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
                         src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
@@ -593,6 +569,7 @@ namespace Game.Maps
                     }
 
                     src.Send(Tools.FromFormat("bb", 20, 8));
+                    src.Send(Tools.FromFormat("bb", 5, 4));
                     return;
                 }
 
@@ -611,6 +588,7 @@ namespace Game.Maps
                     sysPkt.Pack8(0);
                     sysPkt.Pack8(0); sysPkt.Pack8(0); sysPkt.Pack8(0); sysPkt.Pack8(0);
                     src.Send(sysPkt);
+                    src.SendSystemMessage($" [{Name}]: Storage vault opened.");
                     DebugSystem.Write($"[QuestNpc] Handled Storage/Keeper interaction for '{Name}' (ClickID: {this.CickID}) with {src.CharName}");
                     return;
                 }
@@ -624,6 +602,7 @@ namespace Game.Maps
                 src.OnInteractionComplete = () =>
                 {
                     src.Send(Tools.FromFormat("bb", 20, 8));
+                    src.Send(Tools.FromFormat("bb", 5, 4));
                 };
 
                 if (string.IsNullOrEmpty(dialogueText))
