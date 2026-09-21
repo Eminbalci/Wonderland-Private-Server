@@ -6,8 +6,6 @@ namespace Phoenix.Core.Networking.Sockets;
 
 public static class CanPing
 {
-	private static Ping pingsender;
-
 	public static bool Them(IPAddress ip)
 	{
 		Ping ping = new Ping();

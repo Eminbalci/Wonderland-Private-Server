@@ -33,7 +33,6 @@
     </NuGetPackageImportStamp>
     <TargetFrameworkProfile />
     <GenerateResourceMSBuildArchitecture>CurrentArchitecture</GenerateResourceMSBuildArchitecture>
-    <DisableMSBuildAssemblyResolution>true</DisableMSBuildAssemblyResolution>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
@@ -146,7 +145,7 @@
       <HintPath>packages\ZstdSharp.Port.0.8.0\lib\net462\ZstdSharp.dll</HintPath>
     </Reference>
     <Reference Include="System.Resources.Extensions">
-      <HintPath>$(NuGetPackageRoot)system.resources.extensions\8.0.0\lib\net462\System.Resources.Extensions.dll</HintPath>
+      <HintPath>packages\System.Resources.Extensions.8.0.0\lib\net462\System.Resources.Extensions.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -327,8 +326,8 @@
       <DependentUpon>GitUpdateItem.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="app.config" />
-    <None Include="Data\ServerDataBase.db.temp">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    <None Include="Data\ServerDataBase.db">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="docker-compose.yaml" />
     <None Include="packages.config" />
@@ -364,7 +363,6 @@
     <Content Include="DLLS\RCLibrary.dll" />
     <Content Include="DLLS\System.Data.SQLite.dll" />
     <Content Include="DLLS\Wlo.Core.dll" />
-    <Content Include="Tutorials\x64\SQLite.Interop.dll" />
     <Content Include="x64\SQLite.Interop.dll" />
     <Content Include="x86\SQLite.Interop.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

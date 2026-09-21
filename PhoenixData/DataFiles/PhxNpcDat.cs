@@ -9,7 +9,8 @@ namespace DataFiles;
 
 public class PhxNpcDat : IDataManager
 {
-	private bool Loaded = true;
+	private bool Loaded;
+	public bool IsLoaded => Loaded;
 
 	public BindingList<PhoneixNpc> NpcList = new BindingList<PhoneixNpc>();
 
@@ -60,6 +61,7 @@ public class PhxNpcDat : IDataManager
 					{
 						onDebug("Loading of NpcDat has completed");
 					}
+					Loaded = true;
 					return true;
 				}
 				if (onDebug != null)
