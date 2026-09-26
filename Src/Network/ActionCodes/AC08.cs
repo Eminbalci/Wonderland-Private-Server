@@ -206,12 +206,9 @@ namespace Network.ActionCodes
 
                     if (appliedAny)
                     {
-                        // Sync full updated stats and points to client
-                        r.Send_5_3();
-                        r.Send8_1(true);
-
-                        // Unlock element & progression skills if thresholds are met
+                        // Unlock skills before the final stat update; allocation must not refill HP/SP.
                         Game.SkillRelated.SkillManager.CheckAndUnlockProgressionSkills(r);
+                        r.Send8_1();
 
                         // Immediate database persistence
                         DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(r.CharID, r);
@@ -221,17 +218,7 @@ namespace Network.ActionCodes
                 else
                 {
                     byte petSlot = (byte)targetType;
-                    Player.PlayerPetData targetPet = null;
-
-                    if (r.PlayerPets != null)
-                    {
-                        if (r.PlayerPets.TryGetValue(petSlot, out var p1))
-                            targetPet = p1;
-                        else if (petSlot > 0 && r.PlayerPets.TryGetValue((byte)(petSlot - 1), out var p0))
-                            targetPet = p0;
-                        else if (r.PlayerPets.Values.Any(pet => pet.IsBattle))
-                            targetPet = r.PlayerPets.Values.FirstOrDefault(pet => pet.IsBattle);
-                    }
+                    Player.PlayerPetData targetPet = r.GetClientPet(petSlot);
 
                     if (targetPet != null)
                     {
@@ -240,6 +227,18 @@ namespace Network.ActionCodes
                         {
                             byte statId = alloc.Key;
                             uint amount = alloc.Value;
+
+                            ushort currentStat;
+                            switch (statId)
+                            {
+                                case 28: currentStat = targetPet.Str; break;
+                                case 29: currentStat = targetPet.Con; break;
+                                case 27: currentStat = targetPet.Int; break;
+                                case 33: currentStat = targetPet.Wis; break;
+                                case 30: currentStat = targetPet.Agi; break;
+                                default: continue;
+                            }
+                            if (amount > ushort.MaxValue - currentStat) continue;
 
                             if (targetPet.SkillPoints >= amount && amount > 0)
                             {
@@ -279,8 +278,6 @@ namespace Network.ActionCodes
                                 petApplied = true;
                                 DebugSystem.Write($"[AC08] Allocated +{amount} to Pet '{targetPet.PetName}' {statName}. Remaining Points: {targetPet.SkillPoints}");
                                 r.SendSystemMessage($" [{targetPet.PetName} {statName} +{amount}] Current: {newStat} (Pet Points: {targetPet.SkillPoints})");
-                                r.Send(Tools.FromFormat("bbbbdd", 8, 2, statId, petSlot, (uint)newStat, 0));
-                                r.Send(Tools.FromFormat("bbbbdd", 8, 2, 38, petSlot, (uint)targetPet.SkillPoints, 0));
                             }
                             else
                             {
@@ -290,6 +287,7 @@ namespace Network.ActionCodes
 
                         if (petApplied)
                         {
+                            Game.QuestRelated.QuestManager.SendPetProgression(r, targetPet);
                             DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(r.CharID, r);
                         }
                     }

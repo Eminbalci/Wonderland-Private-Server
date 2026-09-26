@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +16,7 @@ namespace Wonderland_Private_Server.ActionCodes
         public override int ID { get { return 20; } }
         public override void ProcessPkt(Player r, RecievePacket p)
         {
+            if (Game.Battle.PvEBattleManager.IsInBattle(r)) return;
             switch (p.Unpack8())
             {
                 case 1: Recv1(r, p); break;
@@ -26,7 +27,9 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv8(Player p, RecievePacket r)
         {
-            if (p == null || p.CurMap == null) return;
+            if (p == null || p.CurMap == null || p.NativeEventActive) return;
+
+            if (p.CurMap is GameMap regionMap && EveEventInterpreter.TryExecuteRegion(p, regionMap)) return;
 
             // Portal debounce and spawn proximity guard
             double elapsedMs = (DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds;
@@ -50,28 +53,17 @@ namespace Wonderland_Private_Server.ActionCodes
             }
 
             ushort portalID = r.Unpack16();
+            if (p.CurMap is GameMap entryMap && EveEventInterpreter.TryExecuteEntry(p, entryMap, portalID)) return;
             DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} stepped on portal {portalID} on Map {p.CurMap?.MapID} at pos({p.CurX},{p.CurY})");
 
             if (p.CurMap != null)
             {
-                // If sailing on Map 10036 (or stepping on ocean portal 11), warp through ocean exit to World Ocean Map 11016
-                if (p.CurMap.MapID == 10036 && (p.ActiveVehicleID > 0 || portalID == 11))
-                {
-                    if (p.ActiveVehicleID == 0) p.ActiveVehicleID = 48016;
-                    var oceanWarp = new Game.Maps.WarpData() { DstMap = 11016, DstX_Axis = 134, DstY_Axis = 1126 };
-                    p.CurMap.Teleport(TeleportType.CmD, p, 0, oceanWarp);
-                    DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} sailed through ocean portal from 10036 to 11016 at (134, 1126)");
-                    return;
-                }
-
-                // If sailing on Map 11016 (Open Ocean) and stepping into a land portal
-                if (p.CurMap.MapID == 11016 && p.ActiveVehicleID > 0)
-                {
-                    Game.PlayerRelated.VehicleManager.WreckVehicle(p);
-                }
-
+                // Authored EVE entries above decide destinations. Do not fabricate
+                // an active raft or destroy unrelated vehicles when crossing a portal.
+                bool landQuestRaft = p.CurMap.MapID == 11016 && p.ActiveVehicleID == 48016;
                 if (p.CurMap.Teleport(TeleportType.Regular, p, portalID))
                 {
+                    if (landQuestRaft) Game.PlayerRelated.VehicleManager.WreckVehicle(p, 48016);
                     p.SaveCharacterData();
                     return;
                 }
@@ -81,6 +73,7 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv1(Player p, RecievePacket r)
         {
+            if (p.NativeEventActive) return;
             if (p.CurMap == null)
             {
                 p.Send(Tools.FromFormat("bb", 20, 8));
@@ -104,6 +97,11 @@ namespace Wonderland_Private_Server.ActionCodes
                 clickID = r.Unpack8();
             }
 
+            // Closing a native choice can queue a second click on the actor below it.
+            if (p.LastNpcClick == clickID && p.LastNpcMap == p.CurMap.MapID && DateTime.UtcNow < p.NpcClickResumeAt)
+            { p.Send(Tools.FromFormat("bb", 20, 8)); return; }
+            p.LastNpcClick = clickID; p.LastNpcMap = (ushort)p.CurMap.MapID;
+            p.PendingRestMap = 0; p.NpcSaleMode = null;
             var gMap = p.CurMap as GameMap;
             var clickedNpcObj = gMap?.NpcList?.FirstOrDefault(n => n.CickID == clickID) as Game.Maps.QuestNpc;
             ushort templateId = clickedNpcObj != null ? (ushort)clickedNpcObj.TemplateID : (ushort)(p.CurMap.mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickID)?.npcId ?? 0);
@@ -118,7 +116,6 @@ namespace Wonderland_Private_Server.ActionCodes
                 DebugSystem.Write($"[AC20.Recv1] Blocked interaction: NPC #{clickID} '{npcName}' is hidden/invisible for player {p.CharName}");
                 Game.QuestRelated.PreEventInterpreter.SendActorHide(p, clickID);
                 p.Send(Tools.FromFormat("bb", 20, 8));
-                p.Send(Tools.FromFormat("bb", 5, 4));
                 return;
             }
 
@@ -161,7 +158,6 @@ namespace Wonderland_Private_Server.ActionCodes
 
             // Send default response if interaction fails
             p.Send(Tools.FromFormat("bb", 20, 8));
-            p.Send(Tools.FromFormat("bb", 5, 4));
         }
         public static void AdvanceBeachCutscene(Player p, bool forceComplete = false)
         {
@@ -216,7 +212,6 @@ namespace Wonderland_Private_Server.ActionCodes
                     p.BeachCutsceneStep = 0;
                     p.Emote = 0;
                     p.Send(Tools.FromFormat("bb", 20, 8));
-                    p.Send(Tools.FromFormat("bb", 5, 4));
                     p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                     p.SaveCharacterData();
                     DebugSystem.Write($"[BeachCutscene] Cutscene finished! Mobilized {p.CharName}. Triggering Robinson dialogue.");
@@ -271,7 +266,6 @@ namespace Wonderland_Private_Server.ActionCodes
 
                 p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                 p.Send(Tools.FromFormat("bb", 20, 8));
-                p.Send(Tools.FromFormat("bb", 5, 4));
                 p.Flags.Add(PlayerFlag.InMap);
                 p.SaveCharacterData();
             }
@@ -280,7 +274,13 @@ namespace Wonderland_Private_Server.ActionCodes
         {
             try
             {
+                if (r.Buffer.Length - r.GetPtr() != 1) return;
                 byte choice = r.Unpack8();
+                if (choice == 40)
+                {
+                    p.CancelInteraction();
+                    return;
+                }
                 DebugSystem.Write($"[AC20.Recv9] Player {p.CharName} selected dialogue choice 0x{choice:X} ({choice})");
                 if (p.OnDialogueChoice != null)
                 {

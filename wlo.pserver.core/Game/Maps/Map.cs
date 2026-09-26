@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -48,7 +48,7 @@ namespace Game
         Queue<Task> QueuedTasks = new Queue<Task>(252);
 
         protected List<Player> m_playerlist = new List<Player>();
-        protected List<Item> ItemsDropped = new List<Item>(255);
+        protected Dictionary<byte, DroppedItem> ItemsDropped = new Dictionary<byte, DroppedItem>();
         protected List<MapGroundItem> GroundItems = new List<MapGroundItem>();
         protected ConcurrentDictionary<uint, Tent> Tents = new ConcurrentDictionary<uint, Tent>();
         protected Dictionary<byte, WarpDest> Destinations = new Dictionary<byte, WarpDest>();
@@ -361,24 +361,17 @@ namespace Game
                     }
                 }
 
-                // Update Ground Items respawn
-                if (GroundItems != null && GroundItems.Count > 0)
+                // Serialize respawn and pickup against the same map lock.
+                lock (mlock)
                 {
                     DateTime now = DateTime.Now;
-                    for (int i = 0; i < GroundItems.Count; i++)
-                    {
-                        var gi = GroundItems[i];
+                    foreach (var gi in GroundItems)
                         if (gi.IsPickedUp && now >= gi.RespawnTime)
                         {
                             gi.IsPickedUp = false;
                             gi.RespawnTime = DateTime.MinValue;
-                            // Broadcast respawn packet AC 23:3 to all players on map
-                            // bbwwwdb: 23, 3, ItemID, X, Y, 0, 0, Slot
-                            SendPacket spawnPkt = Tools.FromFormat("bbwwwdb", 23, 3, (ushort)gi.ItemID, (ushort)gi.X, (ushort)gi.Y, (ushort)0, (uint)0, (byte)gi.Slot);
-                            Broadcast(spawnPkt);
-                            DebugSystem.Write($"[Map {MapID}] Ground item {gi.Name} (#{gi.ItemID}) respawned at slot {gi.Slot} ({gi.X}, {gi.Y})");
+                            Broadcast(GroundItemPacket(gi.Slot, gi.ItemID, gi.X, gi.Y));
                         }
-                    }
                 }
             }
             catch { }
@@ -424,132 +417,112 @@ namespace Game
 
         #region Item
 
+        private static SendPacket GroundItemPacket(byte slot, ushort item, ushort x, ushort y)
+        {
+            var packet = new SendPacket();
+            packet.PackArray(new byte[] { 23, 4 });
+            AppendGroundItem(packet, slot, item, x, y);
+            return packet;
+        }
+
+        private static void AppendGroundItem(SendPacket packet, byte slot, ushort item, ushort x, ushort y)
+        {
+            packet.Pack8(3);
+            packet.Pack16(slot);
+            packet.Pack32(item);
+            packet.Pack16(x);
+            packet.Pack16(y);
+            packet.Pack32(0);
+        }
+
         public void onItemDrop(Player src, byte loc, byte ammt)
         {
-            Task dropItem = new Task(() =>
+            if (src?.Inv == null || loc < 1 || loc > 50 || ammt == 0) return;
+            lock (mlock)
+            lock (src.Inv.SyncRoot)
             {
-                byte amt = ammt;
-                //send Request to Inv to drop item
+                if (!ReferenceEquals(src.CurMap, this) || src.NativeEventActive ||
+                    Game.Battle.PvEBattleManager.IsInBattle(src)) return;
+                var item = src.Inv[loc];
+                if (item.ItemID == 0 || item.isLocked || !item.Dropable || ammt > item.Ammt) return;
 
-                if (src.Inv[loc].ItemID > 0)
+                // Native nodes retain their IDs while waiting to respawn.
+                // Reserve click IDs too, so pickups cannot target another item.
+                var free = new List<byte>();
+                for (int slot = 1; slot <= 255 && free.Count < ammt; slot++)
+                    if (!ItemsDropped.ContainsKey((byte)slot) && !GroundItems.Any(g =>
+                        g.Slot == slot || g.ClickID == slot))
+                        free.Add((byte)slot);
+                if (free.Count < ammt)
                 {
-                    //if item does not equal null, inv has an item that needs to be dropped in map
-                    //if item is not inv will send destroy packet.
-
-                    var rand = new Random();
-                    int cnt = 0;
-
-                    for (int a = 0; a < 256; a++)
-                    {
-                        if (cnt < amt && ItemsDropped[a].ItemID == 0)
-                        {
-                            DroppedItem gi = new DroppedItem();
-                            gi.CopyFrom(src.Inv[loc]);
-                            gi.Ammt = 1;
-                            gi.X = src.CurX;
-                            gi.Y = src.CurY;
-                            //gi..StartCountDown();
-
-
-                            //src.SendPacket(Tools.FromFormat("bbwwwdb", 23, 3, gi.ItemID, gi.DropX, gi.DropY, 0, 1));
-                            //Broadcast(Tools.FromFormat("bbwwwdb", 23, 3, gi.ItemID, gi.DropX, gi.DropY, 0, 0), "Ex", src.CharID);
-                            cnt++;
-                        }
-                        else if (cnt >= amt)
-                            break;
-                    }
-                    onItemDropped_fromMap(loc, (byte)cnt);
+                    src.SendHeadBanner("There is no room to drop these items here.");
+                    return;
                 }
-            }, TaskCreationOptions.PreferFairness);
-            QueuedTasks.Enqueue(dropItem);
+
+                var removed = src.Inv.RemoveItem(loc, ammt);
+                if (removed == null) return;
+                var packet = new SendPacket();
+                packet.PackArray(new byte[] { 23, 4 });
+                foreach (byte slot in free)
+                {
+                    var drop = new DroppedItem();
+                    drop.CopyFrom(removed);
+                    drop.Ammt = 1;
+                    drop.Parent = 0;
+                    drop.X = src.CurX;
+                    drop.Y = src.CurY;
+                    ItemsDropped.Add(slot, drop);
+                    AppendGroundItem(packet, slot, drop.ItemID, drop.X, drop.Y);
+                }
+                Broadcast(packet);
+                DebugSystem.Write($"[Map {MapID}] {src.CharName} dropped #{removed.ItemID} x{removed.Ammt} from bag slot {loc}.");
+            }
+            src.SaveCharacterData();
         }
+
         public void onItemPickup(Player src, byte pos)
         {
-            if (src == null || src.Inv == null) return;
-            byte loc = pos;
-
-            // 1. Check Native Ground Items
-            MapGroundItem gi = null;
+            if (src?.Inv == null || pos == 0) return;
             lock (mlock)
             {
-                gi = GroundItems?.FirstOrDefault(g => !g.IsPickedUp && (g.Slot == loc || g.ClickID == loc));
-                if (gi != null)
+                if (!ReferenceEquals(src.CurMap, this) || src.NativeEventActive ||
+                    Game.Battle.PvEBattleManager.IsInBattle(src)) return;
+                DroppedItem drop;
+                if (ItemsDropped.TryGetValue(pos, out drop))
                 {
-                    // Mark as picked up immediately inside the lock to guarantee no race condition or duplicate grant
+                    double dx = src.CurX - drop.X, dy = src.CurY - drop.Y;
+                    if (dx * dx + dy * dy > 180 * 180) return;
+                    if (src.Inv.AddItem(drop) != 1)
+                    {
+                        src.SendHeadBanner("Your inventory is full.");
+                        return;
+                    }
+                    ItemsDropped.Remove(pos);
+                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)pos, (byte)1));
+                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)pos, (byte)0), "Ex", src.CharID);
+                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up dropped item #{drop.ItemID} from ground slot {pos}.");
+                }
+                else
+                {
+                    // A repeated pickup must not fall through to a neighboring node.
+                    var gi = GroundItems.FirstOrDefault(g => g.Slot == pos)
+                        ?? GroundItems.FirstOrDefault(g => g.ClickID == pos);
+                    if (gi == null || gi.IsPickedUp) return;
+                    double dx = src.CurX - gi.X, dy = src.CurY - gi.Y;
+                    if (dx * dx + dy * dy > 180 * 180) return;
+                    if (src.Inv.AddItem(gi.ItemID, 1) != 1)
+                    {
+                        src.SendHeadBanner("Your inventory is full.");
+                        return;
+                    }
                     gi.IsPickedUp = true;
                     gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
+                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
+                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item #{gi.ItemID} from slot {gi.Slot}.");
                 }
             }
-
-            if (gi != null)
-            {
-                // Verify spatial proximity: player must be within 180 units of the ground item
-                double dx = src.CurX - gi.X;
-                double dy = src.CurY - gi.Y;
-                if ((dx * dx) + (dy * dy) > (180 * 180))
-                {
-                    lock (mlock)
-                    {
-                        gi.IsPickedUp = false;
-                        gi.RespawnTime = DateTime.MinValue;
-                    }
-                    DebugSystem.Write($"[Map {MapID}] Denied pickup: {src.CharName} at ({src.CurX}, {src.CurY}) is too far from {gi.Name} at ({gi.X}, {gi.Y}).");
-                    return;
-                }
-
-                // Verify inventory space
-                if (src.Inv.FreeSpace < 1 && !src.Inv.ContainsItem(gi.ItemID))
-                {
-                    lock (mlock)
-                    {
-                        gi.IsPickedUp = false;
-                        gi.RespawnTime = DateTime.MinValue;
-                    }
-                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
-                    return;
-                }
-
-                // Add item to inventory (AddItem with sendData: true already sends AC 23:6 banner & AC 23:5 inv update)
-                int added = src.Inv.AddItem(gi.ItemID, 1);
-                if (added <= 0)
-                {
-                    lock (mlock)
-                    {
-                        gi.IsPickedUp = false;
-                        gi.RespawnTime = DateTime.MinValue;
-                    }
-                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
-                    return;
-                }
-
-                // Send pickup result to player (AC 23:2, slot, 1 = success - Official PCAP Frame 75)
-                src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
-                // Broadcast item removal to others on map (AC 23:2, slot, 0)
-                Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
-
-                src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Picked up {gi.Name}!"));
-                src.SaveCharacterData();
-                DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item {gi.Name} (#{gi.ItemID}) from slot {gi.Slot}. Respawns in {gi.RespawnSeconds}s");
-                return;
-            }
-
-            // 2. Fallback: Player-dropped items
-            lock (mlock)
-            {
-                if (loc > 0 && loc - 1 < ItemsDropped.Count && ItemsDropped[loc - 1].ItemID > 0)
-                {
-                    Item res = new Item();
-                    res.CopyFrom(ItemsDropped[loc - 1]);
-                    ItemsDropped[loc - 1].Clear();
-
-                    if (onItemPickup_fromMap != null && onItemPickup_fromMap(res))
-                    {
-                        src.Send(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 1));
-                        Broadcast(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 0), "Ex", src.CharID);
-                        src.SaveCharacterData();
-                    }
-                }
-            }
+            src.SaveCharacterData();
         }
         #endregion
 
@@ -557,6 +530,7 @@ namespace Game
 
         public void RemovePlayer(Player p)
         {
+            p?.ClearInteraction();
             if (p != null && m_playerlist.Contains(p))
             {
                 m_playerlist.Remove(p);
@@ -571,13 +545,7 @@ namespace Game
             // Send actor's vehicle to recipient
             if (actor.ActiveVehicleID > 0)
             {
-                SendPacket veh = new SendPacket();
-                veh.Pack8(15);
-                veh.Pack8(10);
-                veh.Pack8(0);
-                veh.Pack32(actor.CharID);
-                veh.Pack16((ushort)actor.ActiveVehicleID);
-                recipient.Send(veh);
+                recipient.Send(PlayerRelated.VehicleManager.CreateMountPacket(actor));
             }
 
             // Send actor's mount to recipient
@@ -599,9 +567,25 @@ namespace Game
                 var pet = actor.PlayerPets?.Values?.FirstOrDefault(x => Player.IsSamePetOrCompanion(x.PetID, actor.ActivePetID));
                 string petName = pet?.PetName ?? QuestRelated.QuestManager.GetNpcName(actor.ActivePetID);
 
-                // Authentic AC 15:4 Map Pet Visual Entity
+                // AC 15:4 Map Pet Visual Entity
                 SendPacket petMapPkt = actor.CreatePetMapPacket(actor.ActivePetID, petName);
-                if (petMapPkt != null) recipient.Send(petMapPkt);
+                recipient.Send(petMapPkt);
+
+                // AC 19:4 is owner-only and takes a pet ID, not an owner/pet pair.
+
+                // AC 13:5 Follow formation
+                SendPacket petFollow = new SendPacket();
+                petFollow.PackArray(new byte[] { 13, 5 });
+                petFollow.Pack32(actor.CharID);
+                petFollow.Pack32(actor.ActivePetID);
+                recipient.Send(petFollow);
+
+                // AC 5:8 Sprite refresh
+                SendPacket petRefresh = new SendPacket();
+                petRefresh.PackArray(new byte[] { 5, 8 });
+                petRefresh.Pack32(actor.CharID);
+                petRefresh.Pack8(0);
+                recipient.Send(petRefresh);
             }
         }
 
@@ -609,6 +593,7 @@ namespace Game
         {
             DebugSystem.Write(DebugItemType.Info_Heavy, "{0} warping into {1}", src.CharName, MapName);
 
+            src.Flags.Remove(PlayerFlag.InMap);
             src.CurMap = this;
             src.CurX = from.DstX_Axis;//switch x
             src.CurY = from.DstY_Axis;//switch y
@@ -623,8 +608,15 @@ namespace Game
                 DebugSystem.Write($"[Map.Warp_In] Player {src.CharName} already in m_playerlist. Total players: {m_playerlist.Count}");
             }
 
+            // Map 60002 draws the territory emblem before finishing its transition.
+            // Native AC70:1:23 resolves the emblem ID to a bitmap index; an absent
+            // emblem must resolve to -1 instead of the client's default index 0.
+            // No territory owner/emblem is currently persisted by this server.
+            if (MapID == 60002)
+                src.Send(Tools.FromFormat("bbbbd", 70, 1, 23, 0, 0u));
+
             // 1. Send AC 12 (Map Warp / Coordinate Initialization) to self and peers
-            SendAc12(src, portalID, from ?? new WarpData { DstMap = (ushort)MapID, DstX_Axis = src.CurX, DstY_Axis = src.CurY }, (this.Type == MapType.Tent || this is Tent));
+            SendAc12(src, portalID, from ?? new WarpData { DstMap = (ushort)MapID, DstX_Axis = src.CurX, DstY_Axis = src.CurY }, Type == MapType.Tent);
 
             // 3. Send AC 7 (Position sync) to player
             SendPacket sp7 = new SendPacket();
@@ -651,11 +643,7 @@ namespace Game
             selfSpr.Pack8((byte)0);
             src.Send(selfSpr);
 
-            // 6. Send AC 5:4 (Finalize Scene Load) to player
-            SendPacket selfFin = new SendPacket();
-            selfFin.Pack8(5);
-            selfFin.Pack8(4);
-            src.Send(selfFin);
+            // AC5:4 is sent by AC12:1 after the client acknowledges this map load.
 
             foreach (var r in m_playerlist)
             {
@@ -725,16 +713,76 @@ namespace Game
 
             SendMapInfo(src);
 
-            // Synchronize active companion map visual on warp
-            if (src.ActivePetID > 0)
+            // Synchronize player's own companion pets to themselves and the map
+            if (src.PlayerPets != null && src.PlayerPets.Count > 0)
             {
-                var mapPkt = src.CreatePetMapPacket(src.ActivePetID);
-                if (mapPkt != null)
+                var petRoster = src.PlayerPets.Values
+                    .Where(pet => pet != null && pet.PetID > 0)
+                    .OrderBy(pet => pet.Slot)
+                    .ToList();
+
+                // Allocate session slots once, then restore the native login roster silently.
+                if (!src.PetRosterSynchronized)
                 {
-                    src.Send(mapPkt);
-                    Broadcast(mapPkt, "Ex", src.CharID);
+                    foreach (var pet in petRoster) pet.ClientSlot = 0;
+                    foreach (var pet in petRoster)
+                    {
+                        src.RegisterClientPet(pet);
+                    }
+                    SendPacket rosterPacket = QuestRelated.QuestManager.CreatePetListPacket(src);
+                    if (rosterPacket != null) src.Send(rosterPacket);
+                    src.PetRosterSynchronized = true;
+                }
+
+                // All slot-addressed updates use the client allocation, not DB order.
+                foreach (var pet in petRoster)
+                {
+                    if (pet.ClientSlot == 0) continue;
+                    pet.NormalizeExpForLevel();
+                    pet.NormalizeClientStats(inventory: src.Inv);
+                    QuestRelated.QuestManager.SendPetProgression(src, pet);
+                    SendPacket petNamePacket = QuestRelated.QuestManager.CreatePetNamePacket(src, pet);
+                    if (petNamePacket != null) src.Send(petNamePacket);
+
+                    if (pet.IsBattle || (src.ActivePetID > 0 && Player.IsSamePetOrCompanion(pet.PetID, src.ActivePetID)))
+                    {
+                            // Resolve the broadcast-safe companion ID (e.g. Robinson: 12032 DB -> 12178 client display)
+                            uint broadcastPetId = Player.GetCompanionBroadcastId(pet.PetID);
+                            src.ActivePetID = broadcastPetId;
+                            pet.IsBattle = true;
+
+                            // AC 19:1 Set battle companion state to owner
+                            src.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
+
+                            // AC 15:4 describes a remote map pet; never send it to its owner.
+                            SendPacket petMapPkt = src.CreatePetMapPacket(broadcastPetId, pet.PetName);
+                            Broadcast(petMapPkt, "Ex", src.CharID);
+
+                            // AC 19:1 above is sufficient for the owner; never broadcast 19:4.
+
+                            // AC 13:5 Broadcast companion follow formation to peers
+                            SendPacket petFollow = new SendPacket();
+                            petFollow.PackArray(new byte[] { 13, 5 });
+                            petFollow.Pack32(src.CharID);
+                            petFollow.Pack32(broadcastPetId);
+                            src.Send(petFollow);
+                            Broadcast(petFollow, "Ex", src.CharID);
+
+                            // AC 5:8 Appearance refresh
+                            SendPacket petRefresh = new SendPacket();
+                            petRefresh.PackArray(new byte[] { 5, 8 });
+                            petRefresh.Pack32(src.CharID);
+                            petRefresh.Pack8(0);
+                            src.Send(petRefresh);
+                            Broadcast(petRefresh, "Ex", src.CharID);
+
+                            DebugSystem.Write($"[Map.Warp_In] Dispatched companion '{pet.PetName}' (ID: {broadcastPetId}) to {src.CharName} and broadcast following state to peers");
+                    }
                 }
             }
+
+            // An empty roster is initialized too; later rewards allocate session slots.
+            src.PetRosterSynchronized = true;
 
             // Synchronize party following formation on map entry
             if (src.m_teammembers != null && src.m_teammembers.Count > 0)
@@ -821,7 +869,9 @@ namespace Game
             src.PrevMap.DstX_Axis = src.CurX;
             src.PrevMap.DstY_Axis = src.CurY;
 
-            SendAc12(src, portalID, To, toTent);
+            // Departure only notifies old-map peers. Warp_In sends the one
+            // load command to the moving player after destination state is set.
+            SendAc12(src, portalID, To, toTent, sendToTarget: false);
             m_playerlist.Remove(src);
         }
 
@@ -835,17 +885,9 @@ namespace Game
             dstMap = 0; dstX = 0; dstY = 0;
 
             // Tent exit portal handling: if this map is a tent, return to saved overworld location
-            if (this.Type == MapType.Tent || this is Tent || MapID >= 60000)
+            if (this.Type == MapType.Tent || this is Tent)
             {
-                var pl = m_playerlist.FirstOrDefault(p => p != null && (px == 0 || Math.Abs((int)p.CurX - px) < 400));
-                if (pl != null && pl.TentReturnMap != null && pl.TentReturnMap.DstMap > 0 && pl.TentReturnMap.DstMap < 60000)
-                {
-                    dstMap = pl.TentReturnMap.DstMap;
-                    dstX = pl.TentReturnMap.DstX_Axis;
-                    dstY = pl.TentReturnMap.DstY_Axis;
-                    return true;
-                }
-                if (this is Tent t && t.OwnerMap != null && t.OwnerMap.MapID < 60000)
+                if (this is Tent t && t.OwnerMap != null)
                 {
                     dstMap = (ushort)t.OwnerMap.MapID;
                     dstX = (ushort)t.X;
@@ -1105,10 +1147,10 @@ namespace Game
                                 DebugSystem.Write($"[Carnie Exit] Returning {sender.CharName} from Map 11094 to fallback Starter Beach");
                             }
                         }
-                        else if (Type == MapType.Tent || this is Tent || MapID >= 60000)
+                        else if (Type == MapType.Tent || this is Tent)
                         {
                             // Tent exit portal: return to saved overworld location!
-                            if (sender.TentReturnMap != null && sender.TentReturnMap.DstMap > 0 && sender.TentReturnMap.DstMap < 60000)
+                            if (sender.TentReturnMap != null && sender.TentReturnMap.DstMap > 0)
                             {
                                 dstMap = sender.TentReturnMap.DstMap;
                                 dstX = sender.TentReturnMap.DstX_Axis;
@@ -1116,7 +1158,7 @@ namespace Game
                                 foundPortal = true;
                                 DebugSystem.Write($"[Tent Exit Portal] Returning {sender.CharName} from Tent {MapID} to saved Map {dstMap} ({dstX},{dstY})");
                             }
-                            else if (this is Tent tent && tent.OwnerMap != null && tent.OwnerMap.MapID < 60000)
+                            else if (this is Tent tent && tent.OwnerMap != null)
                             {
                                 dstMap = (ushort)tent.OwnerMap.MapID;
                                 dstX = (ushort)tent.X;
@@ -1124,7 +1166,7 @@ namespace Game
                                 foundPortal = true;
                                 DebugSystem.Write($"[Tent Exit Portal] Returning {sender.CharName} from Tent {MapID} to owner map {dstMap} ({dstX},{dstY})");
                             }
-                            else if (sender.PrevMap != null && sender.PrevMap.DstMap > 0 && sender.PrevMap.DstMap < 60000)
+                            else if (sender.PrevMap != null && sender.PrevMap.DstMap > 0)
                             {
                                 dstMap = sender.PrevMap.DstMap;
                                 dstX = sender.PrevMap.DstX_Axis;
@@ -1223,7 +1265,7 @@ namespace Game
                         }
 
                         // Save pre-warp overworld coordinates before switching to interior tent coordinates
-                        if (sender.CurMap != null && sender.CurMap.Type != MapType.Tent && sender.CurMap.MapID < 60000)
+                        if (sender.CurMap != null && sender.CurMap.Type != MapType.Tent)
                         {
                             sender.TentReturnMap = new WarpData()
                             {
@@ -1332,7 +1374,7 @@ namespace Game
                 foreach (var npc in this.NPCs.OrderBy(n => n.CickID))
                 {
                     QuestNpc qn = npc as QuestNpc;
-                    bool isRecruited = qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                    bool isRecruited = qn != null && t.HasStoryCompanionInParty((ushort)qn.TemplateID);
                     bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
                     bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
 
@@ -1341,7 +1383,8 @@ namespace Game
                     if (this.MapID == 12000 && qn != null)
                         DebugSystem.Write($"[Map12000.NPC] CickID={npc.CickID} TID={qn.TemplateID} Name={qn.Name} Hidden={isHidden} X={npc.X} Y={npc.Y}");
 
-                    ushort state = 0x00FF; // Authentic default for living NPC actors (wire: FF 00)
+                    ushort idleFrame = QuestNpc.GetIdleAnimationFrame(qn?.TemplateID ?? 0);
+                    ushort state = idleFrame;
 
                     if (isHidden)
                     {
@@ -1380,13 +1423,13 @@ namespace Game
                         }
 
                         // Authentic WLO protocol:
-                        // 0x00FF (255) is the default intact animation frame
+                        // Hold frame 0 for interactive props; FF would loop their frames
                         // 0x0001 is the opened / broken animation frame
-                        state = isOpened ? (ushort)0x0001 : (ushort)0x00FF;
+                        state = isOpened ? (ushort)0x0001 : idleFrame;
                     }
                     else
                     {
-                        state = 0x00FF; // Normal living NPC actor
+                        state = idleFrame;
                     }
 
                     byte entityType = isHidden ? (byte)2 : (byte)1;
@@ -1406,24 +1449,16 @@ namespace Game
             }
             #endregion
             #region Send Ground Items (AC 23:4)
-            if (GroundItems != null && GroundItems.Count > 0)
+            lock (mlock)
             {
-                var activeItems = GroundItems.Where(g => !g.IsPickedUp).ToList();
-                if (activeItems.Count > 0)
-                {
-                    SendPacket itemPkt = new SendPacket();
-                    itemPkt.PackArray(new byte[] { 23, 4 });
-                    foreach (var gi in activeItems)
-                    {
-                        itemPkt.Pack8(3);
-                        itemPkt.Pack16((ushort)gi.Slot);
-                        itemPkt.Pack32(gi.ItemID);
-                        itemPkt.Pack16((ushort)gi.X);
-                        itemPkt.Pack16((ushort)gi.Y);
-                        itemPkt.Pack32(0);
-                    }
+                var itemPkt = new SendPacket();
+                itemPkt.PackArray(new byte[] { 23, 4 });
+                foreach (var gi in GroundItems.Where(g => !g.IsPickedUp))
+                    AppendGroundItem(itemPkt, gi.Slot, gi.ItemID, gi.X, gi.Y);
+                foreach (var pair in ItemsDropped)
+                    AppendGroundItem(itemPkt, pair.Key, pair.Value.ItemID, pair.Value.X, pair.Value.Y);
+                if (GroundItems.Any(g => !g.IsPickedUp) || ItemsDropped.Count > 0)
                     tmp.Add(itemPkt);
-                }
             }
             #endregion
             //SendNpcs(t);
@@ -1449,13 +1484,15 @@ namespace Game
             // Authentic WLO protocol (Official PCAP Seq 979..1000):
             // Conceal recruited companions, PreEvent-hidden actors, and broken props inside the Concealment Synchronization Window
             // strictly BEFORE AC 20:8 movement unfreeze and rendering initiation
+            t.ClearInteraction();
             t.HiddenNpcClickIDs.Clear();
+            lock (t.SentQuestMinimapMarkers) t.SentQuestMinimapMarkers.Clear();
             if (this.NPCs != null && this.NPCs.Count > 0)
             {
                 foreach (var npc in this.NPCs)
                 {
                     QuestNpc qn = npc as QuestNpc;
-                    bool isRecruited = qn != null && t.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID);
+                    bool isRecruited = qn != null && t.HasStoryCompanionInParty((ushort)qn.TemplateID);
                     bool isHiddenByPreEvent = !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(t, (ushort)this.MapID, (ushort)npc.CickID);
                     bool isDead = qn != null && qn.IsBroken && qn.RespawnTime == DateTime.MaxValue;
 
@@ -1467,11 +1504,11 @@ namespace Game
             }
 
             tmp.Add(Tools.FromFormat("bb", 20, 8));
-            tmp.Add(Tools.FromFormat("bb", 5, 4));
+            // Complete scene loading after AC12:1, not while queuing map data.
             t.LastSpawnX = t.CurX;
             t.LastSpawnY = t.CurY;
             t.LastTeleportTime = DateTime.UtcNow;
-            t.Flags.Add(PlayerFlag.InMap); //t.CharacterState = PlayerState.inMap;
+            // AC12:1 transitions Warping to InMap after native loading finishes.
             t.Send(new SendPacket(tmp.End()));
 
             // Personal Client-Side NPC Visibility Sync (Dynamic Quest Stage evaluation)
@@ -1480,8 +1517,7 @@ namespace Game
             // Sync Guild Insignia
             t.CurGuild?.SendInsignia(t);
 
-            // Sync Active Vehicle
-            PlayerRelated.VehicleManager.SyncVehicleOnMapEntry(t);
+            // Active vehicle is restored by AC12:1 after native map loading finishes.
         }
 
         #endregion
@@ -1502,7 +1538,7 @@ namespace Game
             if (p == null) return;
 
             // Save player's current overworld location before entering tent
-            if (this.MapID < 60000 && this.Type != MapType.Tent)
+            if (this.Type != MapType.Tent)
             {
                 ushort retX = (ushort)p.CurX;
                 ushort retY = (ushort)p.CurY;
@@ -1630,7 +1666,7 @@ namespace Game
             catch { }
         }
 
-        void SendAc12(Player target, byte portalID, WarpData To, bool toTent = false)
+        void SendAc12(Player target, byte portalID, WarpData To, bool toTent = false, bool sendToTarget = true)
         {
             SendPacket sp = new SendPacket();
             sp.Pack8(12);
@@ -1646,7 +1682,7 @@ namespace Game
                 sp.Pack8(1);
                 sp.Pack8(1);
             }
-            target.Send(sp);
+            if (sendToTarget) target.Send(sp);
             Broadcast(sp, "Ex", target.CharID);
         }
 
@@ -1673,11 +1709,10 @@ namespace Game
                     uint nTid = qNpc != null ? qNpc.TemplateID : 0;
 
                     // Block interaction if this NPC is a recruited companion or hidden by PreEvents
-                    if (qNpc != null && (player.HasRecruitedCompanion(qNpc.Name, (ushort)qNpc.TemplateID) || !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(player, (ushort)this.MapID, clickID)))
+                    if (qNpc != null && (player.HasStoryCompanionInParty((ushort)qNpc.TemplateID) || !Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(player, (ushort)this.MapID, clickID)))
                     {
                         DebugSystem.Write($"[ProcessInteraction] Blocked interaction on recruited/hidden NPC #{clickID} '{nName}' for player {player.CharName}");
-                        player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickID, (byte)0xFF, (byte)0xFF));
-                        player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)clickID, (byte)0xFF, (byte)0xFF));
+                        Game.QuestRelated.PreEventInterpreter.SendActorHide(player, clickID);
                         return false;
                     }
 

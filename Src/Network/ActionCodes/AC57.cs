@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -44,62 +44,30 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte result = (r != null && r.Buffer.Length > 6) ? r[6] : (byte)0;
-                bool isWin = (result == 1);
-
-                DebugSystem.Write($"[AC57.Recv1] Player {p.CharName} finished minigame. Result: {(isWin ? "WON (1)" : "LOST (0)")}");
-
-                // 1. Always ACK with AC 57 Sub 2 (Minigame Ended)
-                SendPacket endPkt = new SendPacket();
-                endPkt.PackArray(new byte[] { 57, 2 });
-                p.Send(endPkt);
-
-                if (isWin)
-                {
-                    // 2. Victory Flow (Frame 3597):
-                    // Execute pending victory callback / quest reward (which sends AC 23:6)
-                    try
-                    {
-                        p.OnMinigameWon?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugSystem.Write($"[AC57.Recv1] Exception in OnMinigameWon: {ex.Message}");
-                    }
-                    p.OnMinigameWon = null;
-
-                    p.Send(Tools.FromFormat("bbwb", 24, 5, 0x0044, 1));
-                    p.Send(Tools.FromFormat("bbb", 6, 2, 1));
-                    p.Send(Tools.FromFormat("bb", 20, 10)); // AC 20 Sub 10: Minigame Victory Fanfare
-                }
-                else
-                {
-                    // Loss Flow from official PCAP (Frame 14118 & 4074):
-                    p.SendSystemMessage(" Minigame failed. You can try again anytime!");
-
-                    try
-                    {
-                        p.OnMinigameLost?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugSystem.Write($"[AC57.Recv1] Exception in OnMinigameLost: {ex.Message}");
-                    }
-                    p.OnMinigameLost = null;
-                }
-
-                // Unlock callback on window close (AC 20 Sub 6 -> AC 20 Sub 8)
-                p.OnInteractionComplete = () =>
-                {
-                    p.Send(Tools.FromFormat("bb", 20, 8));
-                    p.Send(Tools.FromFormat("bb", 5, 4));
-                };
+                // A result is one byte. Malformed or late packets must not finish a game.
+                if (r.Buffer.Length != 7 || r[6] > 1) return;
+                var won = p.OnMinigameWon;
+                var lost = p.OnMinigameLost;
+                if (won == null && lost == null) return;
+                bool native = p.NativeEventActive;
+                bool isWin = r[6] == 1;
+                // Consume both callbacks before invoking: the callback can start another game.
+                p.OnMinigameWon = null;
+                p.OnMinigameLost = null;
+                p.Send(Tools.FromFormat("bb", 57, 2));
+                if (isWin) won?.Invoke();
+                else lost?.Invoke();
+                // The native event owns rewards and unlocking, even if it finished synchronously.
+                if (native) return;
+                if (isWin) p.Send(Tools.FromFormat("bb", 20, 10));
+                else p.SendSystemMessage(" Minigame failed. You can try again anytime!");
+                if (p.OnMinigameWon == null && p.OnMinigameLost == null && p.OnInteractionComplete == null)
+                    p.CancelInteraction();
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC57.Recv1] Error processing minigame result: {ex.Message}");
-                p.Send(Tools.FromFormat("bb", 20, 8));
-                p.Send(Tools.FromFormat("bb", 5, 4));
+                p.CancelInteraction();
             }
         }
 

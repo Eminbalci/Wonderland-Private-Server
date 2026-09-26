@@ -26,7 +26,8 @@ namespace Network.ActionCodes
                 byte petSlot = p.Buffer.Length >= 7 ? p.Unpack8() : (byte)0;
                 byte statType = p.Buffer.Length >= 8 ? p.Unpack8() : (byte)0;
 
-                if (!c.PlayerPets.TryGetValue(petSlot, out var pet) || pet == null || pet.PetID == 0)
+                var pet = c.GetClientPet(petSlot);
+                if (pet == null || pet.PetID == 0)
                 {
                     SendPacket err = new SendPacket();
                     err.Pack8((byte)ID);
@@ -56,7 +57,7 @@ namespace Network.ActionCodes
 
                     pet.Potential = (ushort)Math.Min(MaxPotentialCap, pet.Potential + 1);
                     c.SaveCharacterData();
-                    c.SendPetStat(petSlot, 0x011C, pet.Potential);
+                    Game.QuestRelated.QuestManager.SendPetProgression(c, pet);
 
                     SendPacket resp = new SendPacket();
                     resp.Pack8((byte)ID);
@@ -70,17 +71,18 @@ namespace Network.ActionCodes
                 }
 
                 // SubCode 2: Stat point distribution
-                if (subCode == 2 && pet.SkillPoints > 0)
+                if (subCode == 2 && pet.SkillPoints > 0 && statType >= 1 && statType <= 5)
                 {
                     pet.SkillPoints--;
                     switch (statType)
                     {
-                        case 1: pet.Str++; c.SendPetStat(petSlot, 0x0114, pet.Str); break;
-                        case 2: pet.Con++; c.SendPetStat(petSlot, 0x0115, pet.Con); break;
-                        case 3: pet.Int++; c.SendPetStat(petSlot, 0x0116, pet.Int); break;
-                        case 4: pet.Wis++; c.SendPetStat(petSlot, 0x0117, pet.Wis); break;
-                        case 5: pet.Agi++; c.SendPetStat(petSlot, 0x0118, pet.Agi); break;
+                        case 1: pet.Str++; break;
+                        case 2: pet.Con++; break;
+                        case 3: pet.Int++; break;
+                        case 4: pet.Wis++; break;
+                        case 5: pet.Agi++; break;
                     }
+                    Game.QuestRelated.QuestManager.SendPetProgression(c, pet);
                     c.SaveCharacterData();
 
                     SendPacket resp = new SendPacket();

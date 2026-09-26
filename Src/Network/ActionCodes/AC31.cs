@@ -1,8 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Game;
 using Game.Code;
-using Network;
+using Game.QuestRelated;
 
 namespace Network.ActionCodes
 {
@@ -12,220 +13,83 @@ namespace Network.ActionCodes
 
         public override void ProcessPkt(Player p, RecievePacket r)
         {
+            if (r.GetPtr() >= r.Buffer.Length) return;
             byte sub = r.Unpack8();
-            switch (sub)
+            byte[] data = r.Buffer.Skip(r.GetPtr()).ToArray();
+            if (sub == 1) { if (data.Length == 0) p.ConfirmNpcRest(); return; }
+            byte[] deposits, withdrawals;
+            // Native sender 0x2d0f96: 2 = hotel slots, 3 = team slots,
+            // 4 = team count + slots + hotel count + slots (exchange).
+            if (sub == 2) { deposits = new byte[0]; withdrawals = data; }
+            else if (sub == 3) { deposits = data; withdrawals = new byte[0]; }
+            else if (sub == 4)
             {
-                case 1: Recv1(p, r); break; // Open / List / Sync Pet Hotel
-                case 2:
-                case 4: RecvWithdraw(p, r); break; // Withdraw Pet from Hotel
-                case 3: RecvDeposit(p, r); break; // Deposit Pet into Hotel
-                case 7: RecvClose(p, r); break; // Close Hotel
-                default:
-                    DebugSystem.Write($"[AC31] Unknown subcode {sub} for {p.CharName}");
-                    break;
+                if (data.Length < 2 || data[0] > 4 || data.Length < data[0] + 2) return;
+                int n = data[0];
+                int m = data[n + 1];
+                if (m > 10 || data.Length != n + m + 2) return;
+                deposits = data.Skip(1).Take(n).ToArray();
+                withdrawals = data.Skip(n + 2).ToArray();
             }
-        }
+            else return; // 31:1 is a rest confirmation, never a hotel-open request.
+            if (deposits.Length + withdrawals.Length == 0 || deposits.Length > 4 || withdrawals.Length > 10 ||
+                deposits.Distinct().Count() != deposits.Length || withdrawals.Distinct().Count() != withdrawals.Length ||
+                deposits.Any(s => s < 1 || s > 4) || withdrawals.Any(s => s < 1 || s > 10) ||
+                Game.Battle.PvEBattleManager.IsInBattle(p)) return;
 
-        // Sub 1: Open / List Pet Hotel
-        void Recv1(Player p, RecievePacket r)
-        {
-            try
+            var outgoing = deposits.Select(p.GetClientPet).ToArray();
+            if (outgoing.Any(pet => pet == null || pet.PetID == 0) || p.HotelPets == null ||
+                withdrawals.Any(s => !p.HotelPets.ContainsKey(s) || p.HotelPets[s] == null)) return;
+            var incoming = withdrawals.Select(s => p.HotelPets[s]).ToArray();
+            var team = new Dictionary<byte, Player.PlayerPetData>(p.PlayerPets);
+            var hotel = new Dictionary<byte, Player.PlayerPetData>(p.HotelPets);
+            foreach (var pet in outgoing) team.Remove(pet.Slot);
+            foreach (byte slot in withdrawals) hotel.Remove(slot);
+            if (team.Count + incoming.Length > 4 || hotel.Count + outgoing.Length > 10)
+            { p.SendSystemMessage(" Not enough free pet slots."); return; }
+            var finalTeam = team.Values.Concat(incoming).ToArray();
+            for (int i = 0; i < finalTeam.Length; i++)
+                for (int j = 0; j < i; j++)
+                    if (Player.IsSamePetOrCompanion(finalTeam[i].PetID, finalTeam[j].PetID))
+                    { p.SendSystemMessage(" You already have this pet in your team."); return; }
+
+            // Validate the whole selection before moving any pet. Exchange also works
+            // when both lists are full; records retain all equipment and progression.
+            foreach (byte slot in withdrawals) p.Send(Tools.FromFormat("bbb", 31, 4, slot));
+            foreach (var pet in outgoing)
             {
-                p.OpenPetHotel();
-                DebugSystem.Write($"[AC31.Recv1] {p.CharName} requested Pet Hotel list.");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC31.Recv1] Error: {ex.Message}");
-            }
-        }
-
-        // Sub 3: Deposit Pet from Player's Team Slot into Pet Hotel
-        void RecvDeposit(Player p, RecievePacket r)
-        {
-            try
-            {
-                byte petSlot = r.Unpack8();
-                if (petSlot < 1 || petSlot > 4) return;
-
-                if (p.PlayerPets == null || !p.PlayerPets.TryGetValue(petSlot, out var pet) || pet == null || pet.PetID == 0)
-                {
-                    DebugSystem.Write($"[AC31.RecvDeposit] Pet slot {petSlot} is empty for {p.CharName}");
-                    return;
-                }
-
-                // Check hotel capacity (Max 20 pets)
-                if (p.HotelPets == null) p.HotelPets = new System.Collections.Generic.Dictionary<byte, Player.PlayerPetData>();
-                if (p.HotelPets.Count >= 20)
-                {
-                    p.SendSystemMessage(" Pet Hotel is full! (Max 20 pets)");
-                    return;
-                }
-
-                // Find first free hotel slot (1..20)
-                byte freeHotelSlot = 1;
-                while (p.HotelPets.ContainsKey(freeHotelSlot) && freeHotelSlot <= 20) freeHotelSlot++;
-
-                if (freeHotelSlot > 20)
-                {
-                    p.SendSystemMessage(" Pet Hotel is full! (Max 20 pets)");
-                    return;
-                }
-
-                // If this pet was battling / following, dismiss it
-                if (p.ActivePetID == pet.PetID || pet.IsBattle || Player.IsSamePetOrCompanion(p.ActivePetID, pet.PetID))
+                if (pet.IsRide) p.UnridePet();
+                if (pet.IsBattle || Player.IsSamePetOrCompanion(p.ActivePetID, pet.PetID))
                 {
                     p.ActivePetID = 0;
-                    pet.IsBattle = false;
-                    SendPacket dismissPkt = new SendPacket();
-                    dismissPkt.Pack8(19);
-                    dismissPkt.Pack8(5);
-                    dismissPkt.Pack32(p.CharID);
-                    dismissPkt.Pack32(pet.PetID);
-                    p.Send(dismissPkt);
-                    p.CurMap?.Broadcast(dismissPkt);
+                    p.Send(Tools.FromFormat("bb", 19, 2));
+                    p.CurMap?.Broadcast(Tools.FromFormat("bbd", 19, 7, p.CharID), "Ex", p.CharID);
                 }
-
-                if (pet.IsRide)
-                {
-                    p.UnridePet();
-                    pet.IsRide = false;
-                }
-
-                // Create hotel pet copy
-                var hotelPet = new Player.PlayerPetData()
-                {
-                    Slot = freeHotelSlot,
-                    PetID = pet.PetID,
-                    PetName = pet.PetName,
-                    Level = pet.Level,
-                    HP = pet.HP,
-                    MaxHP = pet.MaxHP,
-                    SP = pet.SP,
-                    MaxSP = pet.MaxSP,
-                    Amity = pet.Amity,
-                    IsBattle = false,
-                    IsRide = false
-                };
-
-                // Add to Hotel, remove from Player team
-                p.HotelPets[freeHotelSlot] = hotelPet;
-                p.PlayerPets.Remove(petSlot);
-
-                // 1. Tell client to remove pet from active team roster
-                p.Send(Tools.FromFormat("bbb", 19, 2, petSlot));
-                p.Send(Tools.FromFormat("bbb", 31, 3, petSlot));
-
-                // 2. Tell client to add pet to Hotel UI list
-                SendPacket hPkt = new SendPacket();
-                hPkt.Pack8(31);
-                hPkt.Pack8(3);
-                hPkt.Pack8(freeHotelSlot);
-                hPkt.Pack16((ushort)hotelPet.PetID);
-                hPkt.Pack8(hotelPet.Level);
-                hPkt.Pack32((uint)hotelPet.HP);
-                hPkt.Pack32((uint)hotelPet.MaxHP);
-                hPkt.Pack16((ushort)hotelPet.SP);
-                hPkt.Pack16((ushort)hotelPet.MaxSP);
-                hPkt.Pack8(hotelPet.Amity);
-                hPkt.PackString(hotelPet.PetName ?? "");
-                p.Send(hPkt);
-
-                // 3. Save to database immediately
-                DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
-
-                p.SendSystemMessage($" '{hotelPet.PetName}' (#{hotelPet.PetID}) deposited into Pet Hotel (Slot {freeHotelSlot}).");
-                DebugSystem.Write($"[AC31.RecvDeposit] {p.CharName} deposited '{hotelPet.PetName}' (ID: {hotelPet.PetID}) from Team Slot {petSlot} to Hotel Slot {freeHotelSlot}");
+                byte slot = 1;
+                while (hotel.ContainsKey(slot)) slot++;
+                // Client copies the team record before AC15:2 deletes it.
+                p.Send(Tools.FromFormat("bbbb", 31, 3, slot, pet.ClientSlot));
+                p.Send(Tools.FromFormat("bbdb", 15, 2, p.CharID, pet.ClientSlot));
+                pet.Slot = slot; pet.ClientSlot = 0; pet.IsBattle = false; pet.IsRide = false;
+                hotel[slot] = pet;
             }
-            catch (Exception ex)
+            p.PlayerPets = team;
+            p.HotelPets = hotel;
+            foreach (var pet in incoming)
             {
-                DebugSystem.Write($"[AC31.RecvDeposit] Error: {ex.Message}");
+                byte slot = 1;
+                while (team.ContainsKey(slot)) slot++;
+                pet.ClientSlot = 0;
+                p.RegisterClientPet(pet);
+                pet.Slot = slot; pet.IsBattle = false; pet.IsRide = false;
+                team[slot] = pet;
             }
-        }
-
-        // Sub 4 / 2: Withdraw Pet from Hotel Slot into Active Team
-        void RecvWithdraw(Player p, RecievePacket r)
-        {
-            try
-            {
-                byte hotelSlot = r.Unpack8();
-                if (hotelSlot < 1 || hotelSlot > 20) return;
-
-                if (p.HotelPets == null || !p.HotelPets.TryGetValue(hotelSlot, out var pet) || pet == null || pet.PetID == 0)
-                {
-                    DebugSystem.Write($"[AC31.RecvWithdraw] Hotel slot {hotelSlot} is empty for {p.CharName}");
-                    return;
-                }
-
-                // Check active team capacity (Max 4 pets)
-                if (p.PlayerPets == null) p.PlayerPets = new System.Collections.Generic.Dictionary<byte, Player.PlayerPetData>();
-                if (p.PlayerPets.Count >= 4)
-                {
-                    p.SendSystemMessage(" Your companion team is full! (Max 4 pets)");
-                    return;
-                }
-
-                // Find first free team slot (1..4)
-                byte freeTeamSlot = 1;
-                while (p.PlayerPets.ContainsKey(freeTeamSlot) && freeTeamSlot <= 4) freeTeamSlot++;
-
-                if (freeTeamSlot > 4)
-                {
-                    p.SendSystemMessage(" Your companion team is full! (Max 4 pets)");
-                    return;
-                }
-
-                // Create active team pet copy
-                var teamPet = new Player.PlayerPetData()
-                {
-                    Slot = freeTeamSlot,
-                    PetID = pet.PetID,
-                    PetName = pet.PetName,
-                    Level = pet.Level,
-                    HP = pet.HP,
-                    MaxHP = pet.MaxHP,
-                    SP = pet.SP,
-                    MaxSP = pet.MaxSP,
-                    Amity = pet.Amity,
-                    IsBattle = false,
-                    IsRide = false
-                };
-
-                // Add to Player team, remove from Hotel
-                p.PlayerPets[freeTeamSlot] = teamPet;
-                p.HotelPets.Remove(hotelSlot);
-
-                // 1. Tell client to remove pet from Hotel UI list
-                p.Send(Tools.FromFormat("bbb", 31, 4, hotelSlot));
-
-                // 2. Dispatch companion reward packet to add pet to active team
-                Game.QuestRelated.QuestManager.SendCompanionReward(p, teamPet.PetID, teamPet.PetName, setBattle: false);
-
-                // 3. Save to database immediately
-                DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
-
-                p.SendSystemMessage($" '{teamPet.PetName}' (#{teamPet.PetID}) retrieved from Pet Hotel to Team Slot {freeTeamSlot}!");
-                DebugSystem.Write($"[AC31.RecvWithdraw] {p.CharName} withdrew '{teamPet.PetName}' (ID: {teamPet.PetID}) from Hotel Slot {hotelSlot} to Team Slot {freeTeamSlot}");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC31.RecvWithdraw] Error: {ex.Message}");
-            }
-        }
-
-        // Sub 7: Close Pet Hotel
-        void RecvClose(Player p, RecievePacket r)
-        {
-            try
-            {
-                p.Send(Tools.FromFormat("bb", 31, 7));
-                p.Send(Tools.FromFormat("bb", 20, 8));
-                p.Send(Tools.FromFormat("bb", 5, 4));
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC31.RecvClose] Error: {ex.Message}");
-            }
+            // Full native roster restores names and worn items as well as HP/SP.
+            var roster = QuestManager.CreatePetListPacket(p);
+            if (roster != null) p.Send(roster);
+            foreach (var pet in incoming) QuestManager.SendPetProgression(p, pet);
+            p.SendPetHotelList();
+            p.SaveCharacterData();
         }
     }
 }

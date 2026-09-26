@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -452,6 +452,8 @@ namespace Server
 
             // Load player quests from database
             Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
+            cGlobal.gCharacterDataBase.LoadMonsterBook(src);
+            Game.PlayerRelated.NotebookManager.SendMonsterBook(src);
 
             // Starter item pack fallback delivery for level 1 players without starter items
             if ((src.Eqs?.Level ?? 1) <= 1 && !Game.PlayerRelated.StarterPackManager.HasAnyStarterItem(src))
@@ -471,30 +473,10 @@ namespace Server
             src.Send(Tools.FromFormat("bbd", 26, 4, src.Gold));
             src.Send(new SendPacket(src.Settings.ToArray()));
 
-            // 3. Send all learned skills and skill tree status
-            Game.SkillRelated.SkillManager.SendAllSkills(src);
-
-            // 4. Synchronize player's companions and active battle companion state on login
-            if (src.PlayerPets != null && src.PlayerPets.Count > 0)
-            {
-                foreach (var pet in src.PlayerPets.Values)
-                {
-                    if (pet != null && pet.PetID > 0)
-                    {
-                        SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(src, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job);
-                        src.Send(petPkt);
-                        Game.QuestRelated.QuestManager.SendPetSkills(src, pet.PetID, pet.Slot);
-                    }
-                }
-
-                if (src.ActivePetID > 0)
-                {
-                    uint broadcastPetId = Player.GetCompanionBroadcastId(src.ActivePetID);
-                    src.ActivePetID = broadcastPetId;
-                    src.Send(Tools.FromFormat("bbd", 19, 4, broadcastPetId));
-                    src.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
-                }
-            }
+            // AC5:3 above already restores skill grades/EXP, including the character stunt.
+            // Replaying learned/grade packets here triggers login banners and sounds.
+            // Keep the final refresh; new skills still use the incremental unlock path.
+            src.Send(Tools.FromFormat("bb", 5, 4));
 
             //---------Map Teleport---------------------------------------------------
             GameMap target = MapManager.Instance.GetMap(src.LoginMap);
@@ -510,7 +492,7 @@ namespace Server
 
             src.Send(Tools.FromFormat("bbb", 5, 15, 0));
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
-            src.Send(Tools.FromFormat("bbb", 5, 21, src.Slot));
+            src.SendRecordPointStatus();
 
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));
@@ -527,7 +509,8 @@ namespace Server
             src.Send(Tools.FromFormat("bbbbd", 23, 208, 2, 3, 0));
             src.Send(Tools.FromFormat("bbbbd", 23, 208, 2, 4, 0));
             src.Send(Tools.FromFormat("bb", 1, 11));
-            src.Send(Tools.FromFormat("bbbbbb", 15, 19, 4, 6, 9, 94));
+            // Rebuild earned story constellations from durable quest completion flags.
+            Game.QuestRelated.QuestManager.SendStoryConstellations(src);
 
             // 3. AC 35 Sub 11
             src.Send(Tools.FromFormat("bb", 35, 11));
@@ -603,7 +586,8 @@ namespace Server
 
         public static void SendChatMessage(Player p, byte chatType, string message)
         {
-            if (p == null || string.IsNullOrEmpty(message)) return;
+            // GM announcements are disabled; notification boxes have a separate path.
+            if (chatType == 4 || p == null || string.IsNullOrEmpty(message)) return;
             SendPacket pkt = new SendPacket();
             pkt.Pack8(2); // ActionCode 2 (Chat)
             pkt.Pack8(chatType); // 4 = GM (Red/Orange), 1 = World (Yellow), 3 = Channel (Blue), 6 = Whisper (Pink)
@@ -637,11 +621,7 @@ namespace Server
                 if (motdList != null && motdList.Count > 0)
                 {
                     SendPopupPrompt(src, motdList[0]);
-                    foreach (var motd in motdList)
-                    {
-                        SendChatMessage(src, 4, motd); // Red / Orange (GM): <motd>
-                    }
-                    DebugSystem.Write($"[WorldServer] Dispatched {motdList.Count} MOTD line(s) to {src.CharName}");
+                    DebugSystem.Write($"[WorldServer] Dispatched MOTD dialog to {src.CharName}");
                 }
             }
             catch (Exception ex)

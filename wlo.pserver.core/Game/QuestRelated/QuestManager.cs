@@ -126,17 +126,17 @@ namespace Game.QuestRelated
         {
             string full = (title + " " + npcPattern).ToLower();
 
-            if (full.Contains("sasha")) return new QuestReward(2000, 5000, 10012, "Sasha");
-            if (full.Contains("roca")) return new QuestReward(1500, 4000, 10014, "Roca");
-            if (full.Contains("niss")) return new QuestReward(1500, 4000, 10016, "Niss");
-            if (full.Contains("clive")) return new QuestReward(3000, 8000, 10018, "Clive");
-            if (full.Contains("sam")) return new QuestReward(2500, 6000, 10020, "Sam");
-            if (full.Contains("elin")) return new QuestReward(3500, 10000, 10022, "Elin");
-            if (full.Contains("shizune")) return new QuestReward(4000, 12000, 10024, "Shizune");
-            if (full.Contains("victoria")) return new QuestReward(4500, 15000, 10026, "Victoria");
-            if (full.Contains("angela")) return new QuestReward(5000, 18000, 10028, "Angela");
-            if (full.Contains("eva")) return new QuestReward(5000, 20000, 10030, "Eva");
-            if (full.Contains("robinson")) return new QuestReward(3000, 10000, 12032, "Robinson");
+            if (full.Contains("sasha")) return new QuestReward(2000, 5000);
+            if (full.Contains("roca")) return new QuestReward(1500, 4000);
+            if (full.Contains("niss")) return new QuestReward(1500, 4000);
+            if (full.Contains("clive")) return new QuestReward(3000, 8000);
+            if (full.Contains("sam")) return new QuestReward(2500, 6000);
+            if (full.Contains("elin")) return new QuestReward(3500, 10000);
+            if (full.Contains("shizune")) return new QuestReward(4000, 12000);
+            if (full.Contains("victoria")) return new QuestReward(4500, 15000);
+            if (full.Contains("angela")) return new QuestReward(5000, 18000);
+            if (full.Contains("eva")) return new QuestReward(5000, 20000);
+            if (full.Contains("robinson")) return new QuestReward(3000, 10000);
 
             return new QuestReward(500, 1000);
         }
@@ -754,6 +754,12 @@ namespace Game.QuestRelated
 
             var quest = FindQuestForPlayerNpc(player, npcName, templateId, out var currentStep, out bool isNewQuest);
             if (quest == null) return false;
+            if (quest.Reward != null && quest.Reward.CompanionPetID != 0 &&
+                !CanRecruitCompanion(player, quest.Reward.CompanionPetID))
+            {
+                dialogue = "Cannot recruit companion. Check free party slots and Pet Hotel.";
+                return true;
+            }
 
             if (!player.Quests.TryGetValue(quest.QuestID, out var pq))
             {
@@ -933,7 +939,7 @@ namespace Game.QuestRelated
                     if (step.GrantItemsOnStep != null)
                     {
                         foreach (var it in step.GrantItemsOnStep)
-                            player.Inv.AddItem(it.Item1, (byte)it.Item2);
+                            GrantItemReward(player, it.Item1, it.Item2);
                     }
 
                     // Advance step or complete quest
@@ -1004,7 +1010,7 @@ namespace Game.QuestRelated
                 if (step.GrantItemsOnStep != null)
                 {
                     foreach (var it in step.GrantItemsOnStep)
-                        player.Inv.AddItem(it.Item1, (byte)it.Item2);
+                        GrantItemReward(player, it.Item1, it.Item2);
                 }
 
                 if (pq.Step >= quest.Steps.Count)
@@ -1067,6 +1073,20 @@ namespace Game.QuestRelated
             return true;
         }
 
+        // Announce only committed rewards; the banner must not add the item a second time.
+        public static bool GrantItemReward(Player player, ushort itemId, int count)
+        {
+            if (player?.Inv == null || count <= 0) return false;
+            if (!player.Inv.TryAddItems(new Dictionary<ushort, int> { { itemId, count } }))
+            {
+                player.SendHeadBanner("Cannot receive reward. Check inventory space and item data.");
+                return false;
+            }
+            string name = Game.Battle.MonsterDropManager.ResolveItemName(itemId) ?? $"Item #{itemId}";
+            player.SendHeadBanner($"Obtain {name} x{count}");
+            return true;
+        }
+
         private static void GrantRewards(Player player, QuestDefinition quest)
         {
             if (player == null || quest == null || quest.Reward == null) return;
@@ -1089,7 +1109,7 @@ namespace Game.QuestRelated
             {
                 foreach (var it in quest.Reward.Items)
                 {
-                    player.Inv.AddItem(it.Item1, (byte)it.Item2);
+                    GrantItemReward(player, it.Item1, it.Item2);
                 }
             }
 
@@ -1099,14 +1119,13 @@ namespace Game.QuestRelated
                 SendCompanionReward(player, quest.Reward.CompanionPetID, quest.Reward.CompanionName ?? "Companion");
             }
 
-            // 5. Dynamic NPC Despawn (AC 22:10 and AC 22:11) for this player upon quest completion
+            // 5. Dynamic NPC Despawn (AC 22:4) for this player upon quest completion
             if (quest.DespawnNpcClickIDs != null && quest.DespawnNpcClickIDs.Count > 0)
             {
                 foreach (var clickId in quest.DespawnNpcClickIDs)
                 {
-                    player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)clickId, (byte)0xFF, (byte)0xFF));
-                    player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)clickId, (byte)0xFF, (byte)0xFF));
-                    DebugSystem.Write($"[QuestManager] Despawned NPC (ClickID: {clickId}) via AC 22:10/11 for {player.CharName} following Quest '{quest.Title}' completion.");
+                    PreEventInterpreter.SendActorHide(player, (ushort)clickId);
+                    DebugSystem.Write($"[QuestManager] Despawned NPC (ClickID: {clickId}) via AC 22:4 for {player.CharName} following Quest '{quest.Title}' completion.");
                 }
             }
 
@@ -1141,21 +1160,144 @@ namespace Game.QuestRelated
         /// <summary>
         /// Sends authentic companion recruit packets (Official AC 15:1 format matching PCAP Frame 0958).
         /// </summary>
-        public static void SendCompanionReward(Player player, uint petId, string petName, bool setBattle = true)
+        public static string ResolveCompanionName(uint petId, string storedName = null)
         {
-            if (player == null || petId == 0) return;
-            if (petId == 12178) { petId = 12032; petName = "Robinson"; }
+            string name = storedName?.Trim();
+            if (!string.IsNullOrEmpty(name) && name != "Wild Monster" && name != "Wild Monst" &&
+                name != "Companion" && !name.StartsWith("Companion #") && !name.StartsWith("Template #"))
+                return name;
+            return GetNpcName(petId);
+        }
+
+        // Xaolan is unavailable after assimilation, including the saved farewell checkpoint.
+        // Keep the original companion in QuestPets; normal recruitment is not resurrection.
+        public static bool IsXaolanInFate(Player player)
+        {
+            if (player?.Quests == null) return false;
+            return (player.Quests.TryGetValue(13087, out var done) && done.State == QuestState.InProgress && done.Step > 0) ||
+                (player.Quests.TryGetValue(13086, out var fate) && fate.State == QuestState.InProgress && fate.Step >= 2);
+        }
+
+        public static void SendStoryConstellations(Player player, bool showXaolan = false)
+        {
+            bool cygnus = player.Quests != null && player.Quests.TryGetValue(13087, out var done) &&
+                done.State == QuestState.InProgress && done.Step > 0;
+            // Current client AC15:19 reads count followed by byte IDs; Star_1 is Cygnus.
+            bool bootes = player.Quests != null && player.Quests.TryGetValue(13151, out var cliveDone) &&
+                cliveDone.State == QuestState.InProgress && cliveDone.Step > 0;
+            bool niss = player.Quests != null && player.Quests.TryGetValue(13173, out var nissDone) &&
+                nissDone.State == QuestState.InProgress && nissDone.Step > 0;
+            bool roca = player.Quests != null && player.Quests.TryGetValue(13203, out var rocaDone) &&
+                rocaDone.State == QuestState.InProgress && rocaDone.Step > 0;
+            var stars = new List<byte>();
+            if (cygnus) stars.Add(1);
+            if (niss) stars.Add(6);
+            if (roca) stars.Add(8);
+            if (bootes) stars.Add(20);
+            var packet = new SendPacket();
+            packet.PackArray(new byte[] { 15, 19, (byte)stars.Count });
+            packet.PackArray(stars.ToArray());
+            player.Send(packet);
+            // AC15:20 reads star ID and scene actor; actor0 starts at the player.
+            if (showXaolan && cygnus) player.Send(Tools.FromFormat("bbbb", 15, 20, 1, 0));
+        }
+
+        public static bool CanRecruitCompanion(Player player, uint petId)
+        {
+            if (player == null || petId == 0 || Game.DataFiles.SceneDataManager.GetNpcBaseStats(Player.GetCompanionBroadcastId(petId)) == null) return false;
+            if (Player.IsSamePetOrCompanion(petId, 14156) && IsXaolanInFate(player)) return false;
+            if (player.HasRecruitedCompanion((ushort)petId)) return true;
+            if (player.HotelPets != null && player.HotelPets.Values.Any(p => p != null && Player.IsSamePetOrCompanion(p.PetID, petId))) return false;
+            return (player.PlayerPets?.Count ?? 0) < 4;
+        }
+
+        public static bool SendCompanionReward(Player player, uint petId, string petName, bool setBattle = false)
+        {
+            if (player == null || petId == 0 || Game.DataFiles.SceneDataManager.GetNpcBaseStats(Player.GetCompanionBroadcastId(petId)) == null) return false;
+            if (Player.IsSamePetOrCompanion(petId, 14156) && IsXaolanInFate(player)) return false;
+            if (petId == 12178) petId = 12032;
+            petName = ResolveCompanionName(petId, petName);
 
             try
             {
+                if (player.PlayerPets == null)
+                    player.PlayerPets = new Dictionary<byte, Player.PlayerPetData>();
+
+                Player.PlayerPetData petData = player.PlayerPets.Values
+                    .FirstOrDefault(pet => pet != null && Player.IsSamePetOrCompanion(pet.PetID, petId));
+
+                if (petData == null && player.HotelPets != null && player.HotelPets.Values.Any(p => p != null && Player.IsSamePetOrCompanion(p.PetID, petId)))
+                {
+                    player.SendHeadBanner("This companion is in Pet Hotel. Retrieve it before continuing.");
+                    return false;
+                }
+                if (petData != null && !setBattle) return true;
+
+                byte petSlot;
+                bool isNewPet = petData == null;
+                bool isFirstRecruit = false;
+                if (isNewPet)
+                {
+                    var existingPets = player.PlayerPets.Values
+                        .Where(pet => pet != null && pet.PetID > 0)
+                        .OrderBy(pet => pet.Slot)
+                        .ToList();
+                    if (existingPets.Count >= 4)
+                    {
+                        player.SendHeadBanner("No free companion slot available.");
+                        DebugSystem.Write($"[QuestManager] Could not recruit {petName} for {player.CharName}: companion slots are full.");
+                        return false;
+                    }
+
+                    petSlot = 1;
+                    while (player.PlayerPets.ContainsKey(petSlot)) petSlot++;
+                    var returning = player.QuestPets?.Values.FirstOrDefault(p => p != null && Player.IsSamePetOrCompanion(p.PetID, petId));
+                    if (returning != null)
+                    {
+                        player.QuestPets.Remove(returning.Slot);
+                        petData = returning;
+                        petData.Slot = petSlot;
+                        petData.ClientSlot = 0;
+                    }
+                    else
+                    {
+                        isFirstRecruit = true;
+                        petData = new Player.PlayerPetData
+                        {
+                            Slot = petSlot,
+                            PetID = petId,
+                            PetName = petName,
+                            Level = 1,
+                            Amity = 60,
+                            IsBattle = false,
+                            IsRide = false
+                        };
+                        // Starter equipment belongs to a new quest companion only.
+                        // Replaying the quest must never regenerate removed equipment.
+                        if ((petId == 14161 || petId == 14162) && player.Inv.HasItemDefinition(10063))
+                            petData.Eq_Weapon = 10063; // Roca: Machete
+                        else if (petId == 14156 && player.Inv.HasItemDefinition(25028))
+                            petData.Eq_Special = 25028; // Xaolan's Jade
+                        petData.InitializeBaseStats();
+                        petData.NormalizeClientStats(true);
+                    }
+                    player.PlayerPets[petSlot] = petData;
+                }
+                else
+                {
+                    petSlot = petData.Slot;
+                    petData.PetName = ResolveCompanionName(petData.PetID, petData.PetName);
+                }
+
+                // A returning alias must retain the saved identity in every packet.
+                petId = petData.PetID;
+
                 // 1. AC 22:10 & AC 22:11 Hide Recruited NPC from Current Map for all matching ClickIDs
                 if (player.CurMap is GameMap gmap && gmap.NpcList != null)
                 {
                     foreach (var mapNpc in gmap.NpcList.OfType<Maps.QuestNpc>())
                     {
-                        if (Player.IsSamePetOrCompanion(petId, (uint)mapNpc.TemplateID) ||
-                            player.HasRecruitedCompanion(mapNpc.Name, (ushort)mapNpc.TemplateID) ||
-                            (!string.IsNullOrEmpty(mapNpc.Name) && mapNpc.Name.IndexOf(petName, StringComparison.OrdinalIgnoreCase) >= 0))
+                        if (player.HasStoryCompanionInParty((ushort)mapNpc.TemplateID))
                         {
                             PreEventInterpreter.SendActorHide(player, (ushort)mapNpc.CickID);
                             DebugSystem.Write($"[QuestManager] Despawned recruited NPC {mapNpc.Name} (ClickID {mapNpc.CickID}, TID {mapNpc.TemplateID}) for {player.CharName}");
@@ -1163,44 +1305,42 @@ namespace Game.QuestRelated
                     }
                 }
 
-                // 2. Save to player's active pet list
-                if (player.PlayerPets != null)
-                {
-                    player.PlayerPets[1] = new Player.PlayerPetData()
-                    {
-                        Slot = 1,
-                        PetID = petId,
-                        PetName = petName,
-                        Level = 1,
-                        HP = 250,
-                        MaxHP = 250,
-                        SP = 100,
-                        MaxSP = 100,
-                        Amity = 60,
-                        IsBattle = setBattle,
-                        IsRide = false
-                    };
-                }
+                // Recruit once. The client allocates the first free slot and rejects duplicate IDs.
+                SendPacket petPkt = CreatePetPacket(player, petId, petSlot,
+                    petData.HP, petData.MaxHP, petData.SP, petData.MaxSP, petData.Amity, petData.Level,
+                    petData.Str, petData.Con, petData.Int, petData.Wis, petData.Agi,
+                    petData.Exp, petData.Reborn, petData.Job);
+                if (player.RegisterClientPet(petData)) player.Send(petPkt);
 
-                // 3. AC 15:1 Authentic 54-byte Pet Recruit Packet (Byte-for-byte from PCAP Frame 0958)
-                SendPacket petPkt = CreatePetPacket(player, petId, 1);
-                player.Send(petPkt);
-                player.CurMap?.Broadcast(petPkt, "Ex", player.CharID);
-                SendPetSkills(player, petId, 1);
+                SendPetProgression(player, petData);
+                SendPacket petNamePacket = CreatePetNamePacket(player, petData);
+                if (petNamePacket != null) player.Send(petNamePacket);
+
+                // AC15:1 recruits without equipment fields; AC15:8 restores the
+                // equipped starter item without repeating the join notification.
+                if (isNewPet && (!isFirstRecruit || petData.Eq_Weapon != 0 || petData.Eq_Special != 0))
+                    player.Send(CreatePetListPacket(player));
 
                 // 4. If battle mode enabled, set active companion on map and broadcast appearance
                 if (setBattle)
                 {
-                    player.ActivePetID = petId;
-                    player.Send(Tools.FromFormat("bbd", 19, 1, petId));
-                    player.BroadcastPetAppearance(petId, petName);
+                    foreach (var pet in player.PlayerPets.Values)
+                        pet.IsBattle = pet == petData;
+
+                    uint broadcastPetId = Player.GetCompanionBroadcastId(petId);
+                    player.ActivePetID = broadcastPetId;
+                    player.Send(Tools.FromFormat("bbd", 19, 1, broadcastPetId));
+                    player.BroadcastPetAppearance(broadcastPetId, petData.PetName);
                 }
 
-                DebugSystem.Write($"[QuestManager] Companion {petName} (ID: {petId}) successfully recruited with authentic AC 15:1 54-byte packet!");
+                player.SaveCharacterData();
+                DebugSystem.Write($"[QuestManager] Companion {petData.PetName} (ID: {petId}, Slot: {petSlot}, New: {isNewPet}, Battle: {setBattle}) synchronized.");
+                return true;
             }
             catch (Exception ex)
             {
                 DebugSystem.Write($"[QuestManager] Error sending companion reward: {ex.Message}");
+                return false;
             }
         }
 
@@ -1209,51 +1349,201 @@ namespace Game.QuestRelated
             SendPacket petPkt = new SendPacket();
             petPkt.PackArray(new byte[] { 15, 1 });
             petPkt.Pack32(player.CharID);
-            uint pktPetId = (petId == 12032 || petId == 12178) ? (uint)12178 : petId;
+            uint pktPetId = Player.GetCompanionBroadcastId(petId);
             petPkt.Pack32(pktPetId);
-            petPkt.Pack8(slot);
-
-            if (pktPetId == 12178 || pktPetId == 12032) // Robinson (Official baseline stats)
-            {
-                petPkt.Pack16(str > 0 ? str : (ushort)7);   // STR: 7
-                petPkt.Pack16(con > 0 ? con : (ushort)11);  // CON: 11
-                petPkt.Pack16(int_ > 0 ? int_ : (ushort)2); // INT: 2
-                petPkt.Pack16(wis > 0 ? wis : (ushort)4);   // WIS: 4
-                petPkt.Pack16(agi > 0 ? agi : (ushort)6);   // AGI: 6
-                petPkt.Pack8(1);    // Water Element
-                petPkt.Pack32(level > 0 ? level : (byte)1);   // Level / Potential
-                petPkt.Pack32((uint)curHp); // CurHP
-                petPkt.Pack32((uint)maxHp); // MaxHP
-                petPkt.Pack32(exp); // Exp
-                for (int i = 0; i < 3; i++) petPkt.Pack8(0);
-                petPkt.Pack8(amity > 0 ? amity : (byte)60);   // Amity
-                petPkt.Pack8(reborn ? (byte)1 : (byte)0);
-                petPkt.Pack8(job);
-                for (int i = 0; i < 11; i++) petPkt.Pack8(0);
-            }
-            else // Monkey / other companions
-            {
-                petPkt.Pack16(str > 0 ? str : (ushort)5);   // STR: 5
-                petPkt.Pack16(con > 0 ? con : (ushort)8);   // CON: 8
-                petPkt.Pack16(int_ > 0 ? int_ : (ushort)2); // INT: 2
-                petPkt.Pack16(wis > 0 ? wis : (ushort)3);   // WIS: 3
-                petPkt.Pack16(agi > 0 ? agi : (ushort)5);   // AGI: 5
-                petPkt.Pack8(0);    // Earth Element
-                petPkt.Pack32(level > 0 ? level : (byte)1);   // Level
-                petPkt.Pack32((uint)curHp); // CurHP
-                petPkt.Pack32((uint)maxHp); // MaxHP
-                petPkt.Pack32(exp); // Exp
-                for (int i = 0; i < 3; i++) petPkt.Pack8(0);
-                petPkt.Pack8(amity > 0 ? amity : (byte)60);   // Amity
-                petPkt.Pack8(reborn ? (byte)1 : (byte)0);
-                petPkt.Pack8(job);
-                for (int i = 0; i < 11; i++) petPkt.Pack8(0);
-            }
+            // aLogin.exe 0x409820: this is ownership/type, NOT a roster slot.
+            petPkt.Pack8(1);
+            petPkt.Pack16(str);
+            petPkt.Pack16(con);
+            petPkt.Pack16(int_);
+            petPkt.Pack16(wis);
+            petPkt.Pack16(agi);
+            petPkt.Pack8(level > 0 ? level : (byte)1);
+            petPkt.Pack32(Player.PlayerPetData.GetClientTotalExp(level, exp));
+            // Three (byte, dword) skill-progress records. HP/SP are not in AC 15:1;
+            // the client initializes them from stats, then AC 8:2 supplies current values.
+            Player.PlayerPetData pet;
+            if (!player.PlayerPets.TryGetValue(slot, out pet) || !Player.IsSamePetOrCompanion(pet.PetID, petId))
+                pet = new Player.PlayerPetData { PetID = petId };
+            pet.PackSkills(petPkt);
+            petPkt.Pack8(amity);
+            petPkt.Pack16(0);
+            petPkt.Pack8(0);
+            petPkt.Pack8(reborn ? (byte)1 : (byte)0);
+            petPkt.Pack8(job);
+            petPkt.Pack8(0);
+            petPkt.Pack8(0);
+            petPkt.Pack8(0);
+            petPkt.Pack16(0);
+            petPkt.Pack16(0);
             return petPkt;
+        }
+
+        /// <summary>
+        /// Builds the owner's complete pet roster. AC 15:8 is the login/status-window
+        /// packet; AC 15:1 is only the one-time "pet recruited" notification.
+        /// </summary>
+        public static SendPacket CreatePetListPacket(Player player)
+        {
+            if (player?.PlayerPets == null) return null;
+            var pets = player.PlayerPets.Values.Where(p => p != null && p.PetID > 0 && p.ClientSlot > 0)
+                .OrderBy(p => p.ClientSlot).ToList();
+            if (pets.Count == 0) return null;
+
+            // Native RevInitFNpc (0x40b1e0): variable records, 182 bytes + name.
+            // Unlike AC15:1, this restores existing pets without a joined-party banner.
+            SendPacket packet = new SendPacket();
+            packet.PackArray(new byte[] { 15, 8 });
+            foreach (var pet in pets)
+            {
+                pet.NormalizeExpForLevel();
+                pet.NormalizeClientStats(inventory: player.Inv);
+                uint clientId = Player.GetCompanionBroadcastId(pet.PetID);
+                packet.Pack8(pet.ClientSlot);
+                packet.Pack16((ushort)clientId);
+                packet.Pack32(pet.ClientTotalExp);
+                packet.Pack8(pet.Level);
+                packet.Pack32((uint)Math.Max(0, pet.HP));
+                packet.Pack16((ushort)Math.Max(0, Math.Min(ushort.MaxValue, pet.SP)));
+                packet.Pack16(pet.Int);
+                packet.Pack16(pet.Str);
+                packet.Pack16(pet.Con);
+                packet.Pack16(pet.Agi);
+                packet.Pack16(pet.Wis);
+                packet.Pack8(0);
+                packet.Pack8(pet.Amity);
+                packet.Pack8(1); // ownership
+                packet.Pack16(pet.SkillPoints);
+                byte[] name = Encoding.ASCII.GetBytes(ResolveCompanionName(pet.PetID, pet.PetName));
+                packet.Pack8((byte)Math.Min(16, name.Length));
+                packet.PackArray(name.Take(16).ToArray());
+
+                // Restore existing skill levels directly, without AC8:2 stat110 (Learned).
+                // Slots follow Npc.dat, not the order in the server's skill list.
+                pet.PackSkills(packet);
+
+                // Six native equipped-item records: ID plus 19 metadata bytes.
+                for (byte slot = 1; slot <= 6; slot++)
+                {
+                    packet.Pack16(pet.GetEquipmentId(slot));
+                    var metadata = new byte[19];
+                    metadata[0] = pet.EquipmentMetadata[(slot - 1) * 2];
+                    metadata[13] = pet.EquipmentMetadata[(slot - 1) * 2 + 1];
+                    packet.PackArray(metadata);
+                }
+                packet.Pack8(0);
+                packet.Pack8(0);
+                packet.Pack8(pet.Reborn ? (byte)1 : (byte)0);
+                packet.Pack8(pet.Job);
+                packet.Pack8(0);
+                packet.Pack8(0);
+                packet.Pack8(0);
+                packet.Pack16(0);
+                packet.Pack16(0);
+            }
+            return packet;
+        }
+
+        public static SendPacket CreatePetNamePacket(Player player, Player.PlayerPetData pet)
+        {
+            if (player == null || pet == null || pet.ClientSlot == 0) return null;
+            string petName = string.IsNullOrWhiteSpace(pet.PetName)
+                ? (GetNpcName(pet.PetID) ?? "Pet")
+                : pet.PetName.Trim();
+
+            SendPacket packet = new SendPacket();
+            // Native rename notification is 15:9, owner DWORD, internal slot, raw name.
+            packet.PackArray(new byte[] { 15, 9 });
+            packet.Pack32(player.CharID);
+            packet.Pack8(pet.ClientSlot);
+            packet.PackArray(Encoding.ASCII.GetBytes(petName));
+            return packet;
+        }
+
+        public static void SendPetProgression(Player player, Player.PlayerPetData pet)
+        {
+            if (player == null || pet == null || pet.ClientSlot == 0) return;
+
+            pet.NormalizeExpForLevel();
+            pet.NormalizeClientStats(inventory: player.Inv);
+            SendPetStat(player, pet.ClientSlot, 35, pet.Level);
+            SendPetStat(player, pet.ClientSlot, 37, (uint)Math.Max(0, pet.Level - 1));
+            SendPetStat(player, pet.ClientSlot, 38, pet.SkillPoints);
+            SendPetStat(player, pet.ClientSlot, 36, pet.ClientTotalExp);
+            SendPetStat(player, pet.ClientSlot, 28, pet.Str);
+            SendPetStat(player, pet.ClientSlot, 29, pet.Con);
+            SendPetStat(player, pet.ClientSlot, 30, pet.Agi);
+            SendPetStat(player, pet.ClientSlot, 27, pet.Int);
+            SendPetStat(player, pet.ClientSlot, 33, pet.Wis);
+            SendPetEquipmentStats(player, pet);
+        }
+
+        public static void SendPetEquipmentStats(Player player, Player.PlayerPetData pet)
+        {
+            if (player == null || pet == null || pet.ClientSlot == 0) return;
+            pet.NormalizeClientStats(inventory: player.Inv);
+            // Native equipment modifiers, not base STR/CON/INT/WIS/AGI or totals.
+            SendPetStat(player, pet.ClientSlot, 210, player.Inv.GetPetEquipmentBonus(pet, eq => eq.ATK));
+            SendPetStat(player, pet.ClientSlot, 211, player.Inv.GetPetEquipmentBonus(pet, eq => eq.DEF));
+            SendPetStat(player, pet.ClientSlot, 215, player.Inv.GetPetEquipmentBonus(pet, eq => eq.MAT));
+            SendPetStat(player, pet.ClientSlot, 216, player.Inv.GetPetEquipmentBonus(pet, eq => eq.MDF));
+            SendPetStat(player, pet.ClientSlot, 214, player.Inv.GetPetEquipmentBonus(pet, eq => eq.SPD));
+            // The status panel reads separate absolute totals (native fields 0x1ffc..0x2004).
+            // Equipment modifiers above do not update these display fields.
+            var totals = player.PetEquipmentStats(pet);
+            for (byte stat = 41; stat <= 45; stat++)
+                SendPetStat(player, pet.ClientSlot, stat, Math.Min(ushort.MaxValue, totals[stat - 39]));
+            // Recalculate maxima before synchronizing clamped current vitals.
+            SendPetStat(player, pet.ClientSlot, 207, player.Inv.GetPetEquipmentBonus(pet, eq => eq.HP));
+            SendPetStat(player, pet.ClientSlot, 208, player.Inv.GetPetEquipmentBonus(pet, eq => eq.SP));
+            SendPetStat(player, pet.ClientSlot, 25, pet.HP);
+            SendPetStat(player, pet.ClientSlot, 26, pet.SP);
+        }
+
+        public static void SendPetAmity(Player player, Player.PlayerPetData pet)
+        {
+            if (player == null || pet == null || pet.ClientSlot == 0) return;
+            // Native stat 64 assigns the pet's amity; use the session slot, not its DB slot.
+            SendPetStat(player, pet.ClientSlot, 64, pet.Amity);
+        }
+
+        private static void SendPetStat(Player player, byte petSlot, byte stat, long value)
+        {
+            // AC 8:2 is not the same layout as the player's AC 8:1 update.
+            // 4 selects the pet collection, followed by a ushort internal slot,
+            // stat id, positive sign, DWORD value and DWORD skill ID (unused here).
+            SendPacket packet = new SendPacket();
+            packet.PackArray(new byte[] { 8, 2, 4, petSlot, 0, stat, (byte)(value < 0 ? 2 : 1) });
+            packet.Pack32((uint)Math.Abs(value));
+            packet.Pack32(0);
+            player.Send(packet);
+        }
+
+        public static bool IsStoryCompanion(uint petId)
+        {
+            var npc = Game.DataFiles.SceneDataManager.GetNpcBaseStats(Player.GetCompanionBroadcastId(petId));
+            if (npc == null) return false;
+            if (npc.Type == 4) return true;
+            // Native story companions also include type 2 NPCs and type 7 fairies/beasts.
+            switch (petId)
+            {
+                case 12068: case 12081: case 12095: case 12132: case 12147:
+                case 12148: case 12149: case 17914: case 31036: case 25020:
+                case 17162: case 17454: return true;
+                default: return false;
+            }
         }
 
         public static List<ushort> GetDefaultPetSkills(uint petId)
         {
+            // Every owned pet uses the native skill slots for its client template,
+            // including captured monsters and voucher creatures, not just story pets.
+            // Missing/empty saved skills are initialized by PlayerPetData.EnsureSkills.
+            var npc = Game.DataFiles.SceneDataManager.GetNpcBaseStats(Player.GetCompanionBroadcastId(petId));
+            if (npc != null)
+                return (npc.Skills ?? new ushort[0]).Where(id => id != 0 &&
+                    SkillRelated.SkillManager.GetSkill(id) != null).Distinct().ToList();
+
             List<ushort> skills = new List<ushort>();
             switch (petId)
             {
@@ -1262,204 +1552,50 @@ namespace Game.QuestRelated
                     skills.Add(25221); // Fury Strike (Water)
                     skills.Add(12046); // Freeze Strike (Water)
                     break;
-                case 17162:
-                case 10727: // Monkey
+                case 17162: // Monkey
                     skills.Add(12026); // Throw Banana Skin (12 SP)
                     skills.Add(12027); // Monkey Trick
                     break;
-                case 12004:
-                case 14001:
-                case 14161:
-                case 14162: // Roca (Earth)
-                    skills.Add(11041); // Heart Chop
-                    skills.Add(12041); // Earthquake Chop
-                    break;
-                case 12003:
-                case 14002:
-                case 14081: // Niss (Water)
+                case 12003: // Niss (Water)
                     skills.Add(11001); // Icicle Attack
-                    skills.Add(12046); // Freeze Strike
                     break;
-                case 12002:
-                case 14003:
-                case 14163: // Clive (Earth)
+                case 12002: // Clive (Earth)
                     skills.Add(15001); // Exact Combo Hit
                     skills.Add(15002); // Instant Attack
                     break;
-                case 12011:
-                case 14004:
-                case 14164: // Fred (Fire)
-                    skills.Add(11116); // Fire Wave
-                    skills.Add(12053); // Volcano Burst
+                case 12001: // Xaolan (Fire)
+                    skills.Add(11100); // Fire Light
                     break;
-                case 12016:
-                case 14005:
-                case 14165: // Elin (Earth)
-                    skills.Add(11060); // Plasma Gun
-                    skills.Add(12070); // Magnetic Storm
-                    break;
-                case 12005:
-                case 14006:
-                case 14166: // Sam (Wind)
+                case 12005: // Sam (Wind)
                     skills.Add(12025); // Newbie's Stunt
                     skills.Add(11057); // Shield Defence
                     break;
-                case 12015:
-                case 14007:
-                case 14167: // Shizune (Fire)
+                case 12015: // Shizune (Fire)
                     skills.Add(25436); // Random Sword Slash
                     skills.Add(25437); // Fire Dragon Chopper
                     break;
-                case 12012:
-                case 14008:
-                case 14168: // Suzan (Wind)
-                    skills.Add(11075); // Wind Dance
-                    skills.Add(12061); // Flash Sword
-                    break;
-                case 12001: // Xaolan (Fire)
-                    skills.Add(11100); // Fire Light
-                    skills.Add(12052); // Phoenix Rising
-                    break;
-                case 12014: // Victoria (Water)
-                    skills.Add(11025); // Aqua Slash
-                    skills.Add(12048); // Ice Spear
-                    break;
-                case 12006: // Maggie (Fire)
-                    skills.Add(11105); // Flame Arrow
-                    skills.Add(12051); // Blazing Storm
-                    break;
-                case 12017: // Kanako (Wind)
-                    skills.Add(11076); // Gale Strike
-                    skills.Add(12062); // Tornado Blast
-                    break;
-                case 12013: // Charlotte (Wind)
-                    skills.Add(11072); // Swift Blade
-                    skills.Add(12058); // Fairy Dance
-                    break;
             }
-
-            // Fallback & supplement: Query Npc.dat for native SkillID1, SkillID2, SkillID3
-            try
-            {
-                var npcDat = DataBase.GameDataBase.GlobalInstance?.NpcDat;
-                if (npcDat != null)
-                {
-                    var npc = npcDat.GetNpcbyID((ushort)petId);
-                    if (npc == null && petId != Player.GetCompanionBroadcastId(petId))
-                    {
-                        npc = npcDat.GetNpcbyID((ushort)Player.GetCompanionBroadcastId(petId));
-                    }
-                    if (npc != null)
-                    {
-                        if (npc.SkillID1 > 0 && !skills.Contains(npc.SkillID1)) skills.Add(npc.SkillID1);
-                        if (npc.SkillID2 > 0 && !skills.Contains(npc.SkillID2)) skills.Add(npc.SkillID2);
-                        if (npc.SkillID3 > 0 && !skills.Contains(npc.SkillID3)) skills.Add(npc.SkillID3);
-                    }
-                }
-            }
-            catch { }
-
             return skills;
         }
 
         public static void SendPetSkills(Player player, uint petId, byte slot = 1)
         {
             if (player == null || petId == 0) return;
-            var skills = GetDefaultPetSkills(petId);
-            foreach (var skId in skills)
-            {
-                // Authentic AC 8:2 Stat 367 (0x016F) Pet Skill Unlock
-                // Frame #1984: [8, 2, TargetType=4, Slot (UInt16), StatID=0x016F (UInt16), Val1=Grade/Exp (UInt32), Val2=SkillID (UInt32)]
-                player.SendPetStat(slot, 0x016F, 1, (uint)skId);
-            }
+            if (player.PlayerPets == null || !player.PlayerPets.TryGetValue(slot, out var pet) || pet.ClientSlot == 0) return;
+            // Snapshot refresh must never replay Learned or reset a trained skill.
+            if (!Player.IsSamePetOrCompanion(pet.PetID, petId)) return;
+            var packet = CreatePetListPacket(player);
+            if (packet != null) player.Send(packet);
         }
 
-        /// <summary>
-        /// Maps internal C# QuestState enum values to authentic client packet tab states:
-        /// 1 = In Progress, 2 = Not Started / Available, 3 = Completed, 4 = Failed.
-        /// </summary>
-        public static byte ToClientState(QuestState state)
-        {
-            switch (state)
-            {
-                case QuestState.InProgress: return 1;
-                case QuestState.NotStarted: return 2;
-                case QuestState.Completed: return 3;
-                case QuestState.Failed: return 4;
-                default: return 1;
-            }
-        }
-
-        /// <summary>
-        /// Sends the entire quest journal list to the client using authentic AC 24 Sub 4 packet.
-        /// </summary>
         public static void SendQuestJournal(Player player)
         {
-            if (player == null) return;
-            try
-            {
-                if (player.Quests != null && player.Quests.Count > 0)
-                {
-                    SendPacket pkt = new SendPacket();
-                    pkt.PackArray(new byte[] { 24, 4 });
-                    pkt.Pack16((ushort)player.Quests.Count);
-                    foreach (var kvp in player.Quests)
-                    {
-                        pkt.Pack16((ushort)kvp.Key);
-                        byte progressByte = (byte)(kvp.Value.State == QuestState.Completed ? 255 : Math.Max(1, kvp.Value.Step));
-                        pkt.Pack8(progressByte);
-                        pkt.Pack8(ToClientState(kvp.Value.State));
-                    }
-                    player.Send(pkt);
-                    DebugSystem.Write($"[QuestManager] Sent AC 24:4 Journal ({player.Quests.Count} quests) to {player.CharName}");
-                }
-                else
-                {
-                    player.Send(Tools.FromFormat("bbw", 24, 4, (ushort)0));
-                }
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[QuestManager] Error sending quest journal: {ex.Message}");
-            }
+            Game.PlayerRelated.NotebookManager.SendQuestJournal(player);
         }
 
-        /// <summary>
-        /// Synchronizes all active quest step flags and completed flags to the client for PreEvent evaluation.
-        /// </summary>
         public static void SendAllQuestFlags(Player player)
         {
-            if (player == null) return;
-            try
-            {
-                // 1. Send full quest journal list
-                SendQuestJournal(player);
-
-                // 2. Dispatch AC 24:1 step flags and AC 24:5 completed flags
-                if (player.Quests != null && player.Quests.Count > 0)
-                {
-                    foreach (var kvp in player.Quests)
-                    {
-                        uint qId = kvp.Key;
-                        var pq = kvp.Value;
-                        if (pq.State == QuestState.Completed)
-                        {
-                            player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)qId, (byte)1));
-                        }
-                        else if (pq.State == QuestState.InProgress)
-                        {
-                            byte step = (byte)Math.Max(1, pq.Step);
-                            player.Send(Tools.FromFormat("bbwb", 24, 1, (ushort)qId, step));
-                            player.Send(Tools.FromFormat("bbwb", 24, 2, (ushort)qId, step));
-                        }
-                    }
-                    DebugSystem.Write($"[QuestManager] Synchronized {player.Quests.Count} quest flags to {player.CharName}");
-                }
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[QuestManager] Error in SendAllQuestFlags for {player.CharName}: {ex.Message}");
-            }
+            SendQuestJournal(player);
         }
 
         /// <summary>
@@ -1478,10 +1614,9 @@ namespace Game.QuestRelated
                     foreach (var qn in map.NpcList.OfType<Game.Maps.QuestNpc>())
                     {
                         if (qn == null) continue;
-                        if (player.HasRecruitedCompanion(qn.Name, (ushort)qn.TemplateID))
+                        if (player.HasStoryCompanionInParty((ushort)qn.TemplateID))
                         {
-                            player.Send(Tools.FromFormat("bbwbb", 22, 10, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
-                            player.Send(Tools.FromFormat("bbwbb", 22, 11, (ushort)qn.CickID, (byte)0xFF, (byte)0xFF));
+                            PreEventInterpreter.SendActorHide(player, (ushort)qn.CickID);
                             DebugSystem.Write($"[ActorVisibility] Replayed despawn for companion NPC {qn.Name} (ClickID {qn.CickID}, TID {qn.TemplateID}) for {player.CharName}");
                         }
                     }
@@ -1511,8 +1646,7 @@ namespace Game.QuestRelated
                                 {
                                     var despawnOp = sub.SubEntry?.FirstOrDefault(o => o.DialogPtr == 2 && o.dialog2 == 2);
                                     ushort targetClickId = (ushort)(despawnOp.HasValue && despawnOp.Value.dialog1 > 0 ? despawnOp.Value.dialog1 : ev.clickID);
-                                    player.Send(Tools.FromFormat("bbwbb", 22, 10, targetClickId, (byte)0xFF, (byte)0xFF));
-                                    player.Send(Tools.FromFormat("bbwbb", 22, 11, targetClickId, (byte)0xFF, (byte)0xFF));
+                                    PreEventInterpreter.SendActorHide(player, (ushort)targetClickId);
                                 }
                             }
                         }
@@ -1525,42 +1659,10 @@ namespace Game.QuestRelated
             }
         }
 
-        /// <summary>
-        /// Sends authentic AC 24 quest state updates (Sub 1: Start, Sub 2: Progress, Sub 5: Completed, Sub 3: Abandoned).
-        /// </summary>
+        // EVE stores native marks, not the client completion-bit indices.
         public static void SendQuestUpdate(Player player, uint questId, QuestState state, byte step = 1)
         {
-            if (player == null) return;
-
-            try
-            {
-                switch (state)
-                {
-                    case QuestState.InProgress:
-                        // AC 24 Sub 1 (Quest Accepted/Started) + AC 24 Sub 2 (Step update)
-                        player.Send(Tools.FromFormat("bbwb", 24, 1, (ushort)questId, step));
-                        player.Send(Tools.FromFormat("bbwb", 24, 2, (ushort)questId, step));
-                        break;
-
-                    case QuestState.Completed:
-                        // AC 24 Sub 5 (Quest Completed / Flagged)
-                        player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)questId, (byte)1));
-                        break;
-
-                    case QuestState.Failed:
-                        // AC 24 Sub 3 (Quest Failed / Reset)
-                        player.Send(Tools.FromFormat("bbw", 24, 3, (ushort)questId));
-                        break;
-
-                    default:
-                        player.Send(Tools.FromFormat("bbwb", 24, 5, (ushort)questId, ToClientState(state)));
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[QuestManager] Error sending quest update: {ex.Message}");
-            }
+            Game.PlayerRelated.NotebookManager.SendQuestUpdate(player, questId, state, step);
         }
 
         /// <summary>
@@ -1588,14 +1690,14 @@ namespace Game.QuestRelated
                     bool matched = false;
                     int reqKills = 1;
 
-                    if (quest.Steps != null && quest.Steps.Count >= pq.Step)
+                    if (quest.Steps != null && pq.Step > 0 && quest.Steps.Count >= pq.Step)
                     {
                         var step = quest.Steps[pq.Step - 1];
                         if (step.StepType == QuestType.MonsterBattle)
                         {
                             reqKills = step.RequiredKillCount > 0 ? step.RequiredKillCount : 1;
                             if (step.BattleMonsterID > 0 && step.BattleMonsterID == monsterId) matched = true;
-                            else if (!string.IsNullOrEmpty(step.BattleMonsterName) && (step.BattleMonsterName.ToLower().Contains(mName) || mName.Contains(step.BattleMonsterName.ToLower()))) matched = true;
+                            else if (!string.IsNullOrEmpty(mName) && !string.IsNullOrEmpty(step.BattleMonsterName) && (step.BattleMonsterName.ToLower().Contains(mName) || mName.Contains(step.BattleMonsterName.ToLower()))) matched = true;
                             else if (step.BattleMonsterID == 0 && string.IsNullOrEmpty(step.BattleMonsterName)) matched = true;
                         }
                     }
@@ -1603,7 +1705,7 @@ namespace Game.QuestRelated
                     {
                         reqKills = quest.RequiredKillCount > 0 ? quest.RequiredKillCount : 1;
                         if (quest.BattleMonsterID > 0 && quest.BattleMonsterID == monsterId) matched = true;
-                        else if (!string.IsNullOrEmpty(quest.BattleMonsterName) && (quest.BattleMonsterName.ToLower().Contains(mName) || mName.Contains(quest.BattleMonsterName.ToLower()))) matched = true;
+                        else if (!string.IsNullOrEmpty(mName) && !string.IsNullOrEmpty(quest.BattleMonsterName) && (quest.BattleMonsterName.ToLower().Contains(mName) || mName.Contains(quest.BattleMonsterName.ToLower()))) matched = true;
                         else if (quest.BattleMonsterID == 0 && string.IsNullOrEmpty(quest.BattleMonsterName)) matched = true;
                     }
 
@@ -1673,7 +1775,6 @@ namespace Game.QuestRelated
                                 StartedAt = startedAt,
                                 CompletedAt = completedAt
                             };
-                            SendQuestUpdate(player, qId, (QuestState)qPos, step);
                         }
                     }
                 }

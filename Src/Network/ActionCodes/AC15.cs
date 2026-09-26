@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,6 +27,7 @@ namespace Network.ActionCodes
             switch (sub)
             {
                 case 2:  Recv2(player, p); break;   // Dismiss / Release Companion Pet
+                case 6:  Recv6(player, p); break;   // Rename Companion Pet
                 case 7:  Recv7(player, p); break;   // Raft sailing confirmation
                 case 9:  Recv9(player, p); break;   // Raft board / mount placed vehicle
                 case 10: Recv10(player, p); break; // Raft dismount & break on shore (Frame 6950-6992)
@@ -40,6 +41,40 @@ namespace Network.ActionCodes
             }
         }
 
+        private void Recv6(Player player, RecievePacket p)
+        {
+            try
+            {
+                if (p.Buffer.Count() - p.GetPtr() < 2) return;
+                byte slot = p.Unpack8();
+                string petName = (p.UnpackStringN() ?? "").TrimEnd('\0').Trim();
+                if (petName.Length > 16) petName = petName.Substring(0, 16);
+                if (string.IsNullOrWhiteSpace(petName)) return;
+                var pet = player.GetClientPet(slot);
+                if (pet == null) return;
+
+                pet.PetName = petName;
+                SendPacket renamePacket = Game.QuestRelated.QuestManager.CreatePetNamePacket(player, pet);
+                if (renamePacket != null) player.Send(renamePacket);
+
+                if (pet.IsBattle || Player.IsSamePetOrCompanion(player.ActivePetID, pet.PetID))
+                {
+                    SendPacket mapPacket = player.CreatePetMapPacket(Player.GetCompanionBroadcastId(pet.PetID), pet.PetName);
+                    if (mapPacket != null)
+                    {
+                        player.CurMap?.Broadcast(mapPacket, "Ex", player.CharID);
+                    }
+                }
+
+                player.SaveCharacterData();
+                DebugSystem.Write($"[AC15.Recv6] {player.CharName} renamed pet in slot {slot} to '{petName}'.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC15.Recv6] Error: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Handles Client Dismissing / Releasing Pet: C->S [15, 2, slot (1B)]
         /// </summary>
@@ -47,28 +82,16 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte slot = 1;
+                byte slot = 0;
                 if (p.Buffer.Count() - p.GetPtr() >= 1)
                 {
                     slot = p.Unpack8();
                 }
-                if (slot == 0) slot = 1;
+                if (slot == 0) return;
 
                 DebugSystem.Write($"[AC15.Recv2] Player {player.CharName} requested dismissing pet at slot {slot}");
 
-                Player.PlayerPetData pet = null;
-                if (player.PlayerPets != null)
-                {
-                    if (player.PlayerPets.TryGetValue(slot, out var targetPet))
-                    {
-                        pet = targetPet;
-                    }
-                    else
-                    {
-                        pet = player.PlayerPets.Values.FirstOrDefault();
-                        if (pet != null) slot = pet.Slot;
-                    }
-                }
+                Player.PlayerPetData pet = player.GetClientPet(slot);
 
                 if (pet == null)
                 {
@@ -86,14 +109,18 @@ namespace Network.ActionCodes
                     pet.IsBattle = false;
                     player.UnridePet();
 
-                    // Authentic AC 19:7 [CharID: 4B] despawns pet follower sprite from overworld
-                    SendPacket despawnPkt = Tools.FromFormat("bbd", 19, 7, player.CharID);
-                    player.Send(despawnPkt);
-                    player.CurMap?.Broadcast(despawnPkt, "Ex", player.CharID);
+                    // Rest / Despawn follower packets
+                    player.Send(Tools.FromFormat("bb", 19, 2));
+                    player.CurMap?.Broadcast(Tools.FromFormat("bbd", 19, 7, player.CharID), "Ex", player.CharID);
+
+                    SendPacket petDespawn = Tools.FromFormat("bbdd", 5, 8, player.CharID, 0);
+                    player.Send(petDespawn);
+                    player.CurMap?.Broadcast(petDespawn, "Ex", player.CharID);
                 }
 
                 // 2. Remove pet from PlayerPets collection
-                player.PlayerPets.Remove(slot);
+                player.PlayerPets.Remove(pet.Slot);
+                pet.ClientSlot = 0;
 
                 // 3. Send official AC 15:2 dismiss confirmation packet to client
                 SendPacket dp = new SendPacket();
@@ -104,7 +131,7 @@ namespace Network.ActionCodes
                 player.CurMap?.Broadcast(dp, "Ex", player.CharID);
 
                 // 4. Delete pet from database
-                cGlobal.gCharacterDataBase?.ExecuteNonQuery($"DELETE FROM character_pets WHERE charID = '{player.CharID}' AND slot = '{slot}';");
+                cGlobal.gCharacterDataBase?.ExecuteNonQuery($"DELETE FROM character_pets WHERE charID = '{player.CharID}' AND slot = '{pet.Slot}';");
                 player.SaveCharacterData();
 
                 player.SendSystemMessage($" Released companion pet {petName} (Slot {slot}).");
@@ -117,99 +144,39 @@ namespace Network.ActionCodes
         }
 
         /// <summary>
-        /// Handles Client clicking water to board Raft / Vehicle: C->S [15, 14, type (1B), item_id (2B)]
-        /// Official PCAP Frame 4129 -> Responds with AC 15 Sub 18 (Durability/Stats).
+        /// Handles Client clicking water to board Raft / Vehicle: C->S [15, 14, slot (1B), item_id (2B)]
+        /// Official PCAP Frame 4129 -> Responds with AC 15 Sub 18 (placement coordinates).
         /// </summary>
         private void Recv14(Player player, RecievePacket p)
         {
-            try
-            {
-                byte vehicleSlot = p.Unpack8(); // Inventory slot of vehicle (e.g. 0x0D = slot 13)
-                ushort vehicleId = 48016; // 0xBB90 default
-                if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
-
-                player.MountedVehicleSlot = vehicleSlot;
-                player.ActiveVehicleID = vehicleId;
-
-                DebugSystem.Write($"[AC15.Recv14] Player {player.CharName} boarding vehicle from slot {vehicleSlot} (ID: {vehicleId})");
-
-                // S->C AC 15 Sub 18: [15, 18, slot (1B), char_id (4B), vehicle_id (2B), durability (8B)]
-                SendPacket resp = new SendPacket();
-                resp.PackArray(new byte[] { 15, 18, vehicleSlot });
-                resp.Pack32(player.CharID);
-                resp.Pack16(vehicleId);
-                resp.Pack32(3042);  // 0x00000BE2 = Initial durability
-                resp.Pack32(2075);  // Max durability / param
-                player.Send(resp);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv14] Error: {ex.Message}");
-            }
+            if (p.Buffer.Length - p.GetPtr() < 3) return;
+            byte slot = p.Unpack8();
+            ushort itemId = p.Unpack16();
+            Game.PlayerRelated.VehicleManager.PlaceVehicle(player, slot, itemId);
         }
 
         /// <summary>
         /// Client confirms boarding raft: C->S [15, 7, slot (1B), item_id (2B)]
-        /// Official PCAP Frame 4160 -> Responds with AC 15 Sub 10 (Mount ACK) + AC 15 Sub 14 (Active state).
+        /// Official PCAP Frame 4160 -> Responds with AC 15 Sub 10 (Mount ACK).
         /// </summary>
         private void Recv7(Player player, RecievePacket p)
         {
-            try
-            {
-                byte vehicleSlot = p.Unpack8();
-                ushort vehicleId = 48016;
-                if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
-
-                player.MountedVehicleSlot = vehicleSlot;
-                player.ActiveVehicleID = vehicleId;
-                player.RideVehicle(vehicleId.ToString());
-
-                // S->C AC 15 Sub 10: Mount confirmation
-                SendPacket mountPkt = new SendPacket();
-                mountPkt.PackArray(new byte[] { 15, 10, vehicleSlot });
-                mountPkt.Pack32(player.CharID);
-                mountPkt.Pack16(vehicleId);
-                player.Send(mountPkt);
-                player.CurMap?.Broadcast(mountPkt);
-
-                // S->C AC 15 Sub 14: Active state
-                SendPacket statePkt = new SendPacket();
-                statePkt.PackArray(new byte[] { 15, 14, vehicleSlot });
-                statePkt.Pack32(player.CharID);
-                statePkt.PackArray(new byte[] { 0, 0, 0, 0, 0, 0 });
-                player.Send(statePkt);
-                player.CurMap?.Broadcast(statePkt);
-
-                player.SendSystemMessage("You are now sailing on your raft.");
-                DebugSystem.Write($"[AC15.Recv7] Player {player.CharName} successfully mounted raft {vehicleId} from slot {vehicleSlot}");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv7] Error: {ex.Message}");
-            }
+            if (p.Buffer.Length - p.GetPtr() < 3) return;
+            byte slot = p.Unpack8();
+            ushort itemId = p.Unpack16();
+            Game.PlayerRelated.VehicleManager.MountVehicle(player, slot, itemId);
         }
 
         /// <summary>
-        /// Client clicks beach shore to land, break raft, and dismount on foot: C->S [15, 10, type (1B), item_id (2B)]
+        /// Client lands a vehicle; only the disposable quest raft breaks: C->S [15, 10, slot (1B), item_id (2B)]
         /// Official PCAP Frame 6950-6992.
         /// </summary>
         private void Recv10(Player player, RecievePacket p)
         {
-            try
-            {
-                byte vehicleType = 0x10;
-                ushort vehicleId = 48016;
-                if (p.Buffer.Count() - p.GetPtr() >= 1) vehicleType = p.Unpack8();
-                if (p.Buffer.Count() - p.GetPtr() >= 2) vehicleId = p.Unpack16();
-
-                DebugSystem.Write($"[AC15.Recv10] Player {player.CharName} landing on shore from raft {vehicleId}");
-
-                Game.PlayerRelated.VehicleManager.WreckVehicle(player, vehicleId, vehicleType);
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv10] Error: {ex.Message}");
-            }
+            if (p.Buffer.Length - p.GetPtr() < 3) return;
+            p.Unpack8(); // Landing discriminator; the server owns the active inventory slot.
+            ushort itemId = p.Unpack16();
+            Game.PlayerRelated.VehicleManager.LandVehicle(player, itemId);
         }
 
         private void Recv13(Player player, RecievePacket p)
@@ -219,20 +186,10 @@ namespace Network.ActionCodes
 
         private void Recv9(Player player, RecievePacket p)
         {
-            try
-            {
-                p.Unpack8();
-                ushort itemId = p.Unpack16();
-                if (itemId == 0) itemId = 48016;
-
-                player.UnridePet();
-                player.RideVehicle(itemId.ToString());
-                DebugSystem.Write($"[AC15] Player {player.CharName} mounted placed vehicle ID {itemId}");
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[AC15.Recv9] Error: {ex.Message}");
-            }
+            if (p.Buffer.Length - p.GetPtr() < 3) return;
+            byte slot = p.Unpack8();
+            ushort itemId = p.Unpack16();
+            Game.PlayerRelated.VehicleManager.MountVehicle(player, slot, itemId);
         }
 
         private void Recv11(Player player, RecievePacket p)
@@ -259,10 +216,6 @@ namespace Network.ActionCodes
                 uint petId = p.Unpack32();
 
                 player.UnridePet();
-                if (player.ActivePetID > 0)
-                {
-                    player.BroadcastPetAppearance(player.ActivePetID);
-                }
                 DebugSystem.Write($"[AC15] Player {player.CharName} rested/dismounted companion ID {petId} (Slot {slot})");
             }
             catch (Exception ex)
