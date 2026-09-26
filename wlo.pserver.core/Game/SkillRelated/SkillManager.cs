@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -77,7 +77,11 @@ namespace Game.SkillRelated
         public byte Type { get; set; }
         public ushort SP { get; set; }
         public byte ElementType { get; set; }
-        public ushort Attack { get; set; }
+        public ushort Attack { get; set; } // Attack range/category, not damage power.
+        public byte EffectLayer { get; set; }
+        public double PowerPerLevel { get; set; }
+        public double StatMultiplier { get; set; }
+        public ushort AdditionalDamage { get; set; }
         public byte Effect { get; set; }
         public byte Target { get; set; }
         public byte AdditionalEffect { get; set; }
@@ -161,6 +165,11 @@ namespace Game.SkillRelated
                             SP = sp,
                             ElementType = elem,
                             Attack = attack,
+                            EffectLayer = (byte)((data[offset + 29] ^ 0xFD) - 4),
+                            // The two doubles are stored unencrypted in Skill.dat.
+                            PowerPerLevel = BitConverter.ToDouble(data, offset + 32),
+                            StatMultiplier = BitConverter.ToDouble(data, offset + 40),
+                            AdditionalDamage = (ushort)((BitConverter.ToUInt16(data, offset + 49) ^ 0x6EA0) - 4),
                             SkillTableOrder = tableOrder
                         };
                     }
@@ -181,7 +190,7 @@ namespace Game.SkillRelated
         }
         /// <summary>
         /// Gets the starter stunt skill ID based on character Body and Head selection.
-        /// Replicates Python server gameserver.py get_starter_skill_id
+        /// Matches native character selection at 0x484f20 and stunt lookup at 0x485330.
         /// </summary>
         public static uint GetStarterStuntSkill(byte body, byte head)
         {
@@ -190,29 +199,29 @@ namespace Game.SkillRelated
                 case 4: // Big Female
                     switch (head)
                     {
-                        case 0: return 15041; // Iris: Love Wish
+                        case 0: return 11078; // Iris: Bomber Attack
                         case 1: return 12053; // Lique: Gallop
-                        case 2: return 15003; // Vanessa: Newbie's Stunt
+                        case 2: return 15040; // Vanessa: Palm
                         case 3: return 15060; // Breillat: Throw Dish
                         case 4: return 12051; // Jessica: Note
                         case 5: return 12049; // Konno Tsuruko: Fire Dance
                         case 6: return 11077; // Maria: Cure 2 Players
-                        case 7: return 15040; // Karin: Palm
+                        case 7: return 11183; // Karin: Deacon Attack
                         default: return 15003;
                     }
                 case 3: // Big Male
                     switch (head)
                     {
-                        case 0: return 11076; // Daniel: Combo x3 Attack
+                        case 0: return 15038; // Daniel: Overarm Stumble
                         case 1: return 11076; // Sid: Combo x3 Attack
-                        case 2: return 11183; // More: Deacon Attack
+                        case 2: return 15039; // More: Wine Flame
                         case 3: return 11182; // Kurogane: Ghost Hammer
                         default: return 11076;
                     }
                 case 2: // Small Female
                     switch (head)
                     {
-                        case 0: return 15039; // Nina: Wine Flame
+                        case 0: return 15041; // Nina: Love Wish
                         case 1: return 12036; // Betty: Leap
                         default: return 15039;
                     }
@@ -224,6 +233,22 @@ namespace Game.SkillRelated
                     }
             }
             return 15003; // Default fallback: Newbie's Stunt
+        }
+
+        // The native skill book stores the character stunt under Newbie's Stunt
+        // (15003, table order 188), then displays the actual skill for Body/Head.
+        // Keep the real skill ID in combat and persistence; translate only on the wire.
+        public static uint GetClientSkillId(Player player, uint skillId)
+        {
+            if (player == null) return skillId;
+            byte body = (byte)player.Body;
+            byte head = player.Head;
+            if (body == 0 && player.Eqs != null)
+            {
+                body = (byte)player.Eqs.Body;
+                head = player.Eqs.Head;
+            }
+            return skillId == GetStarterStuntSkill(body, head) ? 15003u : skillId;
         }
 
         /// <summary>
@@ -272,6 +297,7 @@ namespace Game.SkillRelated
             if (player == null || skillId == 0) return;
 
             var existing = player.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId);
+            byte oldGrade = existing?.Grade ?? 0;
             if (existing == null)
             {
                 existing = new PlayerSkill(skillId, grade, exp);
@@ -290,7 +316,7 @@ namespace Game.SkillRelated
                 if (db != null && player.CharID > 0)
                 {
                     db.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, skillID INT NOT NULL, grade TINYINT DEFAULT 1, exp INT DEFAULT 0, UNIQUE(charID, skillID));");
-                    db.ExecuteNonQuery($"INSERT INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{grade}', '{exp}') ON CONFLICT(charID, skillID) DO UPDATE SET grade = '{grade}', exp = '{exp}';");
+                    db.ExecuteNonQuery($"INSERT OR REPLACE INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{grade}', '{exp}');");
                 }
             }
             catch (Exception dbEx)
@@ -298,28 +324,21 @@ namespace Game.SkillRelated
                 DebugSystem.Write($"[SkillManager] Error persisting skill {skillId} for {player.CharName}: {dbEx.Message}");
             }
 
-            // 1. AC 5:16 (Intro Tree Node Unlock: [5, 16, 0, (ushort)skillId, (byte)grade])
+            uint clientSkillId = GetClientSkillId(player, skillId);
+            if (grade > oldGrade)
+                player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)grade, clientSkillId));
+            // 1. AC 5:16 (Intro Tree Node Unlock: [5, 16, 0, (ushort)clientSkillId, (byte)grade])
             SendPacket treePkt = new SendPacket();
             treePkt.Pack8(5);
             treePkt.Pack8(16);
             treePkt.Pack8(0);
-            treePkt.Pack16((ushort)skillId);
+            treePkt.Pack16((ushort)clientSkillId);
             treePkt.Pack8(grade);
             player.Send(treePkt);
 
-            // 2. Authentic AC 8:2 Skill Tree Unlock: [8, 2, 4, 2, 0, 0x6F, 0x01, (uint)grade, (uint)skillId]
-            SendPacket ac8_2 = new SendPacket();
-            ac8_2.Pack8(8);
-            ac8_2.Pack8(2);
-            ac8_2.Pack8(4);
-            ac8_2.Pack16(2);
-            ac8_2.Pack16(0x016F);
-            ac8_2.Pack32((uint)grade);
-            ac8_2.Pack32((uint)skillId);
-            player.Send(ac8_2);
-
-            // 3. AC 8:1 Stat 367 fallback
-            player.Send(Tools.FromFormat("bbwdd", 8, 1, 0x016F, (uint)grade, (uint)skillId));
+            player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)clientSkillId, grade));
+            ushort proficiency = (ushort)Math.Min(10000UL, (ulong)exp * 10000 / (uint)Math.Max(1, grade * 100));
+            player.Send(Tools.FromFormat("bbdw", 5, 11, clientSkillId, proficiency));
 
             DebugSystem.Write($"[SkillManager] Unlocked/Updated skill {skillId} (Grade {grade}, EXP {exp}) for {player.CharName}");
         }
@@ -348,10 +367,12 @@ namespace Game.SkillRelated
             player.PlayerSkills.Clear();
 
             byte bodyVal = (byte)player.Body;
-            if (bodyVal == 0 && player.Eqs != null) bodyVal = (byte)player.Eqs.Body;
-
-            byte headVal = (byte)player.Head;
-            if (headVal == 0 && player.Eqs != null) headVal = (byte)player.Eqs.Head;
+            byte headVal = player.Head;
+            if (bodyVal == 0 && player.Eqs != null)
+            {
+                bodyVal = (byte)player.Eqs.Body;
+                headVal = player.Eqs.Head;
+            }
 
             uint stuntId = GetStarterStuntSkill(bodyVal, headVal);
             if (!player.PlayerSkills.Any(s => s.SkillID == stuntId))
@@ -646,16 +667,33 @@ namespace Game.SkillRelated
         /// persists changes to database, dispatches AC 5:11 / AC 8:1 packets,
         /// and unlocks evolved skill versions if Grade 10 is attained.
         /// </summary>
+        public static void AddPetSkillExp(Player owner, Player.PlayerPetData pet, uint skillId, uint expGain)
+        {
+            if (owner == null || pet == null || expGain == 0) return;
+            pet.EnsureSkills();
+            var skill = pet.Skills.FirstOrDefault(s => s.SkillID == skillId);
+            if (skill == null || skill.Grade == 0 || skill.Grade >= 10) return;
+            byte oldGrade = skill.Grade;
+            ulong exp = (ulong)skill.Exp + expGain;
+            // Use the server's existing character skill progression policy.
+            while (skill.Grade < 10 && exp >= (uint)(skill.Grade * 100))
+            {
+                exp -= (uint)(skill.Grade * 100);
+                skill.Grade++;
+            }
+            skill.Exp = skill.Grade >= 10 ? 0 : (uint)exp;
+            if (pet.ClientSlot == 0) return;
+            if (skill.Grade > oldGrade)
+                owner.Send(Tools.FromFormat("bbbwbbdd", 8, 2, 4, (ushort)pet.ClientSlot, 110, 1, (uint)skill.Grade, skillId));
+            owner.Send(Tools.FromFormat("bbbwbbdd", 8, 2, 4, (ushort)pet.ClientSlot, 111, 1, skill.Exp, skillId));
+        }
+
         public static void AddSkillExp(Player player, uint skillId, uint expGain)
         {
             if (player == null || skillId == 0) return;
 
-            var sk = player.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId);
-            if (sk == null)
-            {
-                sk = new PlayerSkill(skillId, 1, 0);
-                player.PlayerSkills.Add(sk);
-            }
+            var sk = player.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId || GetClientSkillId(player, s.SkillID) == skillId);
+            if (sk == null || sk.Grade == 0) return;
 
             if (sk.Grade >= 10) return; // Max Grade
 
@@ -679,7 +717,7 @@ namespace Game.SkillRelated
                 if (db != null && player.CharID > 0)
                 {
                     db.ExecuteNonQuery($"CREATE TABLE IF NOT EXISTS character_skills (id INTEGER PRIMARY KEY AUTOINCREMENT, charID INT NOT NULL, skillID INT NOT NULL, grade TINYINT DEFAULT 1, exp INT DEFAULT 0, UNIQUE(charID, skillID));");
-                    db.ExecuteNonQuery($"INSERT OR REPLACE INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{skillId}', '{sk.Grade}', '{sk.Exp}');");
+                    db.ExecuteNonQuery($"INSERT OR REPLACE INTO character_skills (charID, skillID, grade, exp) VALUES ('{player.CharID}', '{sk.SkillID}', '{sk.Grade}', '{sk.Exp}');");
                 }
             }
             catch (Exception ex)
@@ -687,18 +725,20 @@ namespace Game.SkillRelated
                 DebugSystem.Write($"[SkillManager] Error updating skill EXP: {ex.Message}");
             }
 
+            uint clientSkillId = GetClientSkillId(player, sk.SkillID);
             // 1. AC 5:11 (Proficiency / EXP sync: 0-10000 -> 0.00% - 100.00%)
             uint currentNeededExp = (uint)(sk.Grade * 100);
             ushort prof = (ushort)Math.Min(10000, (sk.Exp * 10000) / Math.Max(1, currentNeededExp));
-            player.Send(Tools.FromFormat("bbdw", 5, 11, (uint)sk.SkillID, prof));
+            player.Send(Tools.FromFormat("bbdw", 5, 11, clientSkillId, prof));
+
+            if (gradeUp) player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)sk.Grade, clientSkillId));
 
             // 2. AC 5:12 (Skill ID & Grade Update)
-            player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)sk.SkillID, (byte)sk.Grade));
+            player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)clientSkillId, (byte)sk.Grade));
 
-            // 3. AC 8:1 stat 367 / 0x016F (Skill Grade & Unlock Update)
+            // Check evolution unlocks after a real grade increase.
             if (gradeUp)
             {
-                player.Send(Tools.FromFormat("bbwdd", 8, 1, 0x016F, (uint)sk.Grade, sk.SkillID));
                 DebugSystem.Write($"[SkillManager] {player.CharName}'s skill {sk.SkillID} reached Grade {sk.Grade}!");
 
                 // Check for new evolution skill unlocks
@@ -729,27 +769,8 @@ namespace Game.SkillRelated
                 {
                     player.PlayerSkills.Add(new PlayerSkill(skId, 1, 0));
 
-                    // 1. Authentic AC 8:2 Stat 110 (Skill Learned Notification & Buffer Update): [8, 2, 4, 1, 0, 110, 0, (uint)grade, (uint)skillId]
-                    SendPacket learnPkt = new SendPacket();
-                    learnPkt.Pack8(8);
-                    learnPkt.Pack8(2);
-                    learnPkt.Pack8(4);
-                    learnPkt.Pack16(1);
-                    learnPkt.Pack16(110);
-                    learnPkt.Pack32((uint)1);
-                    learnPkt.Pack32((uint)skId);
-                    player.Send(learnPkt);
-
-                    // 2. Authentic AC 8:2 Stat 367 (Skill Tree Node Unlock): [8, 2, 4, 1, 0, 0x6F, 0x01, (uint)grade, (uint)skillId]
-                    SendPacket ac8_2 = new SendPacket();
-                    ac8_2.Pack8(8);
-                    ac8_2.Pack8(2);
-                    ac8_2.Pack8(4);
-                    ac8_2.Pack16(1);
-                    ac8_2.Pack16(0x016F);
-                    ac8_2.Pack32((uint)1);
-                    ac8_2.Pack32((uint)skId);
-                    player.Send(ac8_2);
+                    // AC8:1 targets the character; AC8:2 TargetType 4 targets a pet.
+                    player.Send(Tools.FromFormat("bbbbdd", 8, 1, 110, 1, (uint)1, GetClientSkillId(player, skId)));
 
                     // 3. AC 5:12 (Skill ID & Grade Update in Skill Book)
                     player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)skId, (byte)1));
@@ -764,22 +785,18 @@ namespace Game.SkillRelated
 
             if (newlyUnlocked)
             {
-                // Refresh full base stats and skill book in client
-                player.Send_5_3();
+                // Skills were sent incrementally above. A login snapshot here overwrites
+                // the client's current stats/POINT after allocation.
 
-                // Clear quickbar and refresh skill book
-                for (byte a = 1; a < 11; a++)
-                {
-                    player.Send(Tools.FromFormat("bbbw", 5, 13, a, 0));
-                }
+                // Refresh the skill book without erasing existing shortcuts.
                 player.Send(Tools.FromFormat("bb", 5, 4));
                 player.SaveCharacterData();
             }
         }
 
         /// <summary>
-        /// Dispatches AC 8:2 stat 110 (Learned), stat 367 (Tree Unlock), AC 5:12 (Skill Grade) for all skills.
-        /// Clears quickbar slots 1-10 (AC 5:13) and finalizes with AC 5:4.
+        /// Restores character skill grade and proficiency without touching pet slots.
+        /// Finalizes with AC 5:4.
         /// </summary>
         public static void SendAllSkills(Player player)
         {
@@ -797,47 +814,14 @@ namespace Game.SkillRelated
             DebugSystem.Write($"[SkillManager] Sending {player.PlayerSkills.Count} skills to {player.CharName}");
             foreach (var sk in player.PlayerSkills)
             {
-                // 1. Authentic AC 8:2 Stat 110 (Skill Learned Notification & Buffer Update)
-                SendPacket learnPkt = new SendPacket();
-                learnPkt.Pack8(8);
-                learnPkt.Pack8(2);
-                learnPkt.Pack8(4);
-                learnPkt.Pack16(1);
-                learnPkt.Pack16(110);
-                learnPkt.Pack32((uint)sk.Grade);
-                learnPkt.Pack32((uint)sk.SkillID);
-                player.Send(learnPkt);
-
-                // 2. Authentic AC 8:2 Stat 367 (Skill Tree Node Unlock)
-                SendPacket ac8_2 = new SendPacket();
-                ac8_2.Pack8(8);
-                ac8_2.Pack8(2);
-                ac8_2.Pack8(4);
-                ac8_2.Pack16(1);
-                ac8_2.Pack16(0x016F);
-                ac8_2.Pack32((uint)sk.Grade);
-                ac8_2.Pack32((uint)sk.SkillID);
-                player.Send(ac8_2);
-
+                uint clientSkillId = GetClientSkillId(player, sk.SkillID);
                 // 3. AC 5:12 (Skill ID & Grade Update in Skill Book)
-                player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)sk.SkillID, (byte)sk.Grade));
+                player.Send(Tools.FromFormat("bbwb", 5, 12, (ushort)clientSkillId, (byte)sk.Grade));
 
                 // 4. AC 5:11 (Skill Proficiency: 0-10000 -> 0.00% to 100.00%)
                 uint maxExp = (uint)(sk.Grade * 100);
                 ushort prof = (ushort)Math.Min(10000, (sk.Exp * 10000) / Math.Max(1, maxExp));
-                player.Send(Tools.FromFormat("bbdw", 5, 11, (uint)sk.SkillID, prof));
-            }
-
-            // 5. Synchronize Companion Pet Skills
-            if (player.PlayerPets != null)
-            {
-                foreach (var pet in player.PlayerPets.Values)
-                {
-                    if (pet != null && pet.PetID > 0)
-                    {
-                        QuestRelated.QuestManager.SendPetSkills(player, pet.PetID, pet.Slot);
-                    }
-                }
+                player.Send(Tools.FromFormat("bbdw", 5, 11, clientSkillId, prof));
             }
 
             // 6. Finalize Skill Table Load with AC 5:4

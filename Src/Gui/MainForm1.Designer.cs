@@ -308,7 +308,7 @@ namespace Wonderland_Private_Server
             this.cmbBroadcastColor.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cmbBroadcastColor.FormattingEnabled = true;
             this.cmbBroadcastColor.Items.AddRange(new object[] {
-            " Red (GM Announcement)",
+            " Notification box",
             " Yellow (World Chat)",
             " Blue (Guild Chat)",
             " Pink (Whisper)"});

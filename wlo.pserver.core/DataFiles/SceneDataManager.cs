@@ -13,6 +13,19 @@ namespace Game.DataFiles
     {
         private static readonly Dictionary<ushort, string> _mapNames = new Dictionary<ushort, string>();
         private static readonly Dictionary<uint, string> _npcNames = new Dictionary<uint, string>();
+        private static readonly Dictionary<uint, NpcBaseStats> _npcStats = new Dictionary<uint, NpcBaseStats>();
+
+        public sealed class NpcBaseStats
+        {
+            public byte Type { get; internal set; }
+            public ushort MonsterBookIndex { get; internal set; }
+            public ushort Str { get; internal set; }
+            public ushort Con { get; internal set; }
+            public ushort Int { get; internal set; }
+            public ushort Wis { get; internal set; }
+            public ushort Agi { get; internal set; }
+            public ushort[] Skills { get; internal set; }
+        }
         private static bool _initialized = false;
         private static readonly object _lock = new object();
 
@@ -118,6 +131,21 @@ namespace Game.DataFiles
                     uint npcId = (uint)(((rawId ^ 0x5209) - 1) & 0xFFFF);
                     if (npcId == 0) continue;
 
+                    // Packed 138-byte Npc.dat: five encrypted words at 46..55.
+                    // Unlike the legacy 20-character-name struct, this format has
+                    // a 10-character name. Do not use derived ATK/DEF as base stats.
+                    _npcStats[npcId] = new NpcBaseStats
+                    {
+                        Type = (byte)(((bytes[off + 11] ^ 0xC8) - 1) & 0xFF),
+                        MonsterBookIndex = DecodeNpcWord(bytes, off + 90),
+                        Str = DecodeNpcWord(bytes, off + 46),
+                        Con = DecodeNpcWord(bytes, off + 48),
+                        Int = DecodeNpcWord(bytes, off + 50),
+                        Wis = DecodeNpcWord(bytes, off + 52),
+                        Agi = DecodeNpcWord(bytes, off + 54),
+                        Skills = new[] { DecodeNpcWord(bytes, off + 58), DecodeNpcWord(bytes, off + 60), DecodeNpcWord(bytes, off + 62) }
+                    };
+
                     var chars = new List<char>();
                     for (int p = off + 10; p >= off + 1; p--)
                     {
@@ -151,6 +179,18 @@ namespace Game.DataFiles
                 return name;
             }
             return $"Map #{mapId}";
+        }
+
+        private static ushort DecodeNpcWord(byte[] bytes, int offset)
+        {
+            return (ushort)(((BitConverter.ToUInt16(bytes, offset) ^ 0x5209) - 1) & 0xFFFF);
+        }
+
+        public static NpcBaseStats GetNpcBaseStats(uint templateId)
+        {
+            Initialize();
+            _npcStats.TryGetValue(templateId, out NpcBaseStats stats);
+            return stats;
         }
 
         public static IReadOnlyDictionary<uint, string> GetAllNpcNames()

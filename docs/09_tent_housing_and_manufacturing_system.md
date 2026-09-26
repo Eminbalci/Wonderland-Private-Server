@@ -121,4 +121,3 @@ Every player on the server operates a fully isolated, persistent, independent te
 
 ### 6.4 Clean Disconnection & Evacuation
 * **Owner Disconnection:** In [`Player.OnConnectionLost`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Player.cs#L1860-L1880), if an owner disconnects while their tent is pitched, `m_tent.Close()` is immediately invoked, safely warping all inside occupants back to their recorded `TentReturnMap` on the overworld and removing the tent prop from the map.
-

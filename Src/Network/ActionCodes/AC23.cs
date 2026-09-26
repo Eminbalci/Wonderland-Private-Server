@@ -26,10 +26,14 @@ namespace Network.ActionCodes
                 case 11: Recv11(r, p); break;// item selected to wear in inv
                 case 12: Recv12(r, p); break;// item selected to remove
                 case 14: Recv14(r, p); break;// Compound synthesis
+                case 17: RecvPetEquipment(r, p, false); break; // Pet wear
+                case 18: RecvPetEquipment(r, p, true); break; // Pet remove
                 case 15: Recv15(r, p); break;// Quick HP/MP refill / Open tent
                 case 25: Recv25(r, p); break;// Request IM Point Balance
                 case 26: Recv26(r, p); break;// Buy Item from Mall
                 case 54: Recv54(r, p); break;// Request Item Mall Catalog List
+                case 75: RecvPack(r, p); break; // Original pack/egg native double-click
+                case 128: RecvPack(r, p); break; // Later packs native double-click
                 case 77: Recv77(r, p); break;// Request Player Stall / Market Listings
                 case 96: Recv96(r, p); break;// Use item from inventory (double-click/use)
                 case 124: Recv124(r, p); break;// confirm destroy 
@@ -37,14 +41,39 @@ namespace Network.ActionCodes
             }
         }
 
+        void RecvPetEquipment(Player p, RecievePacket r, bool remove)
+        {
+            if (r.Buffer.Length - r.GetPtr() != (remove ? 3 : 2)) return;
+            byte petSlot = r.Unpack8();
+            byte from = r.Unpack8();
+            bool changed = remove
+                ? p.Inv.TryUnequipPet(petSlot, from, r.Unpack8())
+                : p.Inv.TryEquipPet(petSlot, from);
+            if (changed) p.SaveCharacterData();
+        }
+
+        void RecvPack(Player p, RecievePacket r)
+        {
+            // Both native commands carry a UInt16 inventory slot, not an item ID.
+            if (r.Buffer.Length - r.GetPtr() != 2) return;
+            ushort slot = r.Unpack16();
+            if (slot < 1 || slot > 50) return;
+            if (!GachaManager.TryOpen(p, (byte)slot))
+                p.SendHeadBanner("This pack has no configured rewards. Item retained.");
+        }
+
         void Recv96(Player p, RecievePacket r)
         {
             try
             {
+                if (r.Buffer.Length - r.GetPtr() != 1) return;
                 byte slot = r.Unpack8();
                 if (slot < 1 || slot > 50) return;
                 var item = p.Inv[slot];
                 if (item == null || item.ItemID == 0) return;
+
+                if (Game.PetRelated.PetVoucherManager.TryRedeem(p, slot)) return;
+                if (GachaManager.TryOpen(p, slot)) return;
 
                 ushort itemId = item.ItemID;
                 string itemName = !string.IsNullOrEmpty(item.Name) ? item.Name.Trim('\0', ' ') : $"Item #{itemId}";
@@ -58,9 +87,10 @@ namespace Network.ActionCodes
 
                 // 2. Equipable items
                 var itemInfo = cGlobal.ItemDatManager?.GetItemByID(itemId);
-                if (itemInfo != null && itemInfo.Equippos > 0)
+                if (itemInfo != null && itemInfo.Equippos >= 1 && itemInfo.Equippos <= 6)
                 {
                     p.WearEQ(slot);
+                    p.SaveCharacterData();
                     return;
                 }
 
@@ -71,71 +101,8 @@ namespace Network.ActionCodes
                     return;
                 }
 
-                // 4. Pet Vouchers / Summon Cards / Quest Item Vouchers
-                if (itemName.ToLower().Contains("vouche") || itemName.ToLower().Contains("card") || (itemInfo != null && itemInfo.ItemType == 14))
-                {
-                    p.Inv.RemoveItem(slot, 1);
-                    p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Used {itemName}! Pet voucher successfully redeemed."));
-                    DebugSystem.Write($"[AC23.Recv96] {p.CharName} used pet voucher {itemName} (#{itemId}).");
-                    return;
-                }
-
-                // 5. Food / Potions / Healing / Consumable items
-                int hpGain = 0;
-                int spGain = 0;
-                if (itemInfo != null)
-                {
-                    if (itemInfo.StatusType != null && itemInfo.StatusUp != null)
-                    {
-                        for (int i = 0; i < Math.Min(itemInfo.StatusType.Length, itemInfo.StatusUp.Length); i++)
-                        {
-                            if (itemInfo.StatusType[i] == 207) hpGain += itemInfo.StatusUp[i];
-                            else if (itemInfo.StatusType[i] == 208) spGain += itemInfo.StatusUp[i];
-                        }
-                    }
-                }
-
-                // Fallback for standard food / potions if not in ItemDat
-                if (hpGain == 0 && spGain == 0)
-                {
-                    if (itemId >= 28001 && itemId <= 28050) // Fruit / Food
-                    {
-                        hpGain = 60;
-                        spGain = 40;
-                    }
-                    else if (itemId >= 30201 && itemId <= 30210) // Potions
-                    {
-                        hpGain = 150;
-                        spGain = 80;
-                    }
-                    else if (itemId >= 23001 && itemId <= 23060) // Syrups / Candies
-                    {
-                        hpGain = 100;
-                        spGain = 100;
-                    }
-                }
-
-                if (hpGain > 0 || spGain > 0)
-                {
-                    if (p.Eqs != null)
-                    {
-                        p.Eqs.CurHP = Math.Min(p.Eqs.FullHP, p.Eqs.CurHP + hpGain);
-                        p.Eqs.CurSP = Math.Min(p.Eqs.FullSP, p.Eqs.CurSP + spGain);
-                        p.Eqs.Send8_1();
-                    }
-
-                    p.Inv.RemoveItem(slot, 1);
-                    p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Used {itemName}! Recovered {hpGain} HP and {spGain} SP."));
-                    p.SaveCharacterData();
-                    DebugSystem.Write($"[AC23.Recv96] {p.CharName} consumed {itemName} (#{itemId}) at slot {slot}: +{hpGain} HP, +{spGain} SP.");
-                    return;
-                }
-
-                // Generic Consumable fallback
-                p.Inv.RemoveItem(slot, 1);
-                p.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Used {itemName}!"));
-                p.SaveCharacterData();
-                DebugSystem.Write($"[AC23.Recv96] {p.CharName} used generic item {itemName} (#{itemId}) at slot {slot}.");
+                if (!TryUseRecoveryItem(p, slot, 1, 0))
+                    p.SendHeadBanner("Select a suitable target to use this item.");
             }
             catch (Exception t)
             {
@@ -404,110 +371,79 @@ namespace Network.ActionCodes
             catch (Exception t) { DebugSystem.Write(new ExceptionData(t)); }
         }
 
-        /// <summary>
-        /// AC 23:15 - Quick HP/MP Refill Button & Tent (Confirmed via hpmpdoldurmabutonu.pcapng)
-        /// C->S: 17 0f <slot> <count> <target(2B: 0=player, >0=pet)>
-        /// S->C: 17 d0 01 <slot> <remainingAmmt> 00 00 00 (Remaining quantity update)
-        /// S->C: 05 01 <charId> <curHp> (HP/SP visual update)
-        /// S->C: 08 01 ... (Player stat sync) or 08 02 ... (Pet stat sync)
-        /// </summary>
+        // Both native use-item commands share the same quantity and target rules.
+        bool TryUseRecoveryItem(Player p, byte slot, byte requestedCount, ushort target)
+        {
+            if (slot < 1 || slot > 50 || requestedCount == 0 || target > 4) return false;
+            lock (p.Inv.SyncRoot)
+            {
+                var item = p.Inv[slot];
+                if (item.ItemID == 0 || item.Ammt == 0 || item.isLocked) return false;
+                var info = cGlobal.ItemDatManager?.GetItemByID(item.ItemID);
+                if (info == null || (info.Equippos >= 1 && info.Equippos <= 6)) return false;
+                if (info.StatusType != null && info.StatusType.Contains((ushort)64))
+                    return Game.PetRelated.PetAmityManager.TryFeedPet(p, slot, requestedCount, (byte)target);
+                int hpGain = 0, spGain = 0;
+                if (info.StatusType != null && info.StatusUp != null)
+                {
+                    for (int i = 0; i < Math.Min(info.StatusType.Length, info.StatusUp.Length); i++)
+                    {
+                        int recovery = Math.Max(0, info.StatusUp[i] - 100);
+                        if (info.StatusType[i] == 25 || info.StatusType[i] == 207) hpGain += recovery;
+                        else if (info.StatusType[i] == 26 || info.StatusType[i] == 208) spGain += recovery;
+                    }
+                }
+                if (hpGain <= 0 && spGain <= 0) return false;
+                var pet = target == 0 ? null : p.GetClientPet((byte)target);
+                if (target != 0 && pet == null) return false;
+                int hp = pet == null ? p.Eqs.CurHP : pet.HP;
+                int sp = pet == null ? p.Eqs.CurSP : pet.SP;
+                int maxHp = pet == null ? p.Eqs.FullHP : pet.MaxHP;
+                int maxSp = pet == null ? p.Eqs.FullSP : pet.MaxSP;
+                if ((hpGain <= 0 || hp >= maxHp) && (spGain <= 0 || sp >= maxSp)) return false;
+                byte count = (byte)Math.Min(requestedCount, item.Ammt);
+                var consumed = p.Inv.RemoveItem(slot, count);
+                if (consumed == null) return false;
+                hp = (int)Math.Min(maxHp, (long)hp + Math.Max(0, hpGain) * (long)consumed.Ammt);
+                sp = (int)Math.Min(maxSp, (long)sp + Math.Max(0, spGain) * (long)consumed.Ammt);
+                if (pet == null)
+                {
+                    p.Eqs.CurHP = hp;
+                    p.Eqs.CurSP = sp;
+                    p.Eqs.Send8_1();
+                }
+                else
+                {
+                    pet.HP = hp;
+                    pet.SP = sp;
+                    Game.QuestRelated.QuestManager.SendPetProgression(p, pet);
+                }
+                // Native AC23:15 plays sound\wav0152.wav after successful use.
+                p.Send(Tools.FromFormat("bb", 23, 15));
+                p.SaveCharacterData();
+                return true;
+            }
+        }
+
         void Recv15(Player p, RecievePacket r)
         {
             try
             {
-                byte pos = r.Unpack8();
-                byte count = 1;
-                try { count = r.Unpack8(); } catch { count = 1; }
-                if (count == 0) count = 1;
-
-                ushort target = 0;
-                try { target = r.Unpack16(); } catch { target = 0; }
-
-                if (pos < 1 || pos > 50) return;
-                var item = p.Inv[pos];
-                if (item == null || item.ItemID == 0) return;
-
-                // 1. Tent
-                if (item.ItemID == 36002)
+                if (r.Buffer.Length - r.GetPtr() < 4) return;
+                byte slot = r.Unpack8();
+                byte count = r.Unpack8();
+                ushort target = r.Unpack16();
+                if (slot < 1 || slot > 50) return;
+                if (Game.PetRelated.PetVoucherManager.TryRedeem(p, slot, count, target)) return;
+                if (GachaManager.IsGacha(p.Inv[slot].ItemID))
                 {
-                    p.Tent.Open();
+                    if (target == 0 && count == 1) GachaManager.TryOpen(p, slot);
+                    else p.SendHeadBanner("Open one gacha pack at a time on your character.");
                     return;
                 }
-
-                // 2. Quick HP/MP Consumable Recovery
-                int hpGain = 0;
-                int spGain = 0;
-                var itemInfo = cGlobal.ItemDatManager?.GetItemByID(item.ItemID);
-                if (itemInfo != null && itemInfo.StatusType != null && itemInfo.StatusUp != null)
-                {
-                    for (int i = 0; i < Math.Min(itemInfo.StatusType.Length, itemInfo.StatusUp.Length); i++)
-                    {
-                        if (itemInfo.StatusType[i] == 207) hpGain += itemInfo.StatusUp[i];
-                        else if (itemInfo.StatusType[i] == 208) spGain += itemInfo.StatusUp[i];
-                    }
-                }
-                if (hpGain == 0 && spGain == 0)
-                {
-                    if (item.ItemID >= 28001 && item.ItemID <= 28050) { hpGain = 60; spGain = 40; }
-                    else if (item.ItemID >= 30201 && item.ItemID <= 30210) { hpGain = 150; spGain = 80; }
-                    else if (item.ItemID >= 23001 && item.ItemID <= 23060) { hpGain = 100; spGain = 100; }
-                    else { hpGain = 50; spGain = 50; }
-                }
-
-                if (hpGain > 0 || spGain > 0)
-                {
-                    // Check target: 0 = Player, >0 = Pet Slot
-                    if (target == 0)
-                    {
-                        if (p.Eqs != null)
-                        {
-                            p.Eqs.CurHP = Math.Min(p.Eqs.FullHP, p.Eqs.CurHP + hpGain * count);
-                            p.Eqs.CurSP = Math.Min(p.Eqs.FullSP, p.Eqs.CurSP + spGain * count);
-                            p.Eqs.Send8_1();
-                        }
-                        p.Send(Tools.FromFormat("bbdw", 5, 1, p.CharID, (ushort)(p.Eqs != null ? p.Eqs.CurHP : 0)));
-                    }
-                    else if (p.PlayerPets != null)
-                    {
-                        byte petSlot = (byte)target;
-                        Player.PlayerPetData pet = null;
-                        if (p.PlayerPets.TryGetValue(petSlot, out var pPet)) pet = pPet;
-                        else if (petSlot > 0 && p.PlayerPets.TryGetValue((byte)(petSlot - 1), out var pPet0)) pet = pPet0;
-                        else if (p.PlayerPets.Values.Any(x => x.IsBattle)) pet = p.PlayerPets.Values.FirstOrDefault(x => x.IsBattle);
-
-                        if (pet != null)
-                        {
-                            pet.HP = Math.Min(pet.MaxHP, pet.HP + hpGain * count);
-                            pet.SP = Math.Min(pet.MaxSP, pet.SP + spGain * count);
-                            p.Send(Tools.FromFormat("bbbbdd", 8, 2, 25, petSlot, (uint)pet.HP, 0));
-                            p.Send(Tools.FromFormat("bbbbdd", 8, 2, 26, petSlot, (uint)pet.SP, 0));
-                            p.Send(Tools.FromFormat("bbdw", 5, 1, pet.PetID, (ushort)pet.HP));
-                        }
-                    }
-
-                    // Deduct item count or remove
-                    if (item.Ammt > count)
-                    {
-                        item.Ammt -= count;
-                        SendPacket s208 = new SendPacket();
-                        s208.Pack8(23);
-                        s208.Pack8(208);
-                        s208.Pack8(1);
-                        s208.Pack8(pos);
-                        s208.Pack8(item.Ammt);
-                        s208.Pack8(0);
-                        s208.Pack8(0);
-                        s208.Pack8(0);
-                        p.Send(s208);
-                    }
-                    else
-                    {
-                        p.Inv.RemoveItem(pos, item.Ammt);
-                    }
-
-                    p.SaveCharacterData();
-                    DebugSystem.Write($"[AC23.Recv15] Quick refill applied by {p.CharName}: Slot {pos}, Target {target}, +{hpGain * count} HP, +{spGain * count} SP");
-                }
+                if (p.Inv[slot].ItemID == 36002) { p.Tent.Open(); return; }
+                if (!TryUseRecoveryItem(p, slot, count, target))
+                    p.SendHeadBanner("This item cannot benefit the selected target right now.");
             }
             catch (Exception t) { DebugSystem.Write(new ExceptionData(t)); }
         }

@@ -1,0 +1,2534 @@
+[
+  {
+    "item_id": 34171,
+    "name": "Gift Pack",
+    "source_table": "0x4b6f12",
+    "rewards": [
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 1278
+      },
+      {
+        "item_id": 34137,
+        "name": "Pet Lethe Scroll",
+        "quantity": 1,
+        "weight": 1116
+      },
+      {
+        "item_id": 34022,
+        "name": "Tent Palette",
+        "quantity": 1,
+        "weight": 975
+      },
+      {
+        "item_id": 34120,
+        "name": "Silver Amity Jelly",
+        "quantity": 1,
+        "weight": 851
+      },
+      {
+        "item_id": 34167,
+        "name": "Sewing Tools",
+        "quantity": 1,
+        "weight": 743
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 649
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 567
+      },
+      {
+        "item_id": 34121,
+        "name": "Gold Amity Jelly",
+        "quantity": 1,
+        "weight": 495
+      },
+      {
+        "item_id": 34160,
+        "name": "Shape Clay",
+        "quantity": 1,
+        "weight": 432
+      },
+      {
+        "item_id": 34122,
+        "name": "Lethe Scroll",
+        "quantity": 1,
+        "weight": 378
+      },
+      {
+        "item_id": 34141,
+        "name": "Big Magical Egg",
+        "quantity": 1,
+        "weight": 330
+      },
+      {
+        "item_id": 25144,
+        "name": "Solid Waistband",
+        "quantity": 1,
+        "weight": 288
+      },
+      {
+        "item_id": 25033,
+        "name": "Spirit Medal",
+        "quantity": 1,
+        "weight": 251
+      },
+      {
+        "item_id": 25032,
+        "name": "Honor Medal",
+        "quantity": 1,
+        "weight": 220
+      },
+      {
+        "item_id": 25031,
+        "name": "Attack Medal",
+        "quantity": 1,
+        "weight": 192
+      },
+      {
+        "item_id": 25030,
+        "name": "Defence Medal",
+        "quantity": 1,
+        "weight": 168
+      },
+      {
+        "item_id": 25029,
+        "name": "Resistent Necklace",
+        "quantity": 1,
+        "weight": 146
+      },
+      {
+        "item_id": 25027,
+        "name": "Evil Necklace",
+        "quantity": 1,
+        "weight": 128
+      },
+      {
+        "item_id": 25006,
+        "name": "Spirit Ring",
+        "quantity": 1,
+        "weight": 112
+      },
+      {
+        "item_id": 25034,
+        "name": "Holy Medal",
+        "quantity": 1,
+        "weight": 97
+      },
+      {
+        "item_id": 25026,
+        "name": "Demon Necklace",
+        "quantity": 1,
+        "weight": 85
+      },
+      {
+        "item_id": 25019,
+        "name": "Snake Earrings",
+        "quantity": 1,
+        "weight": 74
+      },
+      {
+        "item_id": 25010,
+        "name": "Qing Ring",
+        "quantity": 1,
+        "weight": 65
+      },
+      {
+        "item_id": 25041,
+        "name": "Black Ring",
+        "quantity": 1,
+        "weight": 57
+      },
+      {
+        "item_id": 21093,
+        "name": "White Armor",
+        "quantity": 1,
+        "weight": 49
+      },
+      {
+        "item_id": 24119,
+        "name": "Hero Shoes",
+        "quantity": 1,
+        "weight": 43
+      },
+      {
+        "item_id": 21163,
+        "name": "Sky Clothes",
+        "quantity": 1,
+        "weight": 38
+      },
+      {
+        "item_id": 24142,
+        "name": "Silver Loops",
+        "quantity": 1,
+        "weight": 33
+      },
+      {
+        "item_id": 24168,
+        "name": "Leisure Shoes",
+        "quantity": 1,
+        "weight": 29
+      },
+      {
+        "item_id": 21198,
+        "name": "Sun Robe",
+        "quantity": 1,
+        "weight": 25
+      },
+      {
+        "item_id": 24167,
+        "name": "Long White Boots",
+        "quantity": 1,
+        "weight": 22
+      },
+      {
+        "item_id": 21222,
+        "name": "Soldier's Clothes",
+        "quantity": 1,
+        "weight": 19
+      },
+      {
+        "item_id": 34104,
+        "name": "Repairing Spanner",
+        "quantity": 1,
+        "weight": 17
+      },
+      {
+        "item_id": 34155,
+        "name": "Small Tear Plier",
+        "quantity": 1,
+        "weight": 15
+      },
+      {
+        "item_id": 21238,
+        "name": "Verdant Wing Suit",
+        "quantity": 1,
+        "weight": 13
+      }
+    ]
+  },
+  {
+    "item_id": 34172,
+    "name": "7 Colors Egg",
+    "source_table": "0x4b73a2",
+    "rewards": [
+      {
+        "item_id": 30240,
+        "name": "Sano Voucher",
+        "quantity": 1,
+        "weight": 1696
+      },
+      {
+        "item_id": 30241,
+        "name": "Wuwan Voucher",
+        "quantity": 1,
+        "weight": 1411
+      },
+      {
+        "item_id": 30242,
+        "name": "Hou Yi  Voucher",
+        "quantity": 1,
+        "weight": 1174
+      },
+      {
+        "item_id": 30243,
+        "name": "Yangs' Saga Voucher",
+        "quantity": 1,
+        "weight": 976
+      },
+      {
+        "item_id": 30193,
+        "name": "Tortoise Voucher",
+        "quantity": 1,
+        "weight": 812
+      },
+      {
+        "item_id": 30194,
+        "name": "Crane Voucher",
+        "quantity": 1,
+        "weight": 675
+      },
+      {
+        "item_id": 30195,
+        "name": "Ox Voucher",
+        "quantity": 1,
+        "weight": 562
+      },
+      {
+        "item_id": 30196,
+        "name": "Zebra Voucher",
+        "quantity": 1,
+        "weight": 467
+      },
+      {
+        "item_id": 30197,
+        "name": "Genie Voucher",
+        "quantity": 1,
+        "weight": 389
+      },
+      {
+        "item_id": 30198,
+        "name": "Lion Voucher",
+        "quantity": 1,
+        "weight": 323
+      },
+      {
+        "item_id": 30199,
+        "name": "Snake Girl Voucher",
+        "quantity": 1,
+        "weight": 269
+      },
+      {
+        "item_id": 30200,
+        "name": "Lord Flower Voucher",
+        "quantity": 1,
+        "weight": 224
+      },
+      {
+        "item_id": 30201,
+        "name": "Panax  Elf Voucher",
+        "quantity": 1,
+        "weight": 186
+      },
+      {
+        "item_id": 30202,
+        "name": "Butterfly Voucher",
+        "quantity": 1,
+        "weight": 155
+      },
+      {
+        "item_id": 30203,
+        "name": "Buffalo Voucher",
+        "quantity": 1,
+        "weight": 129
+      },
+      {
+        "item_id": 30204,
+        "name": "Harley Voucher",
+        "quantity": 1,
+        "weight": 107
+      },
+      {
+        "item_id": 30232,
+        "name": "Globefish Voucher",
+        "quantity": 1,
+        "weight": 89
+      },
+      {
+        "item_id": 30233,
+        "name": "Camel Voucher",
+        "quantity": 1,
+        "weight": 74
+      },
+      {
+        "item_id": 30234,
+        "name": "Pterosaur Voucher",
+        "quantity": 1,
+        "weight": 62
+      },
+      {
+        "item_id": 30235,
+        "name": "Octopus Card",
+        "quantity": 1,
+        "weight": 51
+      },
+      {
+        "item_id": 30236,
+        "name": "Sea Lion Voucher",
+        "quantity": 1,
+        "weight": 43
+      },
+      {
+        "item_id": 30237,
+        "name": "Skeleton Card",
+        "quantity": 1,
+        "weight": 35
+      },
+      {
+        "item_id": 30244,
+        "name": "Water Monster Card",
+        "quantity": 1,
+        "weight": 29
+      },
+      {
+        "item_id": 30238,
+        "name": "Gold Griffin Voucher",
+        "quantity": 1,
+        "weight": 25
+      },
+      {
+        "item_id": 30239,
+        "name": "Unicorn Card",
+        "quantity": 1,
+        "weight": 20
+      },
+      {
+        "item_id": 30296,
+        "name": "Holy Pegasus Voucher",
+        "quantity": 1,
+        "weight": 17
+      }
+    ]
+  },
+  {
+    "item_id": 34174,
+    "name": "EXP Pack",
+    "source_table": "0x4b7032",
+    "rewards": [
+      {
+        "item_id": 34108,
+        "name": "2X EXP Potion",
+        "quantity": 1,
+        "weight": 2275
+      },
+      {
+        "item_id": 34109,
+        "name": "2.5X EXP Potion",
+        "quantity": 1,
+        "weight": 1761
+      },
+      {
+        "item_id": 34110,
+        "name": "3X EXP Potion",
+        "quantity": 1,
+        "weight": 1364
+      },
+      {
+        "item_id": 34111,
+        "name": "3.5X EXP Potion",
+        "quantity": 1,
+        "weight": 1056
+      },
+      {
+        "item_id": 34112,
+        "name": "4X EXP Potion",
+        "quantity": 1,
+        "weight": 818
+      },
+      {
+        "item_id": 34113,
+        "name": "4.5X EXP Potion",
+        "quantity": 1,
+        "weight": 633
+      },
+      {
+        "item_id": 34114,
+        "name": "5X EXP Potion",
+        "quantity": 1,
+        "weight": 490
+      },
+      {
+        "item_id": 34115,
+        "name": "5.5X EXP Potion",
+        "quantity": 1,
+        "weight": 379
+      },
+      {
+        "item_id": 34116,
+        "name": "6X EXP Potion",
+        "quantity": 1,
+        "weight": 294
+      },
+      {
+        "item_id": 34123,
+        "name": "8X EXP Potion",
+        "quantity": 1,
+        "weight": 228
+      },
+      {
+        "item_id": 34173,
+        "name": "10X EXP Potion",
+        "quantity": 1,
+        "weight": 176
+      },
+      {
+        "item_id": 34101,
+        "name": "2X EXP Gold Card",
+        "quantity": 1,
+        "weight": 136
+      },
+      {
+        "item_id": 34101,
+        "name": "2X EXP Gold Card",
+        "quantity": 2,
+        "weight": 106
+      },
+      {
+        "item_id": 34101,
+        "name": "2X EXP Gold Card",
+        "quantity": 3,
+        "weight": 82
+      },
+      {
+        "item_id": 34101,
+        "name": "2X EXP Gold Card",
+        "quantity": 4,
+        "weight": 63
+      },
+      {
+        "item_id": 34101,
+        "name": "2X EXP Gold Card",
+        "quantity": 5,
+        "weight": 49
+      },
+      {
+        "item_id": 34136,
+        "name": "1% EXP Capsule",
+        "quantity": 1,
+        "weight": 38
+      },
+      {
+        "item_id": 34145,
+        "name": "2% EXP Capsule",
+        "quantity": 1,
+        "weight": 29
+      },
+      {
+        "item_id": 34086,
+        "name": "3% EXP Capsule",
+        "quantity": 1,
+        "weight": 23
+      }
+    ]
+  },
+  {
+    "item_id": 34192,
+    "name": "War Pack",
+    "source_table": "0x4b7172",
+    "rewards": [
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 2663
+      },
+      {
+        "item_id": 33054,
+        "name": "Lollipop",
+        "quantity": 1,
+        "weight": 1959
+      },
+      {
+        "item_id": 33052,
+        "name": "System Grenade",
+        "quantity": 1,
+        "weight": 1441
+      },
+      {
+        "item_id": 33055,
+        "name": "Big Bowling",
+        "quantity": 1,
+        "weight": 1060
+      },
+      {
+        "item_id": 33053,
+        "name": "Korean Cake",
+        "quantity": 1,
+        "weight": 780
+      },
+      {
+        "item_id": 34121,
+        "name": "Gold Amity Jelly",
+        "quantity": 1,
+        "weight": 574
+      },
+      {
+        "item_id": 33030,
+        "name": "Hot Potato",
+        "quantity": 1,
+        "weight": 422
+      },
+      {
+        "item_id": 33029,
+        "name": "Hot Rice Cake",
+        "quantity": 1,
+        "weight": 311
+      },
+      {
+        "item_id": 34163,
+        "name": "Teleport Scroll",
+        "quantity": 1,
+        "weight": 228
+      },
+      {
+        "item_id": 25228,
+        "name": "Steel Hammer 200T",
+        "quantity": 1,
+        "weight": 168
+      },
+      {
+        "item_id": 34104,
+        "name": "Repairing Spanner",
+        "quantity": 1,
+        "weight": 124
+      },
+      {
+        "item_id": 34155,
+        "name": "Small Tear Plier",
+        "quantity": 1,
+        "weight": 91
+      },
+      {
+        "item_id": 24175,
+        "name": "Wild Boots",
+        "quantity": 1,
+        "weight": 67
+      },
+      {
+        "item_id": 25194,
+        "name": "Fixed Stick",
+        "quantity": 1,
+        "weight": 49
+      },
+      {
+        "item_id": 34152,
+        "name": "Tear Plier",
+        "quantity": 1,
+        "weight": 36
+      },
+      {
+        "item_id": 34165,
+        "name": "Win Plate ",
+        "quantity": 1,
+        "weight": 27
+      }
+    ]
+  },
+  {
+    "item_id": 34193,
+    "name": "Water Pack",
+    "source_table": "0x4b70d2",
+    "rewards": [
+      {
+        "item_id": 34146,
+        "name": "2 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 2275
+      },
+      {
+        "item_id": 34147,
+        "name": "2.5 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 1761
+      },
+      {
+        "item_id": 34131,
+        "name": "3 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 1364
+      },
+      {
+        "item_id": 34185,
+        "name": "3.5X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 1056
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 818
+      },
+      {
+        "item_id": 34186,
+        "name": "4.5X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 633
+      },
+      {
+        "item_id": 34144,
+        "name": "5 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 490
+      },
+      {
+        "item_id": 34187,
+        "name": "5.5X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 379
+      },
+      {
+        "item_id": 34188,
+        "name": "6X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 294
+      },
+      {
+        "item_id": 34189,
+        "name": "8X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 228
+      },
+      {
+        "item_id": 34190,
+        "name": "10X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 176
+      },
+      {
+        "item_id": 34191,
+        "name": "2X EXP Gold Statue",
+        "quantity": 1,
+        "weight": 136
+      },
+      {
+        "item_id": 34191,
+        "name": "2X EXP Gold Statue",
+        "quantity": 2,
+        "weight": 106
+      },
+      {
+        "item_id": 34191,
+        "name": "2X EXP Gold Statue",
+        "quantity": 3,
+        "weight": 82
+      },
+      {
+        "item_id": 34191,
+        "name": "2X EXP Gold Statue",
+        "quantity": 4,
+        "weight": 63
+      },
+      {
+        "item_id": 34191,
+        "name": "2X EXP Gold Statue",
+        "quantity": 5,
+        "weight": 49
+      },
+      {
+        "item_id": 34136,
+        "name": "1% EXP Capsule",
+        "quantity": 1,
+        "weight": 38
+      },
+      {
+        "item_id": 34145,
+        "name": "2% EXP Capsule",
+        "quantity": 1,
+        "weight": 29
+      },
+      {
+        "item_id": 34086,
+        "name": "3% EXP Capsule",
+        "quantity": 1,
+        "weight": 23
+      }
+    ]
+  },
+  {
+    "item_id": 34199,
+    "name": "Strengthen Pack",
+    "source_table": "0x4b71fa",
+    "rewards": [
+      {
+        "item_id": 27000,
+        "name": "Banana Boat",
+        "quantity": 1,
+        "weight": 1761
+      },
+      {
+        "item_id": 27007,
+        "name": "Beast Pill",
+        "quantity": 1,
+        "weight": 1453
+      },
+      {
+        "item_id": 27005,
+        "name": "Energy Pill",
+        "quantity": 1,
+        "weight": 1199
+      },
+      {
+        "item_id": 27008,
+        "name": "Fairy Honey",
+        "quantity": 1,
+        "weight": 990
+      },
+      {
+        "item_id": 27001,
+        "name": "Orchid Candy",
+        "quantity": 1,
+        "weight": 817
+      },
+      {
+        "item_id": 27002,
+        "name": "Great Syrup",
+        "quantity": 1,
+        "weight": 675
+      },
+      {
+        "item_id": 27004,
+        "name": "Pirate's Wine",
+        "quantity": 1,
+        "weight": 557
+      },
+      {
+        "item_id": 27017,
+        "name": "Mellow Wine ",
+        "quantity": 1,
+        "weight": 460
+      },
+      {
+        "item_id": 27006,
+        "name": "Elin's Oil",
+        "quantity": 1,
+        "weight": 379
+      },
+      {
+        "item_id": 27003,
+        "name": "Roca Perfume",
+        "quantity": 1,
+        "weight": 313
+      },
+      {
+        "item_id": 27009,
+        "name": "Fairy Bean",
+        "quantity": 1,
+        "weight": 258
+      },
+      {
+        "item_id": 27019,
+        "name": "Blessing Strawberry",
+        "quantity": 1,
+        "weight": 213
+      },
+      {
+        "item_id": 27010,
+        "name": "Demon Fruit",
+        "quantity": 1,
+        "weight": 176
+      },
+      {
+        "item_id": 27011,
+        "name": "Cotton Candy",
+        "quantity": 1,
+        "weight": 145
+      },
+      {
+        "item_id": 27018,
+        "name": "Braised Tilapia",
+        "quantity": 1,
+        "weight": 120
+      },
+      {
+        "item_id": 27012,
+        "name": "Wolf Deity Bean",
+        "quantity": 1,
+        "weight": 99
+      },
+      {
+        "item_id": 27013,
+        "name": "Delicate Riceball",
+        "quantity": 1,
+        "weight": 82
+      },
+      {
+        "item_id": 27014,
+        "name": "Great Soup",
+        "quantity": 1,
+        "weight": 67
+      },
+      {
+        "item_id": 27015,
+        "name": "Angel's Feather",
+        "quantity": 1,
+        "weight": 56
+      },
+      {
+        "item_id": 27016,
+        "name": "Magic Bean",
+        "quantity": 1,
+        "weight": 46
+      },
+      {
+        "item_id": 27025,
+        "name": "Ice Snowflake",
+        "quantity": 1,
+        "weight": 38
+      },
+      {
+        "item_id": 27020,
+        "name": "Passion Water",
+        "quantity": 1,
+        "weight": 31
+      },
+      {
+        "item_id": 27021,
+        "name": "Wisdom Water",
+        "quantity": 1,
+        "weight": 26
+      },
+      {
+        "item_id": 27022,
+        "name": "Black Tea",
+        "quantity": 1,
+        "weight": 21
+      },
+      {
+        "item_id": 34139,
+        "name": "Pet Return Scroll",
+        "quantity": 3,
+        "weight": 18
+      }
+    ]
+  },
+  {
+    "item_id": 34201,
+    "name": "Transferred Pack",
+    "source_table": "0x4b72ca",
+    "rewards": [
+      {
+        "item_id": 34219,
+        "name": "Jelly Riceball",
+        "quantity": 1,
+        "weight": 1696
+      },
+      {
+        "item_id": 34204,
+        "name": "Chicken Riceball",
+        "quantity": 1,
+        "weight": 1411
+      },
+      {
+        "item_id": 34211,
+        "name": "Shibainu Riceball",
+        "quantity": 1,
+        "weight": 1174
+      },
+      {
+        "item_id": 34215,
+        "name": "Monkey Riceball",
+        "quantity": 1,
+        "weight": 976
+      },
+      {
+        "item_id": 34205,
+        "name": "Troll Riceball",
+        "quantity": 1,
+        "weight": 812
+      },
+      {
+        "item_id": 34210,
+        "name": "Moai Riceball",
+        "quantity": 1,
+        "weight": 675
+      },
+      {
+        "item_id": 34203,
+        "name": "Spirit Riceball",
+        "quantity": 1,
+        "weight": 562
+      },
+      {
+        "item_id": 34202,
+        "name": "Holyspirit Riceball",
+        "quantity": 1,
+        "weight": 467
+      },
+      {
+        "item_id": 34206,
+        "name": "Mummy Riceball",
+        "quantity": 1,
+        "weight": 389
+      },
+      {
+        "item_id": 34216,
+        "name": "River Boy Riceball",
+        "quantity": 1,
+        "weight": 323
+      },
+      {
+        "item_id": 34213,
+        "name": "Mars Riceball",
+        "quantity": 1,
+        "weight": 269
+      },
+      {
+        "item_id": 34218,
+        "name": "Butterfly Riceball",
+        "quantity": 1,
+        "weight": 224
+      },
+      {
+        "item_id": 34224,
+        "name": "Sea Lion Riceball",
+        "quantity": 1,
+        "weight": 186
+      },
+      {
+        "item_id": 34217,
+        "name": "Pumpkin Riceball",
+        "quantity": 1,
+        "weight": 155
+      },
+      {
+        "item_id": 34226,
+        "name": "Ninja Riceball",
+        "quantity": 1,
+        "weight": 129
+      },
+      {
+        "item_id": 34212,
+        "name": "Greendragon Riceball",
+        "quantity": 1,
+        "weight": 107
+      },
+      {
+        "item_id": 34220,
+        "name": "Ginseng Riceball",
+        "quantity": 1,
+        "weight": 89
+      },
+      {
+        "item_id": 34209,
+        "name": "Mahabrah Riceball",
+        "quantity": 1,
+        "weight": 74
+      },
+      {
+        "item_id": 34227,
+        "name": "Robinson Riceball",
+        "quantity": 1,
+        "weight": 62
+      },
+      {
+        "item_id": 34225,
+        "name": "Dracula Riceball",
+        "quantity": 1,
+        "weight": 51
+      },
+      {
+        "item_id": 34214,
+        "name": "Niss Riceball",
+        "quantity": 1,
+        "weight": 43
+      },
+      {
+        "item_id": 34208,
+        "name": "Roca Riceball",
+        "quantity": 1,
+        "weight": 35
+      },
+      {
+        "item_id": 34223,
+        "name": "Charlotte Riceball",
+        "quantity": 1,
+        "weight": 29
+      },
+      {
+        "item_id": 34221,
+        "name": "Eva Riceball",
+        "quantity": 1,
+        "weight": 25
+      },
+      {
+        "item_id": 34207,
+        "name": "Fred Riceball",
+        "quantity": 1,
+        "weight": 20
+      },
+      {
+        "item_id": 34222,
+        "name": "Angela  Riceball",
+        "quantity": 1,
+        "weight": 17
+      }
+    ]
+  },
+  {
+    "item_id": 34229,
+    "name": "Gear Pack",
+    "source_table": "0x4b747a",
+    "rewards": [
+      {
+        "item_id": 22232,
+        "name": "Arez's Armor ",
+        "quantity": 1,
+        "weight": 2073
+      },
+      {
+        "item_id": 22231,
+        "name": "Traveller's Hat",
+        "quantity": 1,
+        "weight": 1647
+      },
+      {
+        "item_id": 22234,
+        "name": "Pirate's Eye Patch",
+        "quantity": 1,
+        "weight": 1308
+      },
+      {
+        "item_id": 22230,
+        "name": "Banana Peel Helmet",
+        "quantity": 1,
+        "weight": 1039
+      },
+      {
+        "item_id": 23164,
+        "name": "Emerald Armlet",
+        "quantity": 1,
+        "weight": 825
+      },
+      {
+        "item_id": 22233,
+        "name": "Thunder Hairpin",
+        "quantity": 1,
+        "weight": 656
+      },
+      {
+        "item_id": 22235,
+        "name": "Deity Headscarf",
+        "quantity": 1,
+        "weight": 521
+      },
+      {
+        "item_id": 24179,
+        "name": "Cowboy Boots",
+        "quantity": 1,
+        "weight": 414
+      },
+      {
+        "item_id": 23165,
+        "name": "Plasma Machine",
+        "quantity": 1,
+        "weight": 329
+      },
+      {
+        "item_id": 23166,
+        "name": "Demon Bell",
+        "quantity": 1,
+        "weight": 261
+      },
+      {
+        "item_id": 22236,
+        "name": "Fairy Crest",
+        "quantity": 1,
+        "weight": 207
+      },
+      {
+        "item_id": 21233,
+        "name": "Qlaya's Shawl",
+        "quantity": 1,
+        "weight": 165
+      },
+      {
+        "item_id": 21234,
+        "name": "Kanako's Jaket",
+        "quantity": 1,
+        "weight": 131
+      },
+      {
+        "item_id": 23167,
+        "name": "Mayan Gloves",
+        "quantity": 1,
+        "weight": 104
+      },
+      {
+        "item_id": 21235,
+        "name": "Red Bellyband",
+        "quantity": 1,
+        "weight": 82
+      },
+      {
+        "item_id": 24180,
+        "name": "Strong Beast Boots",
+        "quantity": 1,
+        "weight": 65
+      },
+      {
+        "item_id": 24181,
+        "name": "Angel Rope Boots",
+        "quantity": 1,
+        "weight": 52
+      },
+      {
+        "item_id": 24182,
+        "name": "Thunder Boots",
+        "quantity": 1,
+        "weight": 41
+      },
+      {
+        "item_id": 25637,
+        "name": "Aurora Necklace",
+        "quantity": 1,
+        "weight": 33
+      },
+      {
+        "item_id": 22512,
+        "name": "Magic War Helmet",
+        "quantity": 1,
+        "weight": 26
+      },
+      {
+        "item_id": 22513,
+        "name": "Magic Love Helmet",
+        "quantity": 1,
+        "weight": 21
+      }
+    ]
+  },
+  {
+    "item_id": 34248,
+    "name": "Scroll Pack",
+    "source_table": "0x4b752a",
+    "rewards": [
+      {
+        "item_id": 34137,
+        "name": "Pet Lethe Scroll",
+        "quantity": 1,
+        "weight": 3443
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 2265
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 1491
+      },
+      {
+        "item_id": 34122,
+        "name": "Lethe Scroll",
+        "quantity": 1,
+        "weight": 981
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 645
+      },
+      {
+        "item_id": 34163,
+        "name": "Teleport Scroll",
+        "quantity": 1,
+        "weight": 425
+      },
+      {
+        "item_id": 34247,
+        "name": "Small Demon Scroll",
+        "quantity": 1,
+        "weight": 279
+      },
+      {
+        "item_id": 34246,
+        "name": "Principality Scroll",
+        "quantity": 1,
+        "weight": 184
+      },
+      {
+        "item_id": 34245,
+        "name": "Virtues Scroll",
+        "quantity": 1,
+        "weight": 121
+      },
+      {
+        "item_id": 34244,
+        "name": "Ofanim Scroll",
+        "quantity": 1,
+        "weight": 80
+      },
+      {
+        "item_id": 34243,
+        "name": "Cherubim Scroll",
+        "quantity": 1,
+        "weight": 52
+      },
+      {
+        "item_id": 34238,
+        "name": "Seraph Scroll",
+        "quantity": 1,
+        "weight": 34
+      }
+    ]
+  },
+  {
+    "item_id": 34296,
+    "name": "Bless Pack",
+    "source_table": "0x4b7592",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 2391
+      },
+      {
+        "item_id": 30371,
+        "name": "Purple Chest Key",
+        "quantity": 1,
+        "weight": 1824
+      },
+      {
+        "item_id": 32163,
+        "name": "Fruit Cake ",
+        "quantity": 50,
+        "weight": 1391
+      },
+      {
+        "item_id": 32164,
+        "name": "Neapolitan Sundaes",
+        "quantity": 50,
+        "weight": 1061
+      },
+      {
+        "item_id": 32173,
+        "name": "Pork Bone Noodle",
+        "quantity": 10,
+        "weight": 809
+      },
+      {
+        "item_id": 32174,
+        "name": "Pork Miso Noodle",
+        "quantity": 5,
+        "weight": 617
+      },
+      {
+        "item_id": 34108,
+        "name": "2X EXP Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 33031,
+        "name": "Phoenix Blood",
+        "quantity": 2,
+        "weight": 359
+      },
+      {
+        "item_id": 33019,
+        "name": "Recovery Potion",
+        "quantity": 3,
+        "weight": 274
+      },
+      {
+        "item_id": 34335,
+        "name": "HP Bottle",
+        "quantity": 1,
+        "weight": 209
+      },
+      {
+        "item_id": 34336,
+        "name": "SP  Bottle",
+        "quantity": 1,
+        "weight": 159
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 121
+      },
+      {
+        "item_id": 34167,
+        "name": "Sewing Tools",
+        "quantity": 1,
+        "weight": 93
+      },
+      {
+        "item_id": 34170,
+        "name": "Weapon Model",
+        "quantity": 1,
+        "weight": 71
+      },
+      {
+        "item_id": 34122,
+        "name": "Lethe Scroll",
+        "quantity": 1,
+        "weight": 54
+      },
+      {
+        "item_id": 34137,
+        "name": "Pet Lethe Scroll",
+        "quantity": 1,
+        "weight": 41
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 1,
+        "weight": 31
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 24
+      }
+    ]
+  },
+  {
+    "item_id": 34297,
+    "name": "Ghost War Horse Pack",
+    "source_table": "0x4b762a",
+    "rewards": [
+      {
+        "item_id": 34337,
+        "name": "Good HP Bottle",
+        "quantity": 1,
+        "weight": 3443
+      },
+      {
+        "item_id": 34340,
+        "name": "Super SP Bottle",
+        "quantity": 1,
+        "weight": 2265
+      },
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 1491
+      },
+      {
+        "item_id": 34270,
+        "name": "Space Capsule",
+        "quantity": 1,
+        "weight": 981
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 645
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 425
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 279
+      },
+      {
+        "item_id": 34163,
+        "name": "Teleport Scroll",
+        "quantity": 1,
+        "weight": 184
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 1,
+        "weight": 121
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 80
+      },
+      {
+        "item_id": 34238,
+        "name": "Seraph Scroll",
+        "quantity": 1,
+        "weight": 52
+      },
+      {
+        "item_id": 30350,
+        "name": "Ghost Horse Ticket",
+        "quantity": 1,
+        "weight": 34
+      }
+    ]
+  },
+  {
+    "item_id": 34346,
+    "name": "Naughty Dolphin Pack",
+    "source_table": "0x4b7b2e",
+    "rewards": [
+      {
+        "item_id": 34337,
+        "name": "Good HP Bottle",
+        "quantity": 1,
+        "weight": 3443
+      },
+      {
+        "item_id": 34338,
+        "name": "Good SP Bottle",
+        "quantity": 1,
+        "weight": 2265
+      },
+      {
+        "item_id": 34022,
+        "name": "Tent Palette",
+        "quantity": 1,
+        "weight": 1491
+      },
+      {
+        "item_id": 34270,
+        "name": "Space Capsule",
+        "quantity": 1,
+        "weight": 981
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 645
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 425
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 279
+      },
+      {
+        "item_id": 34163,
+        "name": "Teleport Scroll",
+        "quantity": 1,
+        "weight": 184
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 121
+      },
+      {
+        "item_id": 34238,
+        "name": "Seraph Scroll",
+        "quantity": 1,
+        "weight": 80
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 1,
+        "weight": 52
+      },
+      {
+        "item_id": 30370,
+        "name": "Naughty Dolphin Card",
+        "quantity": 1,
+        "weight": 34
+      }
+    ]
+  },
+  {
+    "item_id": 34349,
+    "name": "Fortune Pack",
+    "source_table": "0x4b7b96",
+    "rewards": [
+      {
+        "item_id": 35114,
+        "name": "HP Restore Set II",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 35115,
+        "name": "SP Restore Set II",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 34022,
+        "name": "Tent Palette",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 34101,
+        "name": "2X EXP Gold Card",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 34137,
+        "name": "Pet Lethe Scroll",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 5,
+        "weight": 219
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 5,
+        "weight": 149
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 3,
+        "weight": 102
+      },
+      {
+        "item_id": 34238,
+        "name": "Seraph Scroll",
+        "quantity": 3,
+        "weight": 69
+      },
+      {
+        "item_id": 34086,
+        "name": "3% EXP Capsule",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 34165,
+        "name": "Win Plate ",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34365,
+    "name": "Potential Pack",
+    "source_table": "0x4b7c06",
+    "rewards": [
+      {
+        "item_id": 35114,
+        "name": "HP Restore Set II",
+        "quantity": 1,
+        "weight": 3443
+      },
+      {
+        "item_id": 35115,
+        "name": "SP Restore Set II",
+        "quantity": 1,
+        "weight": 2265
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 1491
+      },
+      {
+        "item_id": 34167,
+        "name": "Sewing Tools",
+        "quantity": 1,
+        "weight": 981
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 645
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 1,
+        "weight": 425
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 2,
+        "weight": 279
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 4,
+        "weight": 184
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 6,
+        "weight": 121
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 8,
+        "weight": 80
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 10,
+        "weight": 52
+      },
+      {
+        "item_id": 34350,
+        "name": "Super Potential Pill",
+        "quantity": 2,
+        "weight": 34
+      }
+    ]
+  },
+  {
+    "item_id": 34366,
+    "name": "Chaos Pack",
+    "source_table": "0x4b7c6e",
+    "rewards": [
+      {
+        "item_id": 35114,
+        "name": "HP Restore Set II",
+        "quantity": 1,
+        "weight": 3443
+      },
+      {
+        "item_id": 35115,
+        "name": "SP Restore Set II",
+        "quantity": 1,
+        "weight": 2265
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 1491
+      },
+      {
+        "item_id": 34170,
+        "name": "Weapon Model",
+        "quantity": 1,
+        "weight": 981
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 645
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 1,
+        "weight": 425
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 2,
+        "weight": 279
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 4,
+        "weight": 184
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 6,
+        "weight": 121
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 8,
+        "weight": 80
+      },
+      {
+        "item_id": 61062,
+        "name": "Chaos Crystal",
+        "quantity": 10,
+        "weight": 52
+      },
+      {
+        "item_id": 61080,
+        "name": "Pure Chaos Crystal",
+        "quantity": 2,
+        "weight": 34
+      }
+    ]
+  },
+  {
+    "item_id": 34367,
+    "name": "Naughty Monkey Pack",
+    "source_table": "0x4b7cd6",
+    "rewards": [
+      {
+        "item_id": 34337,
+        "name": "Good HP Bottle",
+        "quantity": 1,
+        "weight": 3443
+      },
+      {
+        "item_id": 34338,
+        "name": "Good SP Bottle",
+        "quantity": 1,
+        "weight": 2265
+      },
+      {
+        "item_id": 34022,
+        "name": "Tent Palette",
+        "quantity": 1,
+        "weight": 1491
+      },
+      {
+        "item_id": 33054,
+        "name": "Lollipop",
+        "quantity": 1,
+        "weight": 981
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 645
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 425
+      },
+      {
+        "item_id": 34133,
+        "name": "Space Contract",
+        "quantity": 1,
+        "weight": 279
+      },
+      {
+        "item_id": 34163,
+        "name": "Teleport Scroll",
+        "quantity": 1,
+        "weight": 184
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 121
+      },
+      {
+        "item_id": 34351,
+        "name": "Anti-Potential Pill",
+        "quantity": 1,
+        "weight": 80
+      },
+      {
+        "item_id": 34238,
+        "name": "Seraph Scroll",
+        "quantity": 1,
+        "weight": 52
+      },
+      {
+        "item_id": 30382,
+        "name": "Naughty Monkey Card",
+        "quantity": 1,
+        "weight": 34
+      }
+    ]
+  },
+  {
+    "item_id": 34381,
+    "name": "Test",
+    "source_table": "0x4b7d3e",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 25218,
+        "name": "Monster Net",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34102,
+        "name": "4 Leaves Grass",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 34185,
+        "name": "3.5X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34122,
+        "name": "Lethe Scroll",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 24210,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 24211,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 22517,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 22518,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 21303,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 21304,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50003,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34382,
+    "name": "Test",
+    "source_table": "0x4b7dae",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 30371,
+        "name": "Purple Chest Key",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34102,
+        "name": "4 Leaves Grass",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 34185,
+        "name": "3.5X Holy EXP Potion",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 24212,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 24213,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 22519,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 22520,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 21305,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 21306,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50004,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34383,
+    "name": "Test",
+    "source_table": "0x4b7e1e",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 34022,
+        "name": "Tent Palette",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 34166,
+        "name": "Delay Clock",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34102,
+        "name": "4 Leaves Grass",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 33054,
+        "name": "Lollipop",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 24214,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 24215,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 22521,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 22522,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 21307,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 21308,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50005,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34384,
+    "name": "Test",
+    "source_table": "0x4b7e8e",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 30371,
+        "name": "Purple Chest Key",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 34166,
+        "name": "Delay Clock",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34167,
+        "name": "Sewing Tools",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 33053,
+        "name": "Korean Cake",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 24216,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 24217,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 22523,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 22524,
+        "name": "General East",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 21309,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 21310,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50006,
+        "name": "Test",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34385,
+    "name": "Nostalgic Love Pack",
+    "source_table": "0x4b7efe",
+    "rewards": [
+      {
+        "item_id": 35114,
+        "name": "HP Restore Set II",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 35115,
+        "name": "SP Restore Set II",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 33053,
+        "name": "Korean Cake",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34170,
+        "name": "Weapon Model",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 33031,
+        "name": "Phoenix Blood",
+        "quantity": 3,
+        "weight": 691
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 24202,
+        "name": "Valentine Shoes",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 24203,
+        "name": "Valentine Shoes",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 22259,
+        "name": "White Day Veil ",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 22260,
+        "name": "White Day Hat",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 21262,
+        "name": "M-White Day Suit",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 21263,
+        "name": "F-White Day Suit",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50007,
+        "name": "Nostalgic Love Card",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34386,
+    "name": "Nostalgic Wing Pack",
+    "source_table": "0x4b7f6e",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 30371,
+        "name": "Purple Chest Key",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 34164,
+        "name": "Escape Button",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 34166,
+        "name": "Delay Clock",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 33054,
+        "name": "Lollipop",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 34181,
+        "name": "Training Voucher",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 34122,
+        "name": "Lethe Scroll",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 34351,
+        "name": "Anti-Potential Pill",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 61079,
+        "name": "Shadow Chaos Crystal",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50008,
+        "name": "Nostalgic Wing Card",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34387,
+    "name": "Nostalgic Cat Pack",
+    "source_table": "0x4b7fde",
+    "rewards": [
+      {
+        "item_id": 34169,
+        "name": "Bamboo Dragonfly",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 30371,
+        "name": "Purple Chest Key",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 33053,
+        "name": "Korean Cake",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 25196,
+        "name": "VIP Card",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 34167,
+        "name": "Sewing Tools",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 34377,
+        "name": "EXP Bag",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 34105,
+        "name": "Repairing Potion",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 34137,
+        "name": "Pet Lethe Scroll",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 33052,
+        "name": "System Grenade",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 34238,
+        "name": "Seraph Scroll",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50009,
+        "name": "Nostalgic Cat Card",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  },
+  {
+    "item_id": 34388,
+    "name": "Nostalgic Bunny Pack",
+    "source_table": "0x4b804e",
+    "rewards": [
+      {
+        "item_id": 35114,
+        "name": "HP Restore Set II",
+        "quantity": 1,
+        "weight": 3209
+      },
+      {
+        "item_id": 35115,
+        "name": "SP Restore Set II",
+        "quantity": 1,
+        "weight": 2186
+      },
+      {
+        "item_id": 25604,
+        "name": "Fast Jet",
+        "quantity": 1,
+        "weight": 1489
+      },
+      {
+        "item_id": 33054,
+        "name": "Lollipop",
+        "quantity": 1,
+        "weight": 1015
+      },
+      {
+        "item_id": 34170,
+        "name": "Weapon Model",
+        "quantity": 1,
+        "weight": 691
+      },
+      {
+        "item_id": 34143,
+        "name": "4 Holy EXP Potion",
+        "quantity": 1,
+        "weight": 471
+      },
+      {
+        "item_id": 34377,
+        "name": "EXP Bag",
+        "quantity": 1,
+        "weight": 321
+      },
+      {
+        "item_id": 34168,
+        "name": "Time Mantle",
+        "quantity": 1,
+        "weight": 219
+      },
+      {
+        "item_id": 30101,
+        "name": "Strong Scroll",
+        "quantity": 1,
+        "weight": 149
+      },
+      {
+        "item_id": 33055,
+        "name": "Big Bowling",
+        "quantity": 1,
+        "weight": 102
+      },
+      {
+        "item_id": 34269,
+        "name": "Potential Pill",
+        "quantity": 1,
+        "weight": 69
+      },
+      {
+        "item_id": 61079,
+        "name": "Shadow Chaos Crystal",
+        "quantity": 1,
+        "weight": 47
+      },
+      {
+        "item_id": 50010,
+        "name": "Nostalgic Bunny Card",
+        "quantity": 1,
+        "weight": 32
+      }
+    ]
+  }
+]

@@ -26,7 +26,8 @@ namespace Network.ActionCodes
             {
                 byte petSlot = p.Buffer.Length >= 7 ? p.Unpack8() : (byte)0;
 
-                if (!c.PlayerPets.TryGetValue(petSlot, out var pet) || pet == null || pet.PetID == 0)
+                var pet = c.GetClientPet(petSlot);
+                if (pet == null || pet.PetID == 0)
                 {
                     SendPacket err = new SendPacket();
                     err.Pack8((byte)ID);
@@ -79,9 +80,9 @@ namespace Network.ActionCodes
                 c.Send(resp);
 
                 // Refresh pet on client
-                SendPacket petPkt = Game.QuestRelated.QuestManager.CreatePetPacket(c, pet.PetID, pet.Slot, pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level, pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job);
-                c.Send(petPkt);
-                Game.QuestRelated.QuestManager.SendPetSkills(c, pet.PetID, pet.Slot);
+                pet.NormalizeClientStats(true, c.Inv);
+                c.Send(Game.QuestRelated.QuestManager.CreatePetListPacket(c));
+                Game.QuestRelated.QuestManager.SendPetProgression(c, pet);
 
                 c.SendSystemMessage($"[Rebirth] Congratulations! {pet.PetName} has successfully attained Rebirth Ascension!");
                 DebugSystem.Write($"[AC69] Pet in slot #{petSlot} ({pet.PetName}) of {c.CharName} successfully underwent Rebirth.");

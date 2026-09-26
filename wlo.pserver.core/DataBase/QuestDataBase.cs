@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -163,6 +163,13 @@ namespace DataBase
                     uint rExp = Convert.ToUInt32(row["reward_exp"]);
                     uint rCompId = Convert.ToUInt32(row["reward_companion_id"]);
                     string rCompName = row["reward_companion_name"].ToString();
+                    // Older generated rows used nonexistent IDs guessed from quest titles.
+                    // Native EVE recruitment remains the authoritative source for these quests.
+                    if (rCompId != 0 && Game.DataFiles.SceneDataManager.GetNpcBaseStats(Game.Player.GetCompanionBroadcastId(rCompId)) == null)
+                    {
+                        rCompId = 0;
+                        rCompName = "";
+                    }
                     quest.Reward = new QuestReward(rGold, rExp, rCompId, rCompName);
 
                     // Parse Reward Items
