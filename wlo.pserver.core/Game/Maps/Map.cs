@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -48,7 +48,7 @@ namespace Game
         Queue<Task> QueuedTasks = new Queue<Task>(252);
 
         protected List<Player> m_playerlist = new List<Player>();
-        protected List<Item> ItemsDropped = new List<Item>(255);
+        protected Dictionary<byte, DroppedItem> ItemsDropped = new Dictionary<byte, DroppedItem>();
         protected List<MapGroundItem> GroundItems = new List<MapGroundItem>();
         protected ConcurrentDictionary<uint, Tent> Tents = new ConcurrentDictionary<uint, Tent>();
         protected Dictionary<byte, WarpDest> Destinations = new Dictionary<byte, WarpDest>();
@@ -361,24 +361,17 @@ namespace Game
                     }
                 }
 
-                // Update Ground Items respawn
-                if (GroundItems != null && GroundItems.Count > 0)
+                // Serialize respawn and pickup against the same map lock.
+                lock (mlock)
                 {
                     DateTime now = DateTime.Now;
-                    for (int i = 0; i < GroundItems.Count; i++)
-                    {
-                        var gi = GroundItems[i];
+                    foreach (var gi in GroundItems)
                         if (gi.IsPickedUp && now >= gi.RespawnTime)
                         {
                             gi.IsPickedUp = false;
                             gi.RespawnTime = DateTime.MinValue;
-                            // Broadcast respawn packet AC 23:3 to all players on map
-                            // bbwwwdb: 23, 3, ItemID, X, Y, 0, 0, Slot
-                            SendPacket spawnPkt = Tools.FromFormat("bbwwwdb", 23, 3, (ushort)gi.ItemID, (ushort)gi.X, (ushort)gi.Y, (ushort)0, (uint)0, (byte)gi.Slot);
-                            Broadcast(spawnPkt);
-                            DebugSystem.Write($"[Map {MapID}] Ground item {gi.Name} (#{gi.ItemID}) respawned at slot {gi.Slot} ({gi.X}, {gi.Y})");
+                            Broadcast(GroundItemPacket(gi.Slot, gi.ItemID, gi.X, gi.Y));
                         }
-                    }
                 }
             }
             catch { }
@@ -424,100 +417,112 @@ namespace Game
 
         #region Item
 
+        private static SendPacket GroundItemPacket(byte slot, ushort item, ushort x, ushort y)
+        {
+            var packet = new SendPacket();
+            packet.PackArray(new byte[] { 23, 4 });
+            AppendGroundItem(packet, slot, item, x, y);
+            return packet;
+        }
+
+        private static void AppendGroundItem(SendPacket packet, byte slot, ushort item, ushort x, ushort y)
+        {
+            packet.Pack8(3);
+            packet.Pack16(slot);
+            packet.Pack32(item);
+            packet.Pack16(x);
+            packet.Pack16(y);
+            packet.Pack32(0);
+        }
+
         public void onItemDrop(Player src, byte loc, byte ammt)
         {
-            Task dropItem = new Task(() =>
+            if (src?.Inv == null || loc < 1 || loc > 50 || ammt == 0) return;
+            lock (mlock)
+            lock (src.Inv.SyncRoot)
             {
-                byte amt = ammt;
-                //send Request to Inv to drop item
+                if (!ReferenceEquals(src.CurMap, this) || src.NativeEventActive ||
+                    Game.Battle.PvEBattleManager.IsInBattle(src)) return;
+                var item = src.Inv[loc];
+                if (item.ItemID == 0 || item.isLocked || !item.Dropable || ammt > item.Ammt) return;
 
-                if (src.Inv[loc].ItemID > 0)
+                // Native nodes retain their IDs while waiting to respawn.
+                // Reserve click IDs too, so pickups cannot target another item.
+                var free = new List<byte>();
+                for (int slot = 1; slot <= 255 && free.Count < ammt; slot++)
+                    if (!ItemsDropped.ContainsKey((byte)slot) && !GroundItems.Any(g =>
+                        g.Slot == slot || g.ClickID == slot))
+                        free.Add((byte)slot);
+                if (free.Count < ammt)
                 {
-                    //if item does not equal null, inv has an item that needs to be dropped in map
-                    //if item is not inv will send destroy packet.
-
-                    var rand = new Random();
-                    int cnt = 0;
-
-                    for (int a = 0; a < 256; a++)
-                    {
-                        if (cnt < amt && ItemsDropped[a].ItemID == 0)
-                        {
-                            DroppedItem gi = new DroppedItem();
-                            gi.CopyFrom(src.Inv[loc]);
-                            gi.Ammt = 1;
-                            gi.X = src.CurX;
-                            gi.Y = src.CurY;
-                            //gi..StartCountDown();
-
-
-                            //src.SendPacket(Tools.FromFormat("bbwwwdb", 23, 3, gi.ItemID, gi.DropX, gi.DropY, 0, 1));
-                            //Broadcast(Tools.FromFormat("bbwwwdb", 23, 3, gi.ItemID, gi.DropX, gi.DropY, 0, 0), "Ex", src.CharID);
-                            cnt++;
-                        }
-                        else if (cnt >= amt)
-                            break;
-                    }
-                    onItemDropped_fromMap(loc, (byte)cnt);
-                }
-            }, TaskCreationOptions.PreferFairness);
-            QueuedTasks.Enqueue(dropItem);
-        }
-        public void onItemPickup(Player src, byte pos)
-        {
-            Task dropItem = new Task(() =>
-            {
-                byte loc = pos;
-                // 1. Check Native Ground Items
-                MapGroundItem gi = null;
-                lock (mlock)
-                {
-                    gi = GroundItems?.FirstOrDefault(g => !g.IsPickedUp && (g.Slot == loc || g.ClickID == loc || (loc > 0 && g.Slot == loc - 1)));
-                }
-
-                if (gi != null && src.Inv != null)
-                {
-                    double dx = src.CurX - gi.X, dy = src.CurY - gi.Y;
-                    if (dx * dx + dy * dy > 180 * 180) return;
-                    int added = src.Inv.AddItem(gi.ItemID, 1);
-                    if (added <= 0)
-                    {
-                        src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0));
-                        DebugSystem.Write($"[Map {MapID}] Could not add ground item #{gi.ItemID} to {src.CharName}; item remains on map.");
-                        return;
-                    }
-
-                    lock (mlock)
-                    {
-                        gi.IsPickedUp = true;
-                        gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
-                    }
-
-                    // Send pickup result to player (AC 23:2, slot, 1 = success - Official PCAP Frame 75)
-                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
-                    // Broadcast item removal to others on map (AC 23:2, slot, 0)
-                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
-
-                    src.SaveCharacterData();
-                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item {gi.Name} (#{gi.ItemID}) from slot {gi.Slot}. Respawns in {gi.RespawnSeconds}s");
+                    src.SendHeadBanner("There is no room to drop these items here.");
                     return;
                 }
 
-                // 2. Fallback: Player-dropped items
-                if (loc > 0 && loc - 1 < ItemsDropped.Count && ItemsDropped[loc - 1].ItemID > 0)
+                var removed = src.Inv.RemoveItem(loc, ammt);
+                if (removed == null) return;
+                var packet = new SendPacket();
+                packet.PackArray(new byte[] { 23, 4 });
+                foreach (byte slot in free)
                 {
-                    Item res = new Item();
-                    res.CopyFrom(ItemsDropped[loc - 1]);
-                    ItemsDropped[loc - 1].Clear();
-
-                    if (onItemPickup_fromMap != null && onItemPickup_fromMap(res))
-                    {
-                        src.Send(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 1));
-                        Broadcast(Tools.FromFormat("bbwb", 23, 2, res.ItemID, 0), "Ex", src.CharID);
-                    }
+                    var drop = new DroppedItem();
+                    drop.CopyFrom(removed);
+                    drop.Ammt = 1;
+                    drop.Parent = 0;
+                    drop.X = src.CurX;
+                    drop.Y = src.CurY;
+                    ItemsDropped.Add(slot, drop);
+                    AppendGroundItem(packet, slot, drop.ItemID, drop.X, drop.Y);
                 }
-            });
-            QueuedTasks.Enqueue(dropItem);
+                Broadcast(packet);
+                DebugSystem.Write($"[Map {MapID}] {src.CharName} dropped #{removed.ItemID} x{removed.Ammt} from bag slot {loc}.");
+            }
+            src.SaveCharacterData();
+        }
+
+        public void onItemPickup(Player src, byte pos)
+        {
+            if (src?.Inv == null || pos == 0) return;
+            lock (mlock)
+            {
+                if (!ReferenceEquals(src.CurMap, this) || src.NativeEventActive ||
+                    Game.Battle.PvEBattleManager.IsInBattle(src)) return;
+                DroppedItem drop;
+                if (ItemsDropped.TryGetValue(pos, out drop))
+                {
+                    double dx = src.CurX - drop.X, dy = src.CurY - drop.Y;
+                    if (dx * dx + dy * dy > 180 * 180) return;
+                    if (src.Inv.AddItem(drop) != 1)
+                    {
+                        src.SendHeadBanner("Your inventory is full.");
+                        return;
+                    }
+                    ItemsDropped.Remove(pos);
+                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)pos, (byte)1));
+                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)pos, (byte)0), "Ex", src.CharID);
+                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up dropped item #{drop.ItemID} from ground slot {pos}.");
+                }
+                else
+                {
+                    // A repeated pickup must not fall through to a neighboring node.
+                    var gi = GroundItems.FirstOrDefault(g => g.Slot == pos)
+                        ?? GroundItems.FirstOrDefault(g => g.ClickID == pos);
+                    if (gi == null || gi.IsPickedUp) return;
+                    double dx = src.CurX - gi.X, dy = src.CurY - gi.Y;
+                    if (dx * dx + dy * dy > 180 * 180) return;
+                    if (src.Inv.AddItem(gi.ItemID, 1) != 1)
+                    {
+                        src.SendHeadBanner("Your inventory is full.");
+                        return;
+                    }
+                    gi.IsPickedUp = true;
+                    gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+                    src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
+                    Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
+                    DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item #{gi.ItemID} from slot {gi.Slot}.");
+                }
+            }
+            src.SaveCharacterData();
         }
         #endregion
 
@@ -540,13 +545,7 @@ namespace Game
             // Send actor's vehicle to recipient
             if (actor.ActiveVehicleID > 0)
             {
-                SendPacket veh = new SendPacket();
-                veh.Pack8(15);
-                veh.Pack8(10);
-                veh.Pack8(0);
-                veh.Pack32(actor.CharID);
-                veh.Pack16((ushort)actor.ActiveVehicleID);
-                recipient.Send(veh);
+                recipient.Send(PlayerRelated.VehicleManager.CreateMountPacket(actor));
             }
 
             // Send actor's mount to recipient
@@ -1450,24 +1449,16 @@ namespace Game
             }
             #endregion
             #region Send Ground Items (AC 23:4)
-            if (GroundItems != null && GroundItems.Count > 0)
+            lock (mlock)
             {
-                var activeItems = GroundItems.Where(g => !g.IsPickedUp).ToList();
-                if (activeItems.Count > 0)
-                {
-                    SendPacket itemPkt = new SendPacket();
-                    itemPkt.PackArray(new byte[] { 23, 4 });
-                    foreach (var gi in activeItems)
-                    {
-                        itemPkt.Pack8(3);
-                        itemPkt.Pack16((ushort)gi.Slot);
-                        itemPkt.Pack32(gi.ItemID);
-                        itemPkt.Pack16((ushort)gi.X);
-                        itemPkt.Pack16((ushort)gi.Y);
-                        itemPkt.Pack32(0);
-                    }
+                var itemPkt = new SendPacket();
+                itemPkt.PackArray(new byte[] { 23, 4 });
+                foreach (var gi in GroundItems.Where(g => !g.IsPickedUp))
+                    AppendGroundItem(itemPkt, gi.Slot, gi.ItemID, gi.X, gi.Y);
+                foreach (var pair in ItemsDropped)
+                    AppendGroundItem(itemPkt, pair.Key, pair.Value.ItemID, pair.Value.X, pair.Value.Y);
+                if (GroundItems.Any(g => !g.IsPickedUp) || ItemsDropped.Count > 0)
                     tmp.Add(itemPkt);
-                }
             }
             #endregion
             //SendNpcs(t);
@@ -1526,8 +1517,7 @@ namespace Game
             // Sync Guild Insignia
             t.CurGuild?.SendInsignia(t);
 
-            // Sync Active Vehicle
-            PlayerRelated.VehicleManager.SyncVehicleOnMapEntry(t);
+            // Active vehicle is restored by AC12:1 after native map loading finishes.
         }
 
         #endregion

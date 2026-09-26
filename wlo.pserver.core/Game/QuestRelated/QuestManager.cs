@@ -1183,8 +1183,22 @@ namespace Game.QuestRelated
             bool cygnus = player.Quests != null && player.Quests.TryGetValue(13087, out var done) &&
                 done.State == QuestState.InProgress && done.Step > 0;
             // Current client AC15:19 reads count followed by byte IDs; Star_1 is Cygnus.
-            player.Send(cygnus ? Tools.FromFormat("bbbb", 15, 19, 1, 1) : Tools.FromFormat("bbb", 15, 19, 0));
-            // AC15:20 reads star ID and display mode. Mode0 previews the acquired image.
+            bool bootes = player.Quests != null && player.Quests.TryGetValue(13151, out var cliveDone) &&
+                cliveDone.State == QuestState.InProgress && cliveDone.Step > 0;
+            bool niss = player.Quests != null && player.Quests.TryGetValue(13173, out var nissDone) &&
+                nissDone.State == QuestState.InProgress && nissDone.Step > 0;
+            bool roca = player.Quests != null && player.Quests.TryGetValue(13203, out var rocaDone) &&
+                rocaDone.State == QuestState.InProgress && rocaDone.Step > 0;
+            var stars = new List<byte>();
+            if (cygnus) stars.Add(1);
+            if (niss) stars.Add(6);
+            if (roca) stars.Add(8);
+            if (bootes) stars.Add(20);
+            var packet = new SendPacket();
+            packet.PackArray(new byte[] { 15, 19, (byte)stars.Count });
+            packet.PackArray(stars.ToArray());
+            player.Send(packet);
+            // AC15:20 reads star ID and scene actor; actor0 starts at the player.
             if (showXaolan && cygnus) player.Send(Tools.FromFormat("bbbb", 15, 20, 1, 0));
         }
 

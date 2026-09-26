@@ -1350,33 +1350,9 @@ namespace Game
 
         public void RideVehicle(string vehicleID)
         {
-            SendPacket vp = new SendPacket();
-            int cmdByte = vehicleID != "" ? 10 : 11; //11=unride
-            vp.PackArray(new byte[] { 15, (byte)cmdByte, 0 });
-            vp.Pack32(this.CharID);
-            if (vehicleID != "")
-            {
-                ushort vid = ushort.Parse(vehicleID);
-                vp.Pack16(vid);
-                ActiveVehicleID = vid;
-            }
-            else
-            {
-                ActiveVehicleID = 0; // Unride
-            }
-
-            // Broadcast to all players in map so they can see the vehicle
-            if (CurMap != null)
-            {
-                CurMap.Broadcast(vp);
-            }
-            else
-            {
-                Send(vp); // Fallback if not in map yet
-            }
+            if (string.IsNullOrEmpty(vehicleID)) PlayerRelated.VehicleManager.DismountVehicle(this);
+            else if (ushort.TryParse(vehicleID, out var id)) PlayerRelated.VehicleManager.MountVehicle(this, id);
         }
-
-
 
         public SendPacket CreatePetMapPacket(uint petId = 0, string petName = "")
         {
@@ -1510,6 +1486,8 @@ namespace Game
         {
             if (string.IsNullOrEmpty(petID) || !uint.TryParse(petID, out uint pid) || pid == 0) return;
 
+            if (PlayerPets == null || !PlayerPets.Values.Any(pet => pet != null && pet.PetID == pid && pet.Slot > 0)) return;
+            PlayerRelated.VehicleManager.DismountVehicle(this);
             ActiveMountID = pid;
 
             byte slot = 1;

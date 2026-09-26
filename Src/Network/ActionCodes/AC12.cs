@@ -39,17 +39,8 @@ namespace Wonderland_Private_Server.ActionCodes
                     p.Send(Tools.FromFormat("bb", 5, 4));
                     DebugSystem.Write($"[AC12] Map load completed for {p.CharName}: MapID={p.CurMap.MapID}, Warping=False");
 
-                    // Resend active vehicle / sailing state on new map
-                    if (p.ActiveVehicleID > 0)
-                    {
-                        SendPacket vehiclePkt = new SendPacket();
-                        vehiclePkt.PackArray(new byte[] { 15, 10, 0x15 });
-                        vehiclePkt.Pack32(p.CharID);
-                        vehiclePkt.Pack16((ushort)p.ActiveVehicleID);
-                        vehiclePkt.Pack16(0);
-                        p.Send(vehiclePkt);
-                        p.CurMap?.Broadcast(vehiclePkt, "Ex", p.CharID);
-                    }
+                    // Restore the validated vehicle only after native map loading finishes.
+                    Game.PlayerRelated.VehicleManager.SyncVehicleOnMapEntry(p);
 
                     DebugSystem.Write($"[AC12.Recv1] Map acknowledged -> MapID={p.CurMap?.MapID} PendingBeach={p.PendingBeachCutscene} BeachActive={p.BeachCutsceneActive} Quest12040={p.Quests?.ContainsKey(12040)}");
 

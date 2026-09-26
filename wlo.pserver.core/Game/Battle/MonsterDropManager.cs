@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -169,6 +169,8 @@ namespace Game.Battle
             LoadFromFile();
         }
 
+        private static Dictionary<uint, List<MonsterDropEntry>> nativeLootTables = new Dictionary<uint, List<MonsterDropEntry>>();
+
         public static void InitializeLootTables()
         {
             lock (_lock)
@@ -176,196 +178,9 @@ namespace Game.Battle
                 MonsterLootTables.Clear();
                 PatternLootTables.Clear();
                 LevelBracketLootTables.Clear();
-
-                // 1. Wolf / Wolf Guard (TID 11066)
-                MonsterLootTables[11066] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30001, "Wolf Meat", 1, 2, 70.0),
-                    new MonsterDropEntry(30015, "Wolf Pelt", 1, 1, 55.0),
-                    new MonsterDropEntry(30020, "Beast Fang", 1, 1, 40.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-
-                // 2. Wild Boar (TID 11012)
-                MonsterLootTables[11012] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30002, "Pork Meat", 1, 2, 75.0),
-                    new MonsterDropEntry(30016, "Boar Leather", 1, 1, 50.0),
-                    new MonsterDropEntry(30021, "Boar Tusk", 1, 1, 35.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 30.0)
-                };
-
-                // 3. Crab / Beach Crawler (TID 11005)
-                MonsterLootTables[11005] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30003, "Crab Meat", 1, 2, 70.0),
-                    new MonsterDropEntry(28002, "Seaweed", 1, 2, 60.0),
-                    new MonsterDropEntry(27010, "Shell Fragment", 1, 1, 45.0),
-                    new MonsterDropEntry(46001, "Small Pearl", 1, 1, 15.0)
-                };
-
-                // 4. Snake / Viper (TID 11018)
-                MonsterLootTables[11018] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30010, "Snake Gall", 1, 1, 65.0),
-                    new MonsterDropEntry(30017, "Snake Skin", 1, 1, 50.0),
-                    new MonsterDropEntry(30205, "Antidote Herb", 1, 1, 35.0)
-                };
-
-                // 5. Cave Bat (TID 11022)
-                MonsterLootTables[11022] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30011, "Bat Wing", 1, 2, 70.0),
-                    new MonsterDropEntry(30022, "Bat Fang", 1, 1, 45.0),
-                    new MonsterDropEntry(27020, "Dark Stone", 1, 1, 25.0)
-                };
-
-                // 6. Tree Spirit / Treant (TID 11030)
-                MonsterLootTables[11030] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(27001, "Ordinary Wood", 1, 3, 80.0),
-                    new MonsterDropEntry(30012, "Tree Sap", 1, 2, 55.0),
-                    new MonsterDropEntry(28015, "Magic Leaf", 1, 1, 35.0),
-                    new MonsterDropEntry(48001, "Wooden Plank", 1, 1, 20.0)
-                };
-
-                // 7. Tiger (TID 11050)
-                MonsterLootTables[11050] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30004, "Tiger Meat", 1, 2, 65.0),
-                    new MonsterDropEntry(30018, "Tiger Fur", 1, 1, 50.0),
-                    new MonsterDropEntry(30023, "Tiger Claw", 1, 1, 35.0),
-                    new MonsterDropEntry(46005, "Gold Nugget", 1, 1, 15.0)
-                };
-
-                // 8. Grape Monster (TID 17003, 1831, 154)
-                MonsterLootTables[17003] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28005, "Grape", 1, 2, 75.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-                MonsterLootTables[1831] = MonsterLootTables[17003];
-                MonsterLootTables[154] = MonsterLootTables[17003];
-
-                // 9. Apple Monster (TID 17001)
-                MonsterLootTables[17001] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28006, "Red Apple", 1, 2, 75.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-
-                // 10. Pineapple Monster (TID 17002, 1832, 223)
-                MonsterLootTables[17002] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28007, "Small Pineapple", 1, 2, 75.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-                MonsterLootTables[1832] = MonsterLootTables[17002];
-                MonsterLootTables[223] = MonsterLootTables[17002];
-
-                // 11. Kiwi Monster (TID 17004, 1830, 222)
-                MonsterLootTables[17004] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28008, "Little Gooseberry", 1, 2, 75.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-                MonsterLootTables[1830] = MonsterLootTables[17004];
-                MonsterLootTables[222] = MonsterLootTables[17004];
-
-                // 12. Banana Monster (TID 1833, 216)
-                MonsterLootTables[1833] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28008, "Latania", 1, 2, 75.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-                MonsterLootTables[216] = MonsterLootTables[1833];
-
-                // 13. Lazy Snail (TID 97)
-                MonsterLootTables[97] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30013, "Grume of Snail", 1, 2, 75.0),
-                    new MonsterDropEntry(28014, "Soybean", 1, 2, 50.0),
-                    new MonsterDropEntry(27010, "White Clay", 1, 1, 35.0),
-                    new MonsterDropEntry(27001, "Clay", 1, 1, 35.0)
-                };
-
-                // 14. Delicate Monster (TID 217)
-                MonsterLootTables[217] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30010, "Musk", 1, 2, 70.0),
-                    new MonsterDropEntry(28015, "Pollen", 1, 2, 50.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0)
-                };
-
-                // 15. Jellyfish / Slime (TID 17005)
-                MonsterLootTables[17005] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28001, "Fresh Water", 1, 2, 70.0),
-                    new MonsterDropEntry(28002, "Seaweed", 1, 1, 45.0),
-                    new MonsterDropEntry(30203, "Small SP Potion", 1, 1, 25.0)
-                };
-
-                // --- Pattern Name Fallback Tables ---
-                PatternLootTables["grape"] = MonsterLootTables[17003];
-                PatternLootTables["apple"] = MonsterLootTables[17001];
-                PatternLootTables["pineapple"] = MonsterLootTables[17002];
-                PatternLootTables["kiwi"] = MonsterLootTables[17004];
-                PatternLootTables["banana"] = MonsterLootTables[1833];
-                PatternLootTables["snail"] = MonsterLootTables[97];
-                PatternLootTables["delicate"] = MonsterLootTables[217];
-                PatternLootTables["jellyfish"] = MonsterLootTables[17005];
-                PatternLootTables["slime"] = MonsterLootTables[17005];
-                PatternLootTables["wolf"] = MonsterLootTables[11066];
-                PatternLootTables["boar"] = MonsterLootTables[11012];
-                PatternLootTables["pig"] = MonsterLootTables[11012];
-                PatternLootTables["crab"] = MonsterLootTables[11005];
-                PatternLootTables["snake"] = MonsterLootTables[11018];
-                PatternLootTables["viper"] = MonsterLootTables[11018];
-                PatternLootTables["bat"] = MonsterLootTables[11022];
-                PatternLootTables["tree"] = MonsterLootTables[11030];
-                PatternLootTables["tiger"] = MonsterLootTables[11050];
-                PatternLootTables["spider"] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(30013, "Spider Silk", 1, 2, 70.0),
-                    new MonsterDropEntry(30024, "Spider Venom", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 25.0)
-                };
-                PatternLootTables["monkey"] = new List<MonsterDropEntry>
-                {
-                    new MonsterDropEntry(28008, "Fresh Banana", 1, 2, 75.0),
-                    new MonsterDropEntry(28009, "Sweet Peach", 1, 1, 50.0),
-                    new MonsterDropEntry(27005, "Tough Vine", 1, 1, 35.0)
-                };
-
-                // --- Level Bracket Fallbacks (1-10, 11-30, 31-60, 61+) ---
-                LevelBracketLootTables[1] = new List<MonsterDropEntry> // Lv 1-10
-                {
-                    new MonsterDropEntry(28006, "Red Apple", 1, 2, 60.0),
-                    new MonsterDropEntry(28014, "Fresh Fruit", 1, 1, 45.0),
-                    new MonsterDropEntry(30201, "Small HP Potion", 1, 1, 30.0),
-                    new MonsterDropEntry(27001, "Ordinary Wood", 1, 1, 25.0)
-                };
-
-                LevelBracketLootTables[2] = new List<MonsterDropEntry> // Lv 11-30
-                {
-                    new MonsterDropEntry(30001, "Beast Meat", 1, 2, 65.0),
-                    new MonsterDropEntry(30015, "Animal Hide", 1, 1, 50.0),
-                    new MonsterDropEntry(30202, "Medium HP Potion", 1, 1, 35.0),
-                    new MonsterDropEntry(30203, "Small SP Potion", 1, 1, 30.0)
-                };
-
-                LevelBracketLootTables[3] = new List<MonsterDropEntry> // Lv 31-60
-                {
-                    new MonsterDropEntry(30004, "Prime Meat", 1, 3, 70.0),
-                    new MonsterDropEntry(30018, "Tough Leather", 1, 2, 55.0),
-                    new MonsterDropEntry(30204, "Large HP Potion", 1, 1, 40.0),
-                    new MonsterDropEntry(46005, "Gold Nugget", 1, 1, 25.0)
-                };
+                // NPC records are authoritative. The old guessed meat/potion IDs
+                // were actually quest items, scrolls and vouchers.
+                nativeLootTables = ReadNativeLoot(RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat"));
             }
         }
 
@@ -382,36 +197,17 @@ namespace Game.Battle
                     pool = tidList;
                 }
 
-                // 2. Pattern Match by Monster Name
-                if (pool == null && !string.IsNullOrEmpty(monsterName))
-                {
-                    string lower = monsterName.ToLower();
-                    foreach (var kvp in PatternLootTables)
-                    {
-                        if (lower.Contains(kvp.Key))
-                        {
-                            pool = kvp.Value;
-                            break;
-                        }
-                    }
-                }
-
-                // 3. Fallback to Level Bracket
-                if (pool == null)
-                {
-                    int bracket = 1;
-                    if (monsterLevel > 30) bracket = 3;
-                    else if (monsterLevel > 10) bracket = 2;
-
-                    LevelBracketLootTables.TryGetValue(bracket, out pool);
-                }
-
                 if (pool == null || pool.Count == 0) return drops;
 
                 // Roll each drop entry independently by calibrated drop rate percentage
                 // Server balance policy: scale configured rates by 0.35 with a 5% floor.
                 foreach (var entry in pool)
                 {
+                    List<MonsterDropEntry> native;
+                    if (!nativeLootTables.TryGetValue(monsterTid, out native) ||
+                        !native.Any(e => e.ItemID == entry.ItemID) || entry.DropRatePercent <= 0 ||
+                        entry.MinCount < 1 || entry.MaxCount < entry.MinCount || entry.MaxCount > 50)
+                        continue;
                     double roll = _rng.NextDouble() * 100.0;
                     double calibratedRate = Math.Max(5.0, entry.DropRatePercent * 0.35 * Math.Max(0.1, DropRateMultiplier));
                     if (roll <= calibratedRate)
@@ -490,32 +286,21 @@ namespace Game.Battle
         {
             try
             {
+                var native = ReadNativeLoot(RCLibrary.Core.PathHelper.GetDataFilePath("Npc.dat"));
                 VerifyTable();
 
-                // Older seeds were parsed with the machine locale, turning values such as
-                // 35.0 into 350. Detect that known invalid scale once and repair the table.
+                // Interpret old locale-corrupted rates without rewriting the live database.
+                bool legacyRates = false;
                 var rateCheck = RCLibrary.Core.DataBase.Query("SELECT MAX(drop_rate) AS max_rate FROM monster_drops;");
                 if (rateCheck != null && rateCheck.Rows.Count > 0 && rateCheck.Rows[0]["max_rate"] != DBNull.Value)
-                {
-                    double maxRate = Convert.ToDouble(rateCheck.Rows[0]["max_rate"], CultureInfo.InvariantCulture);
-                    if (maxRate > 100.0)
-                    {
-                        RCLibrary.Core.DataBase.Execute("UPDATE monster_drops SET drop_rate = drop_rate / 10.0;");
-                        DebugSystem.Write("[MonsterDropManager] Migrated legacy drop rates from x10 scale to percentages.");
-                    }
-                }
+                    legacyRates = Convert.ToDouble(rateCheck.Rows[0]["max_rate"], CultureInfo.InvariantCulture) > 100.0;
 
                 var dt = RCLibrary.Core.DataBase.Query("SELECT * FROM monster_drops;");
 
-                if (dt == null || dt.Rows.Count == 0)
-                {
-                    // Table empty: seed from txt or defaults
-                    SeedDatabase();
-                    dt = RCLibrary.Core.DataBase.Query("SELECT * FROM monster_drops;");
-                }
-
                 lock (_lock)
                 {
+                    nativeLootTables = native;
+                    int rejected = 0;
                     MonsterLootTables.Clear();
                     PatternLootTables.Clear();
 
@@ -530,7 +315,15 @@ namespace Game.Battle
                             byte minCount = Convert.ToByte(row["min_count"]);
                             byte maxCount = Convert.ToByte(row["max_count"]);
                             double dropRate = Math.Max(0.0, Math.Min(100.0,
-                                Convert.ToDouble(row["drop_rate"], CultureInfo.InvariantCulture)));
+                                Convert.ToDouble(row["drop_rate"], CultureInfo.InvariantCulture) / (legacyRates ? 10.0 : 1.0)));
+
+                            List<MonsterDropEntry> allowed;
+                            if (!native.TryGetValue(tid, out allowed) || !allowed.Any(e => e.ItemID == itemId) ||
+                                minCount < 1 || maxCount < minCount || maxCount > 50)
+                            {
+                                rejected++;
+                                continue;
+                            }
 
                             var entry = new MonsterDropEntry(itemId, itemName, minCount, maxCount, dropRate);
 
@@ -546,6 +339,10 @@ namespace Game.Battle
                             }
                         }
                     }
+                    foreach (var pair in native)
+                        if (!MonsterLootTables.ContainsKey(pair.Key))
+                            MonsterLootTables[pair.Key] = new List<MonsterDropEntry>(pair.Value);
+                    DebugSystem.Write($"[MonsterDropManager] Ignored {rejected} unverified loot rows; using native NPC item IDs. Database unchanged.");
                 }
 
                 OnLootTablesChanged?.Invoke();
@@ -555,60 +352,6 @@ namespace Game.Battle
             {
                 DebugSystem.Write($"[MonsterDropManager] Error loading drops from database: {ex.Message}");
             }
-        }
-
-        private static void SeedDatabase()
-        {
-            if (File.Exists(ConfigPath))
-            {
-                try
-                {
-                    var lines = File.ReadAllLines(ConfigPath, Encoding.UTF8);
-                    foreach (var rawLine in lines)
-                    {
-                        string line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("//")) continue;
-
-                        var parts = line.Split('|');
-                        if (parts.Length < 2) continue;
-
-                        string header = parts[0].Trim();
-                        uint tid = 0;
-                        string pattern = null;
-
-                        if (header.StartsWith("TID:", StringComparison.OrdinalIgnoreCase))
-                            uint.TryParse(header.Substring(4).Trim(), out tid);
-                        else if (header.StartsWith("NAME:", StringComparison.OrdinalIgnoreCase))
-                            pattern = header.Substring(5).Trim();
-
-                        for (int i = 1; i < parts.Length; i++)
-                        {
-                            var tokens = parts[i].Trim().Split(',');
-                            if (tokens.Length >= 2 && ushort.TryParse(tokens[0].Trim(), out ushort itemId))
-                            {
-                                string itemName = tokens[1].Trim();
-                                byte min = tokens.Length > 2 && byte.TryParse(tokens[2].Trim(), out byte mn) ? mn : (byte)1;
-                                byte max = tokens.Length > 3 && byte.TryParse(tokens[3].Trim(), out byte mx) ? mx : min;
-                                double rate = tokens.Length > 4 && double.TryParse(tokens[4].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double r)
-                                    ? Math.Max(0.0, Math.Min(100.0, r))
-                                    : 50.0;
-
-                                string rateSql = rate.ToString(CultureInfo.InvariantCulture);
-                                string sql = $"INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES ({tid}, '{pattern?.Replace("'", "''")}', {itemId}, '{itemName.Replace("'", "''")}', {min}, {max}, {rateSql});";
-                                RCLibrary.Core.DataBase.Execute(sql);
-                            }
-                        }
-                    }
-                    return;
-                }
-                catch { }
-            }
-
-            // Defaults if file not found
-            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (11066, NULL, 30001, 'Wolf Meat', 1, 2, 70.0);");
-            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (11066, NULL, 30015, 'Wolf Pelt', 1, 1, 50.0);");
-            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, 'wolf', 30001, 'Wolf Meat', 1, 2, 60.0);");
-            RCLibrary.Core.DataBase.Execute("INSERT INTO monster_drops (monster_tid, monster_pattern, item_id, item_name, min_count, max_count, drop_rate) VALUES (0, 'bat', 28014, 'Fresh Fruit', 1, 1, 40.0);");
         }
 
         public static void SaveToDatabase()
@@ -655,52 +398,42 @@ namespace Game.Battle
         /// <summary>
         /// Automatically extracts authentic drop tables directly from client/server Npc.dat.
         /// </summary>
+        private static Dictionary<uint, List<MonsterDropEntry>> ReadNativeLoot(string path)
+        {
+            var result = new Dictionary<uint, List<MonsterDropEntry>>();
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return result;
+            byte[] data = File.ReadAllBytes(path);
+            if (data.Length % 138 != 0)
+                throw new InvalidDataException("Invalid Npc.dat record size; refusing guessed loot.");
+            double[] rates = { 70, 50, 35, 20, 10 };
+            for (int offset = 138; offset + 138 <= data.Length; offset += 138)
+            {
+                uint id = (ushort)((BitConverter.ToUInt16(data, offset + 12) ^ 0x5209) - 1);
+                if (id == 0) continue;
+                var entries = new List<MonsterDropEntry>();
+                for (int slot = 0; slot < 5; slot++)
+                {
+                    ushort item = (ushort)((BitConverter.ToUInt16(data, offset + 64 + slot * 2) ^ 0x5209) - 1);
+                    if (item > 0 && item < 65000 && !entries.Any(e => e.ItemID == item))
+                        entries.Add(new MonsterDropEntry(item, GetItemName(item), 1, 1, rates[slot]));
+                }
+                result[id] = entries;
+            }
+            return result;
+        }
+
         public static void LoadFromNpcDat(string npcDatPath)
         {
-            if (string.IsNullOrEmpty(npcDatPath) || !File.Exists(npcDatPath)) return;
-
             try
             {
-                byte[] data = File.ReadAllBytes(npcDatPath);
-                int structSize = 138;
-                int count = data.Length / structSize;
-                int loaded = 0;
-
+                var native = ReadNativeLoot(npcDatPath);
                 lock (_lock)
                 {
-                    for (int i = 1; i < count; i++)
-                    {
-                        int offset = i * structSize;
-                        if (offset + structSize > data.Length) break;
-
-                        // Decoded NPC ID from Bytes 12-13 (val ^ 0x5209) - 1
-                        ushort rawId = BitConverter.ToUInt16(data, offset + 12);
-                        ushort npcId = (ushort)(((rawId ^ 0x5209) - 1) & 0xFFFF);
-                        if (npcId == 0 || MonsterLootTables.ContainsKey(npcId)) continue;
-
-                        // Decoded ItemID1..5 from Bytes 64..73 (val ^ 0x5209) - 1
-                        ushort it1 = (ushort)(((BitConverter.ToUInt16(data, offset + 64) ^ 0x5209) - 1) & 0xFFFF);
-                        ushort it2 = (ushort)(((BitConverter.ToUInt16(data, offset + 66) ^ 0x5209) - 1) & 0xFFFF);
-                        ushort it3 = (ushort)(((BitConverter.ToUInt16(data, offset + 68) ^ 0x5209) - 1) & 0xFFFF);
-                        ushort it4 = (ushort)(((BitConverter.ToUInt16(data, offset + 70) ^ 0x5209) - 1) & 0xFFFF);
-                        ushort it5 = (ushort)(((BitConverter.ToUInt16(data, offset + 72) ^ 0x5209) - 1) & 0xFFFF);
-
-                        var dropList = new List<MonsterDropEntry>();
-                        if (it1 > 0 && it1 < 65000) dropList.Add(new MonsterDropEntry(it1, GetItemName(it1), 1, 1, 70.0));
-                        if (it2 > 0 && it2 < 65000 && it2 != it1) dropList.Add(new MonsterDropEntry(it2, GetItemName(it2), 1, 1, 50.0));
-                        if (it3 > 0 && it3 < 65000 && it3 != it1 && it3 != it2) dropList.Add(new MonsterDropEntry(it3, GetItemName(it3), 1, 1, 35.0));
-                        if (it4 > 0 && it4 < 65000) dropList.Add(new MonsterDropEntry(it4, GetItemName(it4), 1, 1, 20.0));
-                        if (it5 > 0 && it5 < 65000) dropList.Add(new MonsterDropEntry(it5, GetItemName(it5), 1, 1, 10.0));
-
-                        if (dropList.Count > 0)
-                        {
-                            MonsterLootTables[npcId] = dropList;
-                            loaded++;
-                        }
-                    }
+                    nativeLootTables = native;
+                    foreach (var pair in native)
+                        if (!MonsterLootTables.ContainsKey(pair.Key))
+                            MonsterLootTables[pair.Key] = new List<MonsterDropEntry>(pair.Value);
                 }
-
-                DebugSystem.Write($"[MonsterDropManager] Loaded {loaded} authentic monster drop tables directly from Npc.dat (Total monster loot tables: {MonsterLootTables.Count}).");
                 OnLootTablesChanged?.Invoke();
             }
             catch (Exception ex)

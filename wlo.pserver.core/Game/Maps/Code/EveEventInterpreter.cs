@@ -26,6 +26,19 @@ namespace Game.Maps
                 var mapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
                 if (mapData == null) return false;
 
+                // The battle shows actor4 only transiently. At the saved offer
+                // checkpoint it must resume event2, not the completed rejoin event8.
+                if (map.MapID == 11040 && clickId == 4 && player.Quests != null &&
+                    player.Quests.TryGetValue(13102, out var cliveOffer) &&
+                    cliveOffer.State == QuestState.InProgress && cliveOffer.Step == 4 &&
+                    !(player.Quests.TryGetValue(13103, out var cliveDone) &&
+                      cliveDone.State == QuestState.InProgress && cliveDone.Step > 0))
+                {
+                    var offerEvent = mapData.Events.FirstOrDefault(eventData => eventData.clickID == 2);
+                    var offer = FindBranch(player, map, offerEvent);
+                    if (offer != null) { StartSession(player, map, clickId, offerEvent, offer); return true; }
+                }
+
                 // After the paired spring CG, the shore actors offer the authored
                 // two-companion return event, also used by the nearby exit region.
                 if (map.MapID == 60002 && (clickId == 43 || clickId == 44) &&
@@ -394,7 +407,7 @@ namespace Game.Maps
                             if (amount < 0)
                             {
                                 if (!player.Inv.TryApplyQuestItems(new[] { new KeyValuePair<ushort, int>(itemId, amount) }, true)) return false;
-                                player.SendHeadBanner("Lost item #" + itemId + " x" + -(long)amount);
+                                player.SendHeadBanner("Lost " + Game.Battle.MonsterDropManager.ResolveItemName(itemId) + " x" + -(long)amount);
                                 player.SaveCharacterData();
                                 return true;
                             }
@@ -484,6 +497,35 @@ namespace Game.Maps
 
                     // Opcode 2: Dialogue response line, Prop Break, or Gathering Node Despawn
                     case 2:
+                        if (IsCliveActorAction(map, op))
+                        {
+                            if (op.dialog2 == 4 || op.dialog2 == 8)
+                            {
+                                if (op.dialog3 > byte.MaxValue) return false;
+                                // Native converter type9 modes 2/1 map to AC22:8
+                                // animation and AC22:7 expression (client 0x443868/0x4437d0).
+                                player.Send(op.dialog2 == 4
+                                    ? Tools.FromFormat("bbwbb", 22, 8, op.dialog1, (byte)op.dialog3, (byte)op.unknowndword2)
+                                    : Tools.FromFormat("bbwb", 22, 7, op.dialog1, (byte)op.dialog3));
+                            }
+                            else if (op.dialog2 == 10)
+                            {
+                                // Native type11 resets/waits on an authored actor path.
+                                player.Send(BuildEventFrame(11, (byte)op.dialog1, op.dialog2,
+                                    (byte)op.dialog3, op.unknowndword2, 0, op.subsubIndex, sub.subIndex));
+                            }
+                            else
+                            {
+                                // EVE 2/11 carries the star ID (Bootes20, Niss6 or Roca8), not a fade duration.
+                                // AC15:20's last byte is the scene actor. Client 0x311656
+                                // uses its position and holds event ACK while +0x732a is set.
+                                byte star = (byte)DecodeActionValue(op);
+                                player.Send(Tools.FromFormat("bbbb", 15, 20, star, op.dialog1));
+                                player.Send(BuildEventFrame(13, (byte)op.dialog3, op.dialog1,
+                                    (byte)op.unknowndword2, star, 0, op.subsubIndex, sub.subIndex));
+                            }
+                            return true;
+                        }
                         if (op.dialog2 == 7)
                         {
                             return PreEventInterpreter.SendActorPose(player, op.dialog1, op.dialog3,
@@ -659,6 +701,10 @@ namespace Game.Maps
                             QuestManager.SendQuestUpdate(player, questId, state, step);
                             if (map.MapID == 11077 && questId == 13087 && current == 0 && next == 1 && state == QuestState.InProgress)
                                 QuestManager.SendStoryConstellations(player, true);
+                            if (((map.MapID == 12211 && questId == 13151) ||
+                                 (map.MapID == 11149 && questId == 13173) ||
+                                 (map.MapID == 11185 && questId == 13203)) && state == QuestState.InProgress)
+                                QuestManager.SendStoryConstellations(player);
 
                             if (map != null && !player.NativeEventActive)
                             {
@@ -712,8 +758,9 @@ namespace Game.Maps
                                 OnFlee = (map.MapID == 12050 && (ev.clickID == 39 || ev.clickID == 16)) ||
                                     (map.MapID == 12002 && (ev.clickID == 5 || ev.clickID == 7)) ||
                                     (map.MapID == 60001 && (ev.clickID == 44 || ev.clickID == 48 || ev.clickID == 83)) ||
-                                    (map.MapID == 11077 && ev.clickID == 7)
-                                    ? new Action(() => RunOutcome(player, map, clickId, ev, 4, op.dialog1, 2, outcomeToken))
+                                    (map.MapID == 11077 && ev.clickID == 7) ||
+                                    (map.MapID == 12523 && (ev.clickID == 2 || ev.clickID == 12))
+                                    ? new Action(() => RunOutcome(player, map, clickId, ev, 4, op.dialog1, 2, outcomeToken, sub))
                                     : null
                             };
 

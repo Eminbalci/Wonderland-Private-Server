@@ -149,7 +149,7 @@ namespace Game.QuestRelated
                     {
                         if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
 
-                        var rules = GroupSubEntriesIntoRules(preEvent);
+                        var rules = GetApplicableRules(player, mapId, preEvent);
                         foreach (var rule in rules)
                         {
                             bool allMatch = true;
@@ -222,6 +222,14 @@ namespace Game.QuestRelated
                 {
                     return false;
                 }
+
+                // Clive's transient battle actor also owns the unfinished recruit
+                // offer. Restore it on reload until the native completion mark exists.
+                if (mapId == 11040 && clickId == 4 && player.Quests != null &&
+                    player.Quests.TryGetValue(13102, out var cliveOffer) &&
+                    cliveOffer.State == QuestState.InProgress && cliveOffer.Step == 4 &&
+                    !(player.Quests.TryGetValue(13103, out var cliveDone) &&
+                      cliveDone.State == QuestState.InProgress && cliveDone.Step > 0)) return true;
 
                 // Map 11016 (North Island Starter Beach): S. Monkey (ClickID 1, TID 17162)
                 if (mapId == 11016 && clickId == 1)
@@ -387,7 +395,7 @@ namespace Game.QuestRelated
 
                 foreach (var preEvent in mapData.PreEvents)
                 {
-                    foreach (var rule in GroupSubEntriesIntoRules(preEvent))
+                    foreach (var rule in GetApplicableRules(player, mapId, preEvent))
                     {
                         if (!rule.Conditions.All(cond => EvaluateConditionBlock(player, cond))) continue;
                         if (rule.Actions != null)
@@ -642,7 +650,7 @@ namespace Game.QuestRelated
                             markers[((uint)(kind - 1) << 16) | BitConverter.ToUInt16(bytes, 3)] = 0;
                     }
             foreach (var preEvent in preEvents)
-                foreach (var rule in GroupSubEntriesIntoRules(preEvent))
+                foreach (var rule in GetApplicableRules(player, mapId, preEvent))
                 {
                     if (!rule.Conditions.All(c => EvaluateConditionBlock(player, c))) continue;
                     foreach (var action in rule.Actions)
@@ -668,7 +676,7 @@ namespace Game.QuestRelated
             var preEvents = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(mapId)?.PreEvents;
             if (preEvents == null) return false;
             foreach (var pre in preEvents)
-                foreach (var rule in GroupSubEntriesIntoRules(pre))
+                foreach (var rule in GetApplicableRules(player, mapId, pre))
                 {
                     var actions = rule.Actions.Where(a => a.unknown != null && a.unknown.Count >= 12 &&
                         a.unknown[0] == 2 && BitConverter.ToUInt16(a.unknown.ToArray(), 1) == actorId &&
@@ -687,6 +695,20 @@ namespace Game.QuestRelated
             public List<byte[]> Conditions { get; } = new List<byte[]>();
             public List<preEventSubSubEntry> Actions { get; set; } = new List<preEventSubSubEntry>();
             public ushort ParentClickId { get; set; }
+        }
+
+        // Sealed Bead's final type-6 rule is the fallback for the same actors
+        // handled by its quest/companion and replacement-item rules. Do not let
+        // that fallback hide the bead or reset the completed Pharaoh afterward.
+        // Keep cumulative semantics on other PreEvents until separately verified.
+        private static List<PreEventRule> GetApplicableRules(Player player, ushort mapId, preEventEntries preEvent)
+        {
+            var rules = GroupSubEntriesIntoRules(preEvent);
+            if (mapId != 12508 || preEvent.clickID != 2) return rules;
+            var matching = rules.Where(rule => rule.Conditions.All(c => EvaluateConditionBlock(player, c))).ToList();
+            if (matching.Any(rule => rule.Conditions.Count > 0 && rule.Conditions[0][0] != 6))
+                rules.RemoveAll(rule => rule.Conditions.Count == 1 && rule.Conditions[0][0] == 6);
+            return rules;
         }
 
         private static List<PreEventRule> GroupSubEntriesIntoRules(preEventEntries preEvent)

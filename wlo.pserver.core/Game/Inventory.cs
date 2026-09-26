@@ -319,39 +319,19 @@ namespace Game.Code
         {
             lock (mylock)
             {
-                if (ContainsItem(vehicleItemId, out byte slot))
+                if (owner == null || owner.ActiveVehicleID != vehicleItemId || wearAmount == 0) return;
+                byte slot = owner.MountedVehicleSlot;
+                Game.Code.Item item;
+                if (!Game.PlayerRelated.VehicleManager.TryGetVehicle(owner, slot, vehicleItemId, out item))
                 {
-                    var item = this[slot];
-                    if (item != null && item.ItemID > 0)
-                    {
-                        int newDmg = item.Damage + wearAmount;
-                        if (newDmg >= 100)
-                        {
-                            item.Damage = 100;
-                            RemoveItem(slot, 1);
-
-                            // Send Raft Wreck Animation (AC 15:15)
-                            SendPacket wreck = new SendPacket();
-                            wreck.Pack8(15);
-                            wreck.Pack8(15);
-                            wreck.Pack32(owner.CharID);
-                            wreck.Pack16(vehicleItemId);
-                            owner.Send(wreck);
-                            owner.CurMap?.Broadcast(wreck);
-
-                            // Dismount player
-                            owner.ActiveVehicleID = 0;
-                            owner.RideVehicle("");
-                            owner.SaveCharacterData();
-                            owner.SendHeadBanner("Your raft broke into pieces from wear and tear!");
-                        }
-                        else
-                        {
-                            item.Damage = (byte)newDmg;
-                            owner.Send(new SendPacket(GetAC23_5()));
-                        }
-                    }
+                    Game.PlayerRelated.VehicleManager.DismountVehicle(owner);
+                    return;
                 }
+                // The existing movement wear path applies to rafts only, not every vehicle.
+                if (Game.PlayerRelated.VehicleManager.BaseVehicleID(vehicleItemId) != 48010 && vehicleItemId != 48016) return;
+                item.Damage = (byte)Math.Min(100, item.Damage + wearAmount);
+                if (item.Damage == 100) Game.PlayerRelated.VehicleManager.WreckVehicle(owner, vehicleItemId);
+                else owner.Send(new SendPacket(GetAC23_5()));
             }
         }
         /// <summary>
@@ -387,6 +367,8 @@ namespace Game.Code
                 var remItem = new InvItem();
                 remItem.CopyFrom(this[at]);
                 remItem.Ammt = removed;
+                if (owner != null && owner.ActiveVehicleID != 0 && owner.MountedVehicleSlot == at && this[at].Ammt == removed)
+                    Game.PlayerRelated.VehicleManager.DismountVehicle(owner);
                 if (this[at].Ammt == removed) this[at].Clear();
                 else this[at].Ammt -= removed;
                 if (senddata && owner != null)
@@ -698,6 +680,8 @@ namespace Game.Code
             lock (mylock)
             {
                 if (from < 1 || from > 50 || to < 1 || to > 50 || from == to || ammt == 0) return;
+                if (owner != null && owner.ActiveVehicleID != 0 &&
+                    (from == owner.MountedVehicleSlot || to == owner.MountedVehicleSlot)) return;
                 var source = this[from];
                 var target = this[to];
                 if (source.ItemID == 0 || source.isLocked || target.isLocked) return;

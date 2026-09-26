@@ -146,7 +146,10 @@ namespace Game.Maps
                 (e.unknownbyte3 == 1 || e.unknownbyte3 == 2));
             if (entry == null) return false;
             if (player.NativeEventActive) return true;
-            if (!InsideEntry(entry, player.CurX, player.CurY, entry.unknownbyte3 == 1 ? 0 : 1))
+            // Maka's client reports entry2 before the final movement update:
+            // observed (242,715), (222,715), (322,735) border its native rectangle.
+            int margin = map.MapID == 11075 && entryId == 2 ? 2 : entry.unknownbyte3 == 1 ? 0 : 1;
+            if (!InsideEntry(entry, player.CurX, player.CurY, margin))
             {
                 // The client waits for AC20:8 even when its entry request is stale
                 // or outside the server-side region. Release click-to-move.
@@ -217,7 +220,7 @@ namespace Game.Maps
             return false;
         }
 
-        // These authored map-arrival rules advance Roca's father/reunion story.
+        // Authored arrivals initialize Clive's cave and advance Roca/Elin's stories.
         // Visibility replay alone must not consume their movie or quest actions.
         public static bool TryExecuteStoryArrival(Player player, GameMap map)
         {
@@ -242,10 +245,10 @@ namespace Game.Maps
                 StartSession(player, map, 13, farewell, branch, false);
                 return true;
             }
-            if (map.MapID != 12055 && map.MapID != 12000 && map.MapID != 11167) return false;
+            if (map.MapID != 12055 && map.MapID != 12000 && map.MapID != 11167 && map.MapID != 11039) return false;
             var data = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
             if (data?.PreEvents == null) return false;
-            foreach (var pre in data.PreEvents.Where(p => map.MapID == 12055 || map.MapID == 11167 ? p.clickID == 1 : p.clickID == 10 || p.clickID == 12))
+            foreach (var pre in data.PreEvents.Where(p => map.MapID == 12055 || map.MapID == 11167 || map.MapID == 11039 ? p.clickID == 1 : p.clickID == 10 || p.clickID == 12))
             {
                 // PreEvents use the same 21-byte condition/action records as EVE
                 // events. Keep their original condition grouping and action order.
@@ -295,7 +298,8 @@ namespace Game.Maps
 
         internal static bool UsesNativeMechanisms(uint mapId)
         {
-            return mapId == 11157 || mapId == 11158 || mapId == 11159 || mapId == 11166 || mapId == 12380;
+            return mapId == 11157 || mapId == 11158 || mapId == 11159 || mapId == 11166 || mapId == 12380 ||
+                mapId == 60014 || mapId == 12523;
         }
 
         private static EventSubEntry FindBranch(Player player, GameMap map, EventsinMapEntries ev,
@@ -305,7 +309,9 @@ namespace Game.Maps
             if (map?.MapID == 12002 && (ev.clickID == 8 || ev.clickID == 9) && QuestManager.IsXaolanInFate(player)) return null;
             // A completed answer branch falls through to later result conditions.
             // Restarting at the greeting can clear accumulated quiz marks first.
-            int first = exclude != null && (exclude.unknownbyte1 == 7 || map?.MapID == 11157)
+            int first = exclude != null && (exclude.unknownbyte1 == 7 || map?.MapID == 11157 ||
+                (map?.MapID == 11013 && ev.clickID == 11) || (map?.MapID == 12211 && ev.clickID == 1) ||
+                (map?.MapID == 11149 && ev.clickID == 2))
                 ? ev.SubEntry.IndexOf(exclude) + 1 : 0;
             IEnumerable<int> branchOrder = Enumerable.Range(first, ev.SubEntry.Count - first);
             // This EVE revision puts Junior Alchemy's material reminder before its
@@ -313,6 +319,11 @@ namespace Game.Maps
             // otherwise the reminder permanently shadows learning the skill.
             if (trigger == 0 && map?.MapID == 10071 && ev.clickID == 6)
                 branchOrder = branchOrder.OrderBy(i => ev.SubEntry[i].subIndex == 6 ? 0 : 1);
+            // Both Ghostdom guards put their step-2 greeting before the Oracle
+            // hand-in. Try the more specific hand-in first; its item and quest
+            // conditions still decide whether the player can advance.
+            if (trigger == 0 && map?.MapID == 11148 && (ev.clickID == 2 || ev.clickID == 4))
+                branchOrder = branchOrder.OrderBy(i => ev.SubEntry[i].subIndex == 2 ? 0 : 1);
             foreach (int i in branchOrder)
             {
                 var branch = ev.SubEntry[i];
@@ -383,16 +394,32 @@ namespace Game.Maps
                         // Player operand: 1 = item count, 2 = gold. The operand selector
                         // is not a required quantity; the threshold is the packed value.
                         if (condition.unknownword2 == 1)
-                            return CompareValue(player.Inv?.GetItemCount(condition.unknownword3) ?? 0, value, comparison);
+                        {
+                            int count = player.Inv?.GetItemCount(condition.unknownword3) ?? 0;
+                            // Travel checks accept capsules from the native vehicle family.
+                            // Item hand-ins still require their exact item: matching a capsule
+                            // here must not authorize a trade that removes only the base item.
+                            if (condition.unknownword3 >= 48001 && condition.unknownword3 <= 48042 && player.Inv != null &&
+                                (ev == null || !ev.SubEntry.SelectMany(branch => branch.SubEntry).Any(op =>
+                                    op.DialogPtr == 1 && op.dialog1 == 1 && op.dialog2 == 1 &&
+                                    Game.PlayerRelated.VehicleManager.IsSameVehicle(op.dialog3, condition.unknownword3) &&
+                                    unchecked((int)DecodeActionValue(op)) < 0)))
+                                for (byte slot = 1; slot <= 50; slot++)
+                                {
+                                    var item = player.Inv[slot];
+                                    if (item.ItemID != condition.unknownword3 && Game.PlayerRelated.VehicleManager.IsSameVehicle(item.ItemID, condition.unknownword3))
+                                        count += item.Ammt;
+                                }
+                            return CompareValue(count, value, comparison);
+                        }
                         if (condition.unknownword2 == 2)
                             return CompareValue((int)player.Gold, value, comparison);
                         if (condition.unknownword2 == 3)
                             return player.Eqs != null && CompareValue(player.Eqs.Level, value, comparison);
                         // EVE 2/1/4 converts to native vehicle subject 25. Every
                         // operand in this corpus is a vehicle, distinct from bag count.
-                        if (condition.unknownword2 == 4 && map?.MapID == 11175 &&
-                            condition.unknownword3 == 48017)
-                            return CompareValue(player.ActiveVehicleID == 48017 ? 1 : 0, value, comparison);
+                        if (condition.unknownword2 == 4 && condition.unknownword3 >= 48001 && condition.unknownword3 <= 48042)
+                            return CompareValue(Game.PlayerRelated.VehicleManager.IsSameVehicle(player.ActiveVehicleID, condition.unknownword3) ? 1 : 0, value, comparison);
                         return false;
                     }
                     if (condition.unknownword1 == 2)
@@ -403,6 +430,11 @@ namespace Game.Maps
                         {
                             case 1: return present;
                             case 2: return !present;
+                            // The only 2/2/3 record in this EVE is Clive's prison
+                            // branch, paired with the active-Clive alternative.
+                            // Do not enable unverified forms on other maps.
+                            case 3: return map?.MapID == 11050 && ev?.clickID == 1 &&
+                                condition.unknownword3 == 14175 && present;
                             case 5:
                                 int pets = player.PlayerPets?.Values.Count(p => p != null) ?? 0;
                                 return CompareValue(Math.Max(0, 4 - pets), value, comparison);
@@ -481,6 +513,15 @@ namespace Game.Maps
                         Game.SkillRelated.SkillManager.GetSkill(condition.unknownword1) == null) return false;
                     var skill = player.PlayerSkills?.FirstOrDefault(s => s.SkillID == condition.unknownword1);
                     return CompareValue(skill?.Grade ?? 0, value, comparison);
+                case 13:
+                    // EVE 13/1 -> native condition 12/1: player team size.
+                    // The prison escape reserves a place for the story actor;
+                    // its authored full-team reminder compares the same count to 4.
+                    if (map?.MapID != 11052 || ev?.clickID != 3 || condition.unknownword1 != 1 ||
+                        condition.unknownword2 != 0 || condition.unknownword3 != 0) return false;
+                    int teamSize = player.m_teammembers == null ? 1 :
+                        player.m_teammembers.Where(member => member != null).Concat(new[] { player }).Distinct().Count();
+                    return CompareValue(teamSize, value, comparison);
                 case 14:
                     return MatchesGatheringTimer(player, condition);
                 case 15:
@@ -509,6 +550,18 @@ namespace Game.Maps
                 unknownword4 = BitConverter.ToUInt16(data, 7), unknownword5 = BitConverter.ToUInt16(data, 9),
                 unknownword6 = BitConverter.ToUInt16(data, 11)
             };
+            // Holy's wine-delivery concealment applies only during the active delivery.
+            // A missing mark treated as step zero made 0 < 3 hide the Record keeper
+            // before quest acceptance (11013, PreEvent 1).
+            if (player?.CurMap?.MapID == 11013 && condition.unknownbyte1 == 5 &&
+                condition.unknownword1 == 13056 && condition.unknownword2 == 1 &&
+                condition.unknownword3 == 1 && condition.unknownword4 == 0x0301 &&
+                condition.unknownword5 == 0 && (condition.unknownword6 & 255) == 0)
+            {
+                PlayerQuest delivery;
+                if (player.Quests == null || !player.Quests.TryGetValue(13056, out delivery) ||
+                    delivery.State != QuestState.InProgress || delivery.Step == 0) return false;
+            }
             return MatchesCondition(player, null, null, condition);
         }
 
@@ -530,6 +583,26 @@ namespace Game.Maps
             packet.Pack16(text);
             packet.Pack8(branch);
             return packet;
+        }
+
+        private static bool IsCliveActorAction(GameMap map, EventSubSubEntry op)
+        {
+            // Roca farewell uses Star_8 at the authored dying-Roca actor.
+            if (map?.MapID == 11185 && op.DialogPtr == 2 && op.dialog2 == 11 &&
+                op.dialog1 == 1 && op.dialog3 == 1 && DecodeActionValue(op) == 8) return true;
+            // Niss farewell uses the verified constellation and actor-animation packets.
+            if (map?.MapID == 11149 && op.DialogPtr == 2 &&
+                ((op.dialog2 == 11 && op.dialog1 == 3 && op.dialog3 == 1 && DecodeActionValue(op) == 6) ||
+                 (op.dialog2 == 4 && op.dialog1 == 4 && op.dialog3 == 8))) return true;
+            // The two Oracle guards use the same native expression packet.
+            if (map?.MapID == 11148 && op.DialogPtr == 2 && op.dialog2 == 8 &&
+                (op.dialog1 == 1 || op.dialog1 == 2) && op.dialog3 == 7) return true;
+            return op.DialogPtr == 2 && map != null &&
+                (map.MapID == 11039 || map.MapID == 11049 || map.MapID == 11050 ||
+                 map.MapID == 11052 || map.MapID == 12211) &&
+                (op.dialog2 == 4 || op.dialog2 == 8 || op.dialog2 == 10 ||
+                 (map.MapID == 12211 && op.dialog2 == 11 && op.dialog1 == 1 &&
+                  op.dialog3 == 1 && DecodeActionValue(op) == 20));
         }
 
         private static bool IsClientStep(EventSubSubEntry op)
@@ -698,6 +771,39 @@ namespace Game.Maps
             };
         }
 
+        // EVE raw byte 12 groups simultaneous actions. Zero is ungrouped.
+        // Native AC20:1 paths share one AC20:6 completion after all registered
+        // actors arrive. aLogin tracks at most ten paths (0x30a404/0x30737c).
+        private static bool IsNpcPath(EventSubSubEntry op)
+        {
+            return op.DialogPtr == 2 && op.dialog2 == 9 && op.dialog1 != 0 &&
+                op.dialog3 >= 1 && op.dialog3 <= 3;
+        }
+
+        private static void SendNpcPathGroup(Player player, EventSubEntry branch,
+            EventSubSubEntry first, ref int index)
+        {
+            uint group = first.unknowndword1 >> 24;
+            var actors = new HashSet<ushort>();
+            var packets = new List<byte>();
+            var op = first;
+            while (true)
+            {
+                actors.Add(op.dialog1);
+                packets.AddRange(BuildEventFrame(4, 3, op.dialog1, (byte)op.dialog3,
+                    DecodeActionValue(op), 0, op.subsubIndex, branch.subIndex).Buffer);
+                if (group == 0 || actors.Count == 10 || index == branch.SubEntry.Count) break;
+                var next = branch.SubEntry[index];
+                // Never cross another action, another group, or overwrite a moving
+                // actor's destination with its next leg before arrival.
+                if (!IsNpcPath(next) || (next.unknowndword1 >> 24) != group ||
+                    actors.Contains(next.dialog1)) break;
+                op = next;
+                index++;
+            }
+            player.Send(new SendPacket(packets.ToArray()));
+        }
+
         private static void StartSession(Player player, GameMap map, ushort clickId, EventsinMapEntries ev, EventSubEntry branch, bool allowTransition = true)
         {
             if (RejectDisabledNativeEvent(player, map, ev)) return;
@@ -760,13 +866,25 @@ namespace Game.Maps
                             // At the well that extra completion advances the jump movie
                             // early, queues movie 156 behind it and latches a black screen.
                             // Mode 1 reports only the choice; the movie owns its own ACK.
-                            byte choiceMode = (byte)(map.MapID == 11005 && (ev.clickID == 25 || ev.clickID == 26) ? 1 : 0);
+                            bool singleChoiceAck = (map.MapID == 11005 && (ev.clickID == 25 || ev.clickID == 26)) ||
+                                (map.MapID == 11040 && (ev.clickID == 2 || ev.clickID == 8 || ev.clickID == 9)) ||
+                                (map.MapID == 12211 && ev.clickID == 1) ||
+                                (map.MapID == 11149 && (ev.clickID == 1 || ev.clickID == 6)) ||
+                                (map.MapID == 11075 && (ev.clickID == 1 || ev.clickID == 2));
+                            byte choiceMode = (byte)(singleChoiceAck ? 1 : 0);
                             player.Send(BuildEventFrame(6, (byte)(playerChoice ? 7 : 3), (ushort)(playerChoice ? 0 : op.dialog1), choiceMode, 0, question, step, branch.subIndex));
+                            return;
+                        }
+                        if (IsNpcPath(op))
+                        {
+                            player.OnInteractionComplete = advance;
+                            SendNpcPathGroup(player, branch, op, ref index);
                             return;
                         }
                         bool playerSpeech = op.DialogPtr == 1 && op.dialog1 == 2 && op.dialog2 >= 10000;
                         bool npcSpeech = op.DialogPtr == 2 && (op.dialog2 == 0 || op.dialog2 == 1) && op.dialog3 >= 10000;
-                        bool path = op.DialogPtr == 2 && op.dialog2 == 9;
+                        bool path = op.DialogPtr == 2 && (op.dialog2 == 9 ||
+                            (IsCliveActorAction(map, op) && (op.dialog2 == 10 || op.dialog2 == 11)));
                         bool movie = op.DialogPtr == 8 && (op.dialog1 == 1 || op.dialog1 == 2);
                         bool music = op.DialogPtr == 15;
                         bool playerEffect = op.DialogPtr == 1 && (op.dialog1 == 6 || op.dialog1 == 7);
@@ -783,6 +901,14 @@ namespace Game.Maps
                                 DecodeActionValue(op) == 25010 && branch.SubEntry.Skip(index).Any(next =>
                                     next.DialogPtr == 8 && DecodeActionValue(next) == 156))
                                 player.Send(BuildEventFrame(5, 0, 0, 1, 25010, 0, step, branch.subIndex));
+                            else if (movie && (map.MapID == 11039 || map.MapID == 11052 ||
+                                (map.MapID == 60014 && ev.clickID == 54) ||
+                                // Fred runs three movies before battle, then a victory movie
+                                // before music/warp. None may hold rendering for a map load.
+                                (map.MapID == 11149 && (ev.clickID == 1 || ev.clickID == 2 || ev.clickID == 5)) ||
+                                (map.MapID == 11185 && ev.clickID == 4) ||
+                                (map.MapID == 11075 && (ev.clickID == 1 || ev.clickID == 2))))
+                                player.Send(BuildEventFrame(5, 0, 0, 1, DecodeActionValue(op), 0, step, branch.subIndex));
                             else if (!ExecuteOpcode(player, map, clickId, ev, branch, op)) finish();
                             return;
                         }
@@ -814,6 +940,22 @@ namespace Game.Maps
                         }
                         finish();
                         return;
+                    }
+                    // These authored sequences contain several action-bearing rules
+                    // at the same mark. Continue forward after each acknowledged
+                    // speech/path group, rather than restarting the first reminder.
+                    if ((map.MapID == 11013 && ev.clickID == 11) ||
+                        (map.MapID == 12211 && ev.clickID == 1))
+                    {
+                        var next = FindBranch(player, map, ev, exclude: branch);
+                        if (next != null) { StartSession(player, map, clickId, ev, next, false); return; }
+                    }
+                    // The non-following Roca farewell ends its dialogue in branch10;
+                    // branch15 owns recruitment/rewards under the same native gates.
+                    if (map.MapID == 11149 && ev.clickID == 2 && branch.subIndex == 10)
+                    {
+                        var next = FindBranch(player, map, ev, exclude: branch);
+                        if (next != null) { StartSession(player, map, clickId, ev, next, false); return; }
                     }
                     // The well lever's state change enables the next authored branch:
                     // movie 11103 followed by warp 2. Continue this same interaction;
@@ -864,11 +1006,18 @@ namespace Game.Maps
             player.OnMinigameLost = null;
             if (player.CurMap != map) return;
             var branch = FindBranch(player, map, ev, trigger, source, result);
-            // Final Weapon has two formations with the same callback source=1.
+            // Final Weapon, Truth Road and Mooter have two formations with callback source=1.
             // Outcomes belong to the battle branch that started them, not the first fight.
-            if (map.MapID == 12380 && ev.clickID == 2 && trigger == 4 && origin != null)
+            if (((map.MapID == 12380 && ev.clickID == 2) ||
+                 (map.MapID == 12523 && ev.clickID == 12)) && trigger == 4 && origin != null)
                 branch = ev.SubEntry.Skip(ev.SubEntry.IndexOf(origin) + 1)
                     .TakeWhile(b => b.unknownbyte1 == 4 || b.SubEntry.Count == 0)
+                    .FirstOrDefault(b => b.unknownbyte1 == 4 && b.unknownword1 == source && b.unknownword2 == result);
+            // Mooter has three parallel party-condition branches before fight1's
+            // result, then fight2 inside that result. Select the next authored
+            // callback after the actual origin, across those parallel entry rules.
+            if (map.MapID == 11149 && ev.clickID == 5 && trigger == 4 && origin != null)
+                branch = ev.SubEntry.Skip(ev.SubEntry.IndexOf(origin) + 1)
                     .FirstOrDefault(b => b.unknownbyte1 == 4 && b.unknownword1 == source && b.unknownword2 == result);
             if (branch != null) StartSession(player, map, clickId, ev, branch);
             else

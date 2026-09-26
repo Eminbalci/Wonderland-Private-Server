@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -38,12 +38,12 @@ namespace Network.ActionCodes
                     Game.Maps.EveEventInterpreter.TryExecuteRegion(p, eventMap, previousX, previousY)) return;
 
                 // Vehicle Durability / Fuel wear on movement
-                if (p.ActiveVehicleID != 0 && p.Inv != null)
+                if (movedDistance > 0 && p.ActiveVehicleID != 0 && p.Inv != null)
                 {
                     p.Inv.ApplyVehicleWear((ushort)p.ActiveVehicleID, 1);
 
                     // Check if sailing in a raft on Map 11016 and stepping onto the beach/sand
-                    if (p.CurMap != null && p.CurMap.MapID == 11016 && p.CurX >= 280 && p.CurY >= 950)
+                    if (p.ActiveVehicleID == 48016 && p.CurMap != null && p.CurMap.MapID == 11016 && p.CurX >= 280 && p.CurY >= 950)
                     {
                         DebugSystem.Write($"[AC06] Player {p.CharName} reached the beach shore on Map 11016 at ({p.CurX},{p.CurY}). Wrecking raft and disembarking.");
                         Game.PlayerRelated.VehicleManager.WreckVehicle(p);

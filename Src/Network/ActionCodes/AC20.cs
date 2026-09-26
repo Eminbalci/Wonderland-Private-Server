@@ -58,24 +58,12 @@ namespace Wonderland_Private_Server.ActionCodes
 
             if (p.CurMap != null)
             {
-                // If sailing on Map 10036 (or stepping on ocean portal 11), warp through ocean exit to World Ocean Map 11016
-                if (p.CurMap.MapID == 10036 && (p.ActiveVehicleID > 0 || portalID == 11))
-                {
-                    if (p.ActiveVehicleID == 0) p.ActiveVehicleID = 48016;
-                    var oceanWarp = new Game.Maps.WarpData() { DstMap = 11016, DstX_Axis = 134, DstY_Axis = 1126 };
-                    p.CurMap.Teleport(TeleportType.CmD, p, 0, oceanWarp);
-                    DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} sailed through ocean portal from 10036 to 11016 at (134, 1126)");
-                    return;
-                }
-
-                // If sailing on Map 11016 (Open Ocean) and stepping into a land portal
-                if (p.CurMap.MapID == 11016 && p.ActiveVehicleID > 0)
-                {
-                    Game.PlayerRelated.VehicleManager.WreckVehicle(p);
-                }
-
+                // Authored EVE entries above decide destinations. Do not fabricate
+                // an active raft or destroy unrelated vehicles when crossing a portal.
+                bool landQuestRaft = p.CurMap.MapID == 11016 && p.ActiveVehicleID == 48016;
                 if (p.CurMap.Teleport(TeleportType.Regular, p, portalID))
                 {
+                    if (landQuestRaft) Game.PlayerRelated.VehicleManager.WreckVehicle(p, 48016);
                     p.SaveCharacterData();
                     return;
                 }

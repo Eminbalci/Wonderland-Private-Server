@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -2310,6 +2310,7 @@ namespace Game.Battle
                     DebugSystem.Write($"[PvEBattle] Attacking team won battle! (Attackers: {battle.AttackingPlayers.Count}, Defenders: {battle.Defenders.Count})");
                     uint totalExp = 0;
                     uint totalGold = 0;
+                    var receivedDrops = new Dictionary<ushort, int>();
 
                     if (!battle.IsPvP)
                     {
@@ -2334,7 +2335,14 @@ namespace Game.Battle
                                         if (drop != null)
                                         {
                                             int added = battle.LeaderPlayer.Inv.AddItem(drop.ItemID, drop.Count);
-                                            if (added <= 0)
+                                            if (added > 0)
+                                                DebugSystem.Write($"[PvEBattle.Loot] {battle.LeaderPlayer.CharName}: monster #{m.MonsterId} -> item #{drop.ItemID} '{drop.ItemName}' x{added}.");
+                                            if (added > 0)
+                                            {
+                                                receivedDrops.TryGetValue(drop.ItemID, out int received);
+                                                receivedDrops[drop.ItemID] = received + added;
+                                            }
+                                            else
                                             {
                                                 DebugSystem.Write($"[PvEBattle] Drop #{drop.ItemID} was not added to {battle.LeaderPlayer.CharName}'s inventory.");
                                             }
@@ -2428,6 +2436,12 @@ namespace Game.Battle
                         p.SetBattleCooldown();
                         BroadcastBattleState(p, false);
                     }
+
+                    // Announce only delivered loot after returning to map mode.
+                    // AC23:5 already updates the bag; this dialog must not grant items again.
+                    if (receivedDrops.Count > 0)
+                        battle.LeaderPlayer.SendHeadBanner("Obtain " + string.Join(", ", receivedDrops.Select(
+                            drop => $"{MonsterDropManager.ResolveItemName(drop.Key)} x{drop.Value}")));
 
                     // Defending team cleanup (if PvP)
                     foreach (var p in battle.DefendingPlayers)
