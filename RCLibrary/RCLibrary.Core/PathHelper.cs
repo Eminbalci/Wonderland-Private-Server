@@ -117,6 +117,7 @@ namespace RCLibrary.Core
                                 // Verify this folder contains essential DAT files
                                 if (File.Exists(Path.Combine(full, "Npc.dat")) ||
                                     File.Exists(Path.Combine(full, "Talk.dat")) ||
+                                    File.Exists(Path.Combine(full, "itemDat.wpdat")) ||
                                     File.Exists(Path.Combine(full, "Item.dat")) ||
                                     File.Exists(Path.Combine(full, "eve.Emg")) ||
                                     File.Exists(Path.Combine(full, "Ground.MMG")))

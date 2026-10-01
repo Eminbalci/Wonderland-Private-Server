@@ -287,8 +287,8 @@ namespace Wonderland_Private_Server
             Console.WriteLine("[Init] - Initializing DataFile Objects");
             cGlobal.ItemDatManager = new DataFiles.PhxItemDat();
             cGlobal.ItemDatManager.onDebug = (obj) => { };
-            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
-            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
+            string itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("itemDat.wpdat");
+            if (!System.IO.File.Exists(itemDatPath)) itemDatPath = RCLibrary.Core.PathHelper.GetDataFilePath("Item.dat");
             if (!string.IsNullOrEmpty(itemDatPath) && System.IO.File.Exists(itemDatPath))
             {
                 cGlobal.ItemDatManager.Load(itemDatPath).Wait();
