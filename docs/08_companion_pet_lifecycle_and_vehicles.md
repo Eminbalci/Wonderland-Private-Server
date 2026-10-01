@@ -82,3 +82,31 @@ When a player navigates a wooden raft to shore, the authentic 7-step wrecking se
 | 7     | AC 23:57      | Displays shipwreck notification banner and commits auto-save  |
 +-------+---------------+---------------------------------------------------------------+
 ```
+
+---
+
+## 6. Robinson Companion Recruitment Pipeline (Map 10035 / 10039)
+
+### 6.1 Native Event 19 State Machine
+
+Robinson recruitment on Rhode Island Beach (`Map 10035` / `10039`) is orchestrated via native EVE script Event 19 (`老魯加入` - "Robinson joins"). It consists of 3 action-bearing subentry branches chained seamlessly across interactions:
+
+1. **SubEntry 1 (`subIndex 1` - Chest Opening & Raft Delivery):**
+   * Precondition: `Quest 12046` not started (`w2 = 2`).
+   * Actions: Plays chest opening animation (`Opcode 2`), grants `Robinson's Raft` (`ItemID 48016`, `Opcode 1`), flags `Quest 12046` as `InProgress` Step 1 (`Opcode 5`).
+   * Transition: Seamlessly transitions to `subIndex 3` via [`EveEventRuntime.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventRuntime.cs#L978).
+
+2. **SubEntry 3 (`subIndex 3` - Story Dialogue Sequence):**
+   * Precondition: `Quest 12046 == 1` (`w2 = 1, w4 = 0x0105`).
+   * Actions: Executes authentic dialogue between player and Robinson (`TalkIDs 20355, 28422..28427`, animation `11070`). Marks `Quest 12046` as `Completed` (`w2 = 2`), advances `Quest 12047` to `InProgress` Step 1 (`Opcode 5`).
+   * Transition: Seamlessly transitions to `subIndex 5` via [`EveEventRuntime.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventRuntime.cs#L978).
+
+3. **SubEntry 5 (`subIndex 5` - Recruitment & Map Despawn):**
+   * Precondition: `Quest 12047 == 1` (`w2 = 1, w4 = 0x0105`).
+   * Actions: Marks `Quest 15282` as `Completed`, despawns Robinson NPC (`ClickID 1`, `Opcode 2`), recruits Robinson (`Companion TID 12178` / internal `PetID 12032`, `Opcode 3`) into the player's party via `QuestManager.SendCompanionReward`, and marks `Quest 15283` as `InProgress` Step 1.
+   * Finalization: Commits player character persistence and synchronizes map actor visibility.
+
+### 6.2 Existing Player Rescue Fallback
+For characters who completed dialogue prior to recruitment finalization (`Quest 12047` in progress without Robinson in party):
+* Interacting with chest (`NPC #7`) directly evaluates `subIndex 5`.
+* Interacting with Robinson (`NPC #1`) on `Map 10035` or `10039` prioritizes Event 19 in [`EveEventInterpreter.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventInterpreter.cs#L93), triggering immediate recruitment and despawning the overworld beach actor.

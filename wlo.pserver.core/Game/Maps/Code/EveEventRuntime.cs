@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.IO;
 using System.Collections.Generic;
@@ -975,7 +975,7 @@ namespace Game.Maps
                     }
                     // Opening Robinson's raft chest enables his immediate reaction.
                     // Re-evaluate authored conditions after the reward; do not replay it.
-                    if ((map.MapID == 10035 || map.MapID == 10039) && ev.clickID == 19 && branch.subIndex == 1)
+                    if ((map.MapID == 10035 || map.MapID == 10039) && ev.clickID == 19 && (branch.subIndex == 1 || branch.subIndex == 3))
                     {
                         var next = FindBranch(player, map, ev, exclude: branch);
                         if (next != null) { StartSession(player, map, clickId, ev, next, false); return; }

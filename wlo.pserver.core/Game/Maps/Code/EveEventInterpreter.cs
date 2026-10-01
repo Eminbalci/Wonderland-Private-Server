@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -87,6 +87,20 @@ namespace Game.Maps
                         if (direct != null && direct.SubEntry != null && direct.SubEntry.Count > 0)
                         {
                             candidates.Add(direct);
+                        }
+                    }
+
+                    // Robinson rescue fallback: if chest dialogue finished (Quest 12047 active)
+                    // but recruitment was not finalized, interacting with Robinson directly resumes Event 19.
+                    if ((map.MapID == 10035 || map.MapID == 10039) && clickId == 1 &&
+                        player.Quests != null && player.Quests.TryGetValue(12047, out var robinsonQuest) &&
+                        robinsonQuest.State == QuestState.InProgress &&
+                        !player.HasRecruitedCompanion(12178))
+                    {
+                        var ev19 = mapData.Events.FirstOrDefault(e => e.clickID == 19);
+                        if (ev19 != null && !candidates.Contains(ev19))
+                        {
+                            candidates.Insert(0, ev19);
                         }
                     }
                 }
