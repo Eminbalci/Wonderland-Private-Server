@@ -1,4 +1,4 @@
-﻿using Game.Code;
+using Game.Code;
 using Game.Maps;
 using Network;
 using RCLibrary.Core.Networking;
@@ -1728,6 +1728,7 @@ namespace Game
         public bool BeachCutsceneActive { get; set; }
         public int BeachCutsceneStep { get; set; } = 0;
         public bool PlayingStormCutscene { get; set; }
+        public DateTime StormCutsceneStartTime { get; set; } = DateTime.MinValue;
         public Queue<Action> StepQueue { get; set; } = new Queue<Action>();
         public int LastDialogueAdvanceTick { get; set; } = 0;
 

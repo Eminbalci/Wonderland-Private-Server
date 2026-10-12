@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -233,12 +233,20 @@ namespace Wonderland_Private_Server.ActionCodes
             // If the player is currently watching the ship storm cutscene, client AC 20:6 signals cutscene finished -> warp to beach
             if (p.PlayingStormCutscene)
             {
+                double elapsed = (DateTime.UtcNow - p.StormCutsceneStartTime).TotalSeconds;
+                if (elapsed < 1.0)
+                {
+                    DebugSystem.Write($"[AC20.Recv6] Absorbed premature AC 20:6 during storm cutscene initialization (elapsed: {elapsed:F2}s) for {p.CharName}");
+                    return;
+                }
+
                 p.PlayingStormCutscene = false;
                 p.PendingBeachCutscene = true;
+                p.ClearInteraction();
                 p.Send(Tools.FromFormat("bb", 20, 7)); // Frame 2379: AC 20:7 Warp Out
                 var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
                 p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
-                DebugSystem.Write($"[AC20.Recv6] Storm Cutscene finished for {p.CharName} -> Warping to Beach (Map 10035)");
+                DebugSystem.Write($"[AC20.Recv6] Storm Cutscene completed via client ACK (elapsed: {elapsed:F2}s) for {p.CharName} -> Warping to Beach (Map 10035)");
                 return;
             }
 

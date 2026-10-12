@@ -1,0 +1,1658 @@
+{
+  "AC_62_0x3E": [
+    {
+      "function": "// Function: FUN_0013c6ac @ 0013c6ac",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x31",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x31,0,uVar4);"
+    },
+    {
+      "function": "// Function: FUN_0013c6ac @ 0013c6ac",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x30",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x30,0);"
+    },
+    {
+      "function": "// Function: FUN_0013c9f8 @ 0013c9f8",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x2f",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x2f,0,uVar3,uVar4,uVar5);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001b406c @ 001b406c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x39",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x39,0);"
+    },
+    {
+      "function": "// Function: FUN_001dc448 @ 001dc448",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x34,1);"
+    },
+    {
+      "function": "// Function: FUN_001dc448 @ 001dc448",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x34,3);"
+    },
+    {
+      "function": "// Function: FUN_001dc448 @ 001dc448",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x34,5);"
+    },
+    {
+      "function": "// Function: FUN_001dc448 @ 001dc448",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x34,9);"
+    },
+    {
+      "function": "// Function: FUN_001dd738 @ 001dd738",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x3a",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x3a,4);"
+    },
+    {
+      "function": "// Function: FUN_001dd830 @ 001dd830",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x3a",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x3a,2);"
+    },
+    {
+      "function": "// Function: FUN_001dd830 @ 001dd830",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x3a",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x3a,1);"
+    },
+    {
+      "function": "// Function: FUN_001ea2e8 @ 001ea2e8",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x34,7);"
+    },
+    {
+      "function": "// Function: FUN_00207290 @ 00207290",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x1f",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x1f,0,uVar2,uVar3,uVar4);"
+    },
+    {
+      "function": "// Function: FUN_0020885c @ 0020885c",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x2b",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x2b,0);"
+    },
+    {
+      "function": "// Function: FUN_0020a088 @ 0020a088",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x29",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x29,0,uVar5,uVar6,uVar7);"
+    },
+    {
+      "function": "// Function: FUN_00387318 @ 00387318",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,8,0);"
+    },
+    {
+      "function": "// Function: FUN_00387414 @ 00387414",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,9,0);"
+    },
+    {
+      "function": "// Function: FUN_00387500 @ 00387500",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,7,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7474 @ 003f7474",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,10,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7474 @ 003f7474",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0xb,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7474 @ 003f7474",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,1,0);"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x42",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x42,0);"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0x3c",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0x3c,0);"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0xe",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0xe,0);"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x3e",
+      "opcode_arg2": "0xe",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3e,0xe,0);"
+    }
+  ],
+  "AC_34_0x22": [
+    {
+      "function": "// Function: FUN_00140470 @ 00140470",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1,0);"
+    },
+    {
+      "function": "// Function: FUN_001424ac @ 001424ac",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1);"
+    },
+    {
+      "function": "// Function: FUN_0014596c @ 0014596c",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1);"
+    },
+    {
+      "function": "// Function: FUN_001820ac @ 001820ac",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1);"
+    },
+    {
+      "function": "// Function: FUN_00183730 @ 00183730",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1);"
+    },
+    {
+      "function": "// Function: FUN_0018eaf4 @ 0018eaf4",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1,0);"
+    },
+    {
+      "function": "// Function: FUN_00192830 @ 00192830",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1,0);"
+    },
+    {
+      "function": "// Function: FUN_00193acc @ 00193acc",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1,0);"
+    },
+    {
+      "function": "// Function: FUN_00195c14 @ 00195c14",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1,0);"
+    },
+    {
+      "function": "// Function: FUN_003d5fbc @ 003d5fbc",
+      "opcode_arg1": "0x22",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x22,1,0);"
+    }
+  ],
+  "AC_71_0x47": [
+    {
+      "function": "// Function: FUN_00141bd0 @ 00141bd0",
+      "opcode_arg1": "0x47",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x47,7,0);"
+    },
+    {
+      "function": "// Function: FUN_00143e08 @ 00143e08",
+      "opcode_arg1": "0x47",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x47,9,0);"
+    },
+    {
+      "function": "// Function: FUN_00182a48 @ 00182a48",
+      "opcode_arg1": "0x47",
+      "opcode_arg2": "0x14",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x47,0x14,0);"
+    },
+    {
+      "function": "// Function: FUN_00194284 @ 00194284",
+      "opcode_arg1": "0x47",
+      "opcode_arg2": "*(undefined1 *",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x47,"
+    }
+  ],
+  "AC_13_0x0D": [
+    {
+      "function": "// Function: FUN_001632a8 @ 001632a8",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(DAT_006c8e98,0xd,4,0);"
+    },
+    {
+      "function": "// Function: FUN_00274ef0 @ 00274ef0",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xd,8,0);"
+    },
+    {
+      "function": "// Function: FUN_002a1ba4 @ 002a1ba4",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xd,4,0);"
+    },
+    {
+      "function": "// Function: FUN_003c115c @ 003c115c",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xd,4,0);"
+    },
+    {
+      "function": "// Function: FUN_004211a0 @ 004211a0",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xd,10,2);"
+    },
+    {
+      "function": "// Function: FUN_004211a0 @ 004211a0",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xd,10,2);"
+    },
+    {
+      "function": "// Function: FUN_0042209c @ 0042209c",
+      "opcode_arg1": "0xd",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xd,1,0);"
+    }
+  ],
+  "AC_23_0x17": [
+    {
+      "function": "// Function: FUN_00169430 @ 00169430",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x51",
+      "line": "FUN_002d6ad8(DAT_006c8e98,0x17,0x51,0);"
+    },
+    {
+      "function": "// Function: FUN_001b5bbc @ 001b5bbc",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x72",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x72,1);"
+    },
+    {
+      "function": "// Function: FUN_001b5bd4 @ 001b5bd4",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x72",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x72,4);"
+    },
+    {
+      "function": "// Function: FUN_001b7748 @ 001b7748",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x68",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x68,3);"
+    },
+    {
+      "function": "// Function: FUN_001b9948 @ 001b9948",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x68",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x68,0xe);"
+    },
+    {
+      "function": "// Function: FUN_001bd9e0 @ 001bd9e0",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x7f",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x7f,0);"
+    },
+    {
+      "function": "// Function: FUN_001c0058 @ 001c0058",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x81",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x81,0,uVar3,uVar4,uVar5);"
+    },
+    {
+      "function": "// Function: FUN_001c5544 @ 001c5544",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x84",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x84,3);"
+    },
+    {
+      "function": "// Function: FUN_001d9ec0 @ 001d9ec0",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x5a",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x5a,3);"
+    },
+    {
+      "function": "// Function: FUN_001da820 @ 001da820",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x5a",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x5a,3);"
+    },
+    {
+      "function": "// Function: FUN_001e6f98 @ 001e6f98",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x7e",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x7e,0);"
+    },
+    {
+      "function": "// Function: FUN_001f064c @ 001f064c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x85",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x85,1,uVar3,uVar4);"
+    },
+    {
+      "function": "// Function: FUN_001f23a0 @ 001f23a0",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x86",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x86,3);"
+    },
+    {
+      "function": "// Function: FUN_001f2678 @ 001f2678",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x86",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x86,1);"
+    },
+    {
+      "function": "// Function: FUN_001f4f2c @ 001f4f2c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x26",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x26,0);"
+    },
+    {
+      "function": "// Function: FUN_001fd48c @ 001fd48c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x4f",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x4f,0);"
+    },
+    {
+      "function": "// Function: FUN_00210fa8 @ 00210fa8",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x56",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x56,0);"
+    },
+    {
+      "function": "// Function: FUN_00213388 @ 00213388",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x62",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x62,0);"
+    },
+    {
+      "function": "// Function: FUN_00213388 @ 00213388",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x62",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x62,0);"
+    },
+    {
+      "function": "// Function: FUN_002142f0 @ 002142f0",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x62",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x62,0);"
+    },
+    {
+      "function": "// Function: FUN_00214efc @ 00214efc",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x5b",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x5b,0);"
+    },
+    {
+      "function": "// Function: FUN_00217314 @ 00217314",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,CONCAT31((int3)((uint)iVar2 >> 8),0x5e),0);"
+    },
+    {
+      "function": "// Function: FUN_00217c0c @ 00217c0c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x5c",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x5c,0,uVar4,uVar5,uVar6);"
+    },
+    {
+      "function": "// Function: FUN_002260a0 @ 002260a0",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x76",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x76,0,uVar3,uVar4,uVar5);"
+    },
+    {
+      "function": "// Function: FUN_0022ab74 @ 0022ab74",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x7b",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x7b,2);"
+    },
+    {
+      "function": "// Function: FUN_0022ab74 @ 0022ab74",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x7b",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x7b,4);"
+    },
+    {
+      "function": "// Function: FUN_0022ab74 @ 0022ab74",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x7b",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x7b,6);"
+    },
+    {
+      "function": "// Function: FUN_0027fa18 @ 0027fa18",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x14",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x14);"
+    },
+    {
+      "function": "// Function: FUN_0029f088 @ 0029f088",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x36",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x36,0);"
+    },
+    {
+      "function": "// Function: FUN_0029f670 @ 0029f670",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x34,0);"
+    },
+    {
+      "function": "// Function: FUN_0029f670 @ 0029f670",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x36",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x36,0);"
+    },
+    {
+      "function": "// Function: FUN_002a7034 @ 002a7034",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x6b",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x6b,local_8);"
+    },
+    {
+      "function": "// Function: FUN_002bfdb8 @ 002bfdb8",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0xb6",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0xb6,0);"
+    },
+    {
+      "function": "// Function: FUN_0033ae34 @ 0033ae34",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x21",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x21,0);"
+    },
+    {
+      "function": "// Function: FUN_0033d458 @ 0033d458",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x1f",
+      "line": "iVar3 = FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x1f,0);"
+    },
+    {
+      "function": "// Function: FUN_003488cc @ 003488cc",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x3f",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x3f,0,iVar2);"
+    },
+    {
+      "function": "// Function: FUN_0034a24c @ 0034a24c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x41",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x41,0);"
+    },
+    {
+      "function": "// Function: FUN_0034bdbc @ 0034bdbc",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x44",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x44,0,iVar5,uVar7);"
+    },
+    {
+      "function": "// Function: FUN_0037f5bc @ 0037f5bc",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x77",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x77,3);"
+    },
+    {
+      "function": "// Function: FUN_003f7160 @ 003f7160",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,10,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7474 @ 003f7474",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,3,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7aec @ 003f7aec",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x87",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x87,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7aec @ 003f7aec",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x87",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x87,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7aec @ 003f7aec",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0xf",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0xf,0);"
+    },
+    {
+      "function": "// Function: FUN_003f7aec @ 003f7aec",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x52",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x52,0);"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x47",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x47,0);"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "99",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,99,*(undefined2 *)(param_1 + 0x104))"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,"
+    },
+    {
+      "function": "// Function: FUN_00406294 @ 00406294",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x47",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x47,0);"
+    },
+    {
+      "function": "// Function: FUN_0042caec @ 0042caec",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x72",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x72);"
+    },
+    {
+      "function": "// Function: FUN_00432818 @ 00432818",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x49",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x49,0);"
+    },
+    {
+      "function": "// Function: FUN_004414b4 @ 004414b4",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x48",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x48);"
+    },
+    {
+      "function": "// Function: FUN_004414b4 @ 004414b4",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x48",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x48);"
+    },
+    {
+      "function": "// Function: FUN_00442b34 @ 00442b34",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x48",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x48,0);"
+    },
+    {
+      "function": "// Function: FUN_0045550c @ 0045550c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x49",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x49,0);"
+    },
+    {
+      "function": "// Function: FUN_004558c4 @ 004558c4",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x49",
+      "line": "iVar8 = FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x49,0);"
+    },
+    {
+      "function": "// Function: FUN_00459c8c @ 00459c8c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x38",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x38,0);"
+    },
+    {
+      "function": "// Function: FUN_0045b29c @ 0045b29c",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x1f",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x1f,0);"
+    },
+    {
+      "function": "// Function: FUN_0046a250 @ 0046a250",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x33",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x33,0);"
+    },
+    {
+      "function": "// Function: FUN_0046a330 @ 0046a330",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x34",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x34,0);"
+    },
+    {
+      "function": "// Function: FUN_0046a8e4 @ 0046a8e4",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x36",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x36,0);"
+    },
+    {
+      "function": "// Function: FUN_0046c438 @ 0046c438",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x38",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x38,0);"
+    },
+    {
+      "function": "// Function: FUN_0046ece0 @ 0046ece0",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x75",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x75,0);"
+    },
+    {
+      "function": "// Function: FUN_00470370 @ 00470370",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x49",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x49,0);"
+    },
+    {
+      "function": "// Function: FUN_004a6614 @ 004a6614",
+      "opcode_arg1": "0x17",
+      "opcode_arg2": "0x4d",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x17,0x4d,0);"
+    }
+  ],
+  "AC_183_0xB7": [
+    {
+      "function": "// Function: FUN_00172888 @ 00172888",
+      "opcode_arg1": "0xb7",
+      "opcode_arg2": "0x11",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb7,0x11,0);"
+    },
+    {
+      "function": "// Function: FUN_0017337c @ 0017337c",
+      "opcode_arg1": "0xb7",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb7,9);"
+    },
+    {
+      "function": "// Function: FUN_00173548 @ 00173548",
+      "opcode_arg1": "0xb7",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb7,0xb,0);"
+    },
+    {
+      "function": "// Function: FUN_001737ac @ 001737ac",
+      "opcode_arg1": "0xb7",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb7,7,0);"
+    },
+    {
+      "function": "// Function: FUN_00173944 @ 00173944",
+      "opcode_arg1": "0xb7",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb7,8,0);"
+    }
+  ],
+  "AC_184_0xB8": [
+    {
+      "function": "// Function: FUN_00173b28 @ 00173b28",
+      "opcode_arg1": "0xb8",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb8,1,0);"
+    }
+  ],
+  "AC_57_0x39": [
+    {
+      "function": "// Function: FUN_0017e688 @ 0017e688",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,0xb,2);"
+    },
+    {
+      "function": "// Function: FUN_0017e72c @ 0017e72c",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,0xb,6);"
+    },
+    {
+      "function": "// Function: FUN_00183ae8 @ 00183ae8",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,9,2);"
+    },
+    {
+      "function": "// Function: FUN_001840e4 @ 001840e4",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,9,4);"
+    },
+    {
+      "function": "// Function: FUN_00189dcc @ 00189dcc",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,8,2);"
+    },
+    {
+      "function": "// Function: FUN_0018b120 @ 0018b120",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,10,2);"
+    },
+    {
+      "function": "// Function: FUN_003d5fbc @ 003d5fbc",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,1,0);"
+    },
+    {
+      "function": "// Function: FUN_003d7e40 @ 003d7e40",
+      "opcode_arg1": "0x39",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x39,1,0);"
+    }
+  ],
+  "AC_85_0x55": [
+    {
+      "function": "// Function: FUN_0019c1d4 @ 0019c1d4",
+      "opcode_arg1": "0x55",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x55,4,0);"
+    },
+    {
+      "function": "// Function: FUN_0019f374 @ 0019f374",
+      "opcode_arg1": "0x55",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x55,1,0);"
+    },
+    {
+      "function": "// Function: FUN_001a008c @ 001a008c",
+      "opcode_arg1": "0x55",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x55,10,0);"
+    },
+    {
+      "function": "// Function: FUN_001a10c4 @ 001a10c4",
+      "opcode_arg1": "0x55",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x55,1,0);"
+    },
+    {
+      "function": "// Function: FUN_001a1c0c @ 001a1c0c",
+      "opcode_arg1": "0x55",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x55,0xb);"
+    },
+    {
+      "function": "// Function: FUN_001a3b88 @ 001a3b88",
+      "opcode_arg1": "0x55",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x55,2);"
+    }
+  ],
+  "AC_89_0x59": [
+    {
+      "function": "// Function: FUN_001c215c @ 001c215c",
+      "opcode_arg1": "0x59",
+      "opcode_arg2": "0",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x59,0);"
+    }
+  ],
+  "AC_65_0x41": [
+    {
+      "function": "// Function: FUN_001d2840 @ 001d2840",
+      "opcode_arg1": "0x41",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x41,CONCAT31((int3)((uint)iVar1 >> 8),1),0);"
+    },
+    {
+      "function": "// Function: FUN_00217138 @ 00217138",
+      "opcode_arg1": "0x41",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x41,0xc,0);"
+    },
+    {
+      "function": "// Function: FUN_00217138 @ 00217138",
+      "opcode_arg1": "0x41",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x41,0xc,0);"
+    },
+    {
+      "function": "// Function: FUN_00217138 @ 00217138",
+      "opcode_arg1": "0x41",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x41,0xc,0);"
+    },
+    {
+      "function": "// Function: FUN_0040d9b0 @ 0040d9b0",
+      "opcode_arg1": "0x41",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x41,0xb,0);"
+    }
+  ],
+  "AC_90_0x5A": [
+    {
+      "function": "// Function: FUN_001f0f54 @ 001f0f54",
+      "opcode_arg1": "0x5a",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x5a,1);"
+    }
+  ],
+  "AC_30_0x1E": [
+    {
+      "function": "// Function: FUN_001fa37c @ 001fa37c",
+      "opcode_arg1": "0x1e",
+      "opcode_arg2": "4",
+      "line": "uVar6 = FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x1e,4,0);"
+    }
+  ],
+  "AC_25_0x19": [
+    {
+      "function": "// Function: FUN_001fc5fc @ 001fc5fc",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "0x15",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,0x15,0);"
+    },
+    {
+      "function": "// Function: FUN_00335b6c @ 00335b6c",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,0xc,0);"
+    },
+    {
+      "function": "// Function: FUN_00381c98 @ 00381c98",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,3,0);"
+    },
+    {
+      "function": "// Function: FUN_00384a2c @ 00384a2c",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "0x2a",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,0x2a,0);"
+    },
+    {
+      "function": "// Function: FUN_003e05e8 @ 003e05e8",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,1,0);"
+    },
+    {
+      "function": "// Function: FUN_003e1550 @ 003e1550",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,10,0);"
+    },
+    {
+      "function": "// Function: FUN_003e1f7c @ 003e1f7c",
+      "opcode_arg1": "0x19",
+      "opcode_arg2": "0x28",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x19,0x28,0);"
+    }
+  ],
+  "AC_5_0x05": [
+    {
+      "function": "// Function: FUN_0020a604 @ 0020a604",
+      "opcode_arg1": "5",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,5,9,0);"
+    },
+    {
+      "function": "// Function: FUN_0020abc8 @ 0020abc8",
+      "opcode_arg1": "5",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,5,0xb,0);"
+    },
+    {
+      "function": "// Function: FUN_00295288 @ 00295288",
+      "opcode_arg1": "5",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,5,7,0);"
+    },
+    {
+      "function": "// Function: FUN_002a1ba4 @ 002a1ba4",
+      "opcode_arg1": "5",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,5,8,0);"
+    }
+  ],
+  "AC_64_0x40": [
+    {
+      "function": "// Function: FUN_0020b0f8 @ 0020b0f8",
+      "opcode_arg1": "0x40",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x40,2,0);"
+    },
+    {
+      "function": "// Function: FUN_0020b0f8 @ 0020b0f8",
+      "opcode_arg1": "0x40",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x40,2,0);"
+    },
+    {
+      "function": "// Function: FUN_00401614 @ 00401614",
+      "opcode_arg1": "0x40",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x40,2,0);"
+    }
+  ],
+  "AC_82_0x52": [
+    {
+      "function": "// Function: FUN_00219148 @ 00219148",
+      "opcode_arg1": "0x52",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x52,4,0);"
+    },
+    {
+      "function": "// Function: FUN_00219e14 @ 00219e14",
+      "opcode_arg1": "0x52",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x52,3,0);"
+    },
+    {
+      "function": "// Function: FUN_0021cb8c @ 0021cb8c",
+      "opcode_arg1": "0x52",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x52,10,0);"
+    },
+    {
+      "function": "// Function: FUN_00292994 @ 00292994",
+      "opcode_arg1": "0x52",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x52,8,0);"
+    }
+  ],
+  "AC_9_0x09": [
+    {
+      "function": "// Function: FUN_00231b24 @ 00231b24",
+      "opcode_arg1": "9",
+      "opcode_arg2": "2",
+      "line": "piVar5 = (int *)FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,9,2,0);"
+    },
+    {
+      "function": "// Function: FUN_00270028 @ 00270028",
+      "opcode_arg1": "9",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,9,2,0);"
+    },
+    {
+      "function": "// Function: FUN_00270028 @ 00270028",
+      "opcode_arg1": "9",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,9,1,0);"
+    }
+  ],
+  "AC_63_0x3F": [
+    {
+      "function": "// Function: FUN_00233cfc @ 00233cfc",
+      "opcode_arg1": "0x3f",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3f,3,0);"
+    },
+    {
+      "function": "// Function: FUN_0041a2bc @ 0041a2bc",
+      "opcode_arg1": "0x3f",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3f,4,0);"
+    },
+    {
+      "function": "// Function: FUN_0041c110 @ 0041c110",
+      "opcode_arg1": "0x3f",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3f,2,param_2);"
+    }
+  ],
+  "AC_68_0x44": [
+    {
+      "function": "// Function: FUN_00242b58 @ 00242b58",
+      "opcode_arg1": "0x44",
+      "opcode_arg2": "3",
+      "line": "uVar7 = FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x44,3,0);"
+    },
+    {
+      "function": "// Function: FUN_00242db4 @ 00242db4",
+      "opcode_arg1": "0x44",
+      "opcode_arg2": "1",
+      "line": "uVar7 = FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x44,1,0);"
+    }
+  ],
+  "AC_21_0x15": [
+    {
+      "function": "// Function: FUN_00244588 @ 00244588",
+      "opcode_arg1": "0x15",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x15,1,0);"
+    },
+    {
+      "function": "// Function: FUN_00244588 @ 00244588",
+      "opcode_arg1": "0x15",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x15,2,0);"
+    }
+  ],
+  "AC_61_0x3D": [
+    {
+      "function": "// Function: FUN_0024bac0 @ 0024bac0",
+      "opcode_arg1": "0x3d",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x3d,1,0);"
+    }
+  ],
+  "AC_45_0x2D": [
+    {
+      "function": "// Function: FUN_00253d58 @ 00253d58",
+      "opcode_arg1": "0x2d",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x2d,4,0);"
+    },
+    {
+      "function": "// Function: FUN_0045e750 @ 0045e750",
+      "opcode_arg1": "0x2d",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x2d,8,0);"
+    }
+  ],
+  "AC_75_0x4B": [
+    {
+      "function": "// Function: FUN_0025c330 @ 0025c330",
+      "opcode_arg1": "0x4b",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x4b,1,0);"
+    },
+    {
+      "function": "// Function: FUN_00267c8c @ 00267c8c",
+      "opcode_arg1": "0x4b",
+      "opcode_arg2": "3",
+      "line": "uVar4 = FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x4b,3,0);"
+    }
+  ],
+  "AC_2_0x02": [
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,1);"
+    },
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,2);"
+    },
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,CONCAT31((int3)((uint)iVar5 >> 8),3));"
+    },
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "5",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,5);"
+    },
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "6",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,6);"
+    },
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,7);"
+    },
+    {
+      "function": "// Function: FUN_0027e2c4 @ 0027e2c4",
+      "opcode_arg1": "2",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,2,4);"
+    }
+  ],
+  "AC_15_0x0F": [
+    {
+      "function": "// Function: FUN_0028bfac @ 0028bfac",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "6",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,6,0);"
+    },
+    {
+      "function": "// Function: FUN_002920c8 @ 002920c8",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,CONCAT31((int3)((uint)iVar4 >> 8),0xb),0);"
+    },
+    {
+      "function": "// Function: FUN_002920c8 @ 002920c8",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,"
+    },
+    {
+      "function": "// Function: FUN_004414b4 @ 004414b4",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,0xc);"
+    },
+    {
+      "function": "// Function: FUN_004414b4 @ 004414b4",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,0xc);"
+    },
+    {
+      "function": "// Function: FUN_00462f6c @ 00462f6c",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,9,0);"
+    },
+    {
+      "function": "// Function: FUN_00464d6c @ 00464d6c",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,CONCAT31((int3)((uint)iVar2 >> 8),7),0);"
+    },
+    {
+      "function": "// Function: FUN_00464fd4 @ 00464fd4",
+      "opcode_arg1": "0xf",
+      "opcode_arg2": "0xd",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xf,0xd,0);"
+    }
+  ],
+  "AC_19_0x13": [
+    {
+      "function": "// Function: FUN_00291828 @ 00291828",
+      "opcode_arg1": "0x13",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x13,1,0);"
+    }
+  ],
+  "AC_14_0x0E": [
+    {
+      "function": "// Function: FUN_00293330 @ 00293330",
+      "opcode_arg1": "0xe",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xe,4,0);"
+    },
+    {
+      "function": "// Function: FUN_003d9b50 @ 003d9b50",
+      "opcode_arg1": "0xe",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xe,3,0);"
+    },
+    {
+      "function": "// Function: FUN_003db4c4 @ 003db4c4",
+      "opcode_arg1": "0xe",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xe,2,0);"
+    },
+    {
+      "function": "// Function: FUN_003dc280 @ 003dc280",
+      "opcode_arg1": "0xe",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xe,3,0);"
+    }
+  ],
+  "AC_32_0x20": [
+    {
+      "function": "// Function: FUN_00299348 @ 00299348",
+      "opcode_arg1": "0x20",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x20,1,0);"
+    },
+    {
+      "function": "// Function: FUN_0044ae2c @ 0044ae2c",
+      "opcode_arg1": "0x20",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x20,2,0);"
+    },
+    {
+      "function": "// Function: FUN_0044ae2c @ 0044ae2c",
+      "opcode_arg1": "0x20",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x20,2,0);"
+    },
+    {
+      "function": "// Function: FUN_0044b058 @ 0044b058",
+      "opcode_arg1": "0x20",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x20,3,0);"
+    }
+  ],
+  "AC_40_0x28": [
+    {
+      "function": "// Function: FUN_002aa92c @ 002aa92c",
+      "opcode_arg1": "0x28",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x28,1,0,uVar2,uVar3,uVar4);"
+    }
+  ],
+  "AC_35_0x23": [
+    {
+      "function": "// Function: FUN_002acd58 @ 002acd58",
+      "opcode_arg1": "0x23",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x23,3,0);"
+    },
+    {
+      "function": "// Function: FUN_002c34d0 @ 002c34d0",
+      "opcode_arg1": "0x23",
+      "opcode_arg2": "5",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x23,5,0);"
+    }
+  ],
+  "AC_55_0x37": [
+    {
+      "function": "// Function: FUN_002adc58 @ 002adc58",
+      "opcode_arg1": "0x37",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x37,1,0);"
+    }
+  ],
+  "AC_11_0x0B": [
+    {
+      "function": "// Function: FUN_002b2084 @ 002b2084",
+      "opcode_arg1": "0xb",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb,1,0);"
+    },
+    {
+      "function": "// Function: FUN_0031ee6c @ 0031ee6c",
+      "opcode_arg1": "0xb",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb,1);"
+    },
+    {
+      "function": "// Function: FUN_003a7048 @ 003a7048",
+      "opcode_arg1": "0xb",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb,2,0);"
+    },
+    {
+      "function": "// Function: FUN_003a7284 @ 003a7284",
+      "opcode_arg1": "0xb",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb,2,0);"
+    },
+    {
+      "function": "// Function: FUN_003a781c @ 003a781c",
+      "opcode_arg1": "0xb",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb,"
+    },
+    {
+      "function": "// Function: FUN_003a8070 @ 003a8070",
+      "opcode_arg1": "0xb",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xb,"
+    }
+  ],
+  "AC_28_0x1C": [
+    {
+      "function": "// Function: FUN_002bac84 @ 002bac84",
+      "opcode_arg1": "0x1c",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x1c,1,0);"
+    }
+  ],
+  "AC_186_0xBA": [
+    {
+      "function": "// Function: FUN_002c75f0 @ 002c75f0",
+      "opcode_arg1": "0xba",
+      "opcode_arg2": "8",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0xba,8,0);"
+    }
+  ],
+  "AC_20_0x14": [
+    {
+      "function": "// Function: FUN_002cdb88 @ 002cdb88",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,9,0);"
+    },
+    {
+      "function": "// Function: FUN_0031d9f0 @ 0031d9f0",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,1,0);"
+    },
+    {
+      "function": "// Function: FUN_0031e150 @ 0031e150",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,2,0);"
+    },
+    {
+      "function": "// Function: FUN_0032119c @ 0032119c",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "6",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,6,0);"
+    },
+    {
+      "function": "// Function: FUN_0032119c @ 0032119c",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "6",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,6,0);"
+    },
+    {
+      "function": "// Function: FUN_00321ae8 @ 00321ae8",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,9,0);"
+    },
+    {
+      "function": "// Function: FUN_00321b14 @ 00321b14",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,9,0);"
+    },
+    {
+      "function": "// Function: FUN_00321b40 @ 00321b40",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "9",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,9);"
+    },
+    {
+      "function": "// Function: FUN_00322a90 @ 00322a90",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "6",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,6,0);"
+    },
+    {
+      "function": "// Function: FUN_00322a90 @ 00322a90",
+      "opcode_arg1": "0x14",
+      "opcode_arg2": "CONCAT31((int3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x14,CONCAT31((int3)((uint)iVar4 >> 8),6),0);"
+    }
+  ],
+  "AC_26_0x1A": [
+    {
+      "function": "// Function: FUN_002cfaf0 @ 002cfaf0",
+      "opcode_arg1": "0x1a",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x1a,2,0);"
+    },
+    {
+      "function": "// Function: FUN_003745b4 @ 003745b4",
+      "opcode_arg1": "0x1a",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x1a,3,0);"
+    }
+  ],
+  "AC_12_0x0C": [
+    {
+      "function": "// Function: FUN_003074b0 @ 003074b0",
+      "opcode_arg1": "0xc",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(param_1,0xc,1,0);"
+    }
+  ],
+  "AC_39_0x27": [
+    {
+      "function": "// Function: FUN_003144c0 @ 003144c0",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,1,0);"
+    },
+    {
+      "function": "// Function: FUN_003ce4a8 @ 003ce4a8",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,2,0);"
+    },
+    {
+      "function": "// Function: FUN_003cfa54 @ 003cfa54",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,7,0);"
+    },
+    {
+      "function": "// Function: FUN_003cfa74 @ 003cfa74",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0xc",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0xc,0);"
+    },
+    {
+      "function": "// Function: FUN_003cfa94 @ 003cfa94",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0xb",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0xb,0);"
+    },
+    {
+      "function": "// Function: FUN_003cfab4 @ 003cfab4",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,10,0);"
+    },
+    {
+      "function": "// Function: FUN_003d1238 @ 003d1238",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0x10",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0x10,0);"
+    },
+    {
+      "function": "// Function: FUN_003d205c @ 003d205c",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0x11",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0x11,0);"
+    },
+    {
+      "function": "// Function: FUN_003d33a8 @ 003d33a8",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0x13",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0x13,0);"
+    },
+    {
+      "function": "// Function: FUN_0045c370 @ 0045c370",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0x32",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0x32,0);"
+    },
+    {
+      "function": "// Function: FUN_0045c6d8 @ 0045c6d8",
+      "opcode_arg1": "0x27",
+      "opcode_arg2": "0x33",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x27,0x33,0);"
+    }
+  ],
+  "AC_24_0x18": [
+    {
+      "function": "// Function: FUN_0031e734 @ 0031e734",
+      "opcode_arg1": "0x18",
+      "opcode_arg2": "5",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x18,5,0);"
+    }
+  ],
+  "AC_199_0xC7": [
+    {
+      "function": "// Function: FUN_00332224 @ 00332224",
+      "opcode_arg1": "199",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,199,3,0);"
+    }
+  ],
+  "AC_8_0x08": [
+    {
+      "function": "// Function: FUN_0036df60 @ 0036df60",
+      "opcode_arg1": "8",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,8,1,0);"
+    },
+    {
+      "function": "// Function: FUN_003c1f18 @ 003c1f18",
+      "opcode_arg1": "8",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,8,2,0,uVar5);"
+    },
+    {
+      "function": "// Function: FUN_003c1f18 @ 003c1f18",
+      "opcode_arg1": "8",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,8,2,0,uVar5);"
+    },
+    {
+      "function": "// Function: FUN_003c2124 @ 003c2124",
+      "opcode_arg1": "8",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,8,2,0);"
+    }
+  ],
+  "AC_50_0x32": [
+    {
+      "function": "// Function: FUN_003a35c8 @ 003a35c8",
+      "opcode_arg1": "0x32",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x32,2,0);"
+    },
+    {
+      "function": "// Function: FUN_003a35c8 @ 003a35c8",
+      "opcode_arg1": "0x32",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x32,1,0);"
+    }
+  ],
+  "AC_33_0x21": [
+    {
+      "function": "// Function: FUN_003c4138 @ 003c4138",
+      "opcode_arg1": "0x21",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x21,1,0);"
+    },
+    {
+      "function": "// Function: FUN_003c4138 @ 003c4138",
+      "opcode_arg1": "0x21",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x21,2,0);"
+    }
+  ],
+  "AC_43_0x2B": [
+    {
+      "function": "// Function: FUN_003d2034 @ 003d2034",
+      "opcode_arg1": "0x2b",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x2b,4,0);"
+    }
+  ],
+  "AC_0_0x00": [
+    {
+      "function": "// Function: FUN_00419390 @ 00419390",
+      "opcode_arg1": "0",
+      "opcode_arg2": "0",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0,0,0);"
+    },
+    {
+      "function": "// Function: FUN_00419828 @ 00419828",
+      "opcode_arg1": "0",
+      "opcode_arg2": "0",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0,0);"
+    }
+  ],
+  "AC_16_0x10": [
+    {
+      "function": "// Function: FUN_0041d3cc @ 0041d3cc",
+      "opcode_arg1": "0x10",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x10,2,0);"
+    },
+    {
+      "function": "// Function: FUN_0041d4c8 @ 0041d4c8",
+      "opcode_arg1": "0x10",
+      "opcode_arg2": "3",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x10,3,0);"
+    },
+    {
+      "function": "// Function: FUN_0041d5c4 @ 0041d5c4",
+      "opcode_arg1": "0x10",
+      "opcode_arg2": "4",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x10,4,0);"
+    }
+  ],
+  "AC_6_0x06": [
+    {
+      "function": "// Function: FUN_00432818 @ 00432818",
+      "opcode_arg1": "6",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,6,1,0);"
+    },
+    {
+      "function": "// Function: FUN_004558c4 @ 004558c4",
+      "opcode_arg1": "6",
+      "opcode_arg2": "1",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,6,1,0);"
+    }
+  ],
+  "AC_74_0x4A": [
+    {
+      "function": "// Function: FUN_0045af94 @ 0045af94",
+      "opcode_arg1": "0x4a",
+      "opcode_arg2": "2",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x4a,2);"
+    }
+  ],
+  "AC_70_0x46": [
+    {
+      "function": "// Function: FUN_0045af94 @ 0045af94",
+      "opcode_arg1": "0x46",
+      "opcode_arg2": "7",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x46,7);"
+    }
+  ],
+  "AC_69_0x45": [
+    {
+      "function": "// Function: FUN_0045b120 @ 0045b120",
+      "opcode_arg1": "0x45",
+      "opcode_arg2": "*(undefined1 *",
+      "line": "FUN_002d6ad8(*(undefined4 *)PTR_DAT_004c87fc,0x45,"
+    }
+  ]
+}

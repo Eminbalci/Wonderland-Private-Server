@@ -363,15 +363,14 @@ namespace Game.Maps
                             uint transitionType = op.dialog2;
                             DebugSystem.Write($"[EveEventInterpreter] Opcode 1: Scene Transition (Type: {transitionType}) on Map #{map.MapID} for {player.CharName}");
 
-                            // Transition 1 from Starter Ship -> Rhode Island Shipwreck Beach
-                            if (map.MapID == 10017 || (map.MapID >= 10024 && map.MapID <= 10028))
+                            // Authentic Starter Ships (10014..10018): Transition Type 1 is the Shipwreck Beach sequence (Captain dialogue event)
+                            if (transitionType == 1 && (map.MapID >= 10014 && map.MapID <= 10018))
                             {
                                 player.PendingBeachCutscene = true;
                                 var warp = new WarpData { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
                                 player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
                                 return true;
                             }
-                            // Transition from Shipwreck Beach to South Island
                             else
                             {
                                 var warpEntry = (map.mapData ?? DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID))?.WarpLoc?.FirstOrDefault(w => w.clickID == transitionType);
@@ -380,6 +379,11 @@ namespace Game.Maps
                                     var warp = new WarpData { DstMap = warpEntry.mapID, DstX_Axis = (ushort)warpEntry.x, DstY_Axis = (ushort)warpEntry.y };
                                     player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
                                     return true;
+                                }
+                                else
+                                {
+                                    DebugSystem.Write($"[EveEventInterpreter] Warning: No WarpLoc found for transitionType {transitionType} on Map #{map.MapID} for {player.CharName}");
+                                    player.Send(Tools.FromFormat("bb", 20, 8));
                                 }
                             }
                             return true;
@@ -886,6 +890,7 @@ namespace Game.Maps
                             if (op.dialog4 == 31488) // 0x7B00 (Thunder / Storm Cutscene Trigger)
                             {
                                 player.PlayingStormCutscene = true;
+                                player.StormCutsceneStartTime = DateTime.UtcNow;
 
                                 // 1. Official PCAP Frame 1914: CG Movie Trigger (AC 186:12 Cutscene #1)
                                 SendPacket cutscenePkt = new SendPacket();
@@ -897,7 +902,31 @@ namespace Game.Maps
                                 step3Pkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, 2, 0x7B, 0, 0, 0, 0, 0, 0 });
                                 player.Send(step3Pkt);
 
-                                DebugSystem.Write($"[EveEventInterpreter] Dispatched Authentic Storm Cutscene Step 3 (AC 186:12 & AC 20:1) for {player.CharName} (awaiting client finish AC 20:6)");
+                                DebugSystem.Write($"[EveEventInterpreter] Dispatched Authentic Storm Cutscene Step 3 (AC 186:12 & AC 20:1) for {player.CharName} (awaiting movie finish or watchdog)");
+
+                                // Watchdog transition: after cutscene playback completes (4500ms), transition to beach if not already warped by AC 20:6
+                                Task.Run(async () =>
+                                {
+                                    try
+                                    {
+                                        await Task.Delay(4500);
+                                        if (player.PlayingStormCutscene && player.CurMap != null)
+                                        {
+                                            player.PlayingStormCutscene = false;
+                                            player.PendingBeachCutscene = true;
+                                            player.ClearInteraction();
+                                            player.Send(Tools.FromFormat("bb", 20, 7)); // Frame 2379: AC 20:7 Warp Out
+                                            var warp = new WarpData { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
+                                            player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
+                                            DebugSystem.Write($"[EveEventInterpreter] Storm Cutscene watchdog completed for {player.CharName} -> Warping to Beach (Map 10035)");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        DebugSystem.Write(new ExceptionData(ex));
+                                    }
+                                });
+
                                 return true;
                             }
                             else

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -92,11 +92,11 @@ namespace Wonderland_Private_Server.ActionCodes
                                 p.Send(animPkt);
                                 DebugSystem.Write($"[AC12] Timeline: Sent Cutscene 12008 (Beach Arrival Animation) to {p.CharName}");
 
-                                // Safety timeout: if client does not acknowledge completion after 25s, force-complete cutscene
-                                await Task.Delay(25000);
+                                // Wakeup animation completion (~1800ms): mobilize player and immediately initiate Robinson dialogue!
+                                await Task.Delay(1800);
                                 if (p.BeachCutsceneActive && (p.CurMap?.MapID == 10035 || p.CurMap?.MapID == 10039))
                                 {
-                                    DebugSystem.Write($"[AC12] Safety timeout reached for beach cutscene on {p.CharName} — force completing.");
+                                    DebugSystem.Write($"[AC12] Beach wakeup animation completed for {p.CharName} -> Mobilizing and triggering Robinson dialogue directly.");
                                     AC20.AdvanceBeachCutscene(p, forceComplete: true);
                                 }
                             }

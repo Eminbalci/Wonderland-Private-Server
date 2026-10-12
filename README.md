@@ -41,7 +41,7 @@ Running steps:
 4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
 5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
 
-The server technical documentation is organized into a cohesive 16-document master specification suite:
+The server technical documentation is organized into a cohesive 19-document master specification suite:
 
 1. [**01 - System Architecture and Server Topology**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_system_architecture_and_server_topology.md): Multi-server socket topology, dynamic portability engine (`PathHelper`), threading model, project graph, and graceful shutdown.
 2. [**02 - Database Schema and Persistence Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_schema_and_persistence_lifecycle.md): Centralized SQLite and MySQL relational persistence, self-healing migration (`AddColumnIfNotExists`), automated schema verification (`VerifySetup`), and 1-click migration engine.
@@ -58,6 +58,37 @@ The server technical documentation is organized into a cohesive 16-document mast
 13. [**13 - Quest Ecosystem, Census, and Flag Mapping**](file:///D:/GitHub/Wonderland-Private-Server/docs/13_quest_ecosystem_census_and_flag_mapping.md): Comprehensive census across `Mark.dat` and `Eve.emg`, explanation of community ~502 canonical journal quest count vs internal 1,027 master quests and 1,507 flag scripts, regional breakdowns, and pairing mechanics.
 14. [**14 - Developer Tooling, Reverse Engineering, and Deployment**](file:///D:/GitHub/Wonderland-Private-Server/docs/14_developer_tooling_reverse_engineering_and_deployment.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), asynchronous diagnostic logger (`DebugSystem`), PCAP analysis, Ghidra disassembly addresses, and bot testing framework.
 15. [**15 - Gap Analysis, Missing Features, and Feature Roadmap**](file:///D:/GitHub/Wonderland-Private-Server/docs/15_gap_analysis_and_feature_roadmap.md): Protocol gap analysis, unhandled Eve script opcodes (15, 16, 17), anti-exploit security checklist, and phased 5-tier implementation roadmap.
+16. [**16 - REA Reverse Engineering Agent Tooling**](file:///D:/GitHub/Wonderland-Private-Server/docs/16_rea_reverse_engineering_agent_tooling.md): REA (`morluto/rea`) CLI and MCP toolchain configuration, Ghidra 12.1.2 decompiler integration, PE/CLI and native binary inspection.
+17. [**17 - aLogin.exe Reverse Engineering and Protocol Analysis**](file:///D:/GitHub/Wonderland-Private-Server/docs/17_alogin_reverse_engineering_and_protocol_analysis.md): Client binary architecture (PE32 x86, Delphi VCL forms, `TGmForm`), socket topology (ports 6414 and 6416), `SERVER.INI` parsing, and process dispatching.
+18. [**18 - Complete Client Engine and GM Suite Reverse Engineering Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/18_complete_client_engine_and_gm_suite_analysis.md): Monolithic client engine topology (`aLogin.exe` vs `Main.exe`), 81 in-game forms (AutoPlayerPlus botting, Capsulem, Compound alchemy, ATM banking, instance dungeons), exhaustive 56-button GM administration suite (`TGmForm` / `CY_GmForm`), chat bitmasks, and built-in server event state machines.
+
+### Decompiled Client Reverse Engineering Suite (21 Specifications)
+
+The complete reverse engineering of the monolithic client binaries (`aLogin.exe` and `Main.exe`), asset pipelines, and protocol dispatchers is cataloged in [`decompiled/README.md`](file:///D:/GitHub/Wonderland-Private-Server/decompiled/README.md) (and mirrored in [`D:\GitHub\ghidradecodeyapma\docs\README.md`](file:///D:/GitHub/ghidradecodeyapma/docs/README.md)):
+
+1. [**01 - Client Architecture and Monolithic Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/01_client_architecture_and_monolithic_engine.md)
+2. [**02 - Complete GM Studio and CY_GmForm**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/02_complete_gm_studio_and_cy_gmform.md)
+3. [**03 - In-Game Form Systems and Automation**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/03_in_game_form_systems_and_automation.md)
+4. [**04 - Network Framing, Packet Dispatchers, and Cryptography**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/04_network_framing_packet_dispatchers_and_crypto.md)
+5. [**05 - Actor Memory Layout and Spatial Systems**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/05_actor_memory_layout_and_spatial_systems.md)
+6. [**06 - Binary Asset Pipeline and Scene Parsers**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/06_binary_asset_pipeline_and_scene_parsers.md)
+7. [**07 - Pet Companion Lifecycle and AI Modes**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/07_pet_companion_lifecycle_and_ai_modes.md)
+8. [**08 - Quest Journal, Dialogue Engine, and Talk Forms**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/08_quest_journal_dialogue_engine_and_talk_forms.md)
+9. [**09 - Login Authentication, Session Security, and Channels**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/09_login_authentication_session_security_and_channels.md)
+10. [**10 - Item Mall (Nesne Market) and Currency Transactions**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/10_item_mall_nesne_market_and_currency_transactions.md)
+11. [**11 - Client Save Configuration and Chat Channel Constraints**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/11_client_save_configuration_and_chat_channel_constraints.md)
+12. [**12 - Trade, Shop, Inventory, and Alchemy Materials**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/12_trade_shop_inventory_and_alchemy_materials.md)
+13. [**13 - Combat, PK Battlefield, and Encounter Validation**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/13_combat_pk_battlefield_and_encounter_validation.md)
+14. [**14 - Mini-Games and Entertainment Systems**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/14_minigames_and_entertainment_systems.md)
+15. [**15 - Marriage, Divorce, and Transform Systems**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/15_marriage_divorce_and_transform_systems.md)
+16. [**16 - Instance Dungeon, PVP Rankings, and Server Events**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/16_instance_dungeon_pvp_rankings_and_events.md)
+17. [**17 - Forge Enhancement and Equipment Potential**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/17_forge_enhancement_and_equipment_potential.md)
+18. [**18 - Multimedia DirectX Palettes and Sound Assets**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/18_multimedia_directx_palettes_and_sound_assets.md)
+19. [**19 - Exhaustive Client Action Code Matrix & Protocol Dispatchers**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/19_exhaustive_client_action_code_matrix.md)
+20. [**20 - Complete 9,451 Function Inventory and Subsystem Catalog**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/20_complete_9451_function_inventory_catalog.md)
+21. [**21 - Binary Asset Formats and Database Structures Specification**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/21_binary_asset_formats_and_database_structures.md)
+
+
 
   > Maps : Teleports you to that ID
   >
