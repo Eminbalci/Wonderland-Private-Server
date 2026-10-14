@@ -31,6 +31,10 @@ namespace Network.ActionCodes
                 case 15: Recv15(r, p); break;// Quick HP/MP refill / Open tent
                 case 25: Recv25(r, p); break;// Request IM Point Balance
                 case 26: Recv26(r, p); break;// Buy Item from Mall
+                case 30: Recv30(r, p); break; // Client native Private Shop Open
+                case 31: Recv31(r, p); break; // Client native Private Shop Close
+                case 32: Recv32(r, p); break; // Client native Private Shop Browse / Open Shop Form
+                case 33: Recv33(r, p); break; // Client native Private Shop Purchase Confirmation
                 case 54: Recv54(r, p); break;// Request Item Mall Catalog List
                 case 75: RecvPack(r, p); break; // Original pack/egg native double-click
                 case 128: RecvPack(r, p); break; // Later packs native double-click
@@ -157,6 +161,196 @@ namespace Network.ActionCodes
                 DebugSystem.Write($"[AC23.Recv77] Sent empty stall list to {p.CharName}");
             }
             catch (Exception t) { Console.WriteLine(t); }
+        }
+
+        void Recv30(Player p, RecievePacket r)
+        {
+            try
+            {
+                // AC 23:30 = Client native Private Shop setup packet
+                // Payload: [Title Len (1B)] [Title String] [Count (1B)] { [InvSlot (1B)] [Qty (1B)] [Price (4B)] }
+                if (p == null || r == null) return;
+
+                string shopTitle = r.UnpackString();
+                if (string.IsNullOrWhiteSpace(shopTitle)) shopTitle = "Private Shop";
+                byte count = r.Unpack8();
+
+                var stallItems = new List<Game.Experimental.StallItem>();
+                for (int i = 0; i < count && i < 10; i++)
+                {
+                    if (r.Buffer.Length - r.GetPtr() < 6) break;
+                    byte invSlot = r.Unpack8();
+                    byte qty = r.Unpack8();
+                    uint price = r.Unpack32();
+
+                    var invItem = p.Inv?[invSlot];
+                    ushort itemId = invItem?.ItemID ?? 0;
+                    string itemName = null;
+                    try { itemName = invItem?.Name?.Trim('\0', ' '); } catch { }
+                    if (string.IsNullOrWhiteSpace(itemName))
+                        itemName = Game.Battle.MonsterDropManager.ResolveItemName(itemId);
+                    if (string.IsNullOrWhiteSpace(itemName) || itemName == "Item #0")
+                    {
+                        if (itemId == 0) itemId = (ushort)(10000 + invSlot);
+                        itemName = $"Merchandise #{itemId}";
+                    }
+
+                    int itemQty = qty > 0 ? qty : 1;
+                    if (invItem != null && invItem.Ammt > 0)
+                    {
+                        itemQty = Math.Min((int)invItem.Ammt, itemQty);
+                    }
+
+                    stallItems.Add(new Game.Experimental.StallItem(
+                        (byte)stallItems.Count,
+                        itemId,
+                        itemName,
+                        itemQty,
+                        price,
+                        invSlot
+                    ));
+                }
+
+                if (stallItems.Count == 0)
+                {
+                    stallItems.Add(new Game.Experimental.StallItem(0, 10001, "Superior Healing Draught", 50, 120, 0));
+                }
+
+                var stall = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.OpenStall(p, shopTitle, stallItems);
+                if (stall != null)
+                {
+                    p.SendSystemMessage($"[Private Shop] Your shop '{stall.StallName}' is now open for business!");
+                    DebugSystem.Write($"[AC23.Recv30] Opened native private shop '{stall.StallName}' for {p.CharName} with {stall.Items.Count} items.");
+                }
+                else
+                {
+                    p.SendSystemMessage("[Private Shop] Failed to open shop.");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv30] Exception opening stall: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        void Recv31(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null) return;
+                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.ClosePersonalStall(p);
+                p.SendSystemMessage("[Private Shop] Your shop has been closed.");
+                DebugSystem.Write($"[AC23.Recv31] Closed native private shop for {p.CharName}");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv31] Exception closing stall: {ex.Message}");
+            }
+        }
+
+        void Recv32(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null || r == null) return;
+                if (r.Buffer.Length - r.GetPtr() < 4) return;
+                uint vendorCharId = r.Unpack32();
+
+                var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+                var stall = bazaar?.GetStall(vendorCharId);
+
+                if (stall == null)
+                {
+                    p.SendSystemMessage("[Private Shop] This stall is no longer available.");
+                    DebugSystem.Write($"[AC23.Recv32] {p.CharName} requested stall {vendorCharId}, but stall was not found.");
+                    return;
+                }
+
+                // 1. Send authentic S -> C AC 23:33 (TRe_BuyItemStallForm - Form_BuyItemStall_1)
+                var browse33Pkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowse33Packet(stall);
+                if (browse33Pkt != null) p.Send(browse33Pkt);
+
+                // 2. Also send fallback AC 20:15 and AC 56:3
+                var browse20Pkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowsePacket(stall);
+                if (browse20Pkt != null) p.Send(browse20Pkt);
+
+                var catalogPkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallCatalogPacket(stall);
+                if (catalogPkt != null) p.Send(catalogPkt);
+
+                // 3. Send system message catalog and chat announcement
+                string stockTypeStr = stall.IsInfinite ? "Infinite Stock" : "Limited Stock";
+                p.SendSystemMessage($"=== [{stall.StallName}] Merchant: {stall.VendorName} ({stockTypeStr}) ===");
+                if (stall.Items.Count == 0)
+                {
+                    p.SendSystemMessage("This stall is currently out of stock.");
+                }
+                else
+                {
+                    foreach (var item in stall.Items)
+                    {
+                        string qtyStr = (stall.IsInfinite || item.IsInfinite) ? "∞" : $"x{item.Quantity}";
+                        p.SendSystemMessage($"  [Slot {item.SlotIndex}] {item.ItemName} (#{item.ItemId}) {qtyStr} - {item.PriceGold:N0}G each");
+                    }
+                }
+
+                DebugSystem.Write($"[AC23.Recv32] {p.CharName} opened stall '{stall.StallName}' (Vendor ID: {vendorCharId}) with {stall.Items.Count} items.");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv32] Exception handling stall browse: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        void Recv33(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null || r == null) return;
+                if (r.Buffer.Length - r.GetPtr() < 4) return;
+                uint vendorCharId = r.Unpack32();
+
+                var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+                var stall = bazaar?.GetStall(vendorCharId);
+
+                if (stall == null)
+                {
+                    p.SendSystemMessage("[Private Shop] This stall is no longer available.");
+                    return;
+                }
+
+                int purchasedCount = 0;
+                while (r.Buffer.Length - r.GetPtr() >= 8)
+                {
+                    byte slotIndex = r.Unpack8();
+                    byte buyQty = r.Unpack8();
+                    ushort itemId = r.Unpack16();
+                    uint unitPrice = r.Unpack32();
+
+                    if (buyQty == 0) buyQty = 1;
+
+                    bool success = bazaar.PurchaseItem(p, vendorCharId, slotIndex, buyQty);
+                    if (success)
+                    {
+                        purchasedCount++;
+                    }
+                }
+
+                if (purchasedCount > 0)
+                {
+                    p.SaveCharacterData();
+
+                    var updatedStall = bazaar.GetStall(vendorCharId);
+                    if (updatedStall != null && updatedStall.Items.Count > 0)
+                    {
+                        var refreshPkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowse33Packet(updatedStall);
+                        if (refreshPkt != null) p.Send(refreshPkt);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv33] Exception handling stall purchase: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         void Recv25(Player p, RecievePacket r)

@@ -23,6 +23,10 @@ namespace Wonderland_Private_Server.ActionCodes
                 case 6: Recv6(r, p); break;
                 case 9: Recv9(r, p); break;
                 case 8: Recv8(r, p); break;
+                case 10: Recv10(r, p); break; // 0x0A Open Player Stall
+                case 13: Recv13(r, p); break; // 0x0D Close Player Stall
+                case 14: Recv14(r, p); break; // 0x0E Browse Player Stall
+                case 17: Recv17(r, p); break; // 0x11 Purchase Item from Stall
             }
         }
         void Recv8(Player p, RecievePacket r)
@@ -300,6 +304,85 @@ namespace Wonderland_Private_Server.ActionCodes
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC20.Recv9] Error: {ex.Message}");
+            }
+        }
+
+        void Recv14(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null || r == null || r.Buffer.Length - r.GetPtr() < 4) return;
+                uint vendorCharId = r.Unpack32();
+                var stall = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.GetStall(vendorCharId);
+                if (stall != null)
+                {
+                    var browsePkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowsePacket(stall);
+                    if (browsePkt != null) p.Send(browsePkt);
+                    var catPkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallCatalogPacket(stall);
+                    if (catPkt != null) p.Send(catPkt);
+                    DebugSystem.Write($"[AC20.Recv14] Dispatched stall browse packets for vendor #{vendorCharId} ('{stall.StallName}') to {p.CharName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC20.Recv14] Error: {ex.Message}");
+            }
+        }
+
+        void Recv17(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null || r == null || r.Buffer.Length - r.GetPtr() < 5) return;
+                uint vendorCharId = r.Unpack32();
+                byte slot = r.Unpack8();
+                byte qty = (r.Buffer.Length - r.GetPtr() >= 1) ? r.Unpack8() : (byte)1;
+                if (qty == 0) qty = 1;
+
+                bool success = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.PurchaseItem(p, vendorCharId, slot, qty) ?? false;
+                DebugSystem.Write($"[AC20.Recv17] Purchase request from {p.CharName} for vendor #{vendorCharId} slot #{slot} x{qty} -> Result: {success}");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC20.Recv17] Error: {ex.Message}");
+            }
+        }
+
+        void Recv10(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null) return;
+                string title = "Player Shop";
+                if (r != null && r.Buffer.Length - r.GetPtr() > 0)
+                {
+                    title = r.UnpackString();
+                }
+                var stall = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.OpenPersonalStall(p, title);
+                if (stall != null)
+                {
+                    p.SendSystemMessage($"[Stall] Your vending stall '{stall.StallName}' is now OPEN!");
+                    DebugSystem.Write($"[AC20.Recv10] Player {p.CharName} opened stall '{stall.StallName}' via AC 20:10");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC20.Recv10] Error: {ex.Message}");
+            }
+        }
+
+        void Recv13(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p == null) return;
+                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.ClosePersonalStall(p);
+                p.SendSystemMessage("[Stall] Your vending stall has been CLOSED.");
+                DebugSystem.Write($"[AC20.Recv13] Player {p.CharName} closed stall via AC 20:13");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC20.Recv13] Error: {ex.Message}");
             }
         }
     }

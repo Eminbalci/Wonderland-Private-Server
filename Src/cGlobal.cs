@@ -37,6 +37,7 @@ namespace System
         public static TaskManager ApplicationTasks;
         public static UpdateSystem Update_System;
 #pragma warning restore CS0649
+        public static Game.Experimental.ExperimentalFeaturesManager Experimental => Game.Experimental.ExperimentalFeaturesManager.Instance;
         #endregion
 
         #region Settings

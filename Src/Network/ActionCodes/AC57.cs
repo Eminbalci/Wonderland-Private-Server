@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -48,9 +48,17 @@ namespace Network.ActionCodes
                 if (r.Buffer.Length != 7 || r[6] > 1) return;
                 var won = p.OnMinigameWon;
                 var lost = p.OnMinigameLost;
-                if (won == null && lost == null) return;
                 bool native = p.NativeEventActive;
                 bool isWin = r[6] == 1;
+
+                if (won == null && lost == null)
+                {
+                    if (Game.Experimental.ExperimentalFeaturesManager.Instance.EnableArcadeMinigames)
+                    {
+                        Game.Experimental.ExperimentalFeaturesManager.Instance.ArcadeMinigames.SubmitScore(p, 0, isWin ? 500 : 50, isWin);
+                    }
+                    return;
+                }
                 // Consume both callbacks before invoking: the callback can start another game.
                 p.OnMinigameWon = null;
                 p.OnMinigameLost = null;

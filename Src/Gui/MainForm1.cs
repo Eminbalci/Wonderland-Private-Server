@@ -42,6 +42,7 @@ namespace Wonderland_Private_Server
             SetupStarterItemsTab();
             SetupDatabaseConfigTab();
             SetupServerStatusControl();
+            SetupExperimentalTab();
 
             // Initialize Modern User-Friendly UI Layer
             InitializeModernUi();

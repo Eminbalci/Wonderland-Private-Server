@@ -190,7 +190,7 @@ namespace Game.Code
         /// an Item's Data
         /// </summary>
         protected internal PhxItemInfo Data { get { return data ?? new PhxItemInfo(); } }
-        public string Name { get { return ASCIIEncoding.ASCII.GetString(Data.ItemName); } }
+        public string Name { get { return Data.ItemName != null ? ASCIIEncoding.ASCII.GetString(Data.ItemName) : string.Empty; } }
         public UInt16 ItemID { get { return (Data != null) ? Data.ItemID : (ushort)0; } }
         public int Crit => Game.Battle.CriticalHitManager.GetItemChance(ItemID);
         public virtual int Height => 1;

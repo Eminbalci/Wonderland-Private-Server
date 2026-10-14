@@ -1004,6 +1004,26 @@ namespace Game.Maps
                         }
                         break;
 
+                    // Opcode 16: Map Mechanisms, Levers, and Puzzle Door Switches (38 Occurrences)
+                    case 16:
+                        if (Game.Experimental.ExperimentalFeaturesManager.Instance.EnableMapMechanisms)
+                        {
+                            return Game.Experimental.ExperimentalFeaturesManager.Instance.MapMechanisms.ToggleMechanism(
+                                (ushort)(player.CurMap?.MapID ?? 0), (byte)op.dialog1, player);
+                        }
+                        player.Send(Tools.FromFormat("bb", 20, 8));
+                        player.Send(Tools.FromFormat("bb", 5, 4));
+                        return true;
+
+                    // Opcode 17: Instance Dungeon Wave & Floor Advancement Signals (934 Occurrences)
+                    case 17:
+                        if (Game.Experimental.ExperimentalFeaturesManager.Instance.EnableInstanceDungeons)
+                        {
+                            return Game.Experimental.ExperimentalFeaturesManager.Instance.InstanceDungeons.OnWaveSignal(
+                                player, op.dialog1, op.dialog2);
+                        }
+                        return true;
+
                     default:
                         DebugSystem.Write($"[EveEventInterpreter] Unhandled Opcode: {op.DialogPtr}");
                         break;

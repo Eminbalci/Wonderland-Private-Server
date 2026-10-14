@@ -202,7 +202,14 @@ namespace RCLibrary.Core
                         if (parts[0].Trim().Equals("File", StringComparison.OrdinalIgnoreCase) && parts.Length > 1)
                         {
                             string customFile = parts[1].Trim();
-                            return Path.IsPathRooted(customFile) ? customFile : Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, customFile));
+                            if (Path.IsPathRooted(customFile)) return customFile;
+                            if (File.Exists(Path.Combine(AppRootDirectory, "Data", customFile)))
+                                return Path.GetFullPath(Path.Combine(AppRootDirectory, "Data", customFile));
+                            if (File.Exists(Path.Combine(AppRootDirectory, customFile)))
+                                return Path.GetFullPath(Path.Combine(AppRootDirectory, customFile));
+                            if (File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, customFile)))
+                                return Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, customFile));
+                            return Path.GetFullPath(Path.Combine(AppRootDirectory, "Data", customFile));
                         }
                     }
                 }

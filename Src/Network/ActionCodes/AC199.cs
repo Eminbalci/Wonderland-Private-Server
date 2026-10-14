@@ -1,12 +1,13 @@
 using System;
 using Game;
+using Game.Experimental;
 using Network;
 
 namespace Network.ActionCodes
 {
     /// <summary>
-    /// AC 199: Anti-Bot Verification & Captcha Security Protocol.
-    /// Handles anti-macro security challenge dialogs, question prompts, and answer validations.
+    /// AC 199: Anti-Bot Verification & Companion Specialization Talent Protocol.
+    /// Handles anti-macro security challenge dialogs and pet specialization talent allocations.
     /// </summary>
     public class AC199 : AC
     {
@@ -17,8 +18,38 @@ namespace Network.ActionCodes
             if (c == null || p == null) return;
 
             byte subCode = p.B ?? 3;
-            DebugSystem.Write($"[AC199] Anti-bot verification from {c.CharName}: SubCode={subCode}");
+            switch (subCode)
+            {
+                case 4:
+                    Recv4(c, p); // Allocate Companion Talent Point
+                    break;
+                default:
+                    RecvDefault(c, p, subCode); // Anti-bot verification
+                    break;
+            }
+        }
 
+        private void Recv4(Player c, RecievePacket p)
+        {
+            try
+            {
+                uint petId = p.Buffer.Length >= 10 ? (uint)p.Unpack32() : 0;
+                byte branchId = p.Buffer.Length >= 11 ? p.Unpack8() : (byte)1;
+
+                if (ExperimentalFeaturesManager.Instance.EnableCompanionTalents)
+                {
+                    TalentBranch branch = (TalentBranch)Math.Max(1, Math.Min(4, (int)branchId));
+                    ExperimentalFeaturesManager.Instance.CompanionTalents.AllocateTalentPoint(c, petId, branch);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void RecvDefault(Player c, RecievePacket p, byte subCode)
+        {
             try
             {
                 byte answer = p.Buffer.Length >= 7 ? p.Unpack8() : (byte)1;

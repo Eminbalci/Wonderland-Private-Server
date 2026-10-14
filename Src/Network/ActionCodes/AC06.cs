@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -33,6 +33,14 @@ namespace Network.ActionCodes
                 double movedDistance = Math.Sqrt(Math.Pow((int)p.CurX - previousX, 2) + Math.Pow((int)p.CurY - previousY, 2));
 
                 p.CurMap?.Broadcast(Tools.FromFormat("bbdbww", 6, 1, p.CharID, direction, p.CurX, p.CurY));
+
+                // Auto-close personal stall if player moves
+                if (movedDistance > 0 && Game.Experimental.ExperimentalFeaturesManager.Instance.EnablePlayerStallBazaar &&
+                    Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.GetStall(p.CharID) != null)
+                {
+                    Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar.ClosePersonalStall(p);
+                    p.SendSystemMessage("[Stall] You moved; your vending stall has been closed.");
+                }
 
                 if (!Game.Battle.PvEBattleManager.IsInBattle(p) && p.CurMap is GameMap eventMap &&
                     Game.Maps.EveEventInterpreter.TryExecuteRegion(p, eventMap, previousX, previousY)) return;

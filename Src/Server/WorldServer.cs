@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -101,6 +101,16 @@ namespace Server
             MapTickThread.Name = "Map & NPC Tick Thread";
             MapTickThread.Init();
             DebugSystem.Write("[WorldServer] Map & NPC Tick Thread started (500ms cycle)");
+
+            // Restore persistent custom stalls from database (SQLite / MySQL)
+            try
+            {
+                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.InitializeDatabase();
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error initializing custom stalls: {ex.Message}");
+            }
         }
 
         public void Kill()

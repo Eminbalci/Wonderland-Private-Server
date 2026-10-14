@@ -164,6 +164,9 @@
     <Compile Include="Src\Gui\MainForm1.ModernUi.cs">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Src\Gui\MainForm1.ExperimentalTab.cs">
+      <DependentUpon>MainForm1.cs</DependentUpon>
+    </Compile>
     <Compile Include="Src\Gui\ModernTheme.cs" />
     <Compile Include="Src\Gui\CharacterDataEditorForm.cs">
       <SubType>Form</SubType>
@@ -206,6 +209,7 @@
     <Compile Include="Src\Network\ActionCodes\AC104.cs" />
     <Compile Include="Src\Network\ActionCodes\AC105.cs" />
     <Compile Include="Src\Network\ActionCodes\AC11.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC114.cs" />
     <Compile Include="Src\Network\ActionCodes\AC12.cs" />
     <Compile Include="Src\Network\ActionCodes\AC13.cs" />
     <Compile Include="Src\Network\ActionCodes\AC14.cs" />
@@ -245,6 +249,7 @@
     <Compile Include="Src\Network\ActionCodes\AC45.cs" />
     <Compile Include="Src\Network\ActionCodes\AC50.cs" />
     <Compile Include="Src\Network\ActionCodes\AC51.cs" />
+    <Compile Include="Src\Network\ActionCodes\AC53.cs" />
     <Compile Include="Src\Network\ActionCodes\AC54.cs" />
     <Compile Include="Src\Network\ActionCodes\AC55.cs" />
     <Compile Include="Src\Network\ActionCodes\AC56.cs" />

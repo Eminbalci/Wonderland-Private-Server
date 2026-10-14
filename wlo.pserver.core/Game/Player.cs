@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Game.Code.PlayerRelated;
 
 namespace Game
@@ -488,7 +489,9 @@ namespace Game
 
         public Player() : base()
         {
+            m_useracc = new User();
             QueueData = new Queue<SendPacket>(25);
+            m_teammembers = new List<Player>();
         }
 
         public Player(SocketClient src, global::DataFiles.PhxItemDat itemdat)
@@ -579,7 +582,12 @@ namespace Game
         {
             get
             {
-                return (Slot == 1) ? UserAcc.Character1ID : UserAcc.Character2ID;
+                if (base.CharID != 0) return base.CharID;
+                if (UserAcc != null)
+                {
+                    return (Slot == 1) ? UserAcc.Character1ID : UserAcc.Character2ID;
+                }
+                return 0;
             }
             set
             {
@@ -1271,6 +1279,101 @@ namespace Game
                                 if (parts.Length > 1 && byte.TryParse(parts[1], out byte stage))
                                 {
                                     Game.Battle.PalaceTrialManager.EnterPalaceTrial(c, stage);
+                                }
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/closestall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":closestall", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+                            if (bazaar?.GetStall(c.CharID) != null)
+                            {
+                                bazaar.ClosePersonalStall(c);
+                                c.SendSystemMessage("[Stall] Your personal vending stall has been CLOSED.");
+                            }
+                            else
+                            {
+                                HandleRemoveStallChatCommand(c, chatMsg);
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/removestall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":removestall", StringComparison.OrdinalIgnoreCase))
+                        {
+                            HandleRemoveStallChatCommand(c, chatMsg);
+                        }
+                        else if (chatMsg.StartsWith("/stall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":stall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith("/openstall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":openstall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith("/spawnstall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":spawnstall", StringComparison.OrdinalIgnoreCase))
+                        {
+                            HandleStallChatCommand(c, chatMsg);
+                        }
+                        else if (chatMsg.StartsWith("/clearstalls", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":clearstalls", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!Game.PlayerRelated.GmManager.IsGm(c) && !Game.Experimental.ExperimentalFeaturesManager.Instance.EnablePlayerStallBazaar)
+                            {
+                                c.SendSystemMessage("You do not have GM privileges to clear stalls.");
+                            }
+                            else
+                            {
+                                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar.ClearAllStalls();
+                                c.SendSystemMessage("[Stall] All active overworld stalls have been cleared and purged from database.");
+                            }
+                        }
+                        else if (chatMsg.StartsWith("/buystall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":buystall", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = chatMsg.Split(' ');
+                            ushort curMapId = (ushort)(c.CurMap?.MapID ?? 0);
+                            var activeStalls = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar.GetStalls()
+                                .Where(s => s.MapId == curMapId)
+                                .ToList();
+
+                            if (activeStalls.Count == 0)
+                            {
+                                c.SendSystemMessage("[Stall] No active vending stalls on this map.");
+                            }
+                            else if (parts.Length < 2 || !byte.TryParse(parts[1], out byte targetSlot))
+                            {
+                                c.SendSystemMessage("[Stall] Usage: :buystall <slot> [quantity]");
+                                foreach (var st in activeStalls)
+                                {
+                                    string stockTypeStr = st.IsInfinite ? "Infinite Stock" : "Limited Stock";
+                                    c.SendSystemMessage($"--- [{st.StallName}] Vendor: {st.VendorName} (ID: {st.VendorCharId}) at ({st.X}, {st.Y}) [{stockTypeStr}] ---");
+                                    foreach (var it in st.Items)
+                                    {
+                                        string qtyStr = (st.IsInfinite || it.IsInfinite) ? "∞" : $"x{it.Quantity}";
+                                        c.SendSystemMessage($"  Slot #{it.SlotIndex}: {it.ItemName} (#{it.ItemId}) {qtyStr} - {it.PriceGold:N0}G");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                int buyQty = 1;
+                                if (parts.Length > 2 && int.TryParse(parts[2], out int parsedQty) && parsedQty > 0)
+                                {
+                                    buyQty = parsedQty;
+                                }
+
+                                // Find closest stall on this map
+                                var targetStall = activeStalls
+                                    .OrderBy(s => Math.Pow(c.CurX - s.X, 2) + Math.Pow(c.CurY - s.Y, 2))
+                                    .FirstOrDefault();
+
+                                if (targetStall != null)
+                                {
+                                    bool bought = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar.PurchaseItem(c, targetStall.VendorCharId, targetSlot, buyQty);
+                                    if (!bought)
+                                    {
+                                        c.SendSystemMessage("[Stall] Purchase failed. Please verify your gold, available inventory space, and slot index.");
+                                    }
+                                }
+                                else
+                                {
+                                    c.SendSystemMessage("[Stall] Could not locate any stall on this map.");
                                 }
                             }
                         }
@@ -2104,5 +2207,259 @@ namespace Game
             // Delegate to socket client processing if applicable, or leaving empty if handled by callbacks
             // m_socket.Process(); // If such method exists
         }
+
+        #region Overworld Bazaar Custom Stall Chat Command Handlers
+
+        public static void HandleStallChatCommand(Player c, string chatMsg)
+        {
+            if (c == null || string.IsNullOrWhiteSpace(chatMsg)) return;
+
+            var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+            if (bazaar == null)
+            {
+                c.SendSystemMessage("[Stall] Bazaar engine is not available.");
+                return;
+            }
+
+            // Tokenize respecting quotes
+            var matches = Regex.Matches(chatMsg, @"[\""][^\""]+[\""]|[^ ]+");
+            var tokens = new List<string>();
+            foreach (Match m in matches)
+            {
+                string val = m.Value.Trim();
+                if (val.StartsWith("\"") && val.EndsWith("\"") && val.Length >= 2)
+                    val = val.Substring(1, val.Length - 2).Trim();
+                if (!string.IsNullOrEmpty(val))
+                    tokens.Add(val);
+            }
+
+            if (tokens.Count <= 1)
+            {
+                // Simple ":stall" without arguments -> spawn synthetic vendor at player location
+                ushort mapId = (ushort)(c.CurMap?.MapID ?? 12000);
+                int x = c.CurX;
+                int y = c.CurY;
+                uint vendorId = bazaar.GenerateSyntheticVendorId();
+                string title = $"{c.CharName}'s Bazaar";
+                string vendor = $"{c.CharName}'s Vendor";
+                var stall = bazaar.SpawnCustomStall(vendorId, vendor, title, mapId, x, y, null, false, true);
+                if (stall != null)
+                {
+                    c.SendSystemMessage($"[Stall] Spawned vendor '{stall.StallName}' (Vendor: {stall.VendorName}, ID: {vendorId}) at Map {mapId} ({x}, {y})!");
+                    c.SendSystemMessage($"[Stall] Stock: Limited. Saved to database. Type ':removestall {vendorId}' to delete.");
+                }
+                return;
+            }
+
+            // Check if sub-command is "close", "stop", "sil", or "remove"
+            string firstArg = tokens[1].ToLowerInvariant();
+            if (firstArg == "close" || firstArg == "stop" || firstArg == "sil" || firstArg == "remove")
+            {
+                if (tokens.Count > 2 && uint.TryParse(tokens[2], out uint targetVendorId))
+                {
+                    if (bazaar.RemoveCustomStall(targetVendorId))
+                    {
+                        c.SendSystemMessage($"[Stall] Custom stall (Vendor ID: {targetVendorId}) was removed from map and database.");
+                    }
+                    else
+                    {
+                        c.SendSystemMessage($"[Stall] Stall with Vendor ID {targetVendorId} not found.");
+                    }
+                }
+                else
+                {
+                    if (bazaar.GetStall(c.CharID) != null)
+                    {
+                        bazaar.ClosePersonalStall(c);
+                        c.SendSystemMessage("[Stall] Your personal vending stall has been CLOSED.");
+                    }
+                    else
+                    {
+                        ushort curMapId = (ushort)(c.CurMap?.MapID ?? 0);
+                        var nearby = bazaar.GetStalls()
+                            .Where(s => s.MapId == curMapId)
+                            .OrderBy(s => Math.Pow(s.X - c.CurX, 2) + Math.Pow(s.Y - c.CurY, 2))
+                            .FirstOrDefault();
+
+                        if (nearby != null)
+                        {
+                            double dist = Math.Sqrt(Math.Pow(nearby.X - c.CurX, 2) + Math.Pow(nearby.Y - c.CurY, 2));
+                            if (dist <= 300.0)
+                            {
+                                bazaar.RemoveCustomStall(nearby.VendorCharId);
+                                c.SendSystemMessage($"[Stall] Removed nearby stall '{nearby.StallName}' (Vendor ID: {nearby.VendorCharId}) from map and database.");
+                                return;
+                            }
+                        }
+                        c.SendSystemMessage("[Stall] Usage: :removestall <vendorId> or stand near it and type ':removestall'.");
+                    }
+                }
+                return;
+            }
+
+            if (firstArg == "help" || firstArg == "?")
+            {
+                c.SendSystemMessage("[Stall] Usage: :stall [title] [infinite|limited] [itemId:price[:qty] ...]");
+                c.SendSystemMessage("[Stall] Coords: :stall <mapId> <x> <y> [title] [infinite|limited] [itemId:price[:qty] ...]");
+                c.SendSystemMessage("[Stall] Delete: :removestall [vendorId] | :clearstalls");
+                return;
+            }
+
+            // Coordinate parsing: Check if tokens 1, 2, 3 are integers
+            ushort targetMapId = (ushort)(c.CurMap?.MapID ?? 12000);
+            int targetX = c.CurX;
+            int targetY = c.CurY;
+            int paramStartIndex = 1;
+
+            if (tokens.Count >= 4 &&
+                ushort.TryParse(tokens[1], out ushort parsedMap) &&
+                int.TryParse(tokens[2], out int parsedX) &&
+                int.TryParse(tokens[3], out int parsedY))
+            {
+                targetMapId = parsedMap;
+                targetX = parsedX;
+                targetY = parsedY;
+                paramStartIndex = 4;
+            }
+
+            bool isInfinite = false;
+            var customItems = new List<Game.Experimental.StallItem>();
+            var titleParts = new List<string>();
+
+            for (int i = paramStartIndex; i < tokens.Count; i++)
+            {
+                string t = tokens[i];
+                string tLower = t.ToLowerInvariant();
+
+                if (tLower == "infinite" || tLower == "inf" || tLower == "sonsuz" || tLower == "unlimited" || tLower == "unlim")
+                {
+                    isInfinite = true;
+                }
+                else if (tLower == "limited" || tLower == "lim" || tLower == "limitli")
+                {
+                    isInfinite = false;
+                }
+                else if (t.Contains(':') && TryParseItemSpec(t, isInfinite, out var item))
+                {
+                    item.SlotIndex = (byte)customItems.Count;
+                    item.IsInfinite = isInfinite;
+                    customItems.Add(item);
+                }
+                else
+                {
+                    titleParts.Add(t);
+                }
+            }
+
+            string stallTitle = titleParts.Count > 0 ? string.Join(" ", titleParts) : $"{c.CharName}'s Shop";
+            string vendorName = $"{stallTitle} Vendor";
+            uint synthVendorId = bazaar.GenerateSyntheticVendorId();
+
+            var newStall = bazaar.SpawnCustomStall(
+                synthVendorId,
+                vendorName,
+                stallTitle,
+                targetMapId,
+                targetX,
+                targetY,
+                customItems.Count > 0 ? customItems : null,
+                isInfinite,
+                persistToDb: true
+            );
+
+            if (newStall != null)
+            {
+                string stockTypeStr = isInfinite ? "Infinite Stock (Unlimited)" : "Limited Stock";
+                c.SendSystemMessage($"[Stall] Spawned vendor '{newStall.StallName}' (ID: {synthVendorId}) at Map {targetMapId} ({targetX}, {targetY})!");
+                c.SendSystemMessage($"[Stall] Mode: {stockTypeStr} with {newStall.Items.Count} items. (Saved to DB)");
+                c.SendSystemMessage($"[Stall] You remain free and mobile! Type ':removestall {synthVendorId}' to delete this vendor.");
+            }
+            else
+            {
+                c.SendSystemMessage("[Stall] Failed to spawn stall.");
+            }
+        }
+
+        public static void HandleRemoveStallChatCommand(Player c, string chatMsg)
+        {
+            if (c == null) return;
+            var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+            if (bazaar == null) return;
+
+            var parts = chatMsg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 1 && uint.TryParse(parts[1], out uint targetVendorId))
+            {
+                if (bazaar.RemoveCustomStall(targetVendorId))
+                {
+                    c.SendSystemMessage($"[Stall] Custom stall (Vendor ID: {targetVendorId}) was removed from map and database.");
+                }
+                else
+                {
+                    c.SendSystemMessage($"[Stall] Stall with Vendor ID {targetVendorId} not found.");
+                }
+                return;
+            }
+
+            // Stand-alone ":removestall" -> find closest stall within 300 units on current map
+            ushort curMapId = (ushort)(c.CurMap?.MapID ?? 0);
+            var mapStalls = bazaar.GetStalls().Where(s => s.MapId == curMapId).ToList();
+
+            if (mapStalls.Count == 0)
+            {
+                c.SendSystemMessage("[Stall] No active stalls on this map.");
+                return;
+            }
+
+            var closest = mapStalls
+                .OrderBy(s => Math.Pow(s.X - c.CurX, 2) + Math.Pow(s.Y - c.CurY, 2))
+                .FirstOrDefault();
+
+            double dist = Math.Sqrt(Math.Pow(closest.X - c.CurX, 2) + Math.Pow(closest.Y - c.CurY, 2));
+            if (dist <= 300.0)
+            {
+                bazaar.RemoveCustomStall(closest.VendorCharId);
+                c.SendSystemMessage($"[Stall] Removed closest stall '{closest.StallName}' (Vendor ID: {closest.VendorCharId}) from map and database.");
+            }
+            else
+            {
+                c.SendSystemMessage("[Stall] No stall close to you. Active stalls on this map:");
+                foreach (var s in mapStalls)
+                {
+                    c.SendSystemMessage($"  - [{s.StallName}] Vendor ID: {s.VendorCharId} at ({s.X}, {s.Y})");
+                }
+                c.SendSystemMessage("[Stall] To remove a specific stall, type ':removestall <vendorId>'.");
+            }
+        }
+
+        private static bool TryParseItemSpec(string token, bool isInfiniteFallback, out Game.Experimental.StallItem item)
+        {
+            item = null;
+            if (string.IsNullOrWhiteSpace(token) || !token.Contains(':')) return false;
+
+            var parts = token.Split(':');
+            if (parts.Length >= 2 &&
+                ushort.TryParse(parts[0], out ushort itemId) &&
+                uint.TryParse(parts[1], out uint price))
+            {
+                int qty = 50;
+                if (parts.Length >= 3 && int.TryParse(parts[2], out int parsedQty))
+                {
+                    qty = Math.Max(1, parsedQty);
+                }
+                else if (isInfiniteFallback)
+                {
+                    qty = 99;
+                }
+
+                string name = Game.Battle.MonsterDropManager.ResolveItemName(itemId);
+                if (string.IsNullOrWhiteSpace(name)) name = $"Item #{itemId}";
+
+                item = new Game.Experimental.StallItem(0, itemId, name, qty, price, 0, isInfiniteFallback);
+                return true;
+            }
+            return false;
+        }
+
+        #endregion
     }
 }

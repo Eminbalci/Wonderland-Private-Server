@@ -391,6 +391,15 @@ namespace Wonderland_Private_Server
                     new NavItem("Chest Drops Editor", () => this.tabPageChestDrops),
                     new NavItem("Item Mall Catalog", () => FindTabBySubstring("Item Mall")),
                     new NavItem("Starter Items Pack", () => FindTabBySubstring("Starter Items"))
+                }),
+                new NavCategory("Experimental Lab", new List<NavItem>
+                {
+                    new NavItem("Experimental Hub", () => FindTabBySubstring("Experimental")),
+                    new NavItem("Dungeon Trials (AC 85)", () => FindTabBySubstring("Experimental")),
+                    new NavItem("Ranked PvP Arena (AC 183)", () => FindTabBySubstring("Experimental")),
+                    new NavItem("Guild Siege Wars (AC 184)", () => FindTabBySubstring("Experimental")),
+                    new NavItem("Carnival Arcade (AC 57)", () => FindTabBySubstring("Experimental")),
+                    new NavItem("Festival Races (AC 226)", () => FindTabBySubstring("Experimental"))
                 })
             };
 

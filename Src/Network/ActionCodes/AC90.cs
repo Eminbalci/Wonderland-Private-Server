@@ -1,5 +1,6 @@
 using System;
 using Game;
+using Game.Experimental;
 using Network;
 
 namespace Network.ActionCodes
@@ -21,37 +22,70 @@ namespace Network.ActionCodes
 
             try
             {
-                switch (subCode)
+                if (ExperimentalFeaturesManager.Instance.EnableAquacultureFishing)
                 {
-                    case 1: // Cast Fishing Rod / Start Fishing
-                        c.Fishing = true;
-                        SendPacket resp1 = new SendPacket();
-                        resp1.Pack8((byte)ID);
-                        resp1.Pack8(1);
-                        resp1.Pack8(1); // Fishing State Active
-                        c.Send(resp1);
-                        break;
-                    case 2: // Reel In / Catch Fish
-                        c.Fishing = false;
-                        ushort caughtItemId = 26001; // Common Fish (e.g. Carp)
-                        c.Inv.AddItem(caughtItemId, 1);
+                    switch (subCode)
+                    {
+                        case 1: // Cast Fishing Rod / Start Fishing
+                            ushort rodId = 26101;
+                            ushort baitId = 26201;
+                            if (p.Buffer.Length >= 10)
+                            {
+                                rodId = p.Unpack16();
+                            }
+                            ExperimentalFeaturesManager.Instance.AquacultureFishing.StartFishing(c, rodId, baitId);
+                            break;
 
-                        SendPacket resp2 = new SendPacket();
-                        resp2.Pack8((byte)ID);
-                        resp2.Pack8(2);
-                        resp2.Pack16(caughtItemId);
-                        resp2.Pack8(1);
-                        c.Send(resp2);
-                        DebugSystem.Write($"[AC90.CatchFish] {c.CharName} caught Item #{caughtItemId}");
-                        break;
-                    case 3: // Cancel / Stop Fishing
-                        c.Fishing = false;
-                        SendPacket resp3 = new SendPacket();
-                        resp3.Pack8((byte)ID);
-                        resp3.Pack8(3);
-                        resp3.Pack8(0);
-                        c.Send(resp3);
-                        break;
+                        case 2: // Reel In / Catch Fish
+                            ExperimentalFeaturesManager.Instance.AquacultureFishing.CatchFish(c);
+                            break;
+
+                        case 3: // Cancel / Stop Fishing
+                            ExperimentalFeaturesManager.Instance.AquacultureFishing.StopFishing(c);
+                            break;
+
+                        default:
+                            SendPacket respDef = new SendPacket();
+                            respDef.Pack8((byte)ID);
+                            respDef.Pack8(subCode);
+                            respDef.Pack8(1);
+                            c.Send(respDef);
+                            break;
+                    }
+                }
+                else
+                {
+                    // Fallback basic handler
+                    switch (subCode)
+                    {
+                        case 1:
+                            c.Fishing = true;
+                            SendPacket resp1 = new SendPacket();
+                            resp1.Pack8((byte)ID);
+                            resp1.Pack8(1);
+                            resp1.Pack8(1);
+                            c.Send(resp1);
+                            break;
+                        case 2:
+                            c.Fishing = false;
+                            ushort caughtItemId = 26001;
+                            c.Inv.AddItem(caughtItemId, 1);
+                            SendPacket resp2 = new SendPacket();
+                            resp2.Pack8((byte)ID);
+                            resp2.Pack8(2);
+                            resp2.Pack16(caughtItemId);
+                            resp2.Pack8(1);
+                            c.Send(resp2);
+                            break;
+                        case 3:
+                            c.Fishing = false;
+                            SendPacket resp3 = new SendPacket();
+                            resp3.Pack8((byte)ID);
+                            resp3.Pack8(3);
+                            resp3.Pack8(0);
+                            c.Send(resp3);
+                            break;
+                    }
                 }
             }
             catch (Exception ex)

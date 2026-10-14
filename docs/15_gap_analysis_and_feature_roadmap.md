@@ -65,25 +65,26 @@ Across all 10,644 event scripts in `Data/Eve.emg`, three opcodes require further
 
   Tier 2: Instance Dungeons & Wave Trials (Maps 30000+)
   ----------------------------------------------------
-  [ ] Implement AC 85 party floor advancement
-  [ ] Wire Opcode 17 wave completion signals to dungeon portal warp engine
-  [ ] Add team trial leaderboards and reward disbursement
+  [x] Implement AC 85 party floor advancement (Game.Experimental.InstanceDungeonEngine)
+  [x] Wire Opcode 17 wave completion signals to dungeon portal warp engine
+  [x] Add team trial leaderboards and reward disbursement
 
   Tier 3: High-Tier Companion Sagas & Rebirth Quests
   ----------------------------------------------------
   [ ] Multi-continent death and rebirth storylines (holy water altars)
-  [ ] Companion specialization trees and skill book unlocks (AC 199)
+  [x] Companion specialization trees and skill book unlocks (AC 199 / CompanionTalentsEngine)
   [ ] Deep companion dialogue branch qualification
 
   Tier 4: Competitive PvP & Guild Siege Warfare
   ----------------------------------------------------
-  [ ] Ranked arena matchmaking engine (AC 183)
-  [ ] Guild territory control and crystal destruction engine (AC 184)
-  [ ] Weekly territory tax distribution and guild research buffs (AC 92)
+  [x] Ranked arena matchmaking engine (AC 183 / PvPArenaEngine Elo K=32)
+  [x] Guild territory control and crystal destruction engine (AC 184 / GuildSiegeEngine)
+  [x] Weekly territory tax distribution and guild research buffs (AC 92 / GuildSiegeEngine)
 
   Tier 5: Minigames, Arcade, and Seasonal Content
   ----------------------------------------------------
-  [ ] Arcade mini-games (AC 57:1)
-  [ ] Seasonal festival races and holiday event state machines (AC 226)
+  [x] Arcade mini-games (AC 57:1 / ArcadeMinigameEngine)
+  [x] Seasonal festival races and holiday event state machines (AC 226 / FestivalRaceEngine)
+  [x] Map mechanisms and puzzle lever switches (Eve Opcode 16 / MapMechanismEngine)
   [ ] Auction house real-time bidding engine (AC 40)
 ```

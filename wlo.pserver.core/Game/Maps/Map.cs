@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -320,6 +320,13 @@ namespace Game
             {
                 DebugSystem.Write($"[Map {MapID}] Error loading ground items: {itemEx.Message}");
             }
+
+            // Reattach active stalls if any exist on this map
+            try
+            {
+                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.ReattachStallsToMap(this);
+            }
+            catch { }
         }
 
 
@@ -1513,6 +1520,13 @@ namespace Game
 
             // Personal Client-Side NPC Visibility Sync (Dynamic Quest Stage evaluation)
             QuestRelated.QuestManager.SyncPerPlayerNpcVisibility(t, (ushort)this.MapID);
+
+            // Synchronize custom player stalls and visual kiosks to the entering player
+            try
+            {
+                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.SyncMapStallsToPlayer(t, (ushort)this.MapID);
+            }
+            catch { }
 
             // Sync Guild Insignia
             t.CurGuild?.SendInsignia(t);

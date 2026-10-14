@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -208,6 +208,30 @@
     <Compile Include="Plugin\WorldAccess.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Server\ServerStatusManager.cs" />
+    <Compile Include="Game\Experimental\InstanceDungeonEngine.cs" />
+    <Compile Include="Game\Experimental\PvPArenaEngine.cs" />
+    <Compile Include="Game\Experimental\GuildSiegeEngine.cs" />
+    <Compile Include="Game\Experimental\ArcadeMinigameEngine.cs" />
+    <Compile Include="Game\Experimental\FestivalRaceEngine.cs" />
+    <Compile Include="Game\Experimental\MapMechanismEngine.cs" />
+    <Compile Include="Game\Experimental\CompanionTalentsEngine.cs" />
+    <Compile Include="Game\Experimental\CommunityBulletinEngine.cs" />
+    <Compile Include="Game\Experimental\ChurchCharityEngine.cs" />
+    <Compile Include="Game\Experimental\EquipmentForgeEngine.cs" />
+    <Compile Include="Game\Experimental\GobangWagerEngine.cs" />
+    <Compile Include="Game\Experimental\AquacultureFishingEngine.cs" />
+    <Compile Include="Game\Experimental\HotSpringBathingEngine.cs" />
+    <Compile Include="Game\Experimental\SecondaryPinVaultEngine.cs" />
+    <Compile Include="Game\Experimental\PlayerStallBazaarEngine.cs" />
+    <Compile Include="Game\Experimental\DynamicWeatherLightingEngine.cs" />
+    <Compile Include="Game\Experimental\VehicleTransportEngine.cs" />
+    <Compile Include="Game\Experimental\AtmBankingEngine.cs" />
+    <Compile Include="Game\Experimental\PlayerTitleAchievementEngine.cs" />
+    <Compile Include="Game\Experimental\TreasureExcavationEngine.cs" />
+    <Compile Include="Game\Experimental\LotteryGachaEngine.cs" />
+    <Compile Include="Game\Experimental\TentMaidButlerEngine.cs" />
+    <Compile Include="Game\Experimental\CombatStatusConditionEngine.cs" />
+    <Compile Include="Game\Experimental\ExperimentalFeaturesManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Game\Maps\SpecialMaps\" />

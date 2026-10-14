@@ -1,129 +1,167 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using wlo.pserver.core.Game.Enums;
-using Network;
 using Game;
 using Game.Code;
-using wlo.pserver.core;
+using Game.Experimental;
+using Network;
 
 namespace Network.ActionCodes
 {
+    /// <summary>
+    /// Action Code 85: Instance Dungeons, Cooperative Chambers, and Wave Trials.
+    /// Wire handler for Maps 30000+ trial chambers and Form_CreateDupMis / Form_ChooseCooperation.
+    /// </summary>
     public class AC85 : AC
     {
-        public override int ID { get { return 85; } }
+        public override int ID => 85;
+
         public override void ProcessPkt(Player r, RecievePacket p)
         {
+            if (r == null || p == null) return;
+
+            if (!ExperimentalFeaturesManager.Instance.EnableInstanceDungeons)
+            {
+                DebugSystem.Write($"[AC85] Instance dungeons feature is disabled in experimental toggles.");
+                return;
+            }
+
             switch (p.B)
             {
-                case 1: Recv1(r, p); break; // Update list instances.
-                case 2: Recv2(r, p); break; // Tab list instances.
-                case 3: Recv3(r, p); break; // create instance
-                case 4: Recv4(r, p); break; // pre join
-                case 5: Recv5(r, p); break; // join
-                case 6: Recv6(r, p); break; // exit instance.
-                case 10: Recv10(r, p); break;//chek members
-                case 11: Recv11(r, p); break;//chek membersTabs
-                case 13: Recv13(r, p); break;//demiss member
-                default: Console.WriteLine("AC " + p.A + "," + p.B + " has not been coded"); break;
+                case 1: Recv1(r, p); break;  // Update list instances
+                case 2: Recv2(r, p); break;  // Tab list instances
+                case 3: Recv3(r, p); break;  // Create instance
+                case 4: Recv4(r, p); break;  // Pre-join
+                case 5: Recv5(r, p); break;  // Join
+                case 6: Recv6(r, p); break;  // Exit instance
+                case 10: Recv10(r, p); break;// Check members
+                case 11: Recv11(r, p); break;// Move tab members
+                case 13: Recv13(r, p); break;// Dismiss member
+                default:
+                    DebugSystem.Write($"[AC85] Unhandled sub-opcode: AC 85,{p.B} from {r.CharName}");
+                    break;
             }
         }
-        void Recv1(Player p, RecievePacket r)
+
+        private void Recv1(Player p, RecievePacket r)
         {
             try
             {
-                //cGlobal.gInstanceSystem.Send81_1(ref p, 1);  // TODO: gInstanceSystem not implemented
-
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.SendRoomList(p);
             }
-            catch (Exception t) { Console.WriteLine(t); }
-        }
-        void Recv2(Player p, RecievePacket r)
-        {
-            int tmp = r.Unpack8();
-            try
+            catch (Exception ex)
             {
-                switch (tmp)
-                {
-
-                    case 1:
-                        //cGlobal.gInstanceSystem.Send81_1(ref p, tmp);  // TODO: gInstanceSystem not implemented
-                        break;
-                    case 2:
-                        //cGlobal.gInstanceSystem.Send81_1(ref p, tmp);  // TODO: gInstanceSystem not implemented
-                        break;
-                }
-
+                DebugSystem.Write(new ExceptionData(ex));
             }
-            catch (Exception t) { Console.WriteLine(t); }
         }
-        void Recv3(Player p, RecievePacket r)
-        {
-        }
-        void Recv4(Player p, RecievePacket r)
-        {
-            int tmp = r.Unpack16(); // get id instance selected
-            try
-            {
-                //cGlobal.gInstanceSystem.PreJoin(p.UserID, tmp);  // TODO: gInstanceSystem not implemented
 
-            }
-            catch (Exception t) { Console.WriteLine(t); }
-        }
-        void Recv5(Player p, RecievePacket r)
-        {
-            int tmp = r.Unpack16(); // get id instance selected
-            try
-            {
-                //cGlobal.gInstanceSystem.Join(ref p, tmp);  // TODO: gInstanceSystem not implemented
-
-            }
-            catch (Exception t) { Console.WriteLine(t); }
-        }
-        void Recv6(Player p, RecievePacket r)
-        {
-
-            try
-            {
-                //cGlobal.gInstanceSystem.ExitInstancia(ref p);  // TODO: gInstanceSystem not implemented
-            }
-            catch (Exception t) { Console.WriteLine(t); }
-        }
-        void Recv10(Player p, RecievePacket r)
+        private void Recv2(Player p, RecievePacket r)
         {
             try
             {
-                //if (p.CurInstance != 0)  // TODO: gInstanceSystem not implemented
-                //cGlobal.gInstanceSystem.CheckMembers(ref p, 1);  // TODO: gInstanceSystem not implemented
-
+                byte tab = r.Buffer.Length >= 7 ? r.Unpack8() : (byte)1;
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.SendTabs(p, tab);
             }
-            catch (Exception t) { Console.WriteLine(t); }
-        }
-        void Recv11(Player p, RecievePacket r)
-        {
-            byte tmp = r.Unpack8();
-            try
+            catch (Exception ex)
             {
-                // move tab members
-                if (p.CurInstance != 0)
-                {
-                    if ((tmp >= 1) && (tmp < 4))
-                    {
-                        //cGlobal.gInstanceSystem.CheckMembers(ref p, tmp);  // TODO: gInstanceSystem not implemented
-
-                    }
-                }
+                DebugSystem.Write(new ExceptionData(ex));
             }
-            catch (Exception t) { Console.WriteLine(t); }
         }
-        void Recv13(Player p, RecievePacket r)
+
+        private void Recv3(Player p, RecievePacket r)
         {
             try
             {
-
+                ushort mapId = r.Buffer.Length >= 8 ? (ushort)r.Unpack16() : (ushort)30001;
+                byte maxMembers = r.Buffer.Length >= 9 ? r.Unpack8() : (byte)4;
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.CreateRoom(p, $"{p.CharName}'s Trial", mapId, maxMembers);
             }
-            catch (Exception t) { Console.WriteLine(t); }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void Recv4(Player p, RecievePacket r)
+        {
+            try
+            {
+                uint roomId = r.Buffer.Length >= 8 ? (uint)r.Unpack16() : 1001;
+                // Pre-join ACK
+                SendPacket ack = new SendPacket();
+                ack.Pack8(85);
+                ack.Pack8(4);
+                ack.Pack32(roomId);
+                ack.Pack8(1);
+                p.Send(ack);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void Recv5(Player p, RecievePacket r)
+        {
+            try
+            {
+                uint roomId = r.Buffer.Length >= 8 ? (uint)r.Unpack16() : 1001;
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.JoinRoom(p, roomId);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void Recv6(Player p, RecievePacket r)
+        {
+            try
+            {
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.LeaveRoom(p);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void Recv10(Player p, RecievePacket r)
+        {
+            try
+            {
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.SendRoomList(p);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void Recv11(Player p, RecievePacket r)
+        {
+            try
+            {
+                byte tab = r.Buffer.Length >= 7 ? r.Unpack8() : (byte)1;
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.SendTabs(p, tab);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void Recv13(Player p, RecievePacket r)
+        {
+            try
+            {
+                uint targetCharId = r.Buffer.Length >= 10 ? (uint)r.Unpack32() : 0;
+                ExperimentalFeaturesManager.Instance.InstanceDungeons.DismissMember(p, targetCharId);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
         }
     }
 }

@@ -28,15 +28,14 @@ namespace Network.ActionCodes
             try
             {
                 byte emote = r.Unpack8();
-                if (p.Emote != emote)
-                {
-                    p.Emote = emote;
-                    SendPacket s = new SendPacket();
-                    s.PackArray(new byte[] { 32, 1 });
-                    s.Pack32(p.CharID);
-                    s.Pack8(emote);
-                    p.CurMap?.Broadcast(s, "Ex", p.CharID);
-                }
+                p.Emote = emote;
+                SendPacket s = new SendPacket();
+                s.Pack8(32);
+                s.Pack8(1);
+                s.Pack32(p.CharID);
+                s.Pack8(emote);
+                p.Send(s);
+                p.CurMap?.Broadcast(s, "Ex", p.CharID);
             }
             catch (Exception t) { Console.WriteLine(t); }
         }
@@ -45,16 +44,14 @@ namespace Network.ActionCodes
             try
             {
                 byte actionCode = (r.Buffer != null && r.Buffer.Count() > 6) ? r[6] : (byte)0;
+                p.Emote = actionCode;
 
-                if (p.Emote != actionCode)
-                {
-                    p.Emote = actionCode;
-                    SendPacket s = new SendPacket();
-                    s.PackArray(new byte[] { 32, 2 });
-                    s.Pack32(p.CharID);
-                    s.Pack8(actionCode);
-                    p.CurMap?.Broadcast(s, "Ex", p.CharID);
-                }
+                SendPacket s = new SendPacket();
+                s.Pack8(32);
+                s.Pack8(2);
+                s.Pack32(p.CharID);
+                s.Pack8(actionCode);
+                p.CurMap?.Broadcast(s, "Ex", p.CharID);
             }
             catch (Exception t) { Console.WriteLine(t); }
         }
