@@ -1527,7 +1527,7 @@ namespace Wonderland_Private_Server
                 Font = ModernTheme.FontBoldSmall,
                 ForeColor = ModernTheme.Slate700,
                 Location = new Point(12, 60),
-                Size = new Size(530, 165),
+                Size = new Size(530, 160),
                 BackColor = Color.White
             };
 
@@ -1537,11 +1537,22 @@ namespace Wonderland_Private_Server
             Label lblVendor = new Label { Text = "Vendor:", Location = new Point(270, 24), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
             TextBox txtVendor = new TextBox { Location = new Point(325, 21), Width = 185, Text = "Bazaar Merchant", Font = ModernTheme.FontDefault };
 
-            Label lblMapPreset = new Label { Text = "Map Preset:", Location = new Point(12, 56), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
-            ComboBox cmbMapPreset = new ComboBox
+            Label lblStallType = new Label { Text = "Stall Type:", Location = new Point(12, 56), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            ComboBox cmbStallType = new ComboBox
             {
                 Location = new Point(80, 53),
-                Width = 260,
+                Width = 175,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = ModernTheme.FontDefault
+            };
+            cmbStallType.Items.AddRange(new object[] { "Item Stall (Merchandise)", "Pet Stall (Companion Roster)", "Vehicle & Utensil Stall" });
+            cmbStallType.SelectedIndex = 0;
+
+            Label lblMapPreset = new Label { Text = "Preset Map:", Location = new Point(270, 56), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            ComboBox cmbMapPreset = new ComboBox
+            {
+                Location = new Point(345, 53),
+                Width = 165,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Font = ModernTheme.FontDefault
             };
@@ -1561,20 +1572,20 @@ namespace Wonderland_Private_Server
             cmbMapPreset.Items.AddRange(mapPresets);
             cmbMapPreset.SelectedIndex = 0;
 
-            Label lblMapId = new Label { Text = "Map ID:", Location = new Point(350, 56), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
-            NumericUpDown numMap = new NumericUpDown { Location = new Point(405, 53), Width = 105, Minimum = 1, Maximum = 65535, Value = 12000, Font = ModernTheme.FontDefault };
+            Label lblMapId = new Label { Text = "Map ID:", Location = new Point(12, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numMap = new NumericUpDown { Location = new Point(80, 87), Width = 75, Minimum = 1, Maximum = 65535, Value = 12000, Font = ModernTheme.FontDefault };
 
-            Label lblX = new Label { Text = "Coord X:", Location = new Point(12, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
-            NumericUpDown numX = new NumericUpDown { Location = new Point(80, 87), Width = 75, Minimum = 0, Maximum = 10000, Value = 1200, Font = ModernTheme.FontDefault };
+            Label lblX = new Label { Text = "X:", Location = new Point(165, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numX = new NumericUpDown { Location = new Point(185, 87), Width = 65, Minimum = 0, Maximum = 10000, Value = 1200, Font = ModernTheme.FontDefault };
 
-            Label lblY = new Label { Text = "Coord Y:", Location = new Point(165, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
-            NumericUpDown numY = new NumericUpDown { Location = new Point(225, 87), Width = 75, Minimum = 0, Maximum = 10000, Value = 1500, Font = ModernTheme.FontDefault };
+            Label lblY = new Label { Text = "Y:", Location = new Point(260, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numY = new NumericUpDown { Location = new Point(280, 87), Width = 65, Minimum = 0, Maximum = 10000, Value = 1500, Font = ModernTheme.FontDefault };
 
             Button btnGrabPlayerCoords = new Button
             {
                 Text = "Use Player Pos",
-                Location = new Point(315, 86),
-                Size = new Size(195, 26),
+                Location = new Point(360, 86),
+                Size = new Size(150, 26),
                 BackColor = ModernTheme.Slate100,
                 ForeColor = ModernTheme.Slate800,
                 FlatStyle = FlatStyle.Flat,
@@ -1585,7 +1596,7 @@ namespace Wonderland_Private_Server
             CheckBox chkInfinite = new CheckBox
             {
                 Text = "Infinite Stock (Auto-replenishes to max capacity upon every purchase)",
-                Location = new Point(14, 126),
+                Location = new Point(14, 124),
                 AutoSize = true,
                 Font = ModernTheme.FontBoldSmall,
                 ForeColor = ModernTheme.Emerald700,
@@ -1623,6 +1634,8 @@ namespace Wonderland_Private_Server
             grpConfig.Controls.Add(txtTitle);
             grpConfig.Controls.Add(lblVendor);
             grpConfig.Controls.Add(txtVendor);
+            grpConfig.Controls.Add(lblStallType);
+            grpConfig.Controls.Add(cmbStallType);
             grpConfig.Controls.Add(lblMapPreset);
             grpConfig.Controls.Add(cmbMapPreset);
             grpConfig.Controls.Add(lblMapId);
@@ -1640,7 +1653,7 @@ namespace Wonderland_Private_Server
                 Text = " Merchandise Catalog Builder (Up to 5 Slots) ",
                 Font = ModernTheme.FontBoldSmall,
                 ForeColor = ModernTheme.Slate700,
-                Location = new Point(12, 235),
+                Location = new Point(12, 230),
                 Size = new Size(530, 310),
                 BackColor = Color.White
             };
@@ -1715,9 +1728,9 @@ namespace Wonderland_Private_Server
 
             Button btnResetPreset = new Button
             {
-                Text = "Load Authentic Preset (5 Items)",
+                Text = "Load Type Preset",
                 Location = new Point(12, 272),
-                Size = new Size(230, 26),
+                Size = new Size(180, 26),
                 BackColor = ModernTheme.Slate100,
                 ForeColor = ModernTheme.Slate800,
                 FlatStyle = FlatStyle.Flat,
@@ -1728,7 +1741,7 @@ namespace Wonderland_Private_Server
             Button btnClearDraft = new Button
             {
                 Text = "Clear Catalog",
-                Location = new Point(250, 272),
+                Location = new Point(200, 272),
                 Size = new Size(110, 26),
                 BackColor = ModernTheme.Slate100,
                 ForeColor = ModernTheme.Rose700,
@@ -1758,7 +1771,7 @@ namespace Wonderland_Private_Server
             };
             PopulateItemSelector("");
 
-            void LoadDefaultDraftItems()
+            void LoadItemsPreset()
             {
                 dgvDraftCatalog.Rows.Clear();
                 dgvDraftCatalog.Rows.Add(0, (ushort)30167, "Rainbow Drop", 120, 50, "Infinite");
@@ -1767,24 +1780,88 @@ namespace Wonderland_Private_Server
                 dgvDraftCatalog.Rows.Add(3, (ushort)30323, "Magical Cure Potion", 1200, 50, "Infinite");
                 dgvDraftCatalog.Rows.Add(4, (ushort)27001, "Orchid Candy", 2500, 50, "Infinite");
             }
-            LoadDefaultDraftItems();
 
-            btnResetPreset.Click += (s, e) => LoadDefaultDraftItems();
+            void LoadPetsPreset()
+            {
+                dgvDraftCatalog.Rows.Clear();
+                dgvDraftCatalog.Rows.Add(0, (ushort)10001, "Roca (Level 1 Companion)", 10000, 1, "Infinite");
+                dgvDraftCatalog.Rows.Add(1, (ushort)10002, "Niss (Level 1 Companion)", 15000, 1, "Infinite");
+                dgvDraftCatalog.Rows.Add(2, (ushort)10003, "Fred (Level 1 Companion)", 20000, 1, "Infinite");
+                dgvDraftCatalog.Rows.Add(3, (ushort)10004, "Cliff (Level 1 Companion)", 25000, 1, "Infinite");
+                dgvDraftCatalog.Rows.Add(4, (ushort)10007, "Xaolan (Level 1 Companion)", 30000, 1, "Infinite");
+            }
+
+            void LoadVehiclesPreset()
+            {
+                dgvDraftCatalog.Rows.Clear();
+                dgvDraftCatalog.Rows.Add(0, (ushort)48010, "Raft (Water Transport)", 5000, 1, "Infinite");
+                dgvDraftCatalog.Rows.Add(1, (ushort)48009, "Sailboat (Water Transport)", 25000, 1, "Infinite");
+                dgvDraftCatalog.Rows.Add(2, (ushort)26002, "Alchemy Pot (Appliance)", 8000, 1, "Infinite");
+            }
+
+            LoadItemsPreset();
+
+            cmbStallType.SelectedIndexChanged += (s, e) =>
+            {
+                if (cmbStallType.SelectedIndex == 1) // Pet
+                {
+                    txtTitle.Text = "Companion Pet Roster";
+                    txtVendor.Text = "Pet Merchant";
+                    grpCatalog.Text = " Companion Pet Roster Builder (Up to 5 Pets) ";
+                    LoadPetsPreset();
+                }
+                else if (cmbStallType.SelectedIndex == 2) // Vehicle / Utensil
+                {
+                    txtTitle.Text = "Vehicles & Appliances Shop";
+                    txtVendor.Text = "Vehicle Merchant";
+                    grpCatalog.Text = " Vehicles & Utensils Catalog Builder (Up to 3 Slots) ";
+                    LoadVehiclesPreset();
+                }
+                else // Item
+                {
+                    txtTitle.Text = "Rare Alchemy Supplies";
+                    txtVendor.Text = "Bazaar Merchant";
+                    grpCatalog.Text = " Merchandise Catalog Builder (Up to 5 Slots) ";
+                    LoadItemsPreset();
+                }
+            };
+
+            btnResetPreset.Click += (s, e) =>
+            {
+                if (cmbStallType.SelectedIndex == 1) LoadPetsPreset();
+                else if (cmbStallType.SelectedIndex == 2) LoadVehiclesPreset();
+                else LoadItemsPreset();
+            };
+
             btnClearDraft.Click += (s, e) => dgvDraftCatalog.Rows.Clear();
 
             btnAddItem.Click += (s, e) =>
             {
-                if (dgvDraftCatalog.Rows.Count >= 5)
+                int maxSlots = cmbStallType.SelectedIndex == 2 ? 3 : 5;
+                if (dgvDraftCatalog.Rows.Count >= maxSlots)
                 {
-                    MessageBox.Show("Maximum 5 items allowed per merchant stall.", "Limit Reached", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show($"Maximum {maxSlots} entries allowed for this stall type.", "Limit Reached", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
+                ushort itemId = 0;
+                string itemName = "";
                 if (cmbItemSelector.SelectedItem is ItemPickerEntry selected)
+                {
+                    itemId = selected.ItemId;
+                    itemName = selected.Name;
+                }
+                else if (ushort.TryParse(txtItemSearch.Text.Trim(), out ushort typedId) && typedId > 0)
+                {
+                    itemId = typedId;
+                    itemName = $"Custom Entry #{typedId}";
+                }
+
+                if (itemId > 0)
                 {
                     byte slot = (byte)dgvDraftCatalog.Rows.Count;
                     string stockStr = chkInfinite.Checked ? "Infinite" : "Limited";
-                    dgvDraftCatalog.Rows.Add(slot, selected.ItemId, selected.Name, (uint)numPrice.Value, (int)numQty.Value, stockStr);
+                    dgvDraftCatalog.Rows.Add(slot, itemId, itemName, (uint)numPrice.Value, (int)numQty.Value, stockStr);
                 }
             };
 
@@ -1818,7 +1895,7 @@ namespace Wonderland_Private_Server
             Button btnSpawnStall = new Button
             {
                 Text = "Spawn Stall to World & Save DB",
-                Location = new Point(12, 555),
+                Location = new Point(12, 550),
                 Size = new Size(270, 36),
                 BackColor = ModernTheme.Blue600,
                 ForeColor = Color.White,
@@ -1830,7 +1907,7 @@ namespace Wonderland_Private_Server
             Label lblDbNote = new Label
             {
                 Text = "Saved in custom_stalls (SQLite & MySQL) and restored automatically on server restart.",
-                Location = new Point(12, 598),
+                Location = new Point(12, 593),
                 AutoSize = true,
                 Font = ModernTheme.FontSmall,
                 ForeColor = ModernTheme.Slate500
@@ -1853,6 +1930,10 @@ namespace Wonderland_Private_Server
                     string vendor = string.IsNullOrWhiteSpace(txtVendor.Text) ? "Merchant" : txtVendor.Text.Trim();
                     bool isInf = chkInfinite.Checked;
 
+                    Game.Experimental.StallType stallType = Game.Experimental.StallType.Item;
+                    if (cmbStallType.SelectedIndex == 1) stallType = Game.Experimental.StallType.Pet;
+                    else if (cmbStallType.SelectedIndex == 2) stallType = Game.Experimental.StallType.VehicleUtensil;
+
                     var items = new List<Game.Experimental.StallItem>();
                     for (int i = 0; i < dgvDraftCatalog.Rows.Count; i++)
                     {
@@ -1866,12 +1947,12 @@ namespace Wonderland_Private_Server
                     }
 
                     uint charId = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.GenerateSyntheticVendorId();
-                    var stall = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.SpawnCustomStall(charId, vendor, title, mapId, x, y, items, isInf, true);
+                    var stall = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.SpawnCustomStall(charId, vendor, title, mapId, x, y, items, isInf, true, stallType);
                     RefreshBazaarGrid();
                     if (stall != null)
                     {
                         string stockStr = isInf ? "Infinite Stock" : "Limited Stock";
-                        MessageBox.Show($"Stall '{stall.StallName}' (Vendor ID: {stall.VendorCharId}, ClickID: {stall.ClickId}) spawned successfully for {stall.VendorName} at Map {stall.MapId} ({stall.X}, {stall.Y}) with {stall.Items.Count} items ({stockStr}) and saved to database.", "Stall Spawned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show($"Stall '{stall.StallName}' (Type: {stall.StallType}, Vendor ID: {stall.VendorCharId}, ClickID: {stall.ClickId}) spawned successfully for {stall.VendorName} at Map {stall.MapId} ({stall.X}, {stall.Y}) with {stall.Items.Count} entries ({stockStr}) and saved to database.", "Stall Spawned", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
                 catch (Exception ex)
@@ -1999,6 +2080,7 @@ namespace Wonderland_Private_Server
             dgvBazaarStalls.Columns.Add("colVendorId", "Vendor ID");
             dgvBazaarStalls.Columns.Add("colVendorName", "Vendor");
             dgvBazaarStalls.Columns.Add("colStallName", "Stall Title");
+            dgvBazaarStalls.Columns.Add("colStallType", "Type");
             dgvBazaarStalls.Columns.Add("colMapId", "Map ID");
             dgvBazaarStalls.Columns.Add("colCoords", "Coords (X,Y)");
             dgvBazaarStalls.Columns.Add("colStockType", "Stock Mode");
@@ -2007,11 +2089,12 @@ namespace Wonderland_Private_Server
 
             dgvBazaarStalls.Columns["colVendorId"].Width = 85;
             dgvBazaarStalls.Columns["colVendorName"].Width = 115;
-            dgvBazaarStalls.Columns["colStallName"].Width = 145;
-            dgvBazaarStalls.Columns["colMapId"].Width = 75;
+            dgvBazaarStalls.Columns["colStallName"].Width = 140;
+            dgvBazaarStalls.Columns["colStallType"].Width = 80;
+            dgvBazaarStalls.Columns["colMapId"].Width = 70;
             dgvBazaarStalls.Columns["colCoords"].Width = 90;
             dgvBazaarStalls.Columns["colStockType"].Width = 95;
-            dgvBazaarStalls.Columns["colItems"].Width = 180;
+            dgvBazaarStalls.Columns["colItems"].Width = 175;
             dgvBazaarStalls.Columns["colOpened"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
 
             btnEditSelected.Click += (s, e) =>
@@ -2033,6 +2116,10 @@ namespace Wonderland_Private_Server
                         numX.Value = stall.X;
                         numY.Value = stall.Y;
                         chkInfinite.Checked = stall.IsInfinite;
+
+                        if (stall.StallType == Game.Experimental.StallType.Pet) cmbStallType.SelectedIndex = 1;
+                        else if (stall.StallType == Game.Experimental.StallType.VehicleUtensil) cmbStallType.SelectedIndex = 2;
+                        else cmbStallType.SelectedIndex = 0;
 
                         dgvDraftCatalog.Rows.Clear();
                         for (int i = 0; i < stall.Items.Count; i++)
@@ -2142,9 +2229,10 @@ namespace Wonderland_Private_Server
             foreach (var s in stalls)
             {
                 string stockMode = s.IsInfinite ? "Infinite" : "Limited";
+                string typeStr = s.StallType == Game.Experimental.StallType.Pet ? "Pet" : (s.StallType == Game.Experimental.StallType.VehicleUtensil ? "Vehicle" : "Item");
                 string itemsSummary = string.Join(", ", s.Items.Select(i => $"{i.ItemName} ({i.PriceGold:N0}G)"));
                 if (itemsSummary.Length > 45) itemsSummary = itemsSummary.Substring(0, 42) + "...";
-                dgvBazaarStalls.Rows.Add(s.VendorCharId, s.VendorName, s.StallName, s.MapId, $"{s.X}, {s.Y}", stockMode, $"{s.Items.Count} items: {itemsSummary}", $"{s.OpenedAt:HH:mm:ss}");
+                dgvBazaarStalls.Rows.Add(s.VendorCharId, s.VendorName, s.StallName, typeStr, s.MapId, $"{s.X}, {s.Y}", stockMode, $"{s.Items.Count} items: {itemsSummary}", $"{s.OpenedAt:HH:mm:ss}");
             }
 
             if (ext_lblExpMetricBazaar != null)

@@ -10,6 +10,13 @@ using RCLibrary.Core;
 
 namespace Game.Experimental
 {
+    public enum StallType : byte
+    {
+        Item = 1,
+        Pet = 2,
+        VehicleUtensil = 3
+    }
+
     public class StallItem
     {
         public byte SlotIndex { get; set; }
@@ -44,6 +51,7 @@ namespace Game.Experimental
         public int X { get; set; }
         public int Y { get; set; }
         public bool IsInfinite { get; set; }
+        public StallType StallType { get; set; } = StallType.Item;
         public DateTime OpenedAt { get; set; }
         public List<StallItem> Items { get; } = new List<StallItem>();
         public byte ClickId { get; set; }
@@ -59,6 +67,7 @@ namespace Game.Experimental
             X = vendor?.CurX ?? 0;
             Y = vendor?.CurY ?? 0;
             IsInfinite = false;
+            StallType = StallType.Item;
             OpenedAt = DateTime.UtcNow;
         }
     }
@@ -138,10 +147,19 @@ namespace Game.Experimental
                              "x INT NOT NULL, " +
                              "y INT NOT NULL, " +
                              "is_infinite INT DEFAULT 0, " +
+                             "stall_type INT DEFAULT 1, " +
                              "items_data TEXT NOT NULL, " +
                              "created_at TEXT" +
                              ");";
                 RCLibrary.Core.DataBase.Execute(sql);
+
+                // Auto-migration for existing databases that lack stall_type
+                try
+                {
+                    RCLibrary.Core.DataBase.Execute("ALTER TABLE custom_stalls ADD COLUMN stall_type INT DEFAULT 1;");
+                }
+                catch { }
+
                 DebugSystem.Write("[PlayerStallBazaarEngine] custom_stalls table verified.");
             }
             catch (Exception ex)
@@ -156,8 +174,8 @@ namespace Game.Experimental
             try
             {
                 EnsureDatabaseTable();
-                string sql = "INSERT OR REPLACE INTO custom_stalls (vendor_id, vendor_name, stall_title, map_id, x, y, is_infinite, items_data, created_at) " +
-                             "VALUES (@vendor_id, @vendor_name, @stall_title, @map_id, @x, @y, @is_infinite, @items_data, @created_at);";
+                string sql = "INSERT OR REPLACE INTO custom_stalls (vendor_id, vendor_name, stall_title, map_id, x, y, is_infinite, stall_type, items_data, created_at) " +
+                             "VALUES (@vendor_id, @vendor_name, @stall_title, @map_id, @x, @y, @is_infinite, @stall_type, @items_data, @created_at);";
 
                 RCLibrary.Core.DataBase.Execute(
                     sql,
@@ -168,10 +186,11 @@ namespace Game.Experimental
                     new DbParam("@x", stall.X),
                     new DbParam("@y", stall.Y),
                     new DbParam("@is_infinite", stall.IsInfinite ? 1 : 0),
+                    new DbParam("@stall_type", (int)stall.StallType),
                     new DbParam("@items_data", SerializeItems(stall.Items)),
                     new DbParam("@created_at", stall.OpenedAt.ToString("yyyy-MM-dd HH:mm:ss"))
                 );
-                DebugSystem.Write($"[PlayerStallBazaarEngine] Saved stall '{stall.StallName}' (Vendor ID: {stall.VendorCharId}) to database.");
+                DebugSystem.Write($"[PlayerStallBazaarEngine] Saved stall '{stall.StallName}' (Vendor ID: {stall.VendorCharId}, Type: {stall.StallType}) to database.");
             }
             catch (Exception ex)
             {
@@ -213,7 +232,7 @@ namespace Game.Experimental
             try
             {
                 EnsureDatabaseTable();
-                var dt = RCLibrary.Core.DataBase.Query("SELECT vendor_id, vendor_name, stall_title, map_id, x, y, is_infinite, items_data, created_at FROM custom_stalls;");
+                var dt = RCLibrary.Core.DataBase.Query("SELECT vendor_id, vendor_name, stall_title, map_id, x, y, is_infinite, stall_type, items_data, created_at FROM custom_stalls;");
                 if (dt == null || dt.Rows.Count == 0)
                 {
                     DebugSystem.Write("[PlayerStallBazaarEngine] No saved custom stalls in database.");
@@ -232,12 +251,18 @@ namespace Game.Experimental
                         int x = Convert.ToInt32(row["x"]);
                         int y = Convert.ToInt32(row["y"]);
                         bool isInfinite = Convert.ToInt32(row["is_infinite"]) == 1;
-                        string itemsData = Convert.ToString(row["items_data"]);
 
+                        StallType stallType = StallType.Item;
+                        if (dt.Columns.Contains("stall_type") && row["stall_type"] != DBNull.Value)
+                        {
+                            stallType = (StallType)Convert.ToByte(row["stall_type"]);
+                        }
+
+                        string itemsData = Convert.ToString(row["items_data"]);
                         var items = DeserializeItems(itemsData, isInfinite);
 
                         // Spawn without re-persisting to DB
-                        var stall = SpawnCustomStall(vendorId, vendorName, stallTitle, mapId, x, y, items, isInfinite, persistToDb: false);
+                        var stall = SpawnCustomStall(vendorId, vendorName, stallTitle, mapId, x, y, items, isInfinite, persistToDb: false, stallType: stallType);
                         if (stall != null)
                         {
                             if (row["created_at"] != null && DateTime.TryParse(row["created_at"].ToString(), out var dtOpened))
@@ -395,7 +420,7 @@ namespace Game.Experimental
             }
         }
 
-        public PlayerStall SpawnCustomStall(uint vendorId, string vendorName, string stallTitle, ushort mapId, int x, int y, List<StallItem> items = null, bool isInfinite = false, bool persistToDb = true)
+        public PlayerStall SpawnCustomStall(uint vendorId, string vendorName, string stallTitle, ushort mapId, int x, int y, List<StallItem> items = null, bool isInfinite = false, bool persistToDb = true, StallType stallType = StallType.Item)
         {
             try
             {
@@ -407,11 +432,12 @@ namespace Game.Experimental
                     {
                         VendorCharId = vendorId,
                         VendorName = string.IsNullOrWhiteSpace(vendorName) ? $"Merchant #{vendorId}" : vendorName.Trim(),
-                        StallName = string.IsNullOrWhiteSpace(stallTitle) ? "Overworld Bazaar Kiosk" : stallTitle.Trim(),
+                        StallName = string.IsNullOrWhiteSpace(stallTitle) ? (stallType == StallType.Pet ? "Companion Pet Shop" : (stallType == StallType.VehicleUtensil ? "Vehicles & Appliances Shop" : "Overworld Bazaar Kiosk")) : stallTitle.Trim(),
                         MapId = mapId,
                         X = x,
                         Y = y,
                         IsInfinite = isInfinite,
+                        StallType = stallType,
                         OpenedAt = DateTime.UtcNow
                     };
 
@@ -425,12 +451,31 @@ namespace Game.Experimental
                     }
                     else
                     {
-                        // Default diversified goods catalog (verified in itemDat.wpdat)
-                        stall.Items.Add(new StallItem(0, 30167, "Rainbow Drop", 50, 120, 0, isInfinite));
-                        stall.Items.Add(new StallItem(1, 30162, "Safety Bell", 25, 300, 0, isInfinite));
-                        stall.Items.Add(new StallItem(2, 30253, "Magic Potion", 50, 500, 0, isInfinite));
-                        stall.Items.Add(new StallItem(3, 30323, "Magical Cure Potion", 50, 1200, 0, isInfinite));
-                        stall.Items.Add(new StallItem(4, 27001, "Orchid Candy", 50, 2500, 0, isInfinite));
+                        if (stallType == StallType.Pet)
+                        {
+                            // Authentic companion pet defaults (NPC template IDs)
+                            stall.Items.Add(new StallItem(0, 10001, "Roca (Level 1 Companion)", 1, 10000, 0, isInfinite));
+                            stall.Items.Add(new StallItem(1, 10002, "Niss (Level 1 Companion)", 1, 15000, 0, isInfinite));
+                            stall.Items.Add(new StallItem(2, 10003, "Fred (Level 1 Companion)", 1, 20000, 0, isInfinite));
+                            stall.Items.Add(new StallItem(3, 10004, "Cliff (Level 1 Companion)", 1, 25000, 0, isInfinite));
+                            stall.Items.Add(new StallItem(4, 10007, "Xaolan (Level 1 Companion)", 1, 30000, 0, isInfinite));
+                        }
+                        else if (stallType == StallType.VehicleUtensil)
+                        {
+                            // Authentic vehicles and household appliances
+                            stall.Items.Add(new StallItem(0, 48010, "Raft (Water Transport)", 1, 5000, 0, isInfinite));
+                            stall.Items.Add(new StallItem(1, 48009, "Sailboat (Water Transport)", 1, 25000, 0, isInfinite));
+                            stall.Items.Add(new StallItem(2, 26002, "Alchemy Pot (Appliance)", 1, 8000, 0, isInfinite));
+                        }
+                        else
+                        {
+                            // Default diversified goods catalog (verified in itemDat.wpdat)
+                            stall.Items.Add(new StallItem(0, 30167, "Rainbow Drop", 50, 120, 0, isInfinite));
+                            stall.Items.Add(new StallItem(1, 30162, "Safety Bell", 25, 300, 0, isInfinite));
+                            stall.Items.Add(new StallItem(2, 30253, "Magic Potion", 50, 500, 0, isInfinite));
+                            stall.Items.Add(new StallItem(3, 30323, "Magical Cure Potion", 50, 1200, 0, isInfinite));
+                            stall.Items.Add(new StallItem(4, 27001, "Orchid Candy", 50, 2500, 0, isInfinite));
+                        }
                     }
 
                     // Target Map Resolution
@@ -634,11 +679,27 @@ namespace Game.Experimental
         {
             if (player == null || stall == null) return;
 
-            DebugSystem.Write($"[StallVendorNpc] Player {player.CharName} interacted with stall '{stall.StallName}' (Vendor: {stall.VendorName})");
+            DebugSystem.Write($"[StallVendorNpc] Player {player.CharName} interacted with stall '{stall.StallName}' (Vendor: {stall.VendorName}, Type: {stall.StallType})");
 
-            // 1. Send authentic S -> C AC 23:33 (TRe_BuyItemStallForm - Form_BuyItemStall_1)
-            var browse33Pkt = BuildStallBrowse33Packet(stall);
-            if (browse33Pkt != null) player.Send(browse33Pkt);
+            // 1. Send type-specific authentic browse viewport packet
+            if (stall.StallType == StallType.Pet)
+            {
+                // Authentic Pet Stall Browse Viewport (AC 23:113 -> Form_BuyPet1..3Stall_1)
+                var petBrowsePkt = BuildPetStallBrowse113Packet(stall);
+                if (petBrowsePkt != null) player.Send(petBrowsePkt);
+            }
+            else if (stall.StallType == StallType.VehicleUtensil)
+            {
+                // Authentic Vehicle & Utensil Stall Browse Viewport (AC 23:133 -> Form_Buy1..3Utensil_1)
+                var utensilBrowsePkt = BuildUtensilStallBrowse133Packet(stall);
+                if (utensilBrowsePkt != null) player.Send(utensilBrowsePkt);
+            }
+            else
+            {
+                // Authentic Item Stall Browse Viewport (AC 23:33 -> Form_BuyItemStall_1)
+                var browse33Pkt = BuildStallBrowse33Packet(stall);
+                if (browse33Pkt != null) player.Send(browse33Pkt);
+            }
 
             // 2. Send AC 20:15 (0x14:0x0F) - Alternative stall browse packet
             var browsePkt = BuildStallBrowsePacket(stall);
@@ -648,10 +709,11 @@ namespace Game.Experimental
             var catalogPkt = BuildStallCatalogPacket(stall);
             if (catalogPkt != null) player.Send(catalogPkt);
 
-            // 3. Output catalog to player chat / system message for immediate readability
+            // 4. Output catalog to player chat / system message for immediate readability
             string stockTypeStr = stall.IsInfinite ? "INFINITE STOCK" : "LIMITED STOCK";
+            string typeHeader = stall.StallType == StallType.Pet ? "PET BAZAAR" : (stall.StallType == StallType.VehicleUtensil ? "VEHICLE & UTENSIL BAZAAR" : "ITEM BAZAAR");
             player.SendSystemMessage($"==================================================");
-            player.SendSystemMessage($"[BAZAAR] {stall.StallName.ToUpper()}");
+            player.SendSystemMessage($"[{typeHeader}] {stall.StallName.ToUpper()}");
             player.SendSystemMessage($"Merchant: {stall.VendorName} | Mode: {stockTypeStr}");
             player.SendSystemMessage($"Location: Map {stall.MapId} ({stall.X}, {stall.Y})");
             player.SendSystemMessage($"--------------------------------------------------");
@@ -671,7 +733,7 @@ namespace Game.Experimental
             }
             player.SendSystemMessage($"==================================================");
 
-            // 4. Release/unlock player movement (native stall Form_BuyItemStall_1 handles purchasing directly)
+            // 5. Release/unlock player movement
             player.Send(Tools.FromFormat("bb", 20, 8));
         }
 
@@ -710,36 +772,106 @@ namespace Game.Experimental
                         return false;
                     }
 
-                    if (buyer.Inv != null && buyer.Inv.HasItemDefinition(item.ItemId) && !buyer.Inv.CanAddItems(new Dictionary<ushort, int> { { item.ItemId, quantity } }))
+                    if (stall.StallType == StallType.Pet)
                     {
-                        buyer.SendHeadBanner("Your inventory is full.");
-                        return false;
-                    }
+                        // Pet Stall: Companion Pet Party Joining Logic
+                        var roster = buyer.PlayerPets;
+                        if (roster == null)
+                        {
+                            buyer.SendHeadBanner("Pet roster unavailable.");
+                            return false;
+                        }
 
-                    buyer.Gold -= totalCost;
+                        lock (roster)
+                        {
+                            if (roster.Values.Any(petEntry => petEntry != null && petEntry.PetID != 0 && Player.IsSamePetOrCompanion(petEntry.PetID, item.ItemId)))
+                            {
+                                buyer.SendHeadBanner("This companion is already in your party.");
+                                return false;
+                            }
+                            byte petSlot = 1;
+                            while (petSlot <= 4 && roster.ContainsKey(petSlot)) petSlot++;
+                            if (petSlot > 4 || roster.Values.Count(petEntry => petEntry != null && petEntry.PetID != 0) >= 4)
+                            {
+                                buyer.SendHeadBanner("Your pet party is full (Max 4 pets). Free a slot first.");
+                                return false;
+                            }
 
-                    if (isItemInfinite)
-                    {
-                        // Sınırsız stok olanlar her mağazadan satın alındığında stoğu tekrar max a çeksin
-                        item.Quantity = item.MaxQuantity > 0 ? item.MaxQuantity : 50;
+                            buyer.Gold -= totalCost;
+
+                            if (isItemInfinite)
+                            {
+                                item.Quantity = item.MaxQuantity > 0 ? item.MaxQuantity : 1;
+                            }
+                            else
+                            {
+                                item.Quantity -= 1;
+                                if (item.Quantity <= 0)
+                                {
+                                    stall.Items.Remove(item);
+                                }
+                                if (stall.VendorPlayer == null)
+                                {
+                                    SaveStallToDatabase(stall);
+                                }
+                            }
+
+                            string petName = !string.IsNullOrWhiteSpace(item.ItemName) ? item.ItemName.Split('(')[0].Trim() : DataFiles.SceneDataManager.GetNpcName(item.ItemId);
+                            var pet = new Player.PlayerPetData
+                            {
+                                Slot = petSlot,
+                                PetID = item.ItemId,
+                                PetName = petName,
+                                Level = 1,
+                                Amity = 60
+                            };
+                            pet.InitializeBaseStats();
+                            pet.NormalizeClientStats(true);
+                            buyer.RegisterClientPet(pet);
+                            roster[petSlot] = pet;
+                            buyer.Send(QuestRelated.QuestManager.CreatePetPacket(buyer, pet.PetID, pet.Slot,
+                                pet.HP, pet.MaxHP, pet.SP, pet.MaxSP, pet.Amity, pet.Level,
+                                pet.Str, pet.Con, pet.Int, pet.Wis, pet.Agi, pet.Exp, pet.Reborn, pet.Job));
+                            QuestRelated.QuestManager.SendPetProgression(buyer, pet);
+                            var namePacket = QuestRelated.QuestManager.CreatePetNamePacket(buyer, pet);
+                            if (namePacket != null) buyer.Send(namePacket);
+                            buyer.Send(Tools.FromFormat("bb", 23, 15));
+                            buyer.SendHeadBanner($"{pet.PetName} joined your party.");
+                            buyer.SaveCharacterData();
+                        }
                     }
                     else
                     {
-                        item.Quantity -= quantity;
-                        if (item.Quantity <= 0)
+                        // Item Stall & Vehicle/Utensil Stall: Inventory Bag Logic
+                        if (buyer.Inv != null && buyer.Inv.HasItemDefinition(item.ItemId) && !buyer.Inv.CanAddItems(new Dictionary<ushort, int> { { item.ItemId, quantity } }))
                         {
-                            stall.Items.Remove(item);
+                            buyer.SendHeadBanner("Your inventory is full.");
+                            return false;
                         }
 
-                        // Persist updated inventory to database for custom stall
-                        if (stall.VendorPlayer == null)
+                        buyer.Gold -= totalCost;
+
+                        if (isItemInfinite)
                         {
-                            SaveStallToDatabase(stall);
+                            item.Quantity = item.MaxQuantity > 0 ? item.MaxQuantity : 50;
                         }
+                        else
+                        {
+                            item.Quantity -= quantity;
+                            if (item.Quantity <= 0)
+                            {
+                                stall.Items.Remove(item);
+                            }
+                            if (stall.VendorPlayer == null)
+                            {
+                                SaveStallToDatabase(stall);
+                            }
+                        }
+
+                        // Grant item or vehicle to buyer bag
+                        buyer.Inv?.AddItem(item.ItemId, (byte)quantity);
+                        buyer.SendHeadBanner($"Purchased {quantity}x {item.ItemName} ({totalCost:N0}G)");
                     }
-
-                    // Grant item to buyer bag
-                    buyer.Inv?.AddItem(item.ItemId, (byte)quantity);
 
                     // Credit vendor if online
                     if (stall.VendorPlayer != null)
@@ -754,7 +886,6 @@ namespace Game.Experimental
                     }
 
                     string stockModeStr = isItemInfinite ? "(Infinite Stock)" : $"({item.Quantity} remaining)";
-                    buyer.SendHeadBanner($"Purchased {quantity}x {item.ItemName} ({totalCost:N0}G)");
                     DebugSystem.Write($"[PlayerStallBazaarEngine] {buyer.CharName} purchased {quantity}x {item.ItemName} from {stall.VendorName} for {totalCost:N0}G {stockModeStr}");
 
                     // Synchronize Buyer's Gold on Client HUD and Form_BuyItemStall_1 (AC 26:4)
@@ -768,11 +899,24 @@ namespace Game.Experimental
                     p.Pack32(buyer.Gold);
                     buyer.Send(p);
 
-                    // Refresh buyer's open Form_BuyItemStall_1 GUI with updated catalog
+                    // Refresh buyer's open viewport GUI with updated catalog
                     if (stall.Items.Count > 0)
                     {
-                        var refreshPkt = BuildStallBrowse33Packet(stall);
-                        if (refreshPkt != null) buyer.Send(refreshPkt);
+                        if (stall.StallType == StallType.Pet)
+                        {
+                            var refreshPkt = BuildPetStallBrowse113Packet(stall);
+                            if (refreshPkt != null) buyer.Send(refreshPkt);
+                        }
+                        else if (stall.StallType == StallType.VehicleUtensil)
+                        {
+                            var refreshPkt = BuildUtensilStallBrowse133Packet(stall);
+                            if (refreshPkt != null) buyer.Send(refreshPkt);
+                        }
+                        else
+                        {
+                            var refreshPkt = BuildStallBrowse33Packet(stall);
+                            if (refreshPkt != null) buyer.Send(refreshPkt);
+                        }
                     }
                     else
                     {
@@ -976,7 +1120,7 @@ namespace Game.Experimental
             byte[] titleBytes = System.Text.Encoding.ASCII.GetBytes(title);
             p.Pack8((byte)Math.Min(titleBytes.Length, 255));
             p.PackArray(titleBytes);
-            p.Pack8(1); // StallType: 1 = Item Shop, 2 = Pet Shop
+            p.Pack8((byte)stall.StallType); // 1 = Item Shop, 2 = Pet Shop, 3 = Vehicle / Utensil Shop
             return p;
         }
 
@@ -1091,6 +1235,106 @@ namespace Game.Experimental
                 p.Pack16(0);                  // +0x1F: 2B Padding1
                 p.Pack32(0);                  // +0x21: 4B Padding2
                 p.Pack16(0);                  // +0x25: 2B Padding3 (Total: 39 bytes per item)
+            }
+            return p;
+        }
+
+        /// <summary>
+        /// Authentic Client Companion Pet Stall Browse Viewport (AC 23:113).
+        /// Wire structure unpacked by FUN_0032def0 in aLogin.exe:
+        /// Header: [AC: 23] [Sub: 113] [VendorCharId: 4B]
+        /// N * 225-byte pet records (0xE1 bytes per pet):
+        /// - 1B: Slot Index
+        /// - 2B: Pet NPC ID (TemplateID)
+        /// - 4B: Price Gold
+        /// - 1B: Level
+        /// - 4B: HP
+        /// - 4B: SP
+        /// - 2B: Element / Reborn
+        /// - 126B: 6 Worn Equipment Slots (6 * 21B zeros)
+        /// - 81B: Name & Stats Block (16B name + 5B stats + zeros)
+        /// Total = 1 + 2 + 4 + 1 + 4 + 4 + 2 + 126 + 81 = 225 bytes per pet.
+        /// Client dynamically loads Form_BuyPet1Stall_1 (1-5 pets), Form_BuyPet2Stall_1 (6-10 pets), or Form_BuyPet3Stall_1 (11-15 pets).
+        /// </summary>
+        public static SendPacket BuildPetStallBrowse113Packet(PlayerStall stall)
+        {
+            if (stall == null) return null;
+            SendPacket p = new SendPacket();
+            p.Pack8(23);
+            p.Pack8(113);
+            p.Pack32(stall.VendorCharId);
+
+            int petCount = Math.Min(stall.Items.Count, 15);
+            for (int i = 0; i < petCount; i++)
+            {
+                var it = stall.Items[i];
+                ushort petNpcId = it.ItemId;
+                uint price = it.PriceGold;
+                byte level = 1;
+                uint hp = 1000;
+                uint sp = 500;
+                ushort element = 1;
+
+                p.Pack8((byte)i);           // +0x00: 1B Slot Index
+                p.Pack16(petNpcId);         // +0x01: 2B Pet Npc ID
+                p.Pack32(price);            // +0x03: 4B Price Gold
+                p.Pack8(level);             // +0x07: 1B Level
+                p.Pack32(hp);               // +0x08: 4B HP
+                p.Pack32(sp);               // +0x0C: 4B SP
+                p.Pack16(element);          // +0x10: 2B Element / Flags
+                p.PackArray(new byte[126]); // +0x12: 126B Equipment slots (6 * 21B zeros)
+
+                // 81-byte Stats & Name block
+                byte[] nameStatBlock = new byte[81];
+                string petName = !string.IsNullOrWhiteSpace(it.ItemName) ? it.ItemName.Split('(')[0].Trim() : DataFiles.SceneDataManager.GetNpcName(petNpcId) ?? "Companion";
+                byte[] nameBytes = System.Text.Encoding.ASCII.GetBytes(petName);
+                Array.Copy(nameBytes, nameStatBlock, Math.Min(nameBytes.Length, 16));
+                nameStatBlock[16] = 20; // Str
+                nameStatBlock[17] = 20; // Con
+                nameStatBlock[18] = 20; // Int
+                nameStatBlock[19] = 20; // Wis
+                nameStatBlock[20] = 20; // Agi
+                nameStatBlock[21] = 60; // Amity
+                p.PackArray(nameStatBlock);
+            }
+            return p;
+        }
+
+        /// <summary>
+        /// Authentic Client Vehicle & Utensil Stall Browse Viewport (AC 23:133).
+        /// Wire structure unpacked by FUN_003325bc in aLogin.exe:
+        /// Header: [AC: 23] [Sub: 133] [VendorCharId: 4B] [Padding: 11B] (Total 17B header, local_10 = 0x11)
+        /// Utensil records: N * 15 bytes (0x0F bytes per item):
+        /// - 1B: Slot Index (1..3)
+        /// - 2B: Item ID
+        /// - 1B: Durability
+        /// - 1B: Max Durability
+        /// - 4B: Price Gold
+        /// - 4B: Potential / Attribute
+        /// - 2B: Padding
+        /// Total = 1 + 2 + 1 + 1 + 4 + 4 + 2 = 15 bytes per item.
+        /// Client dynamically loads Form_Buy1Utensil_1 (1 item) or Form_Buy3Utensil_1 (2-3 items).
+        /// </summary>
+        public static SendPacket BuildUtensilStallBrowse133Packet(PlayerStall stall)
+        {
+            if (stall == null) return null;
+            SendPacket p = new SendPacket();
+            p.Pack8(23);
+            p.Pack8(133);
+            p.Pack32(stall.VendorCharId);
+            p.PackArray(new byte[11]); // 11B padding aligns header at 17B (Delphi 1-indexed string index 18)
+
+            int count = Math.Min(stall.Items.Count, 3);
+            for (int i = 0; i < count; i++)
+            {
+                var it = stall.Items[i];
+                p.Pack8((byte)(i + 1));     // 1B Slot Index (1-indexed for Form_Buy1..3Utensil)
+                p.Pack16(it.ItemId);        // 2B Item ID
+                p.Pack8(100);               // 1B Durability
+                p.Pack8(100);               // 1B Max Durability
+                p.Pack32(it.PriceGold);     // 4B Price Gold
+                p.Pack32(0);                // 4B Potential / Attribute
+                p.Pack16(0);                // 2B Padding
             }
             return p;
         }

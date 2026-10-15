@@ -35,6 +35,8 @@ namespace Network.ActionCodes
                 case 31: Recv31(r, p); break; // Client native Private Shop Close
                 case 32: Recv32(r, p); break; // Client native Private Shop Browse / Open Shop Form
                 case 33: Recv33(r, p); break; // Client native Private Shop Purchase Confirmation
+                case 63: Recv63(r, p); break; // Client native Pet Stall Purchase Confirmation (0x3F)
+                case 68: Recv68(r, p); break; // Client native Utensil/Vehicle Stall Purchase Confirmation (0x44)
                 case 54: Recv54(r, p); break;// Request Item Mall Catalog List
                 case 75: RecvPack(r, p); break; // Original pack/egg native double-click
                 case 128: RecvPack(r, p); break; // Later packs native double-click
@@ -266,9 +268,22 @@ namespace Network.ActionCodes
                     return;
                 }
 
-                // 1. Send authentic S -> C AC 23:33 (TRe_BuyItemStallForm - Form_BuyItemStall_1)
-                var browse33Pkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowse33Packet(stall);
-                if (browse33Pkt != null) p.Send(browse33Pkt);
+                // 1. Send type-specific authentic browse viewport packet
+                if (stall.StallType == Game.Experimental.StallType.Pet)
+                {
+                    var petBrowsePkt = Game.Experimental.PlayerStallBazaarEngine.BuildPetStallBrowse113Packet(stall);
+                    if (petBrowsePkt != null) p.Send(petBrowsePkt);
+                }
+                else if (stall.StallType == Game.Experimental.StallType.VehicleUtensil)
+                {
+                    var utensilBrowsePkt = Game.Experimental.PlayerStallBazaarEngine.BuildUtensilStallBrowse133Packet(stall);
+                    if (utensilBrowsePkt != null) p.Send(utensilBrowsePkt);
+                }
+                else
+                {
+                    var browse33Pkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowse33Packet(stall);
+                    if (browse33Pkt != null) p.Send(browse33Pkt);
+                }
 
                 // 2. Also send fallback AC 20:15 and AC 56:3
                 var browse20Pkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallBrowsePacket(stall);
@@ -279,8 +294,9 @@ namespace Network.ActionCodes
 
                 // 3. Send structured system message catalog and chat announcement
                 string stockTypeStr = stall.IsInfinite ? "INFINITE STOCK" : "LIMITED STOCK";
+                string typeHeader = stall.StallType == Game.Experimental.StallType.Pet ? "PET BAZAAR" : (stall.StallType == Game.Experimental.StallType.VehicleUtensil ? "VEHICLE & UTENSIL BAZAAR" : "BAZAAR");
                 p.SendSystemMessage($"==================================================");
-                p.SendSystemMessage($"[BAZAAR] {stall.StallName.ToUpper()}");
+                p.SendSystemMessage($"[{typeHeader}] {stall.StallName.ToUpper()}");
                 p.SendSystemMessage($"Merchant: {stall.VendorName} | Mode: {stockTypeStr}");
                 p.SendSystemMessage($"--------------------------------------------------");
                 if (stall.Items.Count == 0)
@@ -299,7 +315,7 @@ namespace Network.ActionCodes
                 }
                 p.SendSystemMessage($"==================================================");
 
-                DebugSystem.Write($"[AC23.Recv32] {p.CharName} opened stall '{stall.StallName}' (Vendor ID: {vendorCharId}) with {stall.Items.Count} items.");
+                DebugSystem.Write($"[AC23.Recv32] {p.CharName} opened stall '{stall.StallName}' (Vendor ID: {vendorCharId}, Type: {stall.StallType}) with {stall.Items.Count} items.");
             }
             catch (Exception ex)
             {
@@ -357,6 +373,76 @@ namespace Network.ActionCodes
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC23.Recv33] Exception handling stall purchase: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        void Recv63(Player p, RecievePacket r)
+        {
+            try
+            {
+                // AC 23:63 (0x3F) - Pet Stall Purchase Confirmation (from Form_BuyPet1..3Stall_1)
+                // C->S: [VendorCharId: 4B] { [SelectedSlot: 1B] }
+                if (p == null || r == null) return;
+                if (r.Buffer.Length - r.GetPtr() < 4) return;
+                uint vendorCharId = r.Unpack32();
+
+                var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+                var stall = bazaar?.GetStall(vendorCharId);
+                if (stall == null)
+                {
+                    p.SendHeadBanner("This pet stall is no longer available.");
+                    return;
+                }
+
+                while (r.Buffer.Length - r.GetPtr() >= 1)
+                {
+                    byte slotIndex = r.Unpack8();
+                    bazaar.PurchaseItem(p, vendorCharId, slotIndex, 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv63] Error handling pet purchase: {ex.Message}");
+            }
+        }
+
+        void Recv68(Player p, RecievePacket r)
+        {
+            try
+            {
+                // AC 23:68 (0x44) - Utensil/Vehicle Stall Purchase Confirmation (from Form_Buy1..3Utensil_1)
+                // C->S: [VendorCharId: 4B] { [SlotIndex: 1B] [Qty: 1B] }
+                if (p == null || r == null) return;
+                if (r.Buffer.Length - r.GetPtr() < 4) return;
+                uint vendorCharId = r.Unpack32();
+
+                var bazaar = Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
+                var stall = bazaar?.GetStall(vendorCharId);
+                if (stall == null)
+                {
+                    p.SendHeadBanner("This vehicle/utensil stall is no longer available.");
+                    return;
+                }
+
+                while (r.Buffer.Length - r.GetPtr() >= 1)
+                {
+                    byte slotIndex = r.Unpack8();
+                    byte qty = 1;
+                    if (r.Buffer.Length - r.GetPtr() >= 1) qty = r.Unpack8();
+                    if (qty == 0) qty = 1;
+
+                    // Form_Buy1..3Utensil_1 uses 1-based slots, map 1..3 to 0..2 if needed
+                    if (slotIndex > 0 && stall.Items.All(i => i.SlotIndex != slotIndex) && stall.Items.Any(i => i.SlotIndex == slotIndex - 1))
+                    {
+                        slotIndex = (byte)(slotIndex - 1);
+                    }
+
+                    bazaar.PurchaseItem(p, vendorCharId, slotIndex, qty);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv68] Error handling utensil purchase: {ex.Message}");
             }
         }
 

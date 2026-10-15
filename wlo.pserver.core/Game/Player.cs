@@ -1303,6 +1303,10 @@ namespace Game
                         }
                         else if (chatMsg.StartsWith("/stall", StringComparison.OrdinalIgnoreCase) ||
                                  chatMsg.StartsWith(":stall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith("/petstall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":petstall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith("/vehiclestall", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":vehiclestall", StringComparison.OrdinalIgnoreCase) ||
                                  chatMsg.StartsWith("/openstall", StringComparison.OrdinalIgnoreCase) ||
                                  chatMsg.StartsWith(":openstall", StringComparison.OrdinalIgnoreCase) ||
                                  chatMsg.StartsWith("/spawnstall", StringComparison.OrdinalIgnoreCase) ||
@@ -2233,19 +2237,31 @@ namespace Game
                     tokens.Add(val);
             }
 
+            // Detect stall type from command prefix (:petstall, :vehiclestall) or default
+            Game.Experimental.StallType stallType = Game.Experimental.StallType.Item;
+            string commandPrefix = tokens.Count > 0 ? tokens[0].ToLowerInvariant() : "";
+            if (commandPrefix.Contains("pet"))
+            {
+                stallType = Game.Experimental.StallType.Pet;
+            }
+            else if (commandPrefix.Contains("vehicle") || commandPrefix.Contains("utensil"))
+            {
+                stallType = Game.Experimental.StallType.VehicleUtensil;
+            }
+
             if (tokens.Count <= 1)
             {
-                // Simple ":stall" without arguments -> spawn synthetic vendor at player location
+                // Simple ":stall", ":petstall", or ":vehiclestall" without arguments -> spawn synthetic vendor at player location
                 ushort mapId = (ushort)(c.CurMap?.MapID ?? 12000);
                 int x = c.CurX;
                 int y = c.CurY;
                 uint vendorId = bazaar.GenerateSyntheticVendorId();
-                string title = $"{c.CharName}'s Bazaar";
-                string vendor = $"{c.CharName}'s Vendor";
-                var stall = bazaar.SpawnCustomStall(vendorId, vendor, title, mapId, x, y, null, false, true);
+                string title = stallType == Game.Experimental.StallType.Pet ? $"{c.CharName}'s Pet Shop" : (stallType == Game.Experimental.StallType.VehicleUtensil ? $"{c.CharName}'s Vehicles" : $"{c.CharName}'s Bazaar");
+                string vendor = stallType == Game.Experimental.StallType.Pet ? $"{c.CharName}'s Pet Merchant" : (stallType == Game.Experimental.StallType.VehicleUtensil ? $"{c.CharName}'s Vehicle Merchant" : $"{c.CharName}'s Vendor");
+                var stall = bazaar.SpawnCustomStall(vendorId, vendor, title, mapId, x, y, null, false, true, stallType);
                 if (stall != null)
                 {
-                    c.SendSystemMessage($"[Stall] Spawned vendor '{stall.StallName}' (Vendor: {stall.VendorName}, ID: {vendorId}) at Map {mapId} ({x}, {y})!");
+                    c.SendSystemMessage($"[Stall] Spawned {stall.StallType} vendor '{stall.StallName}' (Vendor: {stall.VendorName}, ID: {vendorId}) at Map {mapId} ({x}, {y})!");
                     c.SendSystemMessage($"[Stall] Stock: Limited. Saved to database. Type ':removestall {vendorId}' to delete.");
                 }
                 return;
@@ -2299,8 +2315,9 @@ namespace Game
 
             if (firstArg == "help" || firstArg == "?")
             {
-                c.SendSystemMessage("[Stall] Usage: :stall [title] [infinite|limited] [itemId:price[:qty] ...]");
-                c.SendSystemMessage("[Stall] Coords: :stall <mapId> <x> <y> [title] [infinite|limited] [itemId:price[:qty] ...]");
+                c.SendSystemMessage("[Stall] Usage: :stall [pet|vehicle|item] [title] [infinite|limited] [itemId:price[:qty] ...]");
+                c.SendSystemMessage("[Stall] Direct commands: :petstall, :vehiclestall, :stall");
+                c.SendSystemMessage("[Stall] Coords: :stall <mapId> <x> <y> [pet|vehicle] [title] [infinite|limited] [itemId:price[:qty] ...]");
                 c.SendSystemMessage("[Stall] Delete: :removestall [vendorId] | :clearstalls");
                 return;
             }
@@ -2339,6 +2356,18 @@ namespace Game
                 {
                     isInfinite = false;
                 }
+                else if (tLower == "pet" || tLower == "pets" || tLower == "petstall" || tLower == "evcil" || tLower == "yoldas")
+                {
+                    stallType = Game.Experimental.StallType.Pet;
+                }
+                else if (tLower == "vehicle" || tLower == "vehiclestall" || tLower == "utensil" || tLower == "arac" || tLower == "binek" || tLower == "esya")
+                {
+                    stallType = Game.Experimental.StallType.VehicleUtensil;
+                }
+                else if (tLower == "item" || tLower == "itemstall" || tLower == "goods" || tLower == "malzeme")
+                {
+                    stallType = Game.Experimental.StallType.Item;
+                }
                 else if (t.Contains(':') && TryParseItemSpec(t, isInfinite, out var item))
                 {
                     item.SlotIndex = (byte)customItems.Count;
@@ -2351,7 +2380,8 @@ namespace Game
                 }
             }
 
-            string stallTitle = titleParts.Count > 0 ? string.Join(" ", titleParts) : $"{c.CharName}'s Shop";
+            string defaultTitle = stallType == Game.Experimental.StallType.Pet ? $"{c.CharName}'s Pet Shop" : (stallType == Game.Experimental.StallType.VehicleUtensil ? $"{c.CharName}'s Vehicles" : $"{c.CharName}'s Shop");
+            string stallTitle = titleParts.Count > 0 ? string.Join(" ", titleParts) : defaultTitle;
             string vendorName = $"{stallTitle} Vendor";
             uint synthVendorId = bazaar.GenerateSyntheticVendorId();
 
@@ -2364,14 +2394,15 @@ namespace Game
                 targetY,
                 customItems.Count > 0 ? customItems : null,
                 isInfinite,
-                persistToDb: true
+                persistToDb: true,
+                stallType: stallType
             );
 
             if (newStall != null)
             {
                 string stockTypeStr = isInfinite ? "Infinite Stock (Unlimited)" : "Limited Stock";
-                c.SendSystemMessage($"[Stall] Spawned vendor '{newStall.StallName}' (ID: {synthVendorId}) at Map {targetMapId} ({targetX}, {targetY})!");
-                c.SendSystemMessage($"[Stall] Mode: {stockTypeStr} with {newStall.Items.Count} items. (Saved to DB)");
+                c.SendSystemMessage($"[Stall] Spawned {newStall.StallType} vendor '{newStall.StallName}' (ID: {synthVendorId}) at Map {targetMapId} ({targetX}, {targetY})!");
+                c.SendSystemMessage($"[Stall] Mode: {stockTypeStr} with {newStall.Items.Count} entries. (Saved to DB)");
                 c.SendSystemMessage($"[Stall] You remain free and mobile! Type ':removestall {synthVendorId}' to delete this vendor.");
             }
             else
