@@ -55,6 +55,7 @@ public static class StallVerificationSuite
         ExperimentalFeaturesManager.Instance.EnablePlayerStallBazaar = true;
         var stallEngine = ExperimentalFeaturesManager.Instance.PlayerStallBazaar;
         stallEngine.InitializeDatabase();
+        stallEngine.ClearAllStalls();
 
         // -------------------------------------------------------------
         // PART 1: Native AC 23:30 / 23:31 Personal Stall Stance Flow
@@ -373,7 +374,7 @@ public static class StallVerificationSuite
         if (browse33Pkt == null) throw new Exception("FAIL: BuildStallBrowse33Packet returned null!");
         var b33Bytes = browse33Pkt.Buffer.ToArray();
 
-        // Length: 4B header + 18B header + (2 * 39B items) = 100 bytes
+        // Length: 4B magic + 19B header + (2 * 39B items) = 101 bytes
         if (b33Bytes[4] != 23 || b33Bytes[5] != 33)
         {
             throw new Exception("FAIL: BuildStallBrowse33Packet opcode expected [23, 33], got [" + b33Bytes[4] + ", " + b33Bytes[5] + "]");
@@ -388,13 +389,18 @@ public static class StallVerificationSuite
         {
             throw new Exception("FAIL: PointsCardItem expected 0 for item stall, got " + pointsCardItem);
         }
-        int expectedPayloadLen = 18 + activeBrowseStall.Items.Count * 39;
+        byte pointsCardType = b33Bytes[22];
+        if (pointsCardType != 0)
+        {
+            throw new Exception("FAIL: PointsCardType expected 0 at byte 22, got " + pointsCardType);
+        }
+        int expectedPayloadLen = 19 + activeBrowseStall.Items.Count * 39;
         int actualPayloadLen = b33Bytes.Length - 4;
         if (actualPayloadLen != expectedPayloadLen)
         {
             throw new Exception("FAIL: AC 23:33 payload len expected " + expectedPayloadLen + ", got " + actualPayloadLen);
         }
-        Console.WriteLine("[PASS] BuildStallBrowse33Packet wire format verified (" + actualPayloadLen + " bytes payload, 39B per item record).");
+        Console.WriteLine("[PASS] BuildStallBrowse33Packet wire format verified (" + actualPayloadLen + " bytes payload, 19B header with CardType, 39B per item record).");
 
         // 2. Test C -> S AC 23:32 (Client clicking on stall actor)
         socket.SentPackets.Clear();
@@ -435,10 +441,40 @@ public static class StallVerificationSuite
         {
             throw new Exception("FAIL: Player gold expected " + (initialGold - 240) + ", got " + player.Gold);
         }
-        Console.WriteLine("[PASS] C -> S AC 23:33 purchase processed successfully (Deducted 240G for 2 items).");
+        bool receivedGoldSync = socket.SentPackets.Any(p => p.Length >= 7 && p[4] == 26 && p[5] == 4);
+        if (!receivedGoldSync)
+        {
+            throw new Exception("FAIL: Player did not receive AC 26:4 gold sync packet upon purchase!");
+        }
+        Console.WriteLine("[PASS] C -> S AC 23:33 purchase processed successfully (Deducted 240G for 2 items, AC 26:4 gold sync received).");
+
+        // 4. Test Infinite Stock Auto-Reset to Max (50)
+        var infItems = PlayerStallBazaarEngine.ParseItemList("30253:500:50", true);
+        var infStall = stallEngine.SpawnCustomStall(0, "Infinite Merchant", "Infinite Shop", 12000, 1200, 1500, infItems, true, false);
+        if (infStall == null) throw new Exception("FAIL: SpawnCustomStall infinite returned null!");
+
+        // Buy 5 items from infinite stall
+        byte[] buyInfPkt = new byte[18];
+        buyInfPkt[0] = 0xF4; buyInfPkt[1] = 0x44;
+        buyInfPkt[2] = 0x0E; buyInfPkt[3] = 0x00;
+        buyInfPkt[4] = 0x17; buyInfPkt[5] = 0x21;
+        Array.Copy(BitConverter.GetBytes(infStall.VendorCharId), 0, buyInfPkt, 6, 4);
+        buyInfPkt[10] = 0;
+        buyInfPkt[11] = 5;
+        Array.Copy(BitConverter.GetBytes((ushort)30253), 0, buyInfPkt, 12, 2);
+        Array.Copy(BitConverter.GetBytes((uint)500), 0, buyInfPkt, 14, 4);
+
+        ac23Type.GetMethod("ProcessPkt").Invoke(ac23, new object[] { player, new RecievePacket(buyInfPkt) });
+        var boughtItem = infStall.Items[0];
+        if (boughtItem.Quantity != 50)
+        {
+            throw new Exception("FAIL: Infinite item quantity expected to reset back to 50, got " + boughtItem.Quantity);
+        }
+        Console.WriteLine("[PASS] Infinite item stock verified: Automatically reset back to maximum (50) upon purchase.");
 
         // Clean up
         stallEngine.RemoveCustomStall(activeBrowseStall.VendorCharId);
+        stallEngine.RemoveCustomStall(infStall.VendorCharId);
 
         Console.WriteLine("[SUCCESS] All persistent stall, synthetic vendor, and infinite catalog tests passed successfully!");
     }

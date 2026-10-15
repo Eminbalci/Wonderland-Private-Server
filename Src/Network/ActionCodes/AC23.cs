@@ -277,9 +277,12 @@ namespace Network.ActionCodes
                 var catalogPkt = Game.Experimental.PlayerStallBazaarEngine.BuildStallCatalogPacket(stall);
                 if (catalogPkt != null) p.Send(catalogPkt);
 
-                // 3. Send system message catalog and chat announcement
-                string stockTypeStr = stall.IsInfinite ? "Infinite Stock" : "Limited Stock";
-                p.SendSystemMessage($"=== [{stall.StallName}] Merchant: {stall.VendorName} ({stockTypeStr}) ===");
+                // 3. Send structured system message catalog and chat announcement
+                string stockTypeStr = stall.IsInfinite ? "INFINITE STOCK" : "LIMITED STOCK";
+                p.SendSystemMessage($"==================================================");
+                p.SendSystemMessage($"[BAZAAR] {stall.StallName.ToUpper()}");
+                p.SendSystemMessage($"Merchant: {stall.VendorName} | Mode: {stockTypeStr}");
+                p.SendSystemMessage($"--------------------------------------------------");
                 if (stall.Items.Count == 0)
                 {
                     p.SendSystemMessage("This stall is currently out of stock.");
@@ -288,10 +291,13 @@ namespace Network.ActionCodes
                 {
                     foreach (var item in stall.Items)
                     {
-                        string qtyStr = (stall.IsInfinite || item.IsInfinite) ? "∞" : $"x{item.Quantity}";
-                        p.SendSystemMessage($"  [Slot {item.SlotIndex}] {item.ItemName} (#{item.ItemId}) {qtyStr} - {item.PriceGold:N0}G each");
+                        string qtyStr = (stall.IsInfinite || item.IsInfinite) ? "[∞ Stock]" : $"[Stock: {item.Quantity}]";
+                        p.SendSystemMessage($"  Slot #{item.SlotIndex}: {item.ItemName} (#{item.ItemId}) {qtyStr} - {item.PriceGold:N0} Gold");
                     }
+                    p.SendSystemMessage($"--------------------------------------------------");
+                    p.SendSystemMessage($"Click an item in shop window, or type: :buystall <slot 0..{stall.Items.Count - 1}> [quantity]");
                 }
+                p.SendSystemMessage($"==================================================");
 
                 DebugSystem.Write($"[AC23.Recv32] {p.CharName} opened stall '{stall.StallName}' (Vendor ID: {vendorCharId}) with {stall.Items.Count} items.");
             }
@@ -314,6 +320,7 @@ namespace Network.ActionCodes
 
                 if (stall == null)
                 {
+                    p.SendHeadBanner("This stall is no longer available.");
                     p.SendSystemMessage("[Private Shop] This stall is no longer available.");
                     return;
                 }

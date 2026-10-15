@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using Game;
 using Game.Experimental;
+using Game.Maps;
 
 namespace Wonderland_Private_Server
 {
@@ -70,6 +72,8 @@ namespace Wonderland_Private_Server
         private DataGridView dgvHotSpringBathers;
         private DataGridView dgvPinVaults;
         private DataGridView dgvBazaarStalls;
+        private DataGridView dgvDraftCatalog;
+        private List<ItemPickerEntry> m_cachedItemPicker;
         private Label lblWeatherTimeBadge;
         private DataGridView dgvWeatherMaps;
         private ComboBox cmbWeatherSelect;
@@ -1479,55 +1483,473 @@ namespace Wonderland_Private_Server
             TabPage page = new TabPage("Overworld Bazaar (AC 53)");
             page.BackColor = Color.White;
 
-            Panel toolbar = new Panel { Dock = DockStyle.Top, Height = 78, BackColor = Color.FromArgb(245, 247, 250), Padding = new Padding(10, 6, 10, 6) };
+            SplitContainer split = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Vertical,
+                SplitterDistance = 560,
+                BackColor = ModernTheme.Slate200
+            };
+            split.Panel1.BackColor = ModernTheme.Slate50;
+            split.Panel2.BackColor = Color.White;
 
-            // Row 1: Coordinate, Title, Vendor, Infinite toggle, and Actions
-            Label lblMap = new Label { Text = "Map ID:", Location = new Point(10, 10), AutoSize = true, Font = ModernTheme.FontBoldSmall };
-            NumericUpDown numMap = new NumericUpDown { Location = new Point(62, 7), Width = 60, Minimum = 1, Maximum = 65535, Value = 12000, Font = ModernTheme.FontDefault };
+            // =========================================================
+            // LEFT PANEL: STALL STUDIO & DRAFT CATALOG BUILDER
+            // =========================================================
+            Panel pnlLeft = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12),
+                AutoScroll = true
+            };
 
-            Label lblX = new Label { Text = "X:", Location = new Point(128, 10), AutoSize = true, Font = ModernTheme.FontBoldSmall };
-            NumericUpDown numX = new NumericUpDown { Location = new Point(144, 7), Width = 55, Minimum = 0, Maximum = 10000, Value = 1200, Font = ModernTheme.FontDefault };
+            Label lblStudioTitle = new Label
+            {
+                Text = "Bazaar Stall Studio",
+                Font = ModernTheme.FontHeading,
+                ForeColor = ModernTheme.Slate900,
+                AutoSize = true,
+                Location = new Point(12, 10)
+            };
+            Label lblStudioSub = new Label
+            {
+                Text = "Build persistent vendor kiosks with item search from itemDat.wpdat and live map placement.",
+                Font = ModernTheme.FontSmall,
+                ForeColor = ModernTheme.Slate500,
+                AutoSize = true,
+                Location = new Point(12, 34)
+            };
 
-            Label lblY = new Label { Text = "Y:", Location = new Point(205, 10), AutoSize = true, Font = ModernTheme.FontBoldSmall };
-            NumericUpDown numY = new NumericUpDown { Location = new Point(221, 7), Width = 55, Minimum = 0, Maximum = 10000, Value = 1500, Font = ModernTheme.FontDefault };
+            // --- 1. Stall Parameters GroupBox ---
+            GroupBox grpConfig = new GroupBox
+            {
+                Text = " Stall Configuration & Location ",
+                Font = ModernTheme.FontBoldSmall,
+                ForeColor = ModernTheme.Slate700,
+                Location = new Point(12, 60),
+                Size = new Size(530, 165),
+                BackColor = Color.White
+            };
 
-            Label lblTitle = new Label { Text = "Title:", Location = new Point(282, 10), AutoSize = true, Font = ModernTheme.FontBoldSmall };
-            TextBox txtTitle = new TextBox { Location = new Point(318, 7), Width = 135, Text = "Rare Alchemy Supplies", Font = ModernTheme.FontDefault };
+            Label lblTitle = new Label { Text = "Stall Title:", Location = new Point(12, 24), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            TextBox txtTitle = new TextBox { Location = new Point(80, 21), Width = 175, Text = "Rare Alchemy Supplies", Font = ModernTheme.FontDefault };
 
-            Label lblVendor = new Label { Text = "Vendor:", Location = new Point(458, 10), AutoSize = true, Font = ModernTheme.FontBoldSmall };
-            TextBox txtVendor = new TextBox { Location = new Point(510, 7), Width = 110, Text = "Bazaar Merchant", Font = ModernTheme.FontDefault };
+            Label lblVendor = new Label { Text = "Vendor:", Location = new Point(270, 24), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            TextBox txtVendor = new TextBox { Location = new Point(325, 21), Width = 185, Text = "Bazaar Merchant", Font = ModernTheme.FontDefault };
+
+            Label lblMapPreset = new Label { Text = "Map Preset:", Location = new Point(12, 56), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            ComboBox cmbMapPreset = new ComboBox
+            {
+                Location = new Point(80, 53),
+                Width = 260,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = ModernTheme.FontDefault
+            };
+
+            BazaarMapEntry[] mapPresets = new BazaarMapEntry[]
+            {
+                new BazaarMapEntry(12000, "Kelan Village (Starter Town)", 1200, 1500),
+                new BazaarMapEntry(12001, "Chief's House (Kelan)", 300, 450),
+                new BazaarMapEntry(11003, "Holy Village (Central Hub)", 900, 1200),
+                new BazaarMapEntry(11016, "Wrecked Shore (Beach)", 1100, 800),
+                new BazaarMapEntry(10001, "Astrologer Cave", 700, 500),
+                new BazaarMapEntry(10000, "North Island", 1000, 1000),
+                new BazaarMapEntry(10035, "Rhodes Island Beach", 1300, 1500),
+                new BazaarMapEntry(10017, "Ship Deck", 600, 800),
+                new BazaarMapEntry(0, "[Custom Map ID]", 1200, 1500)
+            };
+            cmbMapPreset.Items.AddRange(mapPresets);
+            cmbMapPreset.SelectedIndex = 0;
+
+            Label lblMapId = new Label { Text = "Map ID:", Location = new Point(350, 56), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numMap = new NumericUpDown { Location = new Point(405, 53), Width = 105, Minimum = 1, Maximum = 65535, Value = 12000, Font = ModernTheme.FontDefault };
+
+            Label lblX = new Label { Text = "Coord X:", Location = new Point(12, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numX = new NumericUpDown { Location = new Point(80, 87), Width = 75, Minimum = 0, Maximum = 10000, Value = 1200, Font = ModernTheme.FontDefault };
+
+            Label lblY = new Label { Text = "Coord Y:", Location = new Point(165, 90), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numY = new NumericUpDown { Location = new Point(225, 87), Width = 75, Minimum = 0, Maximum = 10000, Value = 1500, Font = ModernTheme.FontDefault };
+
+            Button btnGrabPlayerCoords = new Button
+            {
+                Text = "Use Player Pos",
+                Location = new Point(315, 86),
+                Size = new Size(195, 26),
+                BackColor = ModernTheme.Slate100,
+                ForeColor = ModernTheme.Slate800,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
+            };
+            btnGrabPlayerCoords.FlatAppearance.BorderColor = ModernTheme.Slate300;
 
             CheckBox chkInfinite = new CheckBox
             {
-                Text = "Infinite Stock",
-                Location = new Point(628, 8),
+                Text = "Infinite Stock (Auto-replenishes to max capacity upon every purchase)",
+                Location = new Point(14, 126),
                 AutoSize = true,
                 Font = ModernTheme.FontBoldSmall,
-                ForeColor = ModernTheme.Blue700,
-                Checked = false
+                ForeColor = ModernTheme.Emerald700,
+                Checked = true
             };
 
-            Button btnSpawnStall = new Button
+            cmbMapPreset.SelectedIndexChanged += (s, e) =>
             {
-                Text = "Spawn Stall",
-                Size = new Size(115, 26),
-                BackColor = ModernTheme.Blue600,
+                if (cmbMapPreset.SelectedItem is BazaarMapEntry entry && entry.MapId > 0)
+                {
+                    numMap.Value = entry.MapId;
+                    numX.Value = entry.DefaultX;
+                    numY.Value = entry.DefaultY;
+                }
+            };
+
+            btnGrabPlayerCoords.Click += (s, e) =>
+            {
+                var onlinePlayers = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                var targetPlayer = ext_selectedOnlinePlayer ?? onlinePlayers?.FirstOrDefault();
+                if (targetPlayer != null)
+                {
+                    numMap.Value = (decimal)targetPlayer.MapID;
+                    numX.Value = (decimal)targetPlayer.CurX;
+                    numY.Value = (decimal)targetPlayer.CurY;
+                    MessageBox.Show($"Captured position from '{targetPlayer.CharName}': Map {targetPlayer.MapID} ({targetPlayer.CurX}, {targetPlayer.CurY})", "Position Captured", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("No active players online to capture position from.", "Player Offline", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
+
+            grpConfig.Controls.Add(lblTitle);
+            grpConfig.Controls.Add(txtTitle);
+            grpConfig.Controls.Add(lblVendor);
+            grpConfig.Controls.Add(txtVendor);
+            grpConfig.Controls.Add(lblMapPreset);
+            grpConfig.Controls.Add(cmbMapPreset);
+            grpConfig.Controls.Add(lblMapId);
+            grpConfig.Controls.Add(numMap);
+            grpConfig.Controls.Add(lblX);
+            grpConfig.Controls.Add(numX);
+            grpConfig.Controls.Add(lblY);
+            grpConfig.Controls.Add(numY);
+            grpConfig.Controls.Add(btnGrabPlayerCoords);
+            grpConfig.Controls.Add(chkInfinite);
+
+            // --- 2. Item Catalog Builder GroupBox ---
+            GroupBox grpCatalog = new GroupBox
+            {
+                Text = " Merchandise Catalog Builder (Up to 5 Slots) ",
+                Font = ModernTheme.FontBoldSmall,
+                ForeColor = ModernTheme.Slate700,
+                Location = new Point(12, 235),
+                Size = new Size(530, 310),
+                BackColor = Color.White
+            };
+
+            Label lblItemSearch = new Label { Text = "Search Item:", Location = new Point(12, 24), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            TextBox txtItemSearch = new TextBox { Location = new Point(90, 21), Width = 150, Font = ModernTheme.FontDefault };
+
+            ComboBox cmbItemSelector = new ComboBox
+            {
+                Location = new Point(245, 21),
+                Width = 265,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = ModernTheme.FontDefault
+            };
+
+            Label lblPrice = new Label { Text = "Price (G):", Location = new Point(12, 57), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numPrice = new NumericUpDown { Location = new Point(90, 54), Width = 95, Minimum = 1, Maximum = 2000000000, Value = 500, Increment = 100, Font = ModernTheme.FontDefault };
+
+            Label lblQty = new Label { Text = "Stock Qty:", Location = new Point(195, 57), AutoSize = true, Font = ModernTheme.FontBoldSmall, ForeColor = ModernTheme.Slate700 };
+            NumericUpDown numQty = new NumericUpDown { Location = new Point(260, 54), Width = 65, Minimum = 1, Maximum = 50, Value = 50, Font = ModernTheme.FontDefault };
+
+            Button btnAddItem = new Button
+            {
+                Text = "+ Add Item",
+                Location = new Point(335, 53),
+                Size = new Size(85, 26),
+                BackColor = ModernTheme.Emerald600,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = ModernTheme.FontBoldSmall,
-                Location = new Point(745, 6)
+                Font = ModernTheme.FontBoldSmall
             };
-            btnSpawnStall.FlatAppearance.BorderSize = 0;
+            btnAddItem.FlatAppearance.BorderSize = 0;
 
-            Button btnDeleteSelected = new Button
+            Button btnRemoveItem = new Button
             {
-                Text = "Delete Selected",
-                Size = new Size(115, 26),
+                Text = "- Remove",
+                Location = new Point(425, 53),
+                Size = new Size(85, 26),
                 BackColor = ModernTheme.Rose600,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = ModernTheme.FontBoldSmall,
-                Location = new Point(868, 6)
+                Font = ModernTheme.FontBoldSmall
+            };
+            btnRemoveItem.FlatAppearance.BorderSize = 0;
+
+            dgvDraftCatalog = new DataGridView
+            {
+                Location = new Point(12, 88),
+                Size = new Size(505, 175),
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = ModernTheme.Slate50,
+                Font = ModernTheme.FontDefault,
+                RowHeadersVisible = false
+            };
+            ModernTheme.EnableDoubleBuffering(dgvDraftCatalog);
+
+            dgvDraftCatalog.Columns.Add("colDraftSlot", "Slot");
+            dgvDraftCatalog.Columns.Add("colDraftItemId", "Item ID");
+            dgvDraftCatalog.Columns.Add("colDraftName", "Item Name");
+            dgvDraftCatalog.Columns.Add("colDraftPrice", "Price (Gold)");
+            dgvDraftCatalog.Columns.Add("colDraftQty", "Quantity");
+            dgvDraftCatalog.Columns.Add("colDraftStockMode", "Stock Mode");
+
+            dgvDraftCatalog.Columns["colDraftSlot"].Width = 45;
+            dgvDraftCatalog.Columns["colDraftItemId"].Width = 65;
+            dgvDraftCatalog.Columns["colDraftName"].Width = 155;
+            dgvDraftCatalog.Columns["colDraftPrice"].Width = 95;
+            dgvDraftCatalog.Columns["colDraftQty"].Width = 60;
+            dgvDraftCatalog.Columns["colDraftStockMode"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+
+            Button btnResetPreset = new Button
+            {
+                Text = "Load Authentic Preset (5 Items)",
+                Location = new Point(12, 272),
+                Size = new Size(230, 26),
+                BackColor = ModernTheme.Slate100,
+                ForeColor = ModernTheme.Slate800,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
+            };
+            btnResetPreset.FlatAppearance.BorderColor = ModernTheme.Slate300;
+
+            Button btnClearDraft = new Button
+            {
+                Text = "Clear Catalog",
+                Location = new Point(250, 272),
+                Size = new Size(110, 26),
+                BackColor = ModernTheme.Slate100,
+                ForeColor = ModernTheme.Rose700,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
+            };
+            btnClearDraft.FlatAppearance.BorderColor = ModernTheme.Slate300;
+
+            void PopulateItemSelector(string filter)
+            {
+                cmbItemSelector.Items.Clear();
+                var allItems = GetItemPickerEntries();
+                var filtered = string.IsNullOrWhiteSpace(filter)
+                    ? allItems.Take(150)
+                    : allItems.Where(it => it.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0 || it.ItemId.ToString().Contains(filter)).Take(150);
+
+                foreach (var entry in filtered)
+                {
+                    cmbItemSelector.Items.Add(entry);
+                }
+                if (cmbItemSelector.Items.Count > 0) cmbItemSelector.SelectedIndex = 0;
+            }
+
+            txtItemSearch.TextChanged += (s, e) =>
+            {
+                PopulateItemSelector(txtItemSearch.Text.Trim());
+            };
+            PopulateItemSelector("");
+
+            void LoadDefaultDraftItems()
+            {
+                dgvDraftCatalog.Rows.Clear();
+                dgvDraftCatalog.Rows.Add(0, (ushort)30167, "Rainbow Drop", 120, 50, "Infinite");
+                dgvDraftCatalog.Rows.Add(1, (ushort)30162, "Safety Bell", 300, 25, "Infinite");
+                dgvDraftCatalog.Rows.Add(2, (ushort)30253, "Magic Potion", 500, 50, "Infinite");
+                dgvDraftCatalog.Rows.Add(3, (ushort)30323, "Magical Cure Potion", 1200, 50, "Infinite");
+                dgvDraftCatalog.Rows.Add(4, (ushort)27001, "Orchid Candy", 2500, 50, "Infinite");
+            }
+            LoadDefaultDraftItems();
+
+            btnResetPreset.Click += (s, e) => LoadDefaultDraftItems();
+            btnClearDraft.Click += (s, e) => dgvDraftCatalog.Rows.Clear();
+
+            btnAddItem.Click += (s, e) =>
+            {
+                if (dgvDraftCatalog.Rows.Count >= 5)
+                {
+                    MessageBox.Show("Maximum 5 items allowed per merchant stall.", "Limit Reached", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (cmbItemSelector.SelectedItem is ItemPickerEntry selected)
+                {
+                    byte slot = (byte)dgvDraftCatalog.Rows.Count;
+                    string stockStr = chkInfinite.Checked ? "Infinite" : "Limited";
+                    dgvDraftCatalog.Rows.Add(slot, selected.ItemId, selected.Name, (uint)numPrice.Value, (int)numQty.Value, stockStr);
+                }
+            };
+
+            btnRemoveItem.Click += (s, e) =>
+            {
+                if (dgvDraftCatalog.SelectedRows.Count > 0)
+                {
+                    dgvDraftCatalog.Rows.RemoveAt(dgvDraftCatalog.SelectedRows[0].Index);
+                    // Re-index slots 0..N
+                    for (int i = 0; i < dgvDraftCatalog.Rows.Count; i++)
+                    {
+                        dgvDraftCatalog.Rows[i].Cells["colDraftSlot"].Value = (byte)i;
+                    }
+                }
+            };
+
+            grpCatalog.Controls.Add(lblItemSearch);
+            grpCatalog.Controls.Add(txtItemSearch);
+            grpCatalog.Controls.Add(cmbItemSelector);
+            grpCatalog.Controls.Add(lblPrice);
+            grpCatalog.Controls.Add(numPrice);
+            grpCatalog.Controls.Add(lblQty);
+            grpCatalog.Controls.Add(numQty);
+            grpCatalog.Controls.Add(btnAddItem);
+            grpCatalog.Controls.Add(btnRemoveItem);
+            grpCatalog.Controls.Add(dgvDraftCatalog);
+            grpCatalog.Controls.Add(btnResetPreset);
+            grpCatalog.Controls.Add(btnClearDraft);
+
+            // --- 3. Bottom Spawn & Persistence Toolbar ---
+            Button btnSpawnStall = new Button
+            {
+                Text = "Spawn Stall to World & Save DB",
+                Location = new Point(12, 555),
+                Size = new Size(270, 36),
+                BackColor = ModernTheme.Blue600,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBold
+            };
+            btnSpawnStall.FlatAppearance.BorderSize = 0;
+
+            Label lblDbNote = new Label
+            {
+                Text = "Saved in custom_stalls (SQLite & MySQL) and restored automatically on server restart.",
+                Location = new Point(12, 598),
+                AutoSize = true,
+                Font = ModernTheme.FontSmall,
+                ForeColor = ModernTheme.Slate500
+            };
+
+            btnSpawnStall.Click += (s, e) =>
+            {
+                try
+                {
+                    if (dgvDraftCatalog.Rows.Count == 0)
+                    {
+                        MessageBox.Show("Please add at least one item to the catalog builder.", "Empty Catalog", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    ushort mapId = (ushort)numMap.Value;
+                    int x = (int)numX.Value;
+                    int y = (int)numY.Value;
+                    string title = string.IsNullOrWhiteSpace(txtTitle.Text) ? "Custom Market Stall" : txtTitle.Text.Trim();
+                    string vendor = string.IsNullOrWhiteSpace(txtVendor.Text) ? "Merchant" : txtVendor.Text.Trim();
+                    bool isInf = chkInfinite.Checked;
+
+                    var items = new List<Game.Experimental.StallItem>();
+                    for (int i = 0; i < dgvDraftCatalog.Rows.Count; i++)
+                    {
+                        var row = dgvDraftCatalog.Rows[i];
+                        byte slot = (byte)i;
+                        ushort id = Convert.ToUInt16(row.Cells["colDraftItemId"].Value);
+                        string name = row.Cells["colDraftName"].Value?.ToString() ?? $"Item #{id}";
+                        uint price = Convert.ToUInt32(row.Cells["colDraftPrice"].Value);
+                        int qty = Convert.ToInt32(row.Cells["colDraftQty"].Value);
+                        items.Add(new Game.Experimental.StallItem(slot, id, name, qty, price, 0, isInf));
+                    }
+
+                    uint charId = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.GenerateSyntheticVendorId();
+                    var stall = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.SpawnCustomStall(charId, vendor, title, mapId, x, y, items, isInf, true);
+                    RefreshBazaarGrid();
+                    if (stall != null)
+                    {
+                        string stockStr = isInf ? "Infinite Stock" : "Limited Stock";
+                        MessageBox.Show($"Stall '{stall.StallName}' (Vendor ID: {stall.VendorCharId}, ClickID: {stall.ClickId}) spawned successfully for {stall.VendorName} at Map {stall.MapId} ({stall.X}, {stall.Y}) with {stall.Items.Count} items ({stockStr}) and saved to database.", "Stall Spawned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to spawn stall: {ex.Message}", "Error Spawning Stall", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+
+            pnlLeft.Controls.Add(lblStudioTitle);
+            pnlLeft.Controls.Add(lblStudioSub);
+            pnlLeft.Controls.Add(grpConfig);
+            pnlLeft.Controls.Add(grpCatalog);
+            pnlLeft.Controls.Add(btnSpawnStall);
+            pnlLeft.Controls.Add(lblDbNote);
+
+            // =========================================================
+            // RIGHT PANEL: ACTIVE WORLD STALLS & DATABASE MANAGEMENT
+            // =========================================================
+            Panel pnlRight = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12),
+                BackColor = Color.White
+            };
+
+            Panel pnlRightHeader = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 68,
+                BackColor = Color.White
+            };
+
+            Label lblActiveTitle = new Label
+            {
+                Text = "Active Overworld Stalls (Database Persisted)",
+                Font = ModernTheme.FontHeading,
+                ForeColor = ModernTheme.Slate900,
+                AutoSize = true,
+                Location = new Point(0, 5)
+            };
+
+            FlowLayoutPanel pnlToolbar = new FlowLayoutPanel
+            {
+                Location = new Point(0, 32),
+                Size = new Size(650, 32),
+                FlowDirection = FlowDirection.LeftToRight
+            };
+
+            Button btnEditSelected = new Button
+            {
+                Text = "Load into Editor",
+                Size = new Size(130, 26),
+                BackColor = ModernTheme.Blue600,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
+            };
+            btnEditSelected.FlatAppearance.BorderSize = 0;
+
+            Button btnTeleportPlayer = new Button
+            {
+                Text = "Teleport to Stall",
+                Size = new Size(130, 26),
+                BackColor = ModernTheme.Amber600,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
+            };
+            btnTeleportPlayer.FlatAppearance.BorderSize = 0;
+
+            Button btnDeleteSelected = new Button
+            {
+                Text = "Delete Stall",
+                Size = new Size(105, 26),
+                BackColor = ModernTheme.Rose600,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
             };
             btnDeleteSelected.FlatAppearance.BorderSize = 0;
 
@@ -1538,55 +1960,116 @@ namespace Wonderland_Private_Server
                 BackColor = ModernTheme.Rose700,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font = ModernTheme.FontBoldSmall,
-                Location = new Point(991, 6)
+                Font = ModernTheme.FontBoldSmall
             };
             btnClearStalls.FlatAppearance.BorderSize = 0;
 
-            // Row 2: Items specification & Persistence note
-            Label lblItems = new Label { Text = "Catalog Items (id:price[:qty]):", Location = new Point(10, 44), AutoSize = true, Font = ModernTheme.FontBoldSmall };
-            TextBox txtItems = new TextBox
+            Button btnRefreshStalls = new Button
             {
-                Location = new Point(185, 41),
-                Width = 470,
-                Text = "10001:120:50, 10002:300:25, 26315:2500:10, 27001:5000:5, 26399:15000:2",
-                Font = ModernTheme.FontDefault
+                Text = "Refresh",
+                Size = new Size(85, 26),
+                BackColor = ModernTheme.Slate600,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = ModernTheme.FontBoldSmall
             };
+            btnRefreshStalls.FlatAppearance.BorderSize = 0;
 
-            Label lblDbNote = new Label
+            pnlToolbar.Controls.Add(btnEditSelected);
+            pnlToolbar.Controls.Add(btnTeleportPlayer);
+            pnlToolbar.Controls.Add(btnDeleteSelected);
+            pnlToolbar.Controls.Add(btnClearStalls);
+            pnlToolbar.Controls.Add(btnRefreshStalls);
+
+            pnlRightHeader.Controls.Add(lblActiveTitle);
+            pnlRightHeader.Controls.Add(pnlToolbar);
+
+            dgvBazaarStalls = new DataGridView
             {
-                Text = "Saved to DB (SQLite & MySQL) and restored on server reboot.",
-                Location = new Point(665, 44),
-                AutoSize = true,
-                Font = ModernTheme.FontSmall,
-                ForeColor = ModernTheme.Slate600
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = ModernTheme.Slate50,
+                Font = ModernTheme.FontDefault,
+                RowHeadersVisible = false
             };
+            ModernTheme.EnableDoubleBuffering(dgvBazaarStalls);
 
-            btnSpawnStall.Click += (s, e) =>
+            dgvBazaarStalls.Columns.Add("colVendorId", "Vendor ID");
+            dgvBazaarStalls.Columns.Add("colVendorName", "Vendor");
+            dgvBazaarStalls.Columns.Add("colStallName", "Stall Title");
+            dgvBazaarStalls.Columns.Add("colMapId", "Map ID");
+            dgvBazaarStalls.Columns.Add("colCoords", "Coords (X,Y)");
+            dgvBazaarStalls.Columns.Add("colStockType", "Stock Mode");
+            dgvBazaarStalls.Columns.Add("colItems", "Catalog Merchandise");
+            dgvBazaarStalls.Columns.Add("colOpened", "Opened At");
+
+            dgvBazaarStalls.Columns["colVendorId"].Width = 85;
+            dgvBazaarStalls.Columns["colVendorName"].Width = 115;
+            dgvBazaarStalls.Columns["colStallName"].Width = 145;
+            dgvBazaarStalls.Columns["colMapId"].Width = 75;
+            dgvBazaarStalls.Columns["colCoords"].Width = 90;
+            dgvBazaarStalls.Columns["colStockType"].Width = 95;
+            dgvBazaarStalls.Columns["colItems"].Width = 180;
+            dgvBazaarStalls.Columns["colOpened"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+
+            btnEditSelected.Click += (s, e) =>
             {
-                try
+                if (dgvBazaarStalls.SelectedRows.Count == 0)
                 {
-                    ushort mapId = (ushort)numMap.Value;
-                    int x = (int)numX.Value;
-                    int y = (int)numY.Value;
-                    string title = string.IsNullOrWhiteSpace(txtTitle.Text) ? "Custom Market Stall" : txtTitle.Text.Trim();
-                    string vendor = string.IsNullOrWhiteSpace(txtVendor.Text) ? "Merchant" : txtVendor.Text.Trim();
-                    bool isInf = chkInfinite.Checked;
-
-                    var items = Game.Experimental.PlayerStallBazaarEngine.ParseItemList(txtItems.Text, isInf);
-                    uint charId = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.GenerateSyntheticVendorId();
-
-                    var stall = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.SpawnCustomStall(charId, vendor, title, mapId, x, y, items, isInf, true);
-                    RefreshBazaarGrid();
+                    MessageBox.Show("Please select a stall from the table to load into the editor.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                var r = dgvBazaarStalls.SelectedRows[0];
+                if (r.Cells["colVendorId"].Value != null && uint.TryParse(r.Cells["colVendorId"].Value.ToString(), out uint vendorId))
+                {
+                    var stall = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.GetStall(vendorId);
                     if (stall != null)
                     {
-                        string stockStr = isInf ? "Infinite Stock" : "Limited Stock";
-                        MessageBox.Show($"Stall '{stall.StallName}' (ClickID: {stall.ClickId}, Vendor ID: {stall.VendorCharId}) spawned successfully for {stall.VendorName} at Map {stall.MapId} ({stall.X}, {stall.Y}) with {stall.Items.Count} items ({stockStr}) and saved to database.", "Stall Spawned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        txtTitle.Text = stall.StallName;
+                        txtVendor.Text = stall.VendorName;
+                        numMap.Value = stall.MapId;
+                        numX.Value = stall.X;
+                        numY.Value = stall.Y;
+                        chkInfinite.Checked = stall.IsInfinite;
+
+                        dgvDraftCatalog.Rows.Clear();
+                        for (int i = 0; i < stall.Items.Count; i++)
+                        {
+                            var it = stall.Items[i];
+                            dgvDraftCatalog.Rows.Add((byte)i, it.ItemId, it.ItemName, it.PriceGold, it.Quantity, (stall.IsInfinite || it.IsInfinite) ? "Infinite" : "Limited");
+                        }
+                        MessageBox.Show($"Loaded stall '{stall.StallName}' (Vendor: {stall.VendorName}, {stall.Items.Count} items) into the editor. You can now tweak items or coordinates and re-spawn/save.", "Stall Loaded", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
-                catch (Exception ex)
+            };
+
+            btnTeleportPlayer.Click += (s, e) =>
+            {
+                if (dgvBazaarStalls.SelectedRows.Count == 0)
                 {
-                    MessageBox.Show($"Failed to spawn stall: {ex.Message}", "Error Spawning Stall", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Please select a stall from the table to teleport to.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                var r = dgvBazaarStalls.SelectedRows[0];
+                if (r.Cells["colVendorId"].Value != null && uint.TryParse(r.Cells["colVendorId"].Value.ToString(), out uint vendorId))
+                {
+                    var stall = ExperimentalFeaturesManager.Instance.PlayerStallBazaar.GetStall(vendorId);
+                    if (stall != null)
+                    {
+                        var onlinePlayers = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                        var targetPlayer = ext_selectedOnlinePlayer ?? onlinePlayers?.FirstOrDefault();
+                        if (targetPlayer != null)
+                        {
+                            targetPlayer.CurMap?.Teleport(TeleportType.CmD, targetPlayer, 0, new WarpData { DstMap = stall.MapId, DstX_Axis = (ushort)(stall.X + 30), DstY_Axis = (ushort)(stall.Y + 30) });
+                            MessageBox.Show($"Teleported player '{targetPlayer.CharName}' directly to stall '{stall.StallName}' at Map {stall.MapId} ({stall.X + 30}, {stall.Y + 30}).", "Teleport Executed", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show("No active players online to teleport.", "Player Offline", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
                 }
             };
 
@@ -1638,57 +2121,15 @@ namespace Wonderland_Private_Server
                 }
             };
 
-            toolbar.Controls.Add(lblMap);
-            toolbar.Controls.Add(numMap);
-            toolbar.Controls.Add(lblX);
-            toolbar.Controls.Add(numX);
-            toolbar.Controls.Add(lblY);
-            toolbar.Controls.Add(numY);
-            toolbar.Controls.Add(lblTitle);
-            toolbar.Controls.Add(txtTitle);
-            toolbar.Controls.Add(lblVendor);
-            toolbar.Controls.Add(txtVendor);
-            toolbar.Controls.Add(chkInfinite);
-            toolbar.Controls.Add(btnSpawnStall);
-            toolbar.Controls.Add(btnDeleteSelected);
-            toolbar.Controls.Add(btnClearStalls);
+            btnRefreshStalls.Click += (s, e) => RefreshBazaarGrid();
 
-            toolbar.Controls.Add(lblItems);
-            toolbar.Controls.Add(txtItems);
-            toolbar.Controls.Add(lblDbNote);
+            pnlRight.Controls.Add(dgvBazaarStalls);
+            pnlRight.Controls.Add(pnlRightHeader);
 
-            dgvBazaarStalls = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                BackgroundColor = Color.White,
-                Font = ModernTheme.FontDefault,
-                RowHeadersVisible = false
-            };
-            dgvBazaarStalls.Columns.Add("colVendorId", "Vendor ID");
-            dgvBazaarStalls.Columns.Add("colVendorName", "Vendor");
-            dgvBazaarStalls.Columns.Add("colStallName", "Stall Title");
-            dgvBazaarStalls.Columns.Add("colMapId", "Map ID");
-            dgvBazaarStalls.Columns.Add("colCoordX", "Coord X");
-            dgvBazaarStalls.Columns.Add("colCoordY", "Coord Y");
-            dgvBazaarStalls.Columns.Add("colStockType", "Stock Mode");
-            dgvBazaarStalls.Columns.Add("colItems", "Catalog Size");
-            dgvBazaarStalls.Columns.Add("colOpened", "Opened At");
+            split.Panel1.Controls.Add(pnlLeft);
+            split.Panel2.Controls.Add(pnlRight);
+            page.Controls.Add(split);
 
-            dgvBazaarStalls.Columns["colVendorId"].Width = 85;
-            dgvBazaarStalls.Columns["colVendorName"].Width = 130;
-            dgvBazaarStalls.Columns["colStallName"].Width = 180;
-            dgvBazaarStalls.Columns["colMapId"].Width = 70;
-            dgvBazaarStalls.Columns["colCoordX"].Width = 55;
-            dgvBazaarStalls.Columns["colCoordY"].Width = 55;
-            dgvBazaarStalls.Columns["colStockType"].Width = 90;
-            dgvBazaarStalls.Columns["colItems"].Width = 95;
-            dgvBazaarStalls.Columns["colOpened"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-
-            page.Controls.Add(dgvBazaarStalls);
-            page.Controls.Add(toolbar);
             return page;
         }
 
@@ -1701,13 +2142,73 @@ namespace Wonderland_Private_Server
             foreach (var s in stalls)
             {
                 string stockMode = s.IsInfinite ? "Infinite" : "Limited";
-                dgvBazaarStalls.Rows.Add(s.VendorCharId, s.VendorName, s.StallName, s.MapId, s.X, s.Y, stockMode, $"{s.Items.Count} items", $"{s.OpenedAt:HH:mm:ss}");
+                string itemsSummary = string.Join(", ", s.Items.Select(i => $"{i.ItemName} ({i.PriceGold:N0}G)"));
+                if (itemsSummary.Length > 45) itemsSummary = itemsSummary.Substring(0, 42) + "...";
+                dgvBazaarStalls.Rows.Add(s.VendorCharId, s.VendorName, s.StallName, s.MapId, $"{s.X}, {s.Y}", stockMode, $"{s.Items.Count} items: {itemsSummary}", $"{s.OpenedAt:HH:mm:ss}");
             }
 
             if (ext_lblExpMetricBazaar != null)
             {
                 ext_lblExpMetricBazaar.Text = $"Bazaar: {stalls.Count}";
             }
+        }
+
+        private List<ItemPickerEntry> GetItemPickerEntries()
+        {
+            if (m_cachedItemPicker != null && m_cachedItemPicker.Count > 0)
+                return m_cachedItemPicker;
+
+            m_cachedItemPicker = new List<ItemPickerEntry>();
+            try
+            {
+                if (cGlobal.ItemDatManager != null)
+                {
+                    var list = cGlobal.ItemDatManager.GetItemList();
+                    if (list != null)
+                    {
+                        var enc = Encoding.GetEncoding("big5");
+                        foreach (var item in list)
+                        {
+                            if (item.ItemID == 0) continue;
+                            string name = "";
+                            if (item.ItemName != null && item.ItemName.Length > 0)
+                            {
+                                name = enc.GetString(item.ItemName).Trim('\0', ' ');
+                            }
+                            if (string.IsNullOrWhiteSpace(name) || name.StartsWith("?"))
+                            {
+                                name = $"Item #{item.ItemID}";
+                            }
+                            m_cachedItemPicker.Add(new ItemPickerEntry { ItemId = item.ItemID, Name = name });
+                        }
+                    }
+                }
+            }
+            catch { }
+            return m_cachedItemPicker;
+        }
+
+        private class ItemPickerEntry
+        {
+            public ushort ItemId { get; set; }
+            public string Name { get; set; }
+            public override string ToString() => $"[{ItemId}] {Name}";
+        }
+
+        private class BazaarMapEntry
+        {
+            public ushort MapId { get; set; }
+            public string Name { get; set; }
+            public int DefaultX { get; set; }
+            public int DefaultY { get; set; }
+            public BazaarMapEntry(ushort mapId, string name, int x, int y)
+            {
+                MapId = mapId;
+                Name = name;
+                DefaultX = x;
+                DefaultY = y;
+            }
+            public override string ToString() => $"{MapId} - {Name}";
         }
         #endregion
 

@@ -33,7 +33,7 @@ Based on decompilation and disassembly of `aLogin.exe`:
 
 - **Client Handler:** `0x33fa00` (`FUN_0033fa00`)
 - **Purpose:** Instantiates and renders `Form_BuyItemStall_1` ($525 \times 409$ px dialog), populating its 3-column DataGrid with available items, stock levels, and prices.
-- **Wire Format (18-Byte Header + 39 Bytes per Item):**
+- **Wire Format (19-Byte Header + 39 Bytes per Item):**
 
 | Field | Type | Size | Description |
 |---|---|---|---|
@@ -43,6 +43,11 @@ Based on decompilation and disassembly of `aLogin.exe`:
 | PointsCardDay | uint32 (LE) | 4 bytes | Constant `0` for regular item stall |
 | PointsCardPoints | uint32 (LE) | 4 bytes | Constant `0` for regular item stall |
 | PointsCardItem | uint32 (LE) | 4 bytes | Constant `0` (Non-zero branches to PointsCard mode) |
+| CardType | uint8 | 1 byte | Constant `0` (Client offset `0x11` / byte 17 of payload read prior to loop) |
+
+> [!IMPORTANT]
+> **Client Parsing Off-by-One Root Cause:** In `aLogin.exe` (`FUN_0033fa00`), the client reads `CardType` at byte offset `0x11` (`param_2 + 17`) before beginning the 39-byte item record loop starting at offset `0x12` (`param_2 + 18`, 1-based index 19). If `CardType` is omitted, byte 17 consumes `SlotIndex`, shifting all subsequent item fields by 1 byte.
+> Consequently, `ItemId` unmarshals into an invalid ID. At `0x00341EF0`, the client evaluates `ItemDatManager.GetItemByID` (`0x003E77BC`). If the item pointer is `NULL` (invalid or nonexistent item ID), it executes `break;`, aborting the loop and leaving `Form_BuyItemStall_1` completely blank. All stall items MUST also exist in `itemDat.wpdat`.
 
 #### Item Record Structure (39 Bytes per Record, up to 5 Active Slots):
 
@@ -50,8 +55,8 @@ Based on decompilation and disassembly of `aLogin.exe`:
 |---|---|---|---|
 | `+0x00` | uint8 | 1 byte | SlotIndex in stall ($1..5$ or $0..4$) |
 | `+0x01` | uint16 (LE) | 2 bytes | ItemId (Database index in `itemDat.wpdat`) |
-| `+0x03` | uint8 | 1 byte | CurrentQuantity available for purchase |
-| `+0x04` | uint8 | 1 byte | MaxQuantity / slot capacity limit |
+| `+0x03` | uint8 | 1 byte | CurrentQuantity available for purchase (clamped to 50 max for client visual display) |
+| `+0x04` | uint8 | 1 byte | MaxQuantity / slot capacity limit (clamped to 50 max for client visual display) |
 | `+0x05` | uint32 (LE) | 4 bytes | UnitPrice in Gold |
 | `+0x09` | uint8 | 1 byte | Durability rating (Default: 100) |
 | `+0x0A` | uint8 | 1 byte | MaxDurability rating (Default: 100) |
@@ -100,7 +105,7 @@ Based on decompilation and disassembly of `aLogin.exe`:
 - **Parameters:** `PlayerStall stall` (Must not be null).
 - **Return Type:** `Network.SendPacket`
 - **Exceptions:** Returns `null` if `stall` is null.
-- **Payload Schema:** Header 18 bytes + $N \times 39$ bytes per item.
+- **Payload Schema:** Header 19 bytes + $N \times 39$ bytes per item.
 
 ### `PlayerStallBazaarEngine.PurchaseItem(Player buyer, uint vendorCharId, byte slotIndex, int quantity)`
 
@@ -114,9 +119,9 @@ Based on decompilation and disassembly of `aLogin.exe`:
 - **Edge Cases Handled:**
   - Robust slot fallback: Resolves 0-based and 1-based indexing (`stall.Items[slotIndex]`, `stall.Items.FirstOrDefault(i => i.SlotIndex == slotIndex)`, or `stall.Items[slotIndex - 1]`).
   - Pre-transaction inventory capacity validation: Prevents taking gold if bag is full.
-  - Infinite stock protection: Infinite stalls do not deplete catalog stock.
+  - Infinite stock auto-reset: Whenever an item is purchased from an infinite stall (`stall.IsInfiniteStock` or item-level infinite flag), its stock quantity is immediately restored to its maximum configured limit (`item.MaxQuantity > 0 ? item.MaxQuantity : 50`) rather than depleting, guaranteeing persistent stock availability.
   - Live vendor gold crediting and offline database persistence.
-  - Automatic `Form_BuyItemStall_1` refresh via S -> C `AC 23:33` upon purchase.
+  - Automatic `Form_BuyItemStall_1` refresh via S -> C `AC 23:33` upon purchase with restored stock.
 
 ---
 
@@ -131,3 +136,52 @@ Based on decompilation and disassembly of `aLogin.exe`:
   - Unpacks `VendorCharId: 4B`.
   - Loops over 8-byte item chunks, calling `PurchaseItem`.
   - Refreshes open `Form_BuyItemStall_1` with updated stock.
+
+---
+
+## 5. Visual Bazaar Stall Studio & In-Game Interfaces
+
+### 5.1 Server GUI Bazaar Stall Studio (`MainForm1.ExperimentalTab.cs`)
+
+A full-featured visual administration workspace replaces manual string entry:
+- **Left Panel (Stall Studio & Catalog Builder):**
+  - **Map Presets & Coordinates:** Dropdown with named towns (`12000 - Kelan Village`, `11003 - Holy Village`, `11016 - Wrecked Shore`, `10001 - Astrologer Cave`, etc.) and a one-click **"Use Player Pos"** button to automatically grab the online player's current map and (X, Y) coordinates.
+  - **Dynamic Item Search & Autocomplete:** Search-as-you-type filter across all 4,818 items from `itemDat.wpdat` decoding Big5 names, with price and stack quantity editors.
+  - **Interactive Draft Catalog DataGrid:** Up-to-5 slot merchandise designer with live slot indexing, item names, prices, and infinite stock modes.
+  - **Spawn & Persist:** Generates synthetic vendor actor, attaches 3D stall table and floating signboard, and persists record to SQLite & MySQL (`custom_stalls`).
+- **Right Panel (Active Overworld Stalls & Database Management):**
+  - **Active Stalls Grid:** Displays all active in-memory and database-saved stalls.
+  - **Load into Editor:** Reverse-populates any selected stall into the left-panel studio for instant editing, price rebalancing, or cloning.
+  - **Teleport to Stall:** Instantly warps selected online player directly in front of the stall.
+  - **Delete & Clear Controls:** Removes stall from memory, dismisses actor/table/signboard from all map peers, and purges database rows.
+
+### 5.2 In-Game Structured Chat & Dual Purchase Channels
+
+- **Structured Chat Banner:** Upon interaction (left-click or NPC talk), displays a clean merchant banner with stall title, vendor name, stock mode, map location, and formatted catalog slots with prices and infinite badges `[∞ Stock]`.
+- **Dual Purchase Channels:** Players can purchase goods either via the native visual `Form_BuyItemStall_1` DataGrid or via instant chat command `:buystall <slot 0..4> [qty]`.
+
+---
+
+## 6. Client Stall Speech Bubble & AC 20:18 Reverse-Engineering
+
+### 6.1 Root Cause of "I have no questions. Visit me in 2 hours"
+- **Disassembly Location:** `aLogin.exe` at address `0x2F8161` (Action Code 20 jump table `0x2F81A3`).
+- **Subcode 18 (`0x12`) Handler at `0x2F86BE`:**
+  ```assembly
+  0x2F86BE  push 0
+  0x2F86C0  push 0
+  0x2F86C2  mov eax, [0x4C8D40]
+  0x2F86C7  mov eax, [eax]
+  0x2F86C9  mov ecx, 2000          ; Duration ms
+  0x2F86CE  mov edx, 0x304B5C      ; "I have no questions. Visit me in 2 hours"
+  0x2F86D3  mov ebx, [eax]
+  0x2F86D5  call [ebx + 0x9C]      ; Display head banner / bubble
+  0x2F86DB  jmp 0x303CE1
+  ```
+- **Finding:** Sub-code `18` of Action Code `20` was previously labeled as "Purchase Confirmation" in legacy drafts. In reality, `AC 20:18` is the client-side Scholar / Quiz cooldown packet. Sending it upon purchase caused `aLogin.exe` to render the speech bubble `"I have no questions. Visit me in 2 hours"` right above `Form_BuyItemStall_1`.
+- **Speech Bubble Header (`0x3428AB`):** The client autonomously formats the second line of the stall bubble as `"[" + VendorName + "]'s Shop"` based on actor name memory at `[ebx + 0x220]`.
+- **Resolution:**
+  1. Removed `AC 20:18` packet dispatch from `PlayerStallBazaarEngine.PurchaseItem`.
+  2. Removed `AC 20:1` dialogue invocation from `OnStallInteracted`.
+  3. Replaced with `buyer.SendHeadBanner($"Purchased {quantity}x {item.ItemName} ({totalCost:N0}G)");` (native `AC 2:16`) and `buyer.Send(Tools.FromFormat("bb", 20, 8))` to release movement cleanly.
+

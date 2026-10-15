@@ -17,6 +17,7 @@ namespace Game.Experimental
         public ushort ItemId { get; set; }
         public string ItemName { get; set; }
         public int Quantity { get; set; }
+        public int MaxQuantity { get; set; }
         public uint PriceGold { get; set; }
         public bool IsInfinite { get; set; }
 
@@ -27,6 +28,7 @@ namespace Game.Experimental
             ItemId = id;
             ItemName = name;
             Quantity = qty;
+            MaxQuantity = qty > 0 ? qty : 50;
             PriceGold = price;
             IsInfinite = isInfinite;
         }
@@ -423,12 +425,12 @@ namespace Game.Experimental
                     }
                     else
                     {
-                        // Default diversified goods catalog
-                        stall.Items.Add(new StallItem(0, 10001, "Superior Healing Draught", 50, 120, 0, isInfinite));
-                        stall.Items.Add(new StallItem(1, 10002, "Elixir of Vitality", 25, 300, 0, isInfinite));
-                        stall.Items.Add(new StallItem(2, 26315, "Meteoric Star Iron", 10, 2500, 0, isInfinite));
-                        stall.Items.Add(new StallItem(3, 27001, "Spacetime Warp Stone", 5, 5000, 0, isInfinite));
-                        stall.Items.Add(new StallItem(4, 26399, "Ancient Treasure Casket", 2, 15000, 0, isInfinite));
+                        // Default diversified goods catalog (verified in itemDat.wpdat)
+                        stall.Items.Add(new StallItem(0, 30167, "Rainbow Drop", 50, 120, 0, isInfinite));
+                        stall.Items.Add(new StallItem(1, 30162, "Safety Bell", 25, 300, 0, isInfinite));
+                        stall.Items.Add(new StallItem(2, 30253, "Magic Potion", 50, 500, 0, isInfinite));
+                        stall.Items.Add(new StallItem(3, 30323, "Magical Cure Potion", 50, 1200, 0, isInfinite));
+                        stall.Items.Add(new StallItem(4, 27001, "Orchid Candy", 50, 2500, 0, isInfinite));
                     }
 
                     // Target Map Resolution
@@ -647,8 +649,12 @@ namespace Game.Experimental
             if (catalogPkt != null) player.Send(catalogPkt);
 
             // 3. Output catalog to player chat / system message for immediate readability
-            string stockTypeStr = stall.IsInfinite ? "Infinite Stock" : "Limited Stock";
-            player.SendSystemMessage($"=== [{stall.StallName}] Merchant: {stall.VendorName} ({stockTypeStr}) ===");
+            string stockTypeStr = stall.IsInfinite ? "INFINITE STOCK" : "LIMITED STOCK";
+            player.SendSystemMessage($"==================================================");
+            player.SendSystemMessage($"[BAZAAR] {stall.StallName.ToUpper()}");
+            player.SendSystemMessage($"Merchant: {stall.VendorName} | Mode: {stockTypeStr}");
+            player.SendSystemMessage($"Location: Map {stall.MapId} ({stall.X}, {stall.Y})");
+            player.SendSystemMessage($"--------------------------------------------------");
             if (stall.Items.Count == 0)
             {
                 player.SendSystemMessage("This stall is currently out of stock.");
@@ -657,37 +663,16 @@ namespace Game.Experimental
             {
                 foreach (var item in stall.Items)
                 {
-                    string qtyStr = (stall.IsInfinite || item.IsInfinite) ? "∞" : $"x{item.Quantity}";
-                    player.SendSystemMessage($"  [Slot {item.SlotIndex}] {item.ItemName} (#{item.ItemId}) {qtyStr} - {item.PriceGold:N0}G each");
+                    string qtyStr = (stall.IsInfinite || item.IsInfinite) ? "[∞ Stock]" : $"[Stock: {item.Quantity}]";
+                    player.SendSystemMessage($"  Slot #{item.SlotIndex}: {item.ItemName} (#{item.ItemId}) {qtyStr} - {item.PriceGold:N0} Gold");
                 }
-                player.SendSystemMessage("Type ':buystall <slot> [qty]' or choose an option below to purchase.");
+                player.SendSystemMessage($"--------------------------------------------------");
+                player.SendSystemMessage($"Click an item in shop window, or type: :buystall <slot 0..{stall.Items.Count - 1}> [quantity]");
             }
+            player.SendSystemMessage($"==================================================");
 
-            // 4. Interactive Dialogue Menu for easy buying via GUI/chat
-            if (stall.Items.Count > 0)
-            {
-                SendPacket cPkt = new SendPacket();
-                cPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 6, 3, (byte)npc.CickID, 0, 0, 0, 0, 0, 0, 5, 0, 1 });
-
-                player.OnDialogueChoice = (choice) =>
-                {
-                    if (choice == 0x1E || choice == 1) // Yes / Buy
-                    {
-                        var firstItem = stall.Items.FirstOrDefault();
-                        if (firstItem != null)
-                        {
-                            ExperimentalFeaturesManager.Instance.PlayerStallBazaar.PurchaseItem(player, stall.VendorCharId, firstItem.SlotIndex, 1);
-                        }
-                    }
-                    player.Send(Tools.FromFormat("bb", 20, 8)); // Unlock movement
-                };
-
-                player.Send(cPkt);
-            }
-            else
-            {
-                player.Send(Tools.FromFormat("bb", 20, 8)); // Unlock movement
-            }
+            // 4. Release/unlock player movement (native stall Form_BuyItemStall_1 handles purchasing directly)
+            player.Send(Tools.FromFormat("bb", 20, 8));
         }
 
         public bool PurchaseItem(Player buyer, uint vendorCharId, byte slotIndex, int quantity = 1)
@@ -712,24 +697,33 @@ namespace Game.Experimental
                     if (item == null) return false;
 
                     bool isItemInfinite = stall.IsInfinite || item.IsInfinite;
-                    if (!isItemInfinite && item.Quantity < quantity) return false;
+                    if (!isItemInfinite && item.Quantity < quantity)
+                    {
+                        buyer.SendHeadBanner("This item is out of stock.");
+                        return false;
+                    }
 
                     uint totalCost = item.PriceGold * (uint)quantity;
                     if (buyer.Gold < totalCost)
                     {
-                        buyer.SendSystemMessage("Insufficient gold to purchase this item.");
+                        buyer.SendHeadBanner("Insufficient gold to purchase this item.");
                         return false;
                     }
 
                     if (buyer.Inv != null && buyer.Inv.HasItemDefinition(item.ItemId) && !buyer.Inv.CanAddItems(new Dictionary<ushort, int> { { item.ItemId, quantity } }))
                     {
-                        buyer.SendSystemMessage("Your inventory is full.");
+                        buyer.SendHeadBanner("Your inventory is full.");
                         return false;
                     }
 
                     buyer.Gold -= totalCost;
 
-                    if (!isItemInfinite)
+                    if (isItemInfinite)
+                    {
+                        // Sınırsız stok olanlar her mağazadan satın alındığında stoğu tekrar max a çeksin
+                        item.Quantity = item.MaxQuantity > 0 ? item.MaxQuantity : 50;
+                    }
+                    else
                     {
                         item.Quantity -= quantity;
                         if (item.Quantity <= 0)
@@ -751,16 +745,20 @@ namespace Game.Experimental
                     if (stall.VendorPlayer != null)
                     {
                         stall.VendorPlayer.Gold += totalCost;
+                        stall.VendorPlayer.Send(Tools.FromFormat("bbd", 26, 4, (uint)stall.VendorPlayer.Gold));
                         if (item.InvSlot > 0 && !isItemInfinite)
                         {
                             stall.VendorPlayer.Inv?.RemoveItem(item.InvSlot, (byte)quantity);
                         }
-                        stall.VendorPlayer.SendSystemMessage($"[Stall] {buyer.CharName} purchased {quantity}x {item.ItemName} from your stall for {totalCost:N0}G!");
+                        stall.VendorPlayer.SendHeadBanner($"{buyer.CharName} purchased {quantity}x {item.ItemName} for {totalCost:N0}G");
                     }
 
                     string stockModeStr = isItemInfinite ? "(Infinite Stock)" : $"({item.Quantity} remaining)";
-                    buyer.SendSystemMessage($"Purchased {quantity}x {item.ItemName} from {stall.VendorName} for {totalCost:N0}G! {stockModeStr}");
+                    buyer.SendHeadBanner($"Purchased {quantity}x {item.ItemName} ({totalCost:N0}G)");
                     DebugSystem.Write($"[PlayerStallBazaarEngine] {buyer.CharName} purchased {quantity}x {item.ItemName} from {stall.VendorName} for {totalCost:N0}G {stockModeStr}");
+
+                    // Synchronize Buyer's Gold on Client HUD and Form_BuyItemStall_1 (AC 26:4)
+                    buyer.Send(Tools.FromFormat("bbd", 26, 4, (uint)buyer.Gold));
 
                     // S->C AC 53:2 Purchase ACK
                     SendPacket p = new SendPacket();
@@ -769,15 +767,6 @@ namespace Game.Experimental
                     p.Pack8(slotIndex);
                     p.Pack32(buyer.Gold);
                     buyer.Send(p);
-
-                    // S->C AC 20:18 Purchase Confirmation
-                    SendPacket pConf = new SendPacket();
-                    pConf.Pack8(20);
-                    pConf.Pack8(18);
-                    pConf.Pack8(1); // Success
-                    pConf.Pack8(slotIndex);
-                    pConf.Pack8((byte)Math.Max(0, isItemInfinite ? 99 : item.Quantity));
-                    buyer.Send(pConf);
 
                     // Refresh buyer's open Form_BuyItemStall_1 GUI with updated catalog
                     if (stall.Items.Count > 0)
@@ -1072,6 +1061,7 @@ namespace Game.Experimental
             p.Pack32(0); // PointsCardDay
             p.Pack32(0); // PointsCardPoints
             p.Pack32(0); // PointsCardItem (0 indicates regular Item Stall, non-zero triggers PointsCard branch)
+            p.Pack8(0);  // PointsCardType / CardType (byte 17 of param_2, aligns header at 18B so item 1 starts at offset 18 / index 19)
 
             // Form_BuyItemStall_1 displays up to 5 items in its 3-column DataGrid
             int count = Math.Min(stall.Items.Count, 5);
@@ -1080,7 +1070,7 @@ namespace Game.Experimental
                 var it = stall.Items[i];
                 bool isInf = stall.IsInfinite || it.IsInfinite;
                 byte currentQty = (byte)Math.Min(isInf ? 50 : it.Quantity, 50);
-                byte maxQty = (byte)Math.Min(isInf ? 50 : it.Quantity, 50);
+                byte maxQty = 50;
 
                 // Exact 39-byte record alignment unpacked by FUN_0033fa00
                 p.Pack8(it.SlotIndex);        // +0x00: 1B SlotIndex
@@ -1212,7 +1202,7 @@ namespace Game.Experimental
                         }
                         else if (isInfinite)
                         {
-                            qty = 99;
+                            qty = 50;
                         }
 
                         string name = Game.Battle.MonsterDropManager.ResolveItemName(itemId);

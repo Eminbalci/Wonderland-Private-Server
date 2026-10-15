@@ -127,7 +127,7 @@ To achieve 100% authentic visual rendering and physical click interaction across
 | `AC 20` | `14` (`0x0E`) | C $\to$ S | Browse Stall Request | `[20, 14, TargetMerchantCharID (4B)]` |
 | `AC 20` | `15` (`0x0F`) | S $\to$ C | Stall Inventory Dialog | `[20, 15, VendorCharID (4B), SlotCount (1B), { 39-Byte Records }]` (Opens `Form_BuyItemStall_1`) |
 | `AC 20` | `17` (`0x11`) | C $\to$ S | Purchase Item Request | `[20, 17, VendorCharID (4B), SlotIndex (1B), Quantity (1B)]` |
-| `AC 20` | `18` (`0x12`) | S $\to$ C | Purchase Confirmation | `[20, 18, SuccessFlag (1B), SlotIndex (1B), RemainingQty (1B)]` |
+| `AC 20` | `18` (`0x12`) | S $\to$ C | Quiz Cooldown Notice (Deprecated) | `[20, 18]` (Displays "I have no questions. Visit me in 2 hours", not used for stalls) |
 | `AC 22` | `4` | S $\to$ C | Map NPC Spawn / State | `[22, 4, ClickID (2B), State (2B), X (2B), Y (2B), EntityType (1B), Duration (4B), Stance (1B)]` |
 | `AC 32` | `2` | S $\to$ C | Sitting Emote Stance | `[32, 2, CharID (4B), 1 (1B)]` |
 | `AC 56` | `3` | S $\to$ C | Alternative Stall Catalog | `[56, 3, VendorCharID (4B), StallName (string), Count (1B), {Slot, ItemID, Price, Count}]` |
