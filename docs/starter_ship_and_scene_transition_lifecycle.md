@@ -41,29 +41,33 @@ In the authentic binary script structure (`Eve.EMG`), Opcode 1 (`DialogPtr = 1`)
 
 ## 4. Storm Cutscene & Shipwreck Pipeline
 
-Dialogue with Captain (`TID 14003`, Event 11) concludes with a two-stage cinematic shipwreck:
+Dialogue with Captain (`TID 14003`, Event 11) concludes with an authentic packet-driven cinematic shipwreck sequence with zero arbitrary timers:
 1. **Dialogue Completion & Opcode 8 (`dialog4 == 31488 / 0x7B00`):**
    - The player completes all dialogue lines with the Captain (TalkIDs 30124 and 30125).
    - Upon concluding the dialogue, Opcode 8 executes:
-     - Sets `player.PlayingStormCutscene = true` and records `player.StormCutsceneStartTime = DateTime.UtcNow`.
-     - Emits `AC 186:12` (CG Movie Trigger Cutscene #1) and `AC 20:1` (Step 3 Cinematic Event Trigger, mode 2).
-     - Starts an asynchronous 4,500ms safety watchdog timer (`EveEventInterpreter.cs`).
+     - Sets `player.PlayingStormCutscene = true`, `player.StormCutsceneAckReceived = false`.
+     - Emits `AC 20:1` (Dialog Step 3 Cinematic Event Trigger, 0x7B00 screen shake) matching authentic PCAP Frame 0318.
+     - Emits `AC 186:12` (CG Movie Trigger Cutscene #1) matching authentic PCAP Frame 0321.
 2. **Cutscene Acknowledgment (`AC 186:9`):**
-   - Client returns `AC 186:9 [01, 00]`.
-   - Server responds with playback status acknowledgment `AC 186:9 [186, 9, 1, 0, 1, 0, 0, 0, 0]`.
-   - Premature timers during playback are avoided; cutscene playback is allowed to run without mid-dialogue interruptions.
+   - Client returns `AC 186:9 [01, 00]` (Frame 0322).
+   - Server responds with playback status acknowledgment `AC 186:9 [186, 9, 1, 0, 1, 0, 0, 0, 0]` (Frame 0325).
+   - Sets `player.StormCutsceneAckReceived = true` confirming active playback.
+   - Any premature `AC 20:6` frames arriving prior to this handshake are absorbed without state mutation.
 3. **Warp Execution:**
-   - When the cutscene completes or the user clicks to skip (`AC 20:6`), the server verifies `elapsed >= 1.0s` to filter out premature frame closure ACKs.
-   - Upon verified completion or 4.5s watchdog expiry:
-     - Clears `PlayingStormCutscene`, sets `PendingBeachCutscene = true`, and invokes `ClearInteraction()`.
-     - Emits `AC 20:7` Warp Out frame.
+   - Once playback completes on the client, the client emits `AC 20:6` (Frame 0327).
+   - In [`AC20.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC20.cs#L235), receipt of `AC 20:6` while `StormCutsceneAckReceived` is true triggers the scene transition:
+     - Clears `PlayingStormCutscene` and `StormCutsceneAckReceived`.
+     - Sets `PendingBeachCutscene = true`, and invokes `ClearInteraction()`.
+     - Emits `AC 20:7` Warp Out frame (Frame 0328).
      - Teleports character to Rhode Island Beach (`Map 10035`, `1038, 2235`).
 4. **Beach Arrival (`Map 10035`):**
-   - Handled via [`AC12.Recv1`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC12.cs#L47):
-     - Sets `BeachCutsceneActive = true`, `Emote = 9` (lying on sand), and sends immobilize (`AC 5:30`).
-     - At 800ms, transmits `AC 20:1` Type 5 Cutscene 12008 (Beach Wake Up animation).
-     - At 1,800ms, wakeup animation concludes: executes `AdvanceBeachCutscene(p, forceComplete: true)`.
-     - Unfreezes mobility (`AC 20:8`, `AC 5:4`), clears emote (`Emote = 0`), and immediately initiates first-contact dialogue with Robinson (`Event 8`).
+   - Handled via [`AC12.Recv1`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC12.cs#L47) upon receiving client map load confirmation `AC 12:1` (Frame 0330):
+     - Sets `BeachCutsceneActive = true`, `BeachCutsceneStep = 2`, `Emote = 9` (lying on sand), and sends immobilize (`AC 5:30 [1]`).
+     - Emits Robinson approach animation (`AC 22:11 [6, 0, 0xFF, 0xFF]`), scene staging, and directly dispatches `AC 20:1` Type 5 Cutscene 12008 (Beach Wake Up animation).
+   - Client returns `AC 20:6` when Cutscene 12008 finishes playback:
+     - Advances through Step 3 (`AC 24:1` + `AC 20:10`), Step 4 (`AC 20:10`), Step 5 (`AC 24:5` + `AC 20:10`), to Step 6 (`AC 22:12` + `AC 20:10`).
+   - Step 6:
+     - Unfreezes mobility (`AC 20:8`, `AC 5:4`), clears emote (`Emote = 0`), releases immobilize (`AC 5:30 [0]`), and immediately initiates first-contact dialogue with Robinson (`Event 8`).
 
 ---
 

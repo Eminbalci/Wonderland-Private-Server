@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -63,7 +63,8 @@ namespace Game.PlayerRelated
             if (player?.Inv == null || slot < 1 || slot > 50 || vehicleId == 0) return false;
             item = player.Inv[slot];
             return item != null && item.ItemID == vehicleId && item.Ammt > 0 &&
-                item.Type == global::DataFiles.eItemType.Vehicle && item.Damage < 100 && !item.isLocked;
+                (item.Type == global::DataFiles.eItemType.Vehicle || item.ItemID == 34169 || (item.ItemID >= 48010 && item.ItemID <= 48045)) &&
+                item.Damage < 100 && !item.isLocked;
         }
 
         private static void SendToMap(Player player, SendPacket packet)

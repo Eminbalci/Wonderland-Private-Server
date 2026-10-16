@@ -49,7 +49,7 @@ namespace Wonderland_Private_Server.ActionCodes
                         DebugSystem.Write($"[AC12] Beach cutscene block ENTERED for {p.CharName}");
                         p.PendingBeachCutscene = false;
                         p.BeachCutsceneActive = true;
-                        p.BeachCutsceneStep = 1;
+                        p.BeachCutsceneStep = 2;
                         p.ClearInteraction();
 
                         // Frame 2405: Player lies down on sand (Emote 9) + immobilize (AC 5:30)
@@ -59,52 +59,26 @@ namespace Wonderland_Private_Server.ActionCodes
                         p.Send(Tools.FromFormat("bbbdb", 5, 30, 1, p.CharID, (byte)0));
                         DebugSystem.Write($"[AC12] Sent Emote9 + AC5:30 immobilize to {p.CharName}");
 
-                        // Start the rescue on the map acknowledgement, without a timer tick.
-                        // AC20:10/11 request another ACK; do not send them before a
-                        // client step exists, otherwise a stale ACK can advance the movie.
+                        // Start the rescue on the map acknowledgement: set up scene staging
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.Send(Tools.FromFormat("bbbbbb", 22, 11, 6, 0, 0xFF, 0xFF));
                         p.Send(Tools.FromFormat("bbb", 6, 2, 1));
                         p.Send(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5));
                         p.CurMap?.Broadcast(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5), "Ex", p.CharID);
-                        DebugSystem.Write($"[AC12] Robinson rescue started on map acknowledgement for {p.CharName}");
 
-                        Task.Run(async () =>
-                        {
-                            try
-                            {
-                                // Frame 2436: Trigger Beach Wakeup Animation (Cutscene ID 12008) (800ms delay)
-                                await Task.Delay(800);
-                                if (!p.BeachCutsceneActive || p.BeachCutsceneStep != 1 ||
-                                    (p.CurMap?.MapID != 10035 && p.CurMap?.MapID != 10039)) return;
-
-                                SendPacket animPkt = new SendPacket();
-                                animPkt.Pack8(20);
-                                animPkt.Pack8(1);
-                                animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                                animPkt.Pack8(1); // Step 1
-                                animPkt.Pack8(5); // Type 5: Cutscene Animation
-                                animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0); // Speaker 0
-                                animPkt.Pack8(1); // Flag 1
-                                animPkt.Pack32(12008); // Cutscene ID 12008 (Beach Wake Up)
-                                animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                                p.BeachCutsceneStep = 2; // Set before sending so a fast ACK cannot be lost.
-                                p.Send(animPkt);
-                                DebugSystem.Write($"[AC12] Timeline: Sent Cutscene 12008 (Beach Arrival Animation) to {p.CharName}");
-
-                                // Wakeup animation completion (~1800ms): mobilize player and immediately initiate Robinson dialogue!
-                                await Task.Delay(1800);
-                                if (p.BeachCutsceneActive && (p.CurMap?.MapID == 10035 || p.CurMap?.MapID == 10039))
-                                {
-                                    DebugSystem.Write($"[AC12] Beach wakeup animation completed for {p.CharName} -> Mobilizing and triggering Robinson dialogue directly.");
-                                    AC20.AdvanceBeachCutscene(p, forceComplete: true);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugSystem.Write(new ExceptionData(ex));
-                            }
-                        });
+                        // Trigger Beach Wakeup Animation (Cutscene ID 12008)
+                        SendPacket animPkt = new SendPacket();
+                        animPkt.Pack8(20);
+                        animPkt.Pack8(1);
+                        animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                        animPkt.Pack8(1); // Step 1
+                        animPkt.Pack8(5); // Type 5: Cutscene Animation
+                        animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0); // Speaker 0
+                        animPkt.Pack8(1); // Flag 1
+                        animPkt.Pack32(12008); // Cutscene ID 12008 (Beach Wake Up)
+                        animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                        p.Send(animPkt);
+                        DebugSystem.Write($"[AC12] Sent Cutscene 12008 (Beach Wake Up) to {p.CharName}. Awaiting client AC 20:6.");
                     }
                     else
                     {

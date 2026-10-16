@@ -542,8 +542,16 @@ namespace Game.Maps
                             {
                                 DebugSystem.Write($"[QuestNpc] Shop Step 2 (Buy/Sell) choice: 0x{choice2:X} ({choice2}) for '{Name}'");
                                 src.Send(Tools.FromFormat("bb", 20, 8)); // Close dialog
-                                if (choice2 == 30 || choice2 == 31)
-                                    src.OpenNpcSale((byte)(shopCatalogId == 0x0001FB85u ? 1 : 0));
+
+                                if (choice2 == 30 || choice2 == 0x28 || choice2 == 1) // Choice 1: Buy
+                                {
+                                    src.CurrentShopCatalogId = shopCatalogId;
+                                    src.Send(Tools.FromFormat("bbd", 35, 12, shopCatalogId)); // Open Shop Buy Catalog UI
+                                }
+                                else if (choice2 == 31 || choice2 == 0x29 || choice2 == 2) // Choice 2: Sell
+                                {
+                                    src.OpenNpcSale((byte)(shopCatalogId == 0x0001FB85u ? 1 : 0)); // Open Sale Liquidation UI
+                                }
                             };
 
                             src.Send(cPkt2);

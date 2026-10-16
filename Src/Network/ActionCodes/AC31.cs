@@ -46,16 +46,25 @@ namespace Network.ActionCodes
             foreach (var pet in outgoing) team.Remove(pet.Slot);
             foreach (byte slot in withdrawals) hotel.Remove(slot);
             if (team.Count + incoming.Length > 4 || hotel.Count + outgoing.Length > 10)
-            { p.SendSystemMessage(" Not enough free pet slots."); return; }
+            {
+                p.SendSystemMessage(" Not enough free pet slots.");
+                p.Send(Tools.FromFormat("bb", 31, 8));
+                p.Send(Tools.FromFormat("bb", 31, 12));
+                return;
+            }
             var finalTeam = team.Values.Concat(incoming).ToArray();
             for (int i = 0; i < finalTeam.Length; i++)
                 for (int j = 0; j < i; j++)
                     if (Player.IsSamePetOrCompanion(finalTeam[i].PetID, finalTeam[j].PetID))
-                    { p.SendSystemMessage(" You already have this pet in your team."); return; }
+                    {
+                        p.SendSystemMessage(" You already have this pet in your team.");
+                        p.Send(Tools.FromFormat("bb", 31, 8));
+                        p.Send(Tools.FromFormat("bb", 31, 12));
+                        return;
+                    }
 
             // Validate the whole selection before moving any pet. Exchange also works
             // when both lists are full; records retain all equipment and progression.
-            foreach (byte slot in withdrawals) p.Send(Tools.FromFormat("bbb", 31, 4, slot));
             foreach (var pet in outgoing)
             {
                 if (pet.IsRide) p.UnridePet();
@@ -75,20 +84,32 @@ namespace Network.ActionCodes
             }
             p.PlayerPets = team;
             p.HotelPets = hotel;
-            foreach (var pet in incoming)
+
+            for (int i = 0; i < withdrawals.Length; i++)
             {
+                byte hotelSlot = withdrawals[i];
+                var pet = incoming[i];
                 byte slot = 1;
                 while (team.ContainsKey(slot)) slot++;
-                pet.ClientSlot = 0;
-                p.RegisterClientPet(pet);
-                pet.Slot = slot; pet.IsBattle = false; pet.IsRide = false;
+                pet.Slot = slot; pet.ClientSlot = 0; pet.IsBattle = false; pet.IsRide = false;
                 team[slot] = pet;
+                p.RegisterClientPet(pet);
+                // 1. Native 31:5 copies hotel slot to team slot in client memory before 31:4 clears it.
+                p.Send(Tools.FromFormat("bbbb", 31, 5, hotelSlot, pet.ClientSlot));
+                // 2. Native 31:4 removes record from hotel slot.
+                p.Send(Tools.FromFormat("bbb", 31, 4, hotelSlot));
             }
+
             // Full native roster restores names and worn items as well as HP/SP.
             var roster = QuestManager.CreatePetListPacket(p);
             if (roster != null) p.Send(roster);
             foreach (var pet in incoming) QuestManager.SendPetProgression(p, pet);
             p.SendPetHotelList();
+
+            // Native AC31:8 resets storage manager lock flags (0x129, 0x4).
+            // Native AC31:12 clears Form_PetHotel modal lock (0x174) and calls RefreshForm (0x2242d0) to re-enable team buttons.
+            p.Send(Tools.FromFormat("bb", 31, 8));
+            p.Send(Tools.FromFormat("bb", 31, 12));
             p.SaveCharacterData();
         }
     }

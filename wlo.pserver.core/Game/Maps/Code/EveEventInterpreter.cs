@@ -166,6 +166,7 @@ namespace Game.Maps
                         {
                             player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                             player.Send(Tools.FromFormat("bb", 20, 8));
+                            player.Send(Tools.FromFormat("bb", 5, 4));
                         };
                         player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                         player.Send(squeakPkt);
@@ -233,16 +234,35 @@ namespace Game.Maps
                     {
                         if (!isTeamFull)
                         {
-                            // Despawn S.Monkey from map
+                            // 1. Dispatch CG Movie packet AC 186:12 (Cutscene 12000)
+                            SendPacket cgPkt = new SendPacket();
+                            cgPkt.PackArray(new byte[] { 186, 12 });
+                            cgPkt.Pack16(12000);
+                            cgPkt.Pack8(0); cgPkt.Pack8(0); cgPkt.Pack8(0);
+                            player.Send(cgPkt);
+
+                            // 2. Dispatch Cinematic Cutscene frame AC 20:1 Type 5 (Cutscene 12000)
+                            SendPacket animPkt = new SendPacket();
+                            animPkt.Pack8(20);
+                            animPkt.Pack8(1);
+                            animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                            animPkt.Pack8(1); // Step 1
+                            animPkt.Pack8(5); // Type 5: Cutscene Animation
+                            animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                            animPkt.Pack8(1); // Mode 1
+                            animPkt.Pack32(12000); // Cutscene ID 12000 (S.Monkey recruitment CG animation)
+                            animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                            player.Send(animPkt);
+
+                            // 3. Despawn S.Monkey from map
                             player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
 
-
-                            // Recruit S.Monkey
+                            // 4. Recruit S.Monkey
                             QuestManager.SendCompanionReward(player, 17162, "S.Monkey");
                             player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "S.Monkey has joined your party!"));
-                            DebugSystem.Write($"[EveEventInterpreter] Recruited S.Monkey (TID 17162) for {player.CharName}");
+                            DebugSystem.Write($"[EveEventInterpreter] Recruited S.Monkey (TID 17162) for {player.CharName} with CG Cutscene 12000");
 
-                            // Update Quests 12002 and 12003
+                            // 5. Update Quests 12002 and 12003
                             if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
                             player.Quests[12002] = new PlayerQuest(12002, QuestState.Completed, 1);
                             player.Quests[12003] = new PlayerQuest(12003, QuestState.InProgress, 1);
@@ -251,12 +271,13 @@ namespace Game.Maps
                             QuestManager.SendQuestUpdate(player, 12002, QuestState.Completed, 1);
                             QuestManager.SendQuestUpdate(player, 12003, QuestState.InProgress, 1);
 
-                            // Fanfare SFX
+                            // 6. Fanfare SFX (BGM 11011 / AC 20:10)
                             player.Send(Tools.FromFormat("bb", 20, 10));
                         }
 
                         player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         player.Send(Tools.FromFormat("bb", 20, 8));
+                        player.Send(Tools.FromFormat("bb", 5, 4));
                         player.SaveCharacterData();
                     };
 
@@ -803,7 +824,10 @@ namespace Game.Maps
                                     case 1:
                                     case 2:
                                     case 3:
-                                        player.OpenNpcSale((byte)(actionOrMap == 2 ? 1 : 0));
+                                        uint catalogId = (actionOrMap == 1) ? 0x0001FB84u : ((actionOrMap == 2) ? 0x0001FB85u : 0x0001FB83u);
+                                        player.CurrentShopCatalogId = catalogId;
+                                        player.Send(Tools.FromFormat("bbd", 35, 12, catalogId));
+                                        player.Send(Tools.FromFormat("bb", 20, 8));
                                         return true;
 
                                     // 4: Props Keep / Storage Bank
@@ -890,43 +914,20 @@ namespace Game.Maps
                             if (op.dialog4 == 31488) // 0x7B00 (Thunder / Storm Cutscene Trigger)
                             {
                                 player.PlayingStormCutscene = true;
+                                player.StormCutsceneAckReceived = false;
                                 player.StormCutsceneStartTime = DateTime.UtcNow;
 
-                                // 1. Official PCAP Frame 1914: CG Movie Trigger (AC 186:12 Cutscene #1)
-                                SendPacket cutscenePkt = new SendPacket();
-                                cutscenePkt.PackArray(new byte[] { 186, 12, 1, 0, 0, 0, 0 });
-                                player.Send(cutscenePkt);
-
-                                // 2. Official PCAP Frame 1941: Dialog Step 3 Cinematic Event Trigger (Exact 18 bytes)
+                                // 1. Official PCAP Frame 0318: Dialog Step 3 Cinematic Event Trigger (Exact 18 bytes)
                                 SendPacket step3Pkt = new SendPacket();
                                 step3Pkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 3, 5, 0, 0, 0, 2, 0x7B, 0, 0, 0, 0, 0, 0 });
                                 player.Send(step3Pkt);
 
-                                DebugSystem.Write($"[EveEventInterpreter] Dispatched Authentic Storm Cutscene Step 3 (AC 186:12 & AC 20:1) for {player.CharName} (awaiting movie finish or watchdog)");
+                                // 2. Official PCAP Frame 0321: CG Movie Trigger (AC 186:12 Cutscene #1)
+                                SendPacket cutscenePkt = new SendPacket();
+                                cutscenePkt.PackArray(new byte[] { 186, 12, 1, 0, 0, 0, 0 });
+                                player.Send(cutscenePkt);
 
-                                // Watchdog transition: after cutscene playback completes (4500ms), transition to beach if not already warped by AC 20:6
-                                Task.Run(async () =>
-                                {
-                                    try
-                                    {
-                                        await Task.Delay(4500);
-                                        if (player.PlayingStormCutscene && player.CurMap != null)
-                                        {
-                                            player.PlayingStormCutscene = false;
-                                            player.PendingBeachCutscene = true;
-                                            player.ClearInteraction();
-                                            player.Send(Tools.FromFormat("bb", 20, 7)); // Frame 2379: AC 20:7 Warp Out
-                                            var warp = new WarpData { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
-                                            player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
-                                            DebugSystem.Write($"[EveEventInterpreter] Storm Cutscene watchdog completed for {player.CharName} -> Warping to Beach (Map 10035)");
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        DebugSystem.Write(new ExceptionData(ex));
-                                    }
-                                });
-
+                                DebugSystem.Write($"[EveEventInterpreter] Dispatched Authentic Storm Cutscene Step 3 (AC 20:1 & AC 186:12) for {player.CharName} (awaiting client AC 186:9 and AC 20:6)");
                                 return true;
                             }
                             else

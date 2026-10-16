@@ -17,7 +17,9 @@ namespace Wonderland_Private_Server.ActionCodes
         public override void ProcessPkt(Player r, RecievePacket p)
         {
             if (Game.Battle.PvEBattleManager.IsInBattle(r)) return;
-            switch (p.Unpack8())
+            byte subCode = p.B ?? (p.Buffer != null && p.Buffer.Length > 5 ? p[5] : (byte)0);
+            p.SetPtr(6);
+            switch (subCode)
             {
                 case 1: Recv1(r, p); break;
                 case 6: Recv6(r, p); break;
@@ -77,7 +79,11 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv1(Player p, RecievePacket r)
         {
-            if (p.NativeEventActive) return;
+            if (p.PlayingStormCutscene || p.BeachCutsceneActive || p.NativeEventActive)
+            {
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
             if (p.CurMap == null)
             {
                 p.Send(Tools.FromFormat("bb", 20, 8));
@@ -174,12 +180,26 @@ namespace Wonderland_Private_Server.ActionCodes
 
             switch (p.BeachCutsceneStep)
             {
+                case 1:
+                    // Client ACK (Frame 0332: AC 20:6) confirming stage setup: Trigger Beach Wakeup Animation (Cutscene ID 12008)
+                    p.BeachCutsceneStep = 2;
+                    SendPacket animPkt = new SendPacket();
+                    animPkt.Pack8(20);
+                    animPkt.Pack8(1);
+                    animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                    animPkt.Pack8(1); // Step 1
+                    animPkt.Pack8(5); // Type 5: Cutscene Animation
+                    animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0); // Speaker 0
+                    animPkt.Pack8(1); // Flag 1
+                    animPkt.Pack32(12008); // Cutscene ID 12008 (Beach Wake Up)
+                    animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                    p.Send(animPkt);
+                    DebugSystem.Write($"[BeachCutscene] Step 1 ACK received -> Dispatched Cutscene 12008 to {p.CharName}");
+                    break;
+
                 case 2:
                     // Frame 2928: Cutscene 12008 animation completed!
                     p.BeachCutsceneStep = 3;
-                    if (p.Quests == null) p.Quests = new Dictionary<uint, PlayerQuest>();
-                    p.Quests[12040] = new PlayerQuest(12040, QuestState.InProgress, 1);
-                    QuestManager.SavePlayerQuest(p, 12040);
 
                     // Authentic PCAP Frame 2928: AC 24:1 [08, 2f, 01] + AC 20:10
                     p.Send(Tools.FromFormat("bbbbb", 24, 1, 8, 47, 1));
@@ -215,13 +235,19 @@ namespace Wonderland_Private_Server.ActionCodes
                     p.BeachCutsceneActive = false;
                     p.BeachCutsceneStep = 0;
                     p.Emote = 0;
+                    p.Send(Tools.FromFormat("bbbdb", 5, 30, 0, p.CharID, (byte)0)); // Release AC 5:30 immobilize
                     p.Send(Tools.FromFormat("bb", 20, 8));
                     p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                    p.Send(Tools.FromFormat("bb", 5, 4));
+                    p.CurMap?.Broadcast(Tools.FromFormat("bbdb", 32, 2, p.CharID, (byte)0), "Ex", p.CharID);
                     p.SaveCharacterData();
                     DebugSystem.Write($"[BeachCutscene] Cutscene finished! Mobilized {p.CharName}. Triggering Robinson dialogue.");
 
                     if (p.CurMap is GameMap gMap)
                     {
+                        p.LastNpcClick = 1;
+                        p.LastNpcMap = (ushort)p.CurMap.MapID;
+                        p.NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(2500);
                         EveEventInterpreter.TryExecute(p, gMap, 1);
                     }
                     break;
@@ -237,34 +263,27 @@ namespace Wonderland_Private_Server.ActionCodes
             // If the player is currently watching the ship storm cutscene, client AC 20:6 signals cutscene finished -> warp to beach
             if (p.PlayingStormCutscene)
             {
-                double elapsed = (DateTime.UtcNow - p.StormCutsceneStartTime).TotalSeconds;
-                if (elapsed < 1.0)
+                if (!p.StormCutsceneAckReceived)
                 {
-                    DebugSystem.Write($"[AC20.Recv6] Absorbed premature AC 20:6 during storm cutscene initialization (elapsed: {elapsed:F2}s) for {p.CharName}");
+                    DebugSystem.Write($"[AC20.Recv6] Absorbed premature AC 20:6 before AC 186:9 handshake for {p.CharName}");
                     return;
                 }
 
                 p.PlayingStormCutscene = false;
+                p.StormCutsceneAckReceived = false;
                 p.PendingBeachCutscene = true;
                 p.ClearInteraction();
-                p.Send(Tools.FromFormat("bb", 20, 7)); // Frame 2379: AC 20:7 Warp Out
+                p.Send(Tools.FromFormat("bb", 20, 7)); // Frame 0328: AC 20:7 Warp Out
                 var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
                 p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
-                DebugSystem.Write($"[AC20.Recv6] Storm Cutscene completed via client ACK (elapsed: {elapsed:F2}s) for {p.CharName} -> Warping to Beach (Map 10035)");
+                DebugSystem.Write($"[AC20.Recv6] Storm Cutscene completed via client ACK for {p.CharName} -> Warping to Beach (Map 10035)");
                 return;
             }
 
             // If beach cutscene timeline is actively running
             if (p.BeachCutsceneActive)
             {
-                if (p.BeachCutsceneStep >= 2)
-                {
-                    AdvanceBeachCutscene(p);
-                }
-                else
-                {
-                    DebugSystem.Write($"[AC20.Recv6] Absorbed AC 20:6 during BeachCutsceneActive preamble (step {p.BeachCutsceneStep}) for {p.CharName}");
-                }
+                AdvanceBeachCutscene(p);
                 return;
             }
 
@@ -278,6 +297,7 @@ namespace Wonderland_Private_Server.ActionCodes
 
                 p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                 p.Send(Tools.FromFormat("bb", 20, 8));
+                p.Send(Tools.FromFormat("bb", 5, 4));
                 p.Flags.Add(PlayerFlag.InMap);
                 p.SaveCharacterData();
             }

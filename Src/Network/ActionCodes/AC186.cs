@@ -50,7 +50,15 @@ namespace Network.ActionCodes
                 resp.Pack32(0); // Reserved padding
                 p.Send(resp);
 
-                DebugSystem.Write($"[AC186.Recv9] Acknowledged Cutscene #{cutsceneId} playback for {p.CharName}");
+                if (p.PlayingStormCutscene && cutsceneId == 1)
+                {
+                    p.StormCutsceneAckReceived = true;
+                    DebugSystem.Write($"[AC186.Recv9] Storm cutscene #1 handshake confirmed for {p.CharName}. Awaiting client completion AC 20:6.");
+                }
+                else
+                {
+                    DebugSystem.Write($"[AC186.Recv9] Acknowledged Cutscene #{cutsceneId} playback for {p.CharName}");
+                }
             }
             catch (Exception t)
             {

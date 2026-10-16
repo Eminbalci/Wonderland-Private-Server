@@ -25,6 +25,7 @@ namespace Network.ActionCodes
         }
         void Recv1(Player r, RecievePacket p)
         {
+            p.SetPtr(6);
             ((GameMap)r.CurMap).onEnterTent(p.Unpack32(), r);
         }
         void Recv2(Player r, RecievePacket p)

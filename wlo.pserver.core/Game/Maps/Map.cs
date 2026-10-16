@@ -841,17 +841,17 @@ namespace Game
             // Astrologer Laura Exit Cutscene & Space Tent Gift (Map 10001 -> Map 10000)
             if (MapID == 10000 && src.PrevMap?.DstMap == 10001)
             {
-                bool hasTent = src.Inv != null && (src.Inv.ContainsItem(32000, out _) || src.Inv.ContainsItem(32001, out _));
+                bool hasTent = src.Inv != null && (src.Inv.ContainsItem(36002, out _) || src.Inv.ContainsItem(32000, out _) || src.Inv.ContainsItem(32001, out _));
                 if (!hasTent)
                 {
                     // 1. Play Tent acquisition cutscene frame
                     src.Send(Tools.FromFormat("bbbbwb", 20, 1, 0, 1, (ushort)30126, (byte)0));
 
-                    // 2. Add Space Tent (32000) and Space Remote (32075) to inventory
+                    // 2. Add Authentic Tent (36002) and Remote Control (34058) to inventory
                     if (src.Inv != null)
                     {
-                        src.Inv.AddItem(32000, 1);
-                        src.Inv.AddItem(32075, 1);
+                        src.Inv.AddItem(36002, 1);
+                        src.Inv.AddItem(34058, 1);
                     }
 
                     // 3. Mark Astrologer Tent Quest (10035) Completed
@@ -1264,8 +1264,11 @@ namespace Game
                 #region Tent Warp
                 case TeleportType.Tent:
                     {
-                        // Check if tent exists
-                        if (!Tents.ContainsKey(warp.DstMap))
+                        uint tentKey = warp.DstMap;
+                        Tent targetTent = null;
+                        if (!Tents.TryGetValue(tentKey, out targetTent) &&
+                            !(tentKey > 100000 && Tents.TryGetValue(tentKey - 100000, out targetTent)) &&
+                            !Tents.TryGetValue(100000 + tentKey, out targetTent))
                         {
                             DebugSystem.Write(DebugItemType.Error, $"[ERROR] Tent {warp.DstMap} not found in Tents dictionary!");
                             break;
@@ -1289,10 +1292,10 @@ namespace Game
                             DebugSystem.Write($"[Teleport.Tent] Saved return location for {sender.CharName}: Map {sender.CurMap.MapID} ({sender.CurX},{sender.CurY})");
                         }
 
-                        Warp_Out((byte)(portalID & 0xFF), sender, warp, (teletype == TeleportType.Tent));// warp out of map
+                        Warp_Out((byte)(portalID & 0xFF), sender, warp, true);// warp out of map
                         sender.CurX = warp.DstX_Axis;//switch x
                         sender.CurY = warp.DstY_Axis;//switch y
-                        Tents[warp.DstMap].Warp_In(TeleportType.Tent, sender, warp);
+                        targetTent.Warp_In(TeleportType.Tent, sender, warp);
                     }
                     break;
                 #endregion
@@ -1539,27 +1542,63 @@ namespace Game
         #region Tent
         public void onTentOpened(Tent Tentsrc)
         {
-            if (Tents.TryAdd(Tentsrc.MapID, Tentsrc))
-                Broadcast(Tools.FromFormat("bbdWddW", 65, 1, Tentsrc.MapID, 36002, Tentsrc.X, Tentsrc.Y, 0));
+            Tents[Tentsrc.MapID] = Tentsrc;
+            if (Tentsrc.Owner != null) Tents[Tentsrc.Owner.CharID] = Tentsrc;
+            Broadcast(Tools.FromFormat("bbdWddW", 65, 1, Tentsrc.MapID, 36002, Tentsrc.X, Tentsrc.Y, 0));
         }
         public void onTentClosing(Tent tent)
         {
-            if (Tents.TryRemove(tent.MapID, out tent))
-                Broadcast(Tools.FromFormat("bbd", 65, 4, tent.MapID));
+            Tent dummy;
+            Tents.TryRemove(tent.MapID, out dummy);
+            if (tent.Owner != null) Tents.TryRemove(tent.Owner.CharID, out dummy);
+            Broadcast(Tools.FromFormat("bbd", 65, 4, tent.MapID));
         }
         public void onEnterTent(UInt32 ID, Player p)
         {
             if (p == null) return;
+
+            // Ensure tent exists in dictionary (resolve via MapID or Owner CharID)
+            Tent targetTent = null;
+            if (!Tents.TryGetValue(ID, out targetTent) &&
+                !(ID > 100000 && Tents.TryGetValue(ID - 100000, out targetTent)) &&
+                !Tents.TryGetValue(100000 + ID, out targetTent))
+            {
+                uint ownerId = ID > 100000 ? (ID - 100000) : ID;
+                if (p.CharID == ownerId && p.Tent != null)
+                {
+                    targetTent = p.Tent;
+                    Tents[ownerId] = targetTent;
+                    Tents[100000 + ownerId] = targetTent;
+                    DebugSystem.Write($"[Map] Restored owner tent {ID} for {p.CharName}");
+                }
+                else
+                {
+                    var owner = DataBase.CharacterDataBase.GlobalInstance?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == ownerId);
+                    if (owner?.Tent != null)
+                    {
+                        targetTent = owner.Tent;
+                        Tents[ownerId] = targetTent;
+                        Tents[100000 + ownerId] = targetTent;
+                        DebugSystem.Write($"[Map] Restored visitor tent {ID} owned by {owner.CharName}");
+                    }
+                }
+            }
+
+            if (targetTent == null)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[Map] Tent {ID} could not be resolved.");
+                return;
+            }
 
             // Save player's current overworld location before entering tent
             if (this.Type != MapType.Tent)
             {
                 ushort retX = (ushort)p.CurX;
                 ushort retY = (ushort)p.CurY;
-                if ((retX == 0 || retY == 0) && Tents.ContainsKey(ID) && Tents[ID].X > 0)
+                if ((retX == 0 || retY == 0) && targetTent.X > 0)
                 {
-                    retX = (ushort)Tents[ID].X;
-                    retY = (ushort)Tents[ID].Y;
+                    retX = (ushort)targetTent.X;
+                    retY = (ushort)targetTent.Y;
                 }
 
                 p.TentReturnMap = new WarpData()
@@ -1577,35 +1616,9 @@ namespace Game
                 DebugSystem.Write($"[Map.onEnterTent] Saved return location for {p.CharName}: Map {this.MapID} ({retX},{retY})");
             }
 
-            // Ensure tent exists in dictionary
-            if (!Tents.ContainsKey(ID))
-            {
-                if (p.CharID == ID && p.Tent != null)
-                {
-                    Tents.TryAdd(ID, p.Tent);
-                    DebugSystem.Write($"[Map] Restored owner tent {ID} for {p.CharName}");
-                }
-                else
-                {
-                    var owner = DataBase.CharacterDataBase.GlobalInstance?.GetOnlinePlayers()?.FirstOrDefault(x => x.CharID == ID);
-                    if (owner?.Tent != null)
-                    {
-                        Tents.TryAdd(ID, owner.Tent);
-                        DebugSystem.Write($"[Map] Restored visitor tent {ID} owned by {owner.CharName}");
-                    }
-                }
-            }
-
-            if (!Tents.ContainsKey(ID))
-            {
-                DebugSystem.Write(DebugItemType.Error, $"[Map] Tent {ID} could not be resolved.");
-                return;
-            }
-
-            var targetTent = Tents[ID];
-
             // Lock guard: if tent is locked, non-owners cannot enter
-            if (targetTent.Locked && p.CharID != ID)
+            uint actualOwnerId = targetTent.Owner != null ? targetTent.Owner.CharID : (ID > 100000 ? ID - 100000 : ID);
+            if (targetTent.Locked && p.CharID != actualOwnerId)
             {
                 p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Çadır kilitli! (Tent is locked)"));
                 DebugSystem.Write($"[Map.onEnterTent] {p.CharName} blocked from entering locked tent {ID}");
@@ -1616,7 +1629,7 @@ namespace Game
             targetTent.SetReturnLocation((ushort)this.MapID, (ushort)p.CurX, (ushort)p.CurY);
 
             WarpData tmp = new WarpData();
-            tmp.DstMap = (ushort)ID;
+            tmp.DstMap = (ushort)(actualOwnerId <= ushort.MaxValue ? actualOwnerId : (targetTent.MapID <= ushort.MaxValue ? targetTent.MapID : 0));
             tmp.DstX_Axis = 460;
             tmp.DstY_Axis = 700;
             Teleport(TeleportType.Tent, p, 0, tmp);

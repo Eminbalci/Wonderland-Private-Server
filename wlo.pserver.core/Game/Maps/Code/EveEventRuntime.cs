@@ -814,12 +814,23 @@ namespace Game.Maps
             var token = new object();
             player.NativeEventToken = token;
             player.NativeEventActive = true;
+            if (clickId > 0 && map != null)
+            {
+                player.LastNpcClick = clickId;
+                player.LastNpcMap = (ushort)map.MapID;
+            }
             player.Send(Tools.FromFormat("bbb", 6, 2, 1));
             int index = 0;
             Action advance = null;
             Action finish = () => {
                 if (player.NativeEventToken != token) return;
                 player.CancelInteraction();
+                if (clickId > 0 && map != null)
+                {
+                    player.LastNpcClick = clickId;
+                    player.LastNpcMap = (ushort)map.MapID;
+                    player.NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(2500);
+                }
                 QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
                 player.SaveCharacterData();
             };

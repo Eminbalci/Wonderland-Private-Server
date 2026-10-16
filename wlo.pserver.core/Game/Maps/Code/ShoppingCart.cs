@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +8,7 @@ namespace Game.Maps.Code
 {
     public struct ShoppingCart
     {
-        public byte slot;
+        public ushort slot;
         public byte ammt;
     }
 }

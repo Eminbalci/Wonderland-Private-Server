@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -18,6 +18,16 @@ namespace Game.Code
         ItemUnavailable = 2,
         TooManyItems = 3,
         Rejected = 4
+    }
+
+    public enum NpcBuyResult : byte
+    {
+        Success = 0,
+        NotEnoughGold = 1,
+        InventoryFull = 2,
+        ItemUnavailable = 3,
+        TooManyItems = 4,
+        Rejected = 5
     }
 
     public class Inventory
@@ -64,6 +74,53 @@ namespace Game.Code
                 owner.Eqs.SendGold();
                 owner.SaveCharacterData();
                 return NpcSaleResult.Success;
+            }
+        }
+
+        public NpcBuyResult BuyFromNpc(Game.Maps.Code.ShoppingCart[] cartItems)
+        {
+            if (cartItems == null || cartItems.Length == 0) return NpcBuyResult.Rejected;
+            if (cartItems.Length > 10) return NpcBuyResult.TooManyItems;
+            if (owner?.CurMap == null || Game.Battle.PvEBattleManager.IsInBattle(owner)) return NpcBuyResult.Rejected;
+
+            lock (mylock)
+            {
+                ulong totalCost = 0;
+                var requestedItems = new Dictionary<ushort, int>();
+
+                foreach (var entry in cartItems)
+                {
+                    if (entry.ammt == 0) continue;
+                    ushort itemId = entry.slot;
+
+                    var itemInfo = ItemDat?.GetItemByID(itemId);
+                    if (itemInfo == null) return NpcBuyResult.ItemUnavailable;
+
+                    uint[] priceInfo;
+                    NpcSalePrices.Value.TryGetValue(itemId, out priceInfo);
+                    uint unitPrice = (priceInfo != null && priceInfo[0] > 0) ? (priceInfo[0] * 2) : 10u;
+                    totalCost += (ulong)unitPrice * entry.ammt;
+
+                    if (requestedItems.ContainsKey(itemId))
+                        requestedItems[itemId] += entry.ammt;
+                    else
+                        requestedItems[itemId] = entry.ammt;
+                }
+
+                if (requestedItems.Count == 0) return NpcBuyResult.Rejected;
+                if (totalCost > (ulong)owner.Eqs.Gold) return NpcBuyResult.NotEnoughGold;
+                if (!CanAddItems(requestedItems)) return NpcBuyResult.InventoryFull;
+
+                if (totalCost > 0 && !owner.Eqs.TakeGold((int)totalCost)) return NpcBuyResult.NotEnoughGold;
+
+                foreach (var kvp in requestedItems)
+                {
+                    AddItem(kvp.Key, (byte)Math.Min((int)byte.MaxValue, kvp.Value), true);
+                }
+
+                owner.Eqs.SendGold();
+                owner.SaveCharacterData();
+                return NpcBuyResult.Success;
             }
         }
 

@@ -7,6 +7,7 @@ using Game;
 using Game.Code;
 using Game.PlayerRelated;
 using Network;
+using Game.Maps;
 using wlo.pserver.core.Game;
 
 namespace Network.ActionCodes
@@ -37,7 +38,7 @@ namespace Network.ActionCodes
                 case 33: Recv33(r, p); break; // Client native Private Shop Purchase Confirmation
                 case 63: Recv63(r, p); break; // Client native Pet Stall Purchase Confirmation (0x3F)
                 case 68: Recv68(r, p); break; // Client native Utensil/Vehicle Stall Purchase Confirmation (0x44)
-                case 54: Recv54(r, p); break;// Request Item Mall Catalog List
+                case 54: Recv54(r, p); break; // Client clearing fishing / gathering state (0x17:0x36)
                 case 75: RecvPack(r, p); break; // Original pack/egg native double-click
                 case 128: RecvPack(r, p); break; // Later packs native double-click
                 case 77: Recv77(r, p); break;// Request Player Stall / Market Listings
@@ -120,12 +121,10 @@ namespace Network.ActionCodes
         {
             try
             {
-                // Dispatch catalogs and point balance so client flag 0x5698 is active
-                ItemMallManager.SendCatalog(p, isBonus: false);
-                ItemMallManager.SendCatalog(p, isBonus: true);
-                ItemMallManager.SendPointBalance(p);
-
-                DebugSystem.Write($"[AC23.Recv54] Item Mall catalogs and balance dispatched to {p.CharName}");
+                // AC 23:54 (0x17:0x36) = Client clearing fishing / gathering state (LocalPlayer + 0x20b5 = 0)
+                p.Fishing = false;
+                Game.Crafting.GatheringManager.StopGathering(p);
+                DebugSystem.Write($"[AC23.Recv54] Cleared fishing/gathering state for {p.CharName}");
             }
             catch (Exception t) { Console.WriteLine(t); }
         }
@@ -716,19 +715,92 @@ namespace Network.ActionCodes
         {
             try
             {
-                if (r.Buffer.Length - r.GetPtr() < 4) return;
+                if (r.Buffer.Length - r.GetPtr() < 1) return;
                 byte slot = r.Unpack8();
-                byte count = r.Unpack8();
-                ushort target = r.Unpack16();
+                byte count = 1;
+                try { if (r.Buffer.Length - r.GetPtr() >= 1) count = r.Unpack8(); } catch { count = 1; }
+                ushort target = 0;
+                try { if (r.Buffer.Length - r.GetPtr() >= 2) target = r.Unpack16(); } catch { target = 0; }
+
                 if (slot < 1 || slot > 50) return;
+                var item = p.Inv[slot];
+                if (item == null || item.ItemID == 0) return;
+                ushort itemId = item.ItemID;
+
+                // 1. Pet Vouchers & Gacha
                 if (Game.PetRelated.PetVoucherManager.TryRedeem(p, slot, count, target)) return;
-                if (GachaManager.IsGacha(p.Inv[slot].ItemID))
+                if (GachaManager.IsGacha(itemId))
                 {
                     if (target == 0 && count == 1) GachaManager.TryOpen(p, slot);
                     else p.SendHeadBanner("Open one gacha pack at a time on your character.");
                     return;
                 }
-                if (p.Inv[slot].ItemID == 36002) { p.Tent.Open(); return; }
+
+                // 2. Tent Item (36002 or legacy 32000 or Type Tent)
+                if (itemId == 36002 || itemId == 32000 || item.Type == global::DataFiles.eItemType.Tent)
+                {
+                    if (p.Tent != null) p.Tent.Open();
+                    return;
+                }
+
+                // 3. Equipable Items (Equippos 1..6)
+                var itemInfo = cGlobal.ItemDatManager?.GetItemByID(itemId);
+                if (itemInfo != null && itemInfo.Equippos >= 1 && itemInfo.Equippos <= 6)
+                {
+                    p.WearEQ(slot);
+                    p.SaveCharacterData();
+                    return;
+                }
+
+                // 4. Vehicles and Mounts (Bamboo Dragonfly 34169, Raft 48010/48016, Type Vehicle)
+                if (itemId == 34169 || item.Type == global::DataFiles.eItemType.Vehicle || (itemId >= 48010 && itemId <= 48045))
+                {
+                    if (p.ActiveVehicleID == itemId)
+                    {
+                        VehicleManager.DismountVehicle(p);
+                    }
+                    else
+                    {
+                        VehicleManager.MountVehicle(p, slot, itemId);
+                    }
+                    return;
+                }
+
+                // 5. Utility: Notepad (34038)
+                if (itemId == 34038)
+                {
+                    NotebookManager.SendQuestJournal(p);
+                    return;
+                }
+
+                // 6. Utility: Remote Control (34058 or 32075)
+                if (itemId == 34058 || itemId == 32075)
+                {
+                    p.Send(Tools.FromFormat("bb", 29, 6));
+                    return;
+                }
+
+                // 7. Utility: Return Scrolls (Kelan 30001, Teleport 34163)
+                if (itemId == 30001 || itemId == 34163)
+                {
+                    p.Inv.RemoveItem(slot, 1);
+                    WarpData warp = new WarpData { DstMap = 12000, DstX_Axis = 892, DstY_Axis = 734 };
+                    p.CurMap?.Teleport(TeleportType.Regular, p, 0, warp);
+                    p.SaveCharacterData();
+                    return;
+                }
+
+                // 8. Consumable: EXP Potions (StatusType contains 250)
+                if (itemInfo != null && itemInfo.StatusType != null && itemInfo.StatusType.Contains((ushort)250))
+                {
+                    p.Inv.RemoveItem(slot, 1);
+                    p.Send(Tools.FromFormat("bb", 23, 15));
+                    p.SendSystemMessage($"Activated EXP Potion (#{itemId}).");
+                    p.SaveCharacterData();
+                    return;
+                }
+
+                // 9. Consumable: Recovery items & Pet Food
                 if (!TryUseRecoveryItem(p, slot, count, target))
                     p.SendHeadBanner("This item cannot benefit the selected target right now.");
             }

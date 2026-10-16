@@ -668,6 +668,7 @@ namespace Game
         public ushort LastNpcClick { get; set; }
         public ushort LastNpcMap { get; set; }
         public DateTime NpcClickResumeAt { get; set; }
+        public uint CurrentShopCatalogId { get; set; }
 
         public void OpenNpcSale(byte mode)
         {
@@ -1835,6 +1836,7 @@ namespace Game
         public bool BeachCutsceneActive { get; set; }
         public int BeachCutsceneStep { get; set; } = 0;
         public bool PlayingStormCutscene { get; set; }
+        public bool StormCutsceneAckReceived { get; set; }
         public DateTime StormCutsceneStartTime { get; set; } = DateTime.MinValue;
         public Queue<Action> StepQueue { get; set; } = new Queue<Action>();
         public int LastDialogueAdvanceTick { get; set; } = 0;
@@ -1843,9 +1845,9 @@ namespace Game
         {
             ClearInteraction();
             NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(1500);
-            // AC6:2/AC20:8 release interaction; AC5:4 would replay map-entry UI.
             Send(Tools.FromFormat("bbb", 6, 2, 0));
             Send(Tools.FromFormat("bb", 20, 8));
+            Send(Tools.FromFormat("bb", 5, 4));
         }
 
         public void ClearInteraction()

@@ -64,6 +64,7 @@ namespace Game.Code
         public uint Y { get { return _mapy; } }
         public GameMap OwnerMap { get { return _ownerMap; } }
         public uint OwnerMapID { get { return _ownerMap != null ? _ownerMap.MapID : 0; } }
+        public Game.Player Owner { get { return _owner; } }
 
         public void SetReturnLocation(ushort mapId, ushort x, ushort y)
         {
@@ -368,6 +369,10 @@ namespace Game.Code
 
             tmp.Add(Tools.FromFormat("bb", 23, 102));
             tmp.Add(Tools.FromFormat("bb", 20, 8));
+            t.LastSpawnX = t.CurX;
+            t.LastSpawnY = t.CurY;
+            t.LastTeleportTime = DateTime.UtcNow;
+            t.Send(new SendPacket(tmp.End()));
             t.Flags.Add(Game.PlayerFlag.InTent); //t.CharacterState = PlayerState.inMap;
         }
 

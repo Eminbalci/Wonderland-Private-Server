@@ -1,285 +1,255 @@
-WLO Private Server CheatEngine
+# Wonderland Online Private Server & Emulation Framework
 
-> Local changes (2026-09-21): see [the local gameplay changelog](docs/CHANGELOG-merge-20260921.md) for this branch's changes relative to upstream Develop and their verification limits.
+A high-performance, reverse-engineered Wonderland Online (WLO) server emulator and administration suite built in C# targeting .NET Framework 4.6.2 (`net462`). Features multi-threaded socket servers, byte-for-byte protocol synchronization with official client binaries (`aLogin.exe` and `Main.exe`), dual-database persistence (SQLite and MySQL/MariaDB), native `Eve.emg` event script interpretation, turn-based isometric combat, and an extensive operator administration dashboard.
 
 Discord invite link : http://discord.gg/J79ezkpzrT
 
-Developing Tools: Visual Studio 2022
 
-Database: sqlite bypass
+---
 
-- **100% Dynamic Portability**: Zero hardcoded absolute paths. Seamless path resolution across all workstations via `RCLibrary.Core.PathHelper`.
-- **Dual Database Engine (SQLite & MySQL / MariaDB)**: Full GUI-configurable persistence supporting both embedded SQLite (`Data/ServerDataBase.db`) and remote/local MySQL servers. Includes non-blocking connection testing, live runtime switching across all active database instances, automatic database & schema auto-creation (`VerifySetup()`), self-healing incremental column migration (`GetColumnNames` / `AddColumnIfNotExists`) eliminating boot-time duplicate column errors, transparent dialect translation (`TranslateSqlForMySql`), and a built-in 1-click SQLite-to-MySQL data migration engine with real-time progress reporting.
-- **Tri-Server Socket Architecture**:
-  - **Login Server (Port 6414)**: Authentication, account management, character selection/creation, Item Mall catalog sync (`AC 75`).
-  - **World Server (Port 6415)**: Overworld replication, tile pathfinding, turn-based combat engine, quests, dialogue engine, housing.
-  - **Item Mall Server (Port 6416)**: Microtransaction catalog and promotional point currency transactions.
-  - **Registration API (Port 8080)**: REST API endpoint for account creation.
-- **Complete Action Code Protocol Catalog (AC 0 - AC 226)**: Full support for turn-based battles (`AC 11`/`AC 50`/`AC 51`/`AC 52`/`AC 53`), lucky draw wheel (`AC 104`), vehicle/mount system (`AC 15`), tent housing (`AC 12`), quests (`AC 39`/`AC 52`), scene entities (`AC 22`), inventory bag (`AC 23`), friend system (`AC 14`), companion pets (`AC 15`/`AC 19`), and cinematic cutscenes (`AC 20`/`AC 186`).
-- **Authentic Pet & Companion Lifecycle Protocol Engine (`AC 15`, `AC 19`, `AC 8:2`)**: Official packet-level implementation of character login companion roster synchronization (`AC 15:1` per companion + authentic skill unlock via `AC 8:2` Stat `0x016F` with TargetType `0x04` and roster slot), dynamic companion skill catalog resolution spanning curated human abilities and `Npc.dat` `SkillID1..3` fallback, in-battle real-time SP consumption sync (`AC 8:2` Stat `0x011A`) and skill proficiency EXP (`AC 8:2` Stat `0x016F`), real-time HP synchronization upon taking damage, healing, or revival (`AC 8:2` Stat `0x0119`), post-battle level-up progression sync (`AC 8:2` Level `0x011D`, HP `0x0119`, SP `0x011A`), combat battle EXP gain sync (`AC 8:2` Stat `0x0124` matching PCAP Seq 1180), companion battle auto-revival for knocked out pets entering combat, active battle companion designation (`AC 19:4` / `AC 19:1`), authentic overworld visual follower spawning (`AC 15:4` with 8-byte trailing equipment padding) broadcast to map peers without leaking private pet roster packets to foreign clients, standby/rest despawning (`AC 19:7 [CharID: UInt32]` followed by `AC 19:2`), mount/dismount replication (`AC 15:11` -> `AC 15:16`, `AC 15:12` -> `AC 15:17`), and combat battle spawn alignment in `AC 11:5` (friendly team side `0x05`, enemy side `0x01`, pet slot indexing, and corrected Level/Element byte ordering).
-- **Authentic Turn-Based Combat Protocol Engine**: Byte-for-byte alignment with official network captures (`session_20260911_150803`). Resolves monster stats and templates via an O(1) in-memory cache loaded from `npc_data` table (4,928 authentic entries), serializes fighter entities in `AC 11:5` & `AC 11:250` with exact byte offsets (Byte 26 = Level, Byte 27 = Element, preventing the "Lv. 0" display defect), prompts turn input via `AC 52:1` without premature `AC 50:6`, acknowledges player moves via `AC 53:5` to advance focus automatically to pet, broadcasts active-turn replay focus via `AC 50:6`, serializes continuous 19-byte `AC 50:1` action animation records, triggers in-combat knockouts via `AC 53:3` without premature entity despawns, synchronizes real-time stats via `AC 51:1`, broadcasts `AC 11:4` crossed-swords combat presence (`[0x02, CharID: UInt32, 0x00, 0x00, State: Byte]`) to map peers via strongly-typed packet serialization eliminating `System.OverflowException` on 32-bit Character IDs, calibrates combat drop engine to authentic MMO rates (capping at 1 item drop per monster kill with full inventory detection and chat alerts, plus `:clearinv` bag cleanup), and executes canonical exit despawn sequencing (`AC 11:12` -> 4-byte pet `AC 11:1` -> 6-byte player `AC 11:0` -> 5-byte player `AC 11:1`).
-- **Authentic Social & Friend Protocol Engine (`AC 14` & `AC 10`)**: Official packet-level implementation of friend tabs (`AC 14:11`, 26 bytes/friend), main roster (`AC 14:5`, 28 bytes/friend), mutual invitation/acceptance handshake (`AC 14:2` -> `AC 14:3` -> `AC 14:9`), dual live online presence notifications (`AC 14:7` and `AC 10:3 [CharID, 0xFF]`), and bilateral friend removal with UI sprite/row de-allocation (`AC 14:4 <TargetCharID>`).
-- **Authentic Asset Parsing**: In-memory decryption and caching of `Npc.dat` (4,928 NPCs via XOR `0x5209`), `itemDat.wpdat` (4,818 authentic 47-byte items), `Skill.dat`, `Talk.dat` (17,494 records), `Mark.dat`, `SceneData.dat`, and `Eve.emg` event scripts (1,119 maps, 10,644 event scripts, 1,412 PreEvents, 8,181 native NPCs, and 2,791 warps).
-- **Modernized User-Friendly GUI Administration Suite**: Ergonomic operator interface with two-tier horizontal navigation (Level 1: 5 primary categories; Level 2: dynamic sub-module pill strip preserving 100% full screen width for grids and maps), persistent executive header with live telemetry (player count, uptime, RAM, ports), quick jump search (`Ctrl+K`), one-click client launcher (`F5`), database-backed MOTD and server name persistence (`server_settings` relational synchronization across reboots and migrations with automatic boot-time loading and auto-save on blur, Enter key, or manual save), safe shutdown with synchronized countdown, diagnostic console toolbar (clear, copy, auto-scroll toggle, search, export), debounced cheat list search, and modular `ModernTheme` design system with universal Segoe UI / double-buffered DataGrid theming.
-- **Dynamic Ground Items Lifecycle (`AC 23`)**: Automatic map loading of native terrain resources from `Eve.emg` `ItemAreas` (209 items across 77 maps). Real-time authentic batched spawning (`AC 23:4`), terrain slot pickups (`AC 23:2`), gold item banner acquisition popups (`AC 23:6`), and asynchronous heartbeat respawning.
-- **Robust NPC Spatial AI & Wander Boundaries**: Authentic signed bounding-box roaming (`WalkBehavior == 3`), waypoint patrol oscillation (`WalkBehavior == 2 / 5`), and static anchors (`WalkBehavior == 1`) preventing map boundary drift or corner teleports.
-- **State-Verified Dialogue & Quest Safeguards**: Multi-event candidate evaluation prioritizing post-quest resolution over completed stages, multi-candidate event aggregation (direct clickID + linked NPC events) with strict quest/companion condition qualification without premature forced defaults, multi-subentry chained state transitions (such as Robinson Event 19 raft delivery -> dialogue -> companion recruitment) with candidate rescue fallbacks, zero-op condition gate priority pass supporting dual item (`w1=1`) and companion (`w1=2`, active team, capacity, recruitment) condition decoding, Quest State Condition decoding, paired quest completion flags (`questId + 1`), persistent SQLite quest `step` tracking, and irreversible completion locks preventing quest demotion loops.
-- **Authentic Starter Pack, 31-Byte Record Alignment, Chest Safeguards & Raft Wreck Protocol**: Complete 31-byte fixed record item serialization (`AC 23:5` / `AC 30:5`) and 21-byte equipment serialization (`AC 23:11`) preventing client parser desynchronization and guaranteeing full multi-item visibility across all 50 bag slots. Deduplicated single `AC 23:6` acquisition banner and `player.Quests` persistence check preventing chest double-granting. Client bag slot tracking (`MountedVehicleSlot`) with single `AC 23:9` slot clearing and authentic 7-step shore wrecking sequence (`AC 15:14 -> AC 23:9 -> AC 15:15 -> AC 15:11 -> AC 5:4`) preventing raft phantom icons.
-- **Pre-Event NPC Visibility, Staged Quest Lifecycle & Universal Cutscene Dummy Suppression**: Comprehensive bidirectional multi-target PreEvent evaluation and per-player entity lifecycle tracking (`player.HiddenNpcClickIDs`). Authentic 14-byte `AC 22:4` entity table serialization utilizing State `0xFFFF`, EntityType Byte 8 (`2 = Hidden`), and Despawn Code `0x03E7FC18` (65,535,000 ms) invoking client `FUN_00432674` to set `*(actor + 0x1eec) = 2` and clear map collision grid via `FUN_0043d390`. Suppresses client actor rendering (`FUN_0043d58c`) and disables mouse cursor hit-testing (client lines 308016 & 308092). Dynamic runtime concealment (despawn) and reveal (spawn) transmits single-record `AC 22:4` frames (`[ClickID, 0xFFFF, X, Y, Type=2, Duration=0x03E7FC18, 0]` for despawn, `[ClickID, 0x00FF, X, Y, Type=1, Duration=0, 0]` for spawn). Evaluates `Eve.emg` 21-byte PreEvent condition bytecodes (Opcodes `0x01` unconditional, `0x02` companion recruitment mode 1 [recruited] / mode 2 [not recruited], `0x03` quest step/item check, `0x05` quest marks/steps) with multi-subentry compound rule grouping (AND logic across subentries with trailing zero-action conditions) and Action Opcode `0x02` (ActionType `2` conceal vs ActionType `3` reveal). Universally detects and eliminates 230 duplicate cutscene dummy actors across 108 maps by concealing zero-event puppets sharing Template IDs with primary dialogue NPCs on map entry. Enforces default concealment for all staged actors targeted by `ActionType 3` (reveal) rules until their matching quest conditions evaluate to true. Integrates declarative `SpawnNpcClickIDs` and `DespawnNpcClickIDs` into `QuestDefinition` and `QuestStep`, automatically synchronizes visibility in real time across `QuestManager` lifecycle operations (`AcceptQuest`, `AdvanceQuestStep`, `SetPlayerQuestState`, `CompleteQuest`, `ResetQuest`) and `EveEventInterpreter` opcodes (2, 3, 5, battle victory) without requiring map re-entry, and enforces server-side interaction guards in `AC20.Recv1` and `Map.ProcessInteraction`. Fully isolates staged quest NPCs and props on Map 12000, Map 12001 (Chief's House: staged cutscene Roca ClickID 3 concealed, static Roca ClickID 2 hidden upon recruitment), Map 11003 (Holy Village: Niss ClickID 9 visible, dummy puppets 38/39 concealed; Match Girl ClickID 11 visible, dummy puppet 18 concealed), and Map 11016 (S. Monkey visible to new players, concealed upon recruitment; Robinson re-issue and seasonal NPCs suppressed until active).
-- **Interactive Map Props, Chests & Entity State Synchronization (`AC 22:4`, `AC 22:1`, `AC 22:10`)**: Authentic 14-byte entity table synchronization with proper intact frame (`0x00FF`) vs opened/broken frame (`0x0001`), eliminating the bug where barrels/chests spawned broken by default due to inverted `0x0000` state. Per-player quest container isolation preventing one-time quest props from leaking shared broken state across players, unicast break animations for quest containers, and automatic intact frame restoration (`AC 22:1` Action 0) upon renewable gathering node respawn.
-- **Companion Actor Despawning & Overworld Visibility Isolation**: Full dynamic despawning of recruited companion NPCs (Robinson, Roca, S. Monkey, Clive, Niss, etc.) using authentic `AC 22:4` concealment frames (`State = 0xFFFF`, `EntityType = 2`, `Duration = 0x03E7FC18`). Multi-tier resolution through `Player.IsSamePetOrCompanion`, `Npc.dat` canonical name resolution for generic Eve names (`" Npc"`), active pet verification, and quest flag safeguards (including Quest 12002 for S. Monkey) completely eliminating overworld companion duplicates (e.g. Robinson on Starter Beach Map 11016).
-- **Cinematic Cutscene Timeline & Animation Pre-Dialogue Sequencing**: Authentic dispatch of cutscene animation opcodes (`AC 20:1 SubCode 1 Type 5 Cutscene ID 12008` for Rhode Island Beach arrival) with client ACK (`AC 20:6`) step synchronization, mobility restoration (`AC 20:8`, `AC 5:4`), and fail-safe timeouts ensuring cutscene animations play to completion before dialogue trees begin.
-- **Graceful Shutdown & Diagnostic Countdown**: Non-immediate shutdown saves all player, inventory, and server data, displays the exact canonical log file location on the console, and executes a 10-second countdown before process exit.
-- **Codebase Deduplication & Dead-Code Optimization**: System-wide cleanup purging 13 uncompiled legacy files, eliminating 1,850+ lines of dead commented code across combat, player, and action code subsystems, centralizing database table DDL checks to boot-time execution, extracting unified peer entity replication helpers in Map engine, and enforcing 0-error 0-warning compilation.
-- **Experimental Features Lab & Bleeding-Edge Gameplay Suite (23 Dedicated Sub-Engines)**: Full modular implementation of the roadmap gap suite in `Game.Experimental` with dedicated `🧪 Experimental` cockpit in GUI. Includes: Instance Dungeon & Wave Stage engine (`AC 85` & `Eve.emg` Opcode 17) for Maps 30000+; Ranked PvP Matchmaking & Elo Arena (`AC 183` / `AC 186`) with standard Elo calculation ($K=32$); Guild Siege Warfare (`AC 184` & `AC 92`) managing fortress crystal durability across 3 territories, battle transitions, and tax accumulation; Carnival Arcade Minigames (`AC 57`) with session score verification and prize disbursement; Seasonal Festival Races (`AC 226`) with ordered checkpoint validation and anti-speedhack velocity checks; Dungeon Lever Switches & Obstacle Unmasking (`Eve.emg` Opcode 16); Companion Specialization Trees (`AC 199`); Community Blackboard Bulletin & Guild Notice Board (`AC 82`); Church Charity Tithes, Divine Blessings & Karma (`AC 76`); Equipment Durability Wear, Repair Hammers & Potential Forge (`AC 40`); Gobang (Gomoku) 15x15 Ante Wagers (`AC 41`); Authentic Fishing & Aquaculture Dynamics (`AC 90`); Hot Spring Bathing & Rest Vitality Recovery (`AC 44`); Secondary PIN Vault & Anti-Theft Security (`AC 24`); Overworld Player Stall Vending & Pet Bazaar (`AC 53` / `AC 94` & Spec 53) with Dual-Entity visual rendering (Map NPC `StallVendorNpc` + Visual Actor Avatar + Floating Signboard `AC 56:30` + `Form_BuyItemStall_1` `AC 20:15` + chat `:buystall`); Dynamic Weather Simulation & Day-Night Ambient Lighting (`AC 88`); Vehicle Transport Fleet, Fuel Consumption & Mount Durability (`AC 84` / `AC 86`); Municipal ATM Banking & Wires (`AC 26`); Player Prestige Title & Achievement system (`AC 40`); Geological Treasure Excavation & Surveying (`AC 90`); Carnival Prize Lottery Wheel (`AC 76`); Tent Housekeeper Butler & Auto-Crafter (`AC 62`); and Turn-Based Combat Status Condition Engine (`AC 114`). Fully equipped with 23 live runtime toggles, custom map/coordinate spawning controls, and disk persistence (`Data/experimental_settings.ini`).
+## 1. System Architecture & Core Topology
 
-Running steps:
+The server architecture is structured into decoupled network, data, and gameplay subsystems:
 
-1. rhode island install : [drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY](https://drive.google.com/file/d/18z5H1w5G9GujMJywRHL-uOac4fFyOTSY)
-2. Ensure `SERVER.INI` in the client directory is set to `127.0.0.1`
-3. Server DAT files in `./Data` are synchronized with client data files (`Npc.dat`, `itemDat.wpdat`, `Skill.dat`, `Talk.dat`, `Eve.emg`, `Ground.MMG`, `SkillData.MBTM`, etc.).
-   - Note: The large 1.42 GB sprite archive `odd.dat` can be downloaded directly from [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
-4. Run `Wonderland Private Server.exe` in `bin/Debug` & wait until log shows "Now listening for clients..."
-5. Run `aLogin.exe`, select server and login with `gmone` / `gmone`
+* **Tri-Server Socket Architecture:**
+  * **Login Server (Port 6414):** Handles account authentication, security validation, character enumeration, creation, deletion, and Item Mall catalog synchronization ([`LoginServer.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/LoginServer.cs)).
+  * **World Server (Port 6415):** Drives overworld entity replication, tile pathfinding, turn-based combat encounters, interactive dialogues, quest state progression, companion pet lifecycles, and tent housing ([`WorldServer.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Server/WorldServer.cs)).
+  * **Item Mall Server (Port 6416):** Manages microtransaction catalogs, point balances, bonus points, and promotional currency transactions ([`ItemMallManager.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/ItemMallManager.cs)).
+  * **Registration REST API (Port 8080):** Lightweight HTTP service for account provisioning and web registrations.
+* **100% Dynamic Portability:** Zero hardcoded paths. All asset lookups, database locations, and client binaries resolve dynamically at runtime via [`PathHelper.cs`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/Core/PathHelper.cs).
+* **Dual Database Engine (SQLite & MySQL / MariaDB):**
+  * Embedded SQLite persistence via [`ServerDataBase.db`](file:///D:/GitHub/Wonderland-Private-Server/Data/ServerDataBase.db) requiring zero external dependencies.
+  * Native MySQL/MariaDB integration with live runtime switching, non-blocking connection verification, dialect translation via [`TranslateSqlForMySql`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataBase/DataBase.cs), self-healing column migrations (`AddColumnIfNotExists`), and a built-in 1-click SQLite-to-MySQL data migration engine with progress tracking ([`DatabaseMigrationEngine.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataBase/DatabaseMigrationEngine.cs)).
+* **Binary Asset Pipeline & Decoders:** Direct in-memory parsing and caching of official binary assets:
+  * `Npc.dat` (4,928 authentic NPC records decoded via XOR `0x5209` in [`PhxNpcDat.cs`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/DataFiles/PhxNpcDat.cs)).
+  * `itemDat.wpdat` (4,818 authentic 47-byte item records decoded in [`PhxItemDat.cs`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/DataFiles/PhxItemDat.cs)).
+  * `Skill.dat` and `SkillData.MBTM` (character and companion abilities in [`PhxSkillDat.cs`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/DataFiles/PhxSkillDat.cs)).
+  * `Talk.dat` (17,494 dialogue text entries in [`PhxTalkDat.cs`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/DataFiles/PhxTalkDat.cs)).
+  * `Mark.dat` (quest journal and task tracking definitions in [`PhxMarkDat.cs`](file:///D:/GitHub/Wonderland-Private-Server/PhoenixData/DataFiles/PhxMarkDat.cs)).
+  * `Eve.emg` (1,119 maps, 10,644 event scripts, 1,412 PreEvents, 8,181 native NPCs, and 2,791 warps parsed in [`EveLoader.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataFiles/EveLoader.cs)).
+  * `Formula.dat` (407-byte IEEE-754 double precision EXP progression curves in [`FormulaDat.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/DataFiles/FormulaDat.cs)).
+  * `Compound2.dat` (tent manufacturing recipes and synthesis formulas).
 
-The server technical documentation is organized into a cohesive 30-document master specification suite:
+---
 
-1. [**01 - System Architecture and Server Topology**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_system_architecture_and_server_topology.md): Multi-server socket topology, dynamic portability engine (`PathHelper`), threading model, project graph, and graceful shutdown.
-2. [**02 - Database Schema and Persistence Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_schema_and_persistence_lifecycle.md): Centralized SQLite and MySQL relational persistence, self-healing migration (`AddColumnIfNotExists`), automated schema verification (`VerifySetup`), and 1-click migration engine.
-3. [**03 - Network Protocol and Action Codes**](file:///D:/GitHub/Wonderland-Private-Server/docs/03_network_protocol_and_action_codes.md): Binary wire framing, `0x44F4` magic header, XOR `0xAD` encryption, little-endian serialization (`Tools.FromFormat`), and exhaustive Action Code reference catalog (AC 0 to AC 226).
-4. [**04 - Binary Asset Pipeline and Decoders**](file:///D:/GitHub/Wonderland-Private-Server/docs/04_binary_asset_pipeline_and_decoders.md): In-memory client asset decoders (`Npc.dat` XOR `0x5209`, `itemDat.wpdat` 47B, `Talk.dat` 292B, `Mark.dat` 526B, `SceneData.dat`, `Eve.emg`, `Formula.dat`, `Compound2.dat`) and [Starter Outfit Pipeline](file:///D:/GitHub/Wonderland-Private-Server/docs/starter_outfit_and_item_pipeline.md).
-5. [**05 - Map Engine, Spatial AI, and Scene Entity Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/05_map_engine_spatial_ai_and_scene_lifecycle.md): Isometric coordinate systems, NPC roaming AI, 209-item ground harvesting loop, 14-byte `AC 22:4` scene table, concealment frame sequencing, and puppet suppression.
-6. [**06 - Dialogue, Quest State Machine, and Cutscenes**](file:///D:/GitHub/Wonderland-Private-Server/docs/06_dialogue_quest_state_machine_and_cutscenes.md): Modal dialogue boxes, 24-bit talk IDs, choice callbacks, quest state monotonic progression, PreEvent condition evaluation, and cinematic timelines.
-7. [**07 - Turn-Based Combat Engine and Battlefield**](file:///D:/GitHub/Wonderland-Private-Server/docs/07_turn_based_combat_engine_and_battlefield.md): 4v4 isometric battlefield grid, byte-for-byte `AC 11:5` fighter serialization, 30s turn loop, elemental wheel, knockouts, fair-play drops, and 7-step exit handshake.
-8. [**08 - Companion Pet Lifecycle and Vehicles**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_companion_pet_lifecycle_and_vehicles.md): Companion login sync (`AC 15:1`), skill unlocks, amity decay and permanent desertion (<20), rebirth ascension, overworld follower spawning, and 7-step raft shore shipwreck protocol.
-9. [**09 - Tent Housing and Manufacturing System**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_tent_housing_and_manufacturing_system.md): Instanced personal tents keyed by `CharID`, multi-tenant instance isolation, overworld multi-tent replication (`SendOpenTents`), tent security locking, visitor permission guards, overworld coordinate preservation (`TentReturnMap`), crash/disconnect safe DB persistence, non-destructive doorway exit (`AC 65:3`), portal 1 exit, occupant evacuation on tent close, interior furniture placement (`chartent_items`), 2nd floor expansions, and authentic `Compound2.dat` tent machine manufacturing (`AC 64`).
-10. [**10 - Social Systems, Player Trade, Friends, and Chat**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_social_systems_trade_friends_and_chat.md): 50-slot bag with 31-byte records, bilateral friend roster (`AC 14:5`) and removal (`AC 14:4`), 4-phase atomic player trade, and multi-channel chat moderation.
-11. [**11 - GUI Administration Suite and GM Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/11_gui_administration_suite_and_gm_engine.md): Modernized Windows Forms dashboard with two-tier horizontal categorized navigation, 24 operational modules, executive telemetry header, database-backed MOTD persistence, and GM chat commands.
-12. [**12 - Formula.dat Specification and Experience Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/12_formula_dat_specification_and_exp_engine.md): Complete 407-byte binary schema, IEEE-754 double precision coefficients, client `TCalculator` disassembly, normal/reborn/pet EXP formulas, combat monster EXP distribution, and real-time multiplier control.
-13. [**13 - Quest Ecosystem, Census, and Flag Mapping**](file:///D:/GitHub/Wonderland-Private-Server/docs/13_quest_ecosystem_census_and_flag_mapping.md): Comprehensive census across `Mark.dat` and `Eve.emg`, explanation of community ~502 canonical journal quest count vs internal 1,027 master quests and 1,507 flag scripts, regional breakdowns, and pairing mechanics.
-14. [**14 - Developer Tooling, Reverse Engineering, and Deployment**](file:///D:/GitHub/Wonderland-Private-Server/docs/14_developer_tooling_reverse_engineering_and_deployment.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), asynchronous diagnostic logger (`DebugSystem`), PCAP analysis, Ghidra disassembly addresses, and bot testing framework.
-15. [**15 - Gap Analysis, Missing Features, and Feature Roadmap**](file:///D:/GitHub/Wonderland-Private-Server/docs/15_gap_analysis_and_feature_roadmap.md): Protocol gap analysis, unhandled Eve script opcodes (15, 16, 17), anti-exploit security checklist, and phased 5-tier implementation roadmap.
-16. [**16 - REA Reverse Engineering Agent Tooling**](file:///D:/GitHub/Wonderland-Private-Server/docs/16_rea_reverse_engineering_agent_tooling.md): REA (`morluto/rea`) CLI and MCP toolchain configuration, Ghidra 12.1.2 decompiler integration, PE/CLI and native binary inspection.
-17. [**17 - aLogin.exe Reverse Engineering and Protocol Analysis**](file:///D:/GitHub/Wonderland-Private-Server/docs/17_alogin_reverse_engineering_and_protocol_analysis.md): Client binary architecture (PE32 x86, Delphi VCL forms, `TGmForm`), socket topology (ports 6414 and 6416), `SERVER.INI` parsing, and process dispatching.
-18. [**18 - Complete Client Engine and GM Suite Reverse Engineering Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/18_complete_client_engine_and_gm_suite_analysis.md): Monolithic client engine topology (`aLogin.exe` vs `Main.exe`), 81 in-game forms (AutoPlayerPlus botting, Capsulem, Compound alchemy, ATM banking, instance dungeons), exhaustive 56-button GM administration suite (`TGmForm` / `CY_GmForm`), chat bitmasks, and built-in server event state machines.
-19. [**19 - Experimental Features Lab and Gap Implementation**](file:///D:/GitHub/Wonderland-Private-Server/docs/19_experimental_features_and_gap_implementation.md): Complete specifications for the experimental gameplay suite, AC 85/183/184/57/226/199 wire handlers, Opcode 16/17 script bridges, and operator administration cockpit.
-20. [**20 - Extended Experimental Features and Decompiled Gap Census**](file:///D:/GitHub/Wonderland-Private-Server/docs/20_extended_experimental_features_and_decompiled_gap_census.md): Exhaustive specifications for the 10 extended experimental gameplay engines (AC 82, 76, 40, 41, 90, 44, 24, 53, 88, 84/86), parameter specifications, data contracts, and expanded administrative cockpit integration.
-21. [**21 - Experimental Stall and Player Nullsafety Hotfix**](file:///D:/GitHub/Wonderland-Private-Server/docs/21_experimental_stall_and_player_nullsafety_hotfix.md): Architectural fix resolving null reference crash during test stall spawning with synthetic vendors.
-22. [**22 - Wave 3 Decompiled Experimental Systems Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/22_wave_3_decompiled_experimental_systems_specification.md): Specifications for Wave 3 experimental engines: ATM banking, player prestige titles, geological excavation, carnival lottery wheel, tent butler, and combat status condition rules.
-23. [**23 - Experimental Engines Verification and Custom Stall Spawning**](file:///D:/GitHub/Wonderland-Private-Server/docs/23_experimental_engines_verification_and_custom_stall_spawning.md): Verification matrix for all 23 experimental engines, dual-entity stall architecture (Map NPC + Visual Actor), coordinate spawning, wire protocol packets, and in-game purchase commands.
-24. [**24 - Personal Player Stall and Custom Kiosk Uncoupling**](file:///D:/GitHub/Wonderland-Private-Server/docs/24_personal_player_stall_and_custom_kiosk_uncoupling.md): Architectural separation of player personal vending kiosks and custom map NPC stalls.
-25. [**25 - Native Client Private Shop Protocol and GM Guard Relaxation**](file:///D:/GitHub/Wonderland-Private-Server/docs/25_native_client_private_shop_protocol_and_gm_guard_relaxation.md): S->C AC 23:30 native confirmation packet, sign board banner sync (`AC 56:30`), sitting stance transition, and GM chat stall creation for non-GM accounts.
-26. [**26 - Native Stall Closure Opcode Alignment and Posture Recovery**](file:///D:/GitHub/Wonderland-Private-Server/docs/26_stall_close_opcode_alignment_and_posture_recovery.md): Jump table `0x002E5A1F` alignment, opcode 32 routing to `FUN_00454cb8`, clearing player stall mutex `0x2231 = 0`, pet stall flag `0x2232 = 0`, and posture acknowledgement via `AC 32:2`.
-27. [**27 - Custom Stall Actor Rendering and Map Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/27_custom_stall_actor_rendering_and_map_synchronization.md): Synthetic vendor actor instantiation via AC 4, online presence AC 10:3, coordinates AC 7, sitting emote AC 32:2, kiosk AC 5:16, signboard AC 56:30, and 15-byte AC 12 despawning.
-28. [**28 - Persistent Custom Stalls and Infinite Bazaar Catalog**](file:///D:/GitHub/Wonderland-Private-Server/docs/28_persistent_custom_stalls_and_infinite_bazaar_catalog.md): Dual-database persistence (SQLite & MySQL), synthetic vendor allocation (`8900001+`), infinite vs limited stock semantics, and bootloader restoration.
-29. [**29 - Native Stall Appearance, Table/Banner Attachment, and Form Closure Protocol**](file:///D:/GitHub/Wonderland-Private-Server/docs/29_native_stall_appearance_and_form_closure_protocol.md): Authentic 3D stall table and floating signboard banner attachment (`AC 23:31`), despawn dismissal (`AC 23:32`), native Form_PrivateShop closure (`AC 23:165 1`), elimination of "Stall is in use" lockup, posture ping-pong suppression in `AC 32:2`, and fully clothed synthetic vendor avatar.
-30. [**30 - Native Stall Browse and Purchase Protocol**](file:///D:/GitHub/Wonderland-Private-Server/docs/30_native_stall_browse_and_purchase_protocol.md): Authentic client interaction flow for clicking stalls in-game, rendering Form_BuyItemStall_1 via S -> C AC 23:33 (19-byte header + 39-byte records), infinite stock auto-reset mechanics, elimination of bogus quiz cooldown messages (AC 20:18), visual Bazaar Stall Studio administration GUI with search-as-you-type item catalog autocompletion, map presets, position capture, and dual in-game purchase channels.
+## 2. Core Gameplay Engines & Protocol Subsystems
 
-### Decompiled Client Reverse Engineering Suite (100 Specifications)
+### 2.1 Action Code Protocol Engine (`AC 0` - `AC 226`)
+Authentic packet-level framing with magic header `0x44F4`, XOR `0xAD` encryption, and little-endian wire serialization via [`Tools.FromFormat`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/Core/Tools.cs) and [`SendPacket.cs`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/Network/SendPacket.cs). Covers all official opcode channels across [`Src/Network/ActionCodes/`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/).
 
-The complete reverse engineering of the monolithic client binaries (`aLogin.exe` and `Main.exe`), asset pipelines, and protocol dispatchers is cataloged in [`decompiled/README.md`](file:///D:/GitHub/Wonderland-Private-Server/decompiled/README.md) (and mirrored in [`D:\GitHub\ghidradecodeyapma\docs\README.md`](file:///D:/GitHub/ghidradecodeyapma/docs/README.md)):
+### 2.2 Turn-Based Combat Engine (`AC 11`, `AC 50`, `AC 51`, `AC 52`, `AC 53`)
+* **Battlefield Grid:** 4v4 isometric combat arena managed by [`PvEBattleManager.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Battle/PvEBattleManager.cs) and [`Battle.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Battle/Battle.cs).
+* **Fighter Serialization:** Byte-for-byte alignment with official network captures in `AC 11:5` and `AC 11:250` (Byte 26 = Level, Byte 27 = Element, preventing the "Lv. 0" rendering defect).
+* **Turn Lifecycle:** 30-second turn timer prompting player input via `AC 52:1`, move acknowledgments via `AC 53:5`, active turn replay focus via `AC 50:6`, 19-byte `AC 50:1` animation records, knockouts via `AC 53:3`, and real-time attribute updates via `AC 51:1`.
+* **Exit Protocol:** Authentic 7-step exit handshake (`AC 11:12` -> 4-byte pet `AC 11:1` -> 6-byte player `AC 11:0` -> 5-byte player `AC 11:1`).
+* **Loot & Drop Engine:** MMO-accurate drop calculation capped at 1 item drop per monster kill with inventory capacity validation and bag cleanup commands.
 
-1. [**01 - Client Architecture and Monolithic Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/01_client_architecture_and_monolithic_engine.md)
-2. [**02 - Complete GM Studio and CY_GmForm**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/02_complete_gm_studio_and_cy_gmform.md)
-3. [**03 - In-Game Form Systems and Automation**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/03_in_game_form_systems_and_automation.md)
-4. [**04 - Network Framing, Packet Dispatchers, and Cryptography**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/04_network_framing_packet_dispatchers_and_crypto.md)
-5. [**05 - Actor Memory Layout and Spatial Systems**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/05_actor_memory_layout_and_spatial_systems.md)
-6. [**06 - Binary Asset Pipeline and Scene Parsers**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/06_binary_asset_pipeline_and_scene_parsers.md)
-7. [**07 - Pet Companion Lifecycle and AI Modes**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/07_pet_companion_lifecycle_and_ai_modes.md)
-8. [**08 - Quest Journal, Dialogue Engine, and Talk Forms**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/08_quest_journal_dialogue_engine_and_talk_forms.md)
-9. [**09 - Login Authentication, Session Security, and Channels**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/09_login_authentication_session_security_and_channels.md)
-10. [**10 - Item Mall (Nesne Market) and Currency Transactions**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/10_item_mall_nesne_market_and_currency_transactions.md)
-11. [**11 - Client Save Configuration and Chat Channel Constraints**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/11_client_save_configuration_and_chat_channel_constraints.md)
-12. [**12 - Trade, Shop, Inventory, and Alchemy Materials**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/12_trade_shop_inventory_and_alchemy_materials.md)
-13. [**13 - Combat, PK Battlefield, and Encounter Validation**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/13_combat_pk_battlefield_and_encounter_validation.md)
-14. [**14 - Mini-Games and Entertainment Systems**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/14_minigames_and_entertainment_systems.md)
-15. [**15 - Marriage, Divorce, and Transform Systems**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/15_marriage_divorce_and_transform_systems.md)
-16. [**16 - Instance Dungeon, PVP Rankings, and Server Events**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/16_instance_dungeon_pvp_rankings_and_events.md)
-17. [**17 - Forge Enhancement and Equipment Potential**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/17_forge_enhancement_and_equipment_potential.md)
-18. [**18 - Multimedia DirectX Palettes and Sound Assets**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/18_multimedia_directx_palettes_and_sound_assets.md)
-19. [**19 - Exhaustive Client Action Code Matrix & Protocol Dispatchers**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/19_exhaustive_client_action_code_matrix.md)
-20. [**20 - Complete 9,451 Function Inventory and Subsystem Catalog**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/20_complete_9451_function_inventory_catalog.md)
-21. [**21 - Binary Asset Formats and Database Structures Specification**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/21_binary_asset_formats_and_database_structures.md)
-22. [**22 - Main.exe Patcher, HTTP/FTP Update Engine & Archive Extractor**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/22_main_exe_patcher_http_updater_and_archive_extractor.md)
-23. [**23 - Character Rebirth Classes, Stat Layout & Party Memory Architecture**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/23_character_rebirth_classes_stat_layout_and_party_memory.md)
-24. [**24 - Server Announcement Broadcast and Festival Event Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/24_server_announcement_broadcast_and_festival_event_engine.md)
-25. [**25 - Item Material Chemistry and Alchemy Classification Matrix**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/25_item_material_chemistry_and_alchemy_classification_matrix.md)
-26. [**26 - Sprite Heading Direction & Motion State Resolver**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/26_sprite_heading_direction_and_motion_state_resolver.md)
-27. [**27 - Delphi Unit Architecture, Package Manifest & Modular Source Hierarchy**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/27_delphi_unit_architecture_and_modular_source_hierarchy.md)
-28. [**28 - Vehicle Transport, Navigation GPS & Traffic Setting Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/28_vehicle_transport_gps_and_traffic_setting_mechanics.md)
-29. [**29 - Weather Particle Engine and Ambient Scene Effects**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/29_weather_particle_engine_and_ambient_scene_effects.md)
-30. [**30 - Mini-Games State Machines and Arcade Systems Specification**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/30_minigames_state_machines_and_arcade_systems.md)
-31. [**31 - Guild Organization Hierarchy and Emblem System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/31_guild_organization_hierarchy_and_emblem_system.md)
-32. [**32 - Inn Lodging, Rest and Recovery Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/32_inn_lodging_rest_and_recovery_mechanics.md)
-33. [**33 - Character Creation, Appearance Engine, and Palette Customization**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/33_character_creation_appearance_and_palette_customization.md)
-34. [**34 - Postal Mail, Express Courier, and Parcel Delivery System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/34_postal_mail_express_courier_and_parcel_delivery_system.md)
-35. [**35 - Turn-Based Co-op Battle Assembly and Chamber Lobby**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/35_turn_based_coop_battle_assembly_and_chamber_lobby.md)
-36. [**36 - Tent Housing, Camping Deployment, and Furniture Layout**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/36_tent_housing_camping_deployment_and_furniture_layout.md)
-37. [**37 - Item Compound, Alchemy Synthesis, and Grade Formulas**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/37_item_compound_alchemy_synthesis_and_grade_formulas.md)
-38. [**38 - Carnival Minigame Training Matrix and Mario Platformer Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/38_carnival_minigame_training_matrix_and_mario_platformer.md)
-39. [**39 - Church Charity Donation, Divine Blessings, and Karma Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/39_church_charity_donation_divine_blessings_and_karma.md)
-40. [**40 - Equipment Durability, Combat Wear, and Repair Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/40_equipment_durability_combat_wear_and_repair_hammers.md)
-41. [**41 - Gobang (Gomoku) Chess Board Game and Wager Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/41_gobang_gomoku_chess_board_game_and_wager_engine.md)
-42. [**42 - Companion Pet Riding, Mount Anchors, and Saddle Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/42_companion_pet_riding_mount_anchors_and_saddle_mechanics.md)
-43. [**43 - Fishing, Aquaculture, Bait Consumption, and Catch Tables**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/43_fishing_aquaculture_bait_consumption_and_catch_tables.md)
-44. [**44 - Hot Spring Bathing, Vitality Recovery, and Towel Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/44_hot_spring_bathing_vitality_recovery_and_towel_mechanics.md)
-45. [**45 - Casino Gaming Hall, Slot Machines, and Token Exchange**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/45_casino_gambling_slot_machines_and_token_exchange.md)
-46. [**46 - ATM Banking, Vault Deposits, and Currency Remittance**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/46_atm_banking_vault_deposit_and_currency_remittance.md)
-47. [**47 - Interactive Cursor State Machine and Context Targeting**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/47_interactive_cursor_state_machine_and_context_targeting.md)
-48. [**48 - Quest Journal, Task Tracker, and Multi-Objective Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/48_quest_journal_task_tracker_and_multi_objective_engine.md)
-49. [**49 - DirectDraw Multimedia Rendering Loop and Surface Pipelines**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/49_directdraw_multimedia_rendering_loop_and_surface_pipelines.md)
-50. [**50 - Master Reverse Engineering Summary and Emulator Architecture**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/50_master_reverse_engineering_summary_and_emulator_architecture.md)
-51. [**51 - Skill Tree, Elemental Affinity, and Learning Mechanics**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/51_skill_tree_elemental_affinity_and_learning_mechanics.md)
-52. [**52 - Army Group (Guild Organization) and Authority Hierarchy**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/52_army_group_guild_organization_and_authority_hierarchy.md)
-53. [**53 - Player Stall Vending and Pet Consignment Bazaar**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/53_player_stall_vending_and_pet_consignment_bazaar.md)
-54. [**54 - Secondary Password Security and Account PIN Vault**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/54_secondary_password_security_and_account_pin_vault.md)
-55. [**55 - Character Role Status Sheets and Attribute Recalculation**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/55_character_role_status_sheets_and_attribute_recalculation.md)
-56. [**56 - Instance Dungeon (Duplicate Mission) Stage Controller**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/56_instance_dungeon_duplicate_mission_stage_controller.md)
-57. [**57 - Community Blackboard Bulletin and Message Posting System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/57_community_blackboard_bulletin_and_message_posting_system.md)
-58. [**58 - Instant Messenger (ICQ) and Bilateral Friend Roster**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/58_instant_messenger_icq_and_bilateral_friend_roster.md)
-59. [**59 - Player Title Management and Achievement Honor Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/59_player_title_management_and_achievement_honor_engine.md)
-60. [**60 - Carnival Tabletop: Eight-Twelve, Magnet, and EXP Box Engines**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/60_carnival_tabletop_eight_twelve_magnet_and_exp_box_engines.md)
-61. [**61 - Activity Exchange, Token Redemption, and Merchant Broker System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/61_activity_exchange_token_redemption_and_merchant_broker_system.md)
-62. [**62 - Express Courier, Parcel Delivery, and Consignment Freight System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/62_express_courier_parcel_delivery_and_consignment_freight_system.md)
-63. [**63 - Tent Cupboard, Furniture Storage, and Housing Vault Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/63_tent_cupboard_furniture_storage_and_housing_vault_engine.md)
-64. [**64 - Cooperation Battle Assembly and Challenge Chamber Controller**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/64_cooperation_battle_assembly_and_challenge_chamber_controller.md)
-65. [**65 - Hotkey Macro Dock and Action Shortcut Runtime Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/65_hotkey_macro_dock_and_action_shortcut_runtime_engine.md)
-66. [**66 - Tent Interior Wallpaper, Flooring, and Aesthetic Adornment Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/66_tent_interior_wallpaper_flooring_and_aesthetic_adornment_engine.md)
-67. [**67 - Character Emote, Visual Gesture, and Social Expression System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/67_character_emote_visual_gesture_and_social_expression_system.md)
-68. [**68 - Party Group Assembly, Formation Tactics, and EXP Sharing Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/68_party_group_assembly_formation_tactics_and_exp_sharing_engine.md)
-69. [**69 - Interactive NPC Dialogue Tree and Scripted Branching Controller**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/69_interactive_npc_dialogue_tree_and_scripted_branching_controller.md)
-70. [**70 - Wager Ante Stake and Street Gold Tossing Subsystem**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/70_wager_ante_stake_and_street_gold_tossing_subsystem.md)
-71. [**71 - Client System Configuration, Audio-Visual, and Preferences Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/71_client_system_configuration_audio_visual_and_preferences_engine.md)
-72. [**72 - Postal Mailbox, Offline Letter Dispatch, and Stamp Tariff Subsystem**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/72_postal_mailbox_offline_letter_dispatch_and_stamp_tariff_subsystem.md)
-73. [**73 - Character Deletion, Security PIN Challenge, and Safe Disposal Architecture**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/73_character_deletion_security_pin_challenge_and_safe_disposal_architecture.md)
-74. [**74 - Guild Code of Conduct, Bylaws, and Organization Rule Editor**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/74_guild_code_of_conduct_bylaws_and_organization_rule_editor.md)
-75. [**75 - Member Point Card Recharge, Serial Key Verification, and Billing Gateway Bridge**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/75_member_point_card_recharge_and_billing_gateway_bridge.md)
-76. [**76 - Church Charity Tithe, Donation Box, and Legion Resource Storage System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/76_church_charity_tithe_and_legion_resource_donation_box.md)
-77. [**77 - NPC Vendor Liquidation, Sell-Back Ratios, and Buyback Safeguards**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/77_npc_vendor_liquidation_sell_back_ratios_and_buyback_safeguards.md)
-78. [**78 - Floating HUD Dock, System Help Guide, and Blacklist Privacy Manager**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/78_floating_hud_dock_system_help_guide_and_blacklist_manager.md)
-79. [**79 - Inn Lodging, Bed Resting, and HP/SP Full Restoration Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/79_inn_lodging_bed_resting_and_hp_sp_full_restoration_engine.md)
-80. [**80 - Milestone Capstone 2: Complete Client UI Form Inventory, Component Hierarchy, and Delphi Package Architecture**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/80_milestone_capstone_2_client_ui_form_inventory_and_vcl_architecture.md)
-81. [**81 - Companion Pet Rebirth Ascension, Reincarnation Stats, and NPC Upgrade System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/81_companion_pet_rebirth_ascension_and_npc_upgrade_system.md)
-82. [**82 - UFO Arcade Claw Machine Catcher Kinematics, Collision Physics, and Prize Dispenser Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/82_ufo_arcade_claw_machine_catcher_kinematics_and_physics_engine.md)
-83. [**83 - Underground Treasure Digging Excavation and Geological Mining Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/83_underground_treasure_digging_excavation_and_geological_mining_engine.md)
-84. [**84 - Rhythm Boxing Punching Power Meter and Carnival Combat Minigame**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/84_rhythm_boxing_punching_power_meter_and_carnival_combat_minigame.md)
-85. [**85 - Carnival Lottery Wheel, Lotto Ball Physics, and Pyrotechnic Fireworks System**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/85_carnival_lottery_wheel_lotto_ball_physics_and_pyrotechnic_fireworks.md)
-86. [**86 - Memory Card Matching Poker Concentration Minigame Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/86_memory_card_matching_poker_concentration_minigame_engine.md)
-87. [**87 - Tent Maid and Butler Customization, Wardrobe, and Housing Automation Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/87_tent_maid_and_butler_customization_and_housing_automation.md)
-88. [**88 - Dynamic Scene Lighting, Day/Night Cycle, and Alpha Shadow Blitter Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/88_dynamic_scene_lighting_day_night_cycle_and_alpha_shadow_engine.md)
-89. [**89 - DirectDraw 16-Bit Display Mode Adapter, Surface Allocation, and Clipper Subsystem**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/89_directdraw_16bit_display_mode_adapter_and_surface_clipper.md)
-90. [**90 - Milestone Capstone 3: Master Opcode Protocol and Packet Cryptography Handbook**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/90_milestone_capstone_3_master_opcode_protocol_and_packet_cryptography_handbook.md)
-91. [**91 - In-Battle Skill Selection Palette, SP Calculation, and Tactical Radial Targeting Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/91_in_battle_skill_selection_palette_and_tactical_radial_targeting.md)
-92. [**92 - Combat Abnormal Status Condition, Buff/Debuff System, and Turn Decay Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/92_combat_abnormal_status_condition_buff_debuff_and_turn_decay_engine.md)
-93. [**93 - NPC Vendor Bulk Procurement, Stack Limits, and Purchase Quantity Selector**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/93_npc_vendor_bulk_procurement_and_purchase_quantity_selector.md)
-94. [**94 - Pet Consignment Bazaar, Multi-Tier Stall Showcase, and Purchase Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/94_pet_consignment_bazaar_stall_showcase_and_purchase_engine.md)
-95. [**95 - In-Game Account Password Modification and Credential Rotation Subsystem**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/95_in_game_account_password_modification_and_credential_rotation.md)
-96. [**96 - Multi-Stage Character Creation Wizard, Palette Tinting, and Attribute Allocation Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/96_character_creation_wizard_palette_tinting_and_attribute_allocation.md)
-97. [**97 - Player Furniture and Utensil Stall Consignment Vending Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/97_player_furniture_and_utensil_stall_consignment_system.md)
-98. [**98 - Gacha Capsule Vending Machine, Crank Kinematics, and Prize Drop Chute Engine**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/98_gacha_capsule_vending_machine_and_mystery_gift_box_engine.md)
-99. [**99 - Guild Headquarters Notebook, Member Roster, 10x10 Pixel Emblem Canvas, and Notice Dispatcher**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/99_guild_headquarters_roster_10x10_emblem_canvas_and_notice_board.md)
-100. [**100 - Milestone Capstone 4: The Complete 100-Specification Grand Master Compendium and Autonomous Private Server Implementation Manual**](file:///D:/GitHub/Wonderland-Private-Server/decompiled/100_milestone_capstone_4_grand_master_compendium_and_implementation_manual.md)
-  > Maps : Teleports you to that ID
-  >
+### 2.3 Companion Pet & Mount Lifecycle (`AC 15`, `AC 19`, `AC 8:2`)
+* **Roster Synchronization:** Official packet-level companion roster synchronization on login (`AC 15:1`) and skill unlocks (`AC 8:2` Stat `0x016F` with TargetType `0x04`).
+* **In-Battle Synchronization:** Real-time SP consumption (`AC 8:2` Stat `0x011A`), skill proficiency EXP (`AC 8:2` Stat `0x016F`), real-time HP updates on damage/heal/revive (`AC 8:2` Stat `0x0119`), post-battle level-up progression, and combat EXP distribution (`AC 8:2` Stat `0x0124`).
+* **Overworld Follower Replication:** Authentic follower spawning (`AC 15:4` with 8-byte equipment padding) broadcast to map peers without leaking private roster packets, standby/rest despawning (`AC 19:7` followed by `AC 19:2`), active combat designation (`AC 19:4` / `AC 19:1`), and mount/dismount replication (`AC 15:11` -> `AC 15:16`, `AC 15:12` -> `AC 15:17`).
+* **Amity & Rebirth:** Amity decay on defeat, desertion below 20 amity, and instant Rebirth Ascension mechanics.
 
-  > Vehicle : Ride the vehicle
-  >
+### 2.4 Narrative Cutscene, Dialogue & Quest State Machine (`AC 20`, `AC 186`)
+* **Bytecode Interpretation:** Direct execution of `Eve.emg` event opcodes via [`EveEventInterpreter.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventInterpreter.cs) and [`EveEventRuntime.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/EveEventRuntime.cs).
+* **PreEvent Evaluation & Dummy Suppression:** Bidirectional PreEvent condition evaluation in [`PreEventInterpreter.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/QuestRelated/PreEventInterpreter.cs) using 14-byte `AC 22:4` entity frames (`State = 0xFFFF`, `Type = 2`, `Duration = 0x03E7FC18`), universally concealing 230 duplicate cutscene dummy puppets across 108 maps on map load.
+* **Cinematic Timeline Synchronization:** Dual playback handshakes (`AC 186:9` / `AC 186:12` and `AC 20:1 Type 5`), scene gate unlocks (`AC 5:4`), and mobile posture restoration (`AC 20:8`, `AC 6:2 [0]`).
+* **Quest State Monotonicity:** Acyclic state tracking in `character_quests` (`NotStarted = 2`, `InProgress = 1`, `Completed = 3`) preventing quest demotion loops, paired completion flags (`questId + 1`), and multi-subentry chained state transitions.
 
-  > Items : Adds the item to your inventory
-  >
+### 2.5 Tent Housing, Virtual Maps & Manufacturing (`AC 12`, `AC 64`, `AC 65`)
+* **Virtual Map Routing:** Instanced personal tents keyed by `MapID = 100000 + CharID` with dual dictionary indexing in [`Map.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Map.cs) and [`Tent.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/PlayerRelated/Tent/Tent.cs).
+* **Stream Pointer Alignment:** Explicit stream pointer alignment (`p.SetPtr(6)`) in `AC 65:1` to resolve 32-bit owner CharIDs.
+* **Security & Evacuation:** Locking guards preventing unauthorized visitors, overworld coordinate preservation (`TentReturnMap`), safe disconnect recovery, and occupant evacuation on tent closure.
+* **Interior Manufacturing:** Furniture placement (`chartent_items`), second-floor expansions, and authentic `Compound2.dat` tent machine synthesis (`AC 64`).
 
-  > Npc : Battle/ride the NPC or Pet
-  >
-- Each lists have a search textbox on top of it:
+### 2.6 NPC Vendors & Trade Systems (`AC 27`, `AC 35:12`, `AC 56`)
+* **Catalog Resolution:** Dynamic NPC merchant catalog resolution in [`ShopKeeper.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/ShopKeeper.cs) dispatching `AC 35:12` with authentic catalog IDs (`0x0001FB83`..`0x0001FB85`).
+* **Procurement Flow:** Clean separation of procurement (`Form_EquipStore` / `Form_ThingStore`) from liquidation (`Form_Sale`), shopping cart validation via `AC 27:1` in [`ShoppingCart.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Maps/Code/ShoppingCart.cs), gold balance verification, bag capacity checks, and atomic item delivery in [`Inventory.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Inventory.cs).
 
-  > Type in your search query and then hit Enter
-  >
+### 2.7 Pet Hotel & Companion Storage (`AC 31`)
+* **Storage Concurrency:** Storage manager lock flags in `AC 31:8` preventing double-click race conditions.
+* **Modal Unlock:** Modal input lock clearance via `AC 31:12` resetting `[Form_PetHotel + 0x174]` in client memory.
+* **Withdrawal Memory Sequencing:** Safe entity transfer copying companion data via `AC 31:5` prior to emitting `AC 31:4` slot clearance.
 
-  > To reload all, blank the search then hit Enter
-  >
-- Press `F5` key anywhere in the GUI window to automatically launch `aLogin.exe`.
-- Click the in-game PK button (sword icon) and click any monster/NPC to engage in turn-based combat. Supports attack, skills, defending, fleeing, XP/Gold rewards, and automatic battle exit.
-- Real-time NPC movement and roaming (`AC 22 Sub 2`) ported from Python server with scripted waypoints and random wandering.
-- Character skill unlocking system (`AC 5 Sub 11`, `AC 8 Sub 1`) with character-specific stunt skills, element skills, and `:skill <id> [grade]` chat command.
-- Interactive Quest & Journal System (`AC 39`, `AC 52`, `charquest` DB table) supporting multi-stage NPC dialogues, item delivery verification, automatic reward distribution (Gold, EXP, Items, Companions), and quest battle encounters.
-- In-Game GM Chat Commands:
+### 2.8 Inventory Item Double-Click Dispatcher (`AC 23:15`)
+* **Universal Dispatcher:** Centralized item usage router in [`AC23.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC23.cs) handling equipment (`WearEQ`), vehicles/mounts and Bamboo Dragonfly (`34169`), Quest Notebook (`32000`), combat auto-battle Remote Control (`34058` / `AC 29:6`), Return Scrolls (`30001`, `34163`), and EXP Potion consumption.
 
-## In-Game GM Chat Commands
+### 2.9 Experimental Systems Suite (23 Dedicated Gameplay Engines)
+Modular feature suite located in [`Game.Experimental`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Experimental/) with real-time controls in the GUI cockpit:
+* **Wave 1:** Instance Dungeons (`AC 85`), Ranked PvP Elo Arena (`AC 183`/`AC 186`), Guild Siege Warfare (`AC 184`/`AC 92`), Carnival Minigames (`AC 57`), Seasonal Festival Races (`AC 226`), Dungeon Mechanism Levers, Companion Talent Trees (`AC 199`).
+* **Wave 2:** Community Bulletin (`AC 82`), Church Charity & Karma (`AC 76`), Equipment Durability & Forge (`AC 40`), Gobang Gomoku Chess (`AC 41`), Fishing & Aquaculture (`AC 90`), Hot Spring Bathing (`AC 44`), Secondary PIN Vault (`AC 24`), Player Stall Bazaar (`AC 53`/`AC 94`), Dynamic Weather (`AC 88`), Vehicle Fleet Transport (`AC 84`/`AC 86`).
+* **Wave 3:** ATM Banking & Wires (`AC 26`), Player Titles & Achievements (`AC 40`), Geological Treasure Excavation (`AC 90`), Carnival Fortune Wheel & Capsule Machines (`AC 76`), Tent Housekeeper Maid & Butler (`AC 62`), Tactical Combat Status Conditions & CC (`AC 114`).
 
-Type commands into standard in-game chat to execute administrative operations:
+---
 
-| Command | Usage | Description |
+## 3. Quick Start & Installation Guide
+
+### 3.1 Prerequisites
+* Windows 10 / 11 or Windows Server 2016+
+* Microsoft Visual Studio 2022 (Community, Professional, or Enterprise) with `.NET desktop development` workload, or `.NET Framework 4.6.2 Developer Pack`
+* .NET SDK (`dotnet` CLI)
+* Wonderland Online client distribution (Rhode Island / English / Traditional Chinese client assets)
+
+### 3.2 Setup Steps
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/Eminbalci/Wonderland-Private-Server.git
+   cd Wonderland-Private-Server
+   ```
+2. **Synchronize Client Assets:**
+   * Place client data archives in `./Data`: `Npc.dat`, `itemDat.wpdat`, `Skill.dat`, `SkillData.MBTM`, `Talk.dat`, `Mark.dat`, `SceneData.dat`, `eve.Emg`, `Ground.MMG`, `Formula.dat`, `Compound2.dat`.
+   * The 1.42 GB sprite archive `odd.dat` can be downloaded from [Releases v1.0.0](https://github.com/Eminbalci/Wonderland-Private-Server/releases/tag/v1.0.0).
+3. **Configure Client Server Connection:**
+   * Open `SERVER.INI` in the client directory and configure local connection:
+     ```ini
+     [Server]
+     IP=127.0.0.1
+     Port=6414
+     ```
+4. **Compile the Server:**
+   ```powershell
+   dotnet build "Wonderland Private Server.csproj" -c Debug
+   ```
+5. **Launch the Server:**
+   * Run `bin/Debug/Wonderland Private Server.exe`.
+   * Wait until the console outputs: `Now listening for clients...`
+6. **Launch the Client & Connect:**
+   * Press `F5` in the server GUI window (or launch `aLogin.exe` manually).
+   * Select the configured server and authenticate using the default administrator credentials:
+     * **Username:** `gmone`
+     * **Password:** `gmone`
+
+---
+
+## 4. In-Game GM Chat Commands
+
+Type commands into standard in-game chat to execute administrative and debugging operations:
+
+| Command | Syntax | Description |
 | :--- | :--- | :--- |
-| `:b` / `:broadcast` / `:notice` | `:broadcast <message>` | Broadcasts server-wide announcement with HUD notification. |
-| `:kick` | `:kick <character> [reason]` | Disconnects player socket session from server. |
-| `:summon` / `:bring` | `:summon <character>` | Warps target player to GM's current coordinates. |
-| `:goto` / `:tp` | `:goto <character>` | Warps GM directly to target player's position. |
+| `:b` / `:broadcast` | `:broadcast <message>` | Broadcasts a server-wide announcement with HUD notification banner. |
+| `:kick` | `:kick <character> [reason]` | Forcibly terminates the target player's socket session. |
+| `:summon` / `:bring` | `:summon <character>` | Warps target player to the GM's current map coordinates. |
+| `:goto` / `:tp` | `:goto <character>` | Warps the GM directly to the target player's position. |
 | `:warp` | `:warp <map_id> [x] [y]` | Teleports player to destination map and coordinates. |
-| `:amity` / `:petamity` | `:amity [1-100]` | Sets active companion's loyalty/amity (default: 100). |
-| `:rebirth` / `:petrebirth` | `:rebirth` | Triggers instant companion Rebirth Ascension. |
-| `:allskills` / `:maxskills` | `:allskills [grade]` | Unlocks all element & stunt skills up to specified grade. |
-| `:god` / `:godmode` | `:god` | Boosts base stats to 999 and full restores player and pet HP/SP. |
+| `:town` | `:town <name>` | Warps player to one of 16 canonical town locations. |
+| `:amity` / `:petamity` | `:amity [1-100]` | Sets active companion's loyalty/amity value (default: 100). |
+| `:rebirth` / `:petrebirth`| `:rebirth` | Triggers instant companion Rebirth Ascension. |
+| `:allskills` | `:allskills [grade]` | Unlocks all element and stunt skills up to specified grade. |
+| `:god` / `:godmode` | `:god` | Boosts base stats to 999 and fully restores player and pet HP/SP. |
+| `:heal` / `:full` | `:heal [hp] [sp]` | Restores character and active pet HP/SP to maximum. |
 | `:winbattle` / `:killall` | `:winbattle` | Instantly completes active combat encounter in victory. |
-| `:mute` | `:mute <char> [mins]` | Mutes target player's public chat messages. |
-| `:unmute` | `:unmute <char>` | Restores player's public chat privileges. |
-| `:online` / `:who` | `:online` | Lists online players, levels, and current map locations. |
-| `:tent` | `:tent` | Injects authentic Tent item (ID 34001) into inventory. |
-| `:reload` | `:reload [all\|quests\|mall\|drops]` | Hot-reloads server game tables without rebooting. |
-| `:heal` / `:full` | `:heal [hp] [sp]` | Restores character HP and SP to maximum (or specified values). |
-| `:level` / `:lvl` | `:level <1-200>` | Sets character level and recalculates derived base stats. |
+| `:battle` / `:fight` | `:battle <mob_tid>` | Spawns a test turn-based combat encounter against the specified monster ID. |
+| `:mute` / `:unmute` | `:mute <char> [mins]` | Suppresses or restores player public chat privileges. |
+| `:online` / `:who` | `:online` | Displays online player census, levels, and map locations. |
+| `:level` / `:lvl` | `:level <1-200>` | Sets character level and recalculates derived base attributes. |
 | `:points` / `:sp` | `:points <amount>` | Grants unallocated attribute stat points. |
-| `:gold` / `:money` | `:gold <amount>` | Updates character wallet gold balance. |
+| `:gold` / `:money` | `:gold <amount>` | Sets character wallet gold balance. |
 | `:exp` | `:exp <amount>` | Sets total character experience points. |
 | `:stats` / `:stat` | `:stat <str> <con> <int> <wis> <agi>` | Distributes character base attribute points. |
+| `:restat` | `:restat [char]` | Resets attributes to 10 and refunds all invested stat points. |
 | `:item` | `:item [add] <id> [count]` | Injects item(s) directly into character inventory. |
-| `:skill` | `:skill <id> [grade]` | Unlocks or levels up a specific skill ID. |
-| `:buy` | `:buy <query/id> [quantity]` | Buys or spawns item from Item Mall or Item.dat. |
-| `:pet` | `:pet <pet_id>` | Spawns and recruits specified companion into party. |
-| `:petexp` | `:petexp <amount>` | Awards experience points to the active companion and synchronizes level/stats. |
-| `:petlvl` / `:petlevel` | `:petlvl <1-199>` | Sets the active companion's level, recalculates stats, and persists. |
-| `:carnie` | `:carnie` | Warps character to Carnie mini-game park (Map 11094). |
-| `:unride` | `:unride` | Dismounts active vehicle or riding pet. |
-| `:invis` / `:ghost` | `:invis` | Toggles GM Ghost Mode (invisibility; hides from map broadcasts). |
-| `:restat` / `:resetstats` | `:restat [char]` | Resets attributes to 10 and refunds all invested stat points. |
-| `:clearskills` | `:clearskills [char]` | Clears learned progression skills in memory and database. |
-| `:repair` / `:fixall` | `:repair [char]` | Restores durability (Damage = 0) on all gear and bag items. |
+| `:clearinv` | `:clearinv` | Clears all items from the 50-slot inventory bag. |
+| `:tent` | `:tent` | Injects authentic Personal Tent item (`36002`) into inventory. |
+| `:repair` / `:fixall` | `:repair [char]` | Restores durability (Damage = 0) on all equipped gear and bag items. |
+| `:skill` | `:skill <id> [grade]` | Unlocks or upgrades a specific skill ID. |
+| `:clearskills` | `:clearskills [char]` | Purges learned progression skills from memory and database. |
+| `:buy` | `:buy <query/id> [quantity]`| Buys or spawns item from Item Mall or Item.dat. |
 | `:im` / `:mallpoints` | `:im <amount> [char]` | Grants Item Mall currency points to account balance. |
-| `:town` | `:town <name>` | Warps player to 16 canonical town locations. |
-| `:jail` / `:unjail` | `:jail <char> [mins]` | Incarcerates or releases players from Jail cell. |
+| `:pet` | `:pet <npc_id>` | Spawns and recruits specified companion into active party. |
+| `:petexp` | `:petexp <amount>` | Awards experience points to active companion and updates stats. |
+| `:petlvl` / `:petlevel` | `:petlvl <1-199>` | Sets active companion's level, recalculating attributes and persisting. |
+| `:carnie` | `:carnie` | Warps character to Carnie mini-game amusement park (Map 11094). |
+| `:jail` / `:unjail` | `:jail <char> [mins]` | Incarcerates player in Jail cell or releases them. |
+| `:unride` | `:unride` | Dismounts active vehicle or riding pet. |
+| `:invis` / `:ghost` | `:invis` | Toggles GM Ghost Mode (invisibility from map broadcasts). |
+| `:droprate` | `:droprate <rate>` | Sets global monster loot drop multiplier (0.1x to 100.0x). |
+| `:reload` | `:reload [all\|quests\|mall\|drops]` | Hot-reloads server game tables without restarting the process. |
+| `:stall` / `:spawnstall`| `:stall [pet\|vehicle\|item] [map x y] [title] [infinite\|limited] [id:price[:qty] ...]` | Spawns persistent synthetic vendor stall entity; player remains mobile. |
+| `:petstall` | `:petstall [map x y] [title] [infinite\|limited] [npcId:price ...]` | Spawns dedicated Companion Pet stall entity with `Form_BuyPet1..3Stall_1`. |
+| `:vehiclestall` | `:vehiclestall [map x y] [title] [infinite\|limited] [itemId:price ...]` | Spawns dedicated Vehicle & Appliance stall entity with `Form_Buy1..3Utensil_1`. |
+| `:buystall` | `:buystall <slot> [qty]` | Purchases item, companion, or vehicle from active stall catalog. |
+| `:removestall` | `:removestall [vendorId]` | Removes synthetic stall by ID (or nearest within 300 units) and purges from DB. |
+| `:clearstalls` | `:clearstalls` | Clears all active stalls from memory and purges `custom_stalls` table. |
 | `:summonall` | `:summonall` | Warps all online players to GM's current position (Event). |
 | `:kickall` | `:kickall [reason]` | Mass-disconnects all non-GM players for maintenance. |
-| `:battle` / `:fight` | `:battle <mob_tid>` | Spawns a test combat encounter against the specified mob ID. |
-| `:info` / `:whois` | `:info [char]` | Formats comprehensive character diagnostic summary. |
-| `:droprate` | `:droprate <rate>` | Sets global monster loot drop multiplier (0.1x to 100.0x). |
-| `:stall` / `:spawnstall` | `:stall [pet|vehicle|item] [map x y] [title] [infinite|limited] [id:price[:qty] ...]` | Spawns persistent synthetic vendor stall entity (Merchandise, Pet, or Vehicle/Utensil); player remains mobile and unencumbered. Stored in DB and restored on boot. |
-| `:petstall` | `:petstall [map x y] [title] [infinite|limited] [npcId:price ...]` | Spawns dedicated Companion Pet stall entity with `Form_BuyPet1..3Stall_1` client viewport. |
-| `:vehiclestall` | `:vehiclestall [map x y] [title] [infinite|limited] [itemId:price ...]` | Spawns dedicated Vehicle & Utensil stall entity with `Form_Buy1..3Utensil_1` client viewport. |
-| `:removestall` | `:removestall [vendorId]` | Removes synthetic stall by ID, or closest stall within 300 units on map, and purges from DB. |
-| `:clearstalls` | `:clearstalls` | Clears all active stalls from memory and purges custom_stalls database table. |
-| `:buystall` | `:buystall <slot> [qty]` | Purchases item, companion pet, or vehicle from active stall catalog. Supports infinite (unlimited) and limited stock modes. |
-| `:help` | `:help` | Displays categorized command list and syntax help. |
+| `:info` / `:whois` | `:info [char]` | Formats comprehensive character and companion diagnostic summary. |
+| `:help` | `:help` | Displays categorized command list and syntax help in chat. |
 
-## Desktop GM Studio (`tabGm`)
+---
 
-The server console includes an integrated 5-panel **GM Studio**:
-1. **GM Authorization & Access Control:** Database-backed GM permissions (`gm_accounts`) with instant promotion of online players and live counter badges.
-2. **Online Player Live Control & Extended Cheats:** Real-time player selector, Full Heal, Gold (+1M), Stat Points (+100), Level adjustment, Max Companion Amity, Companion Rebirth Ascension, Full Element Skill Tree Unlocking, Teleport to Player, Summon to GM, Socket Kick, Chat Muting, Restat Point Refund, Gear Repair, +1,000 IM Points, Clear Skills, and Character Diagnostic Summary.
-3. **Server Operations & Maintenance:** Server-wide broadcast notice dispatcher with 4 color channels, Live Global EXP Multiplier, Hot-Reload of Quests, Item Mall, Monster Drops, and GM accounts, one-click Companion Spawner for 13 iconic companions, Global Monster Drop Multiplier (0.1x - 100.0x), Mass Non-GM Kick, Graceful 10s Countdown Shutdown, and Map Ground Item Cleanup.
-4. **Spatial Teleportation & World Warps Studio:** 16 Town Presets (Welling, Kelan, Holy, Kyoto, Chang'an, Rome, Maya, Inca, Bangkok, South Pole, Ghost Isle, Carnie Park, Pirate Base, Kaohsiung, Jail), Custom Coordinate Warp, Mass Event Summon All, Jail/Unjail, Ghost Mode Invisibility Toggle, and Combat Encounter Simulator with instant kill/win button.
-5. **Live Player Inventory & Equipment Inspector:** 50-Slot Player Bag DataGridView, 6-Slot Equipped Gear DataGridView with slot names, Item Injector with ID and Count, Delete Selected Bag Item, Clear Bag, and Repair All Gear.
+## 5. GUI Operator Administration Console
 
-## Experimental Systems Cockpit (`tabExperimental`)
+The server GUI ([`MainForm1.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Gui/MainForm1.cs)) provides an enterprise-grade operator dashboard:
 
-The server console provides a comprehensive 22 sub-tab cockpit for configuring, managing, and live-simulating all 23 advanced experimental gameplay engines:
-- **Wave 1 Engines (7):** Instance Dungeons (AC 85), PvP Arena (AC 88), Guild Siege (AC 84), Arcade Minigames (AC 76), Festival Races (AC 82), Map Mechanisms, Companion Talents.
-- **Wave 2 Engines (10):** Community Bulletin (AC 40), Church Charity (AC 41), Equipment Forge (AC 24), Gobang Wager (AC 88), Aquaculture Fishing (AC 90), Hot Spring Bathing (AC 44), Secondary PIN Vault (AC 73), Player Stall Bazaar (AC 53), Dynamic Weather (AC 05:22), and Vehicle Transport (AC 15).
-- **Wave 3 Engines (6):** ATM Banking & Vault Remittance (AC 26 / Spec 46), Player Titles & Achievement Honors (AC 40 / Spec 59), Underground Treasure Excavation (AC 90 / Spec 83), Carnival Fortune Wheel & Gacha Capsule Machines (AC 76 / Spec 85 & 98), Tent Housekeeper Maid & Butler Assistant (AC 62 / Spec 87), and Tactical Turn-Based Combat Status Conditions & CC (AC 114/115 / Spec 92).
-- **Stability & Null-Safety:** Fully hardened synthetic player testing routines, safe packet packing (`SendPacket.Pack32`), and graceful exception isolation across all cockpit simulation triggers. See [docs/21_experimental_stall_and_player_nullsafety_hotfix.md](file:///D:/GitHub/Wonderland-Private-Server/docs/21_experimental_stall_and_player_nullsafety_hotfix.md) and [docs/22_wave_3_decompiled_experimental_systems_specification.md](file:///D:/GitHub/Wonderland-Private-Server/docs/22_wave_3_decompiled_experimental_systems_specification.md).
-- **Native Private Shop & Bazaar Synchronization:** Integrated native client GUI Private Shop protocol (`AC 23:30` and `AC 23:31`), mapping client subroutines `FUN_004546e8` and `FUN_00454cb8` in `aLogin.exe`. Relaxed `:spawnstall` command guards when the Player Stall Bazaar engine is enabled, allowing non-GM tester accounts to spawn overworld kiosks freely. See [docs/25_native_client_private_shop_protocol_and_gm_guard_relaxation.md](file:///D:/GitHub/Wonderland-Private-Server/docs/25_native_client_private_shop_protocol_and_gm_guard_relaxation.md).
-- **Persistent Custom Stalls & Infinite Bazaar Catalog:** Autonomous synthetic vendor entities allocated from reserved ID range `8900001..8999999`, leaving calling players free and mobile without posture disruption. Supports customizable item catalogs (`itemId:price[:qty]`), infinite vs. limited stock modes (`is_infinite = 1/0`), and automatic dual-database persistence (`custom_stalls` table in SQLite/MySQL) loaded across all maps on server initialization. See [docs/28_persistent_custom_stalls_and_infinite_bazaar_catalog.md](file:///D:/GitHub/Wonderland-Private-Server/docs/28_persistent_custom_stalls_and_infinite_bazaar_catalog.md).
-- **Native Stall Browse and Purchase Protocol:** Authentic client GUI form integration for `Form_BuyItemStall_1` using 39-byte item records packed into `AC 23:33` and purchase processing with infinite auto-replenishment. See [docs/30_native_stall_browse_and_purchase_protocol.md](file:///D:/GitHub/Wonderland-Private-Server/docs/30_native_stall_browse_and_purchase_protocol.md).
-- **Companion Pet & Vehicle/Utensil Stall Vending Protocol:** Complete subtype separation for Item Stalls (`StallType = 1`, `AC 23:33`), Companion Pet Stalls (`StallType = 2`, `AC 23:113` browse / `AC 23:63` purchase, `Form_BuyPet1..3Stall_1` with party cap and duplicate checks), and Vehicle & Utensil Appliance Stalls (`StallType = 3`, `AC 23:133` browse / `AC 23:68` purchase, `Form_Buy1..3Utensil_1`), with Bazaar Stall Studio GUI controls and dual database persistence. See [docs/31_pet_and_vehicle_stall_vending_protocol.md](file:///D:/GitHub/Wonderland-Private-Server/docs/31_pet_and_vehicle_stall_vending_protocol.md).
+* **Executive Header:** Real-time telemetry displaying online player count, server uptime, CPU/RAM working set, and listening socket states.
+* **Persistent Settings:** Server name and MOTD stored relationally in `server_settings` with automatic boot-time loading and debounced auto-save.
+* **5-Panel GM Studio (`tabGm`):**
+  1. *Authorization & Permissions:* Database-backed GM account management (`gm_accounts`) with instant promotion.
+  2. *Live Player Management:* Live player inspector with one-click full heal, gold/stat point grant, level adjustments, amity boost, rebirth, skill unlocking, chat muting, and socket kicking.
+  3. *Server Operations:* Real-time announcement broadcaster with 4 color channels, global EXP and drop multipliers, table hot-reloading, 13-companion instant spawner, and graceful 10-second countdown shutdown.
+  4. *Spatial Teleportation:* 16 town presets, custom coordinate warps, mass event summons, jail controls, and turn-based combat encounter simulator.
+  5. *Inventory & Gear Inspector:* 50-slot inventory DataGridView and 6-slot equipped gear inspector with direct item injection, deletion, and full equipment repair.
+* **Bazaar Stall Studio:** Search-as-you-type item catalog autocompletion, map coordinate capture, vendor customization, and persistent database deployment for item, companion, and vehicle kiosks.
+* **Experimental Systems Cockpit (`tabExperimental`):** 22 sub-tab operational interface for live simulation and parameter tuning of all 23 experimental engines.
 
+---
 
+## 6. Technical Documentation Index (Master Specification Suite)
 
+The repository includes a comprehensive 36-document master specification suite documenting every system:
 
+1. [**01 - System Architecture & Server Topology**](file:///D:/GitHub/Wonderland-Private-Server/docs/01_system_architecture_and_server_topology.md): Multi-server socket topology, dynamic portability engine ([`PathHelper.cs`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/Core/PathHelper.cs)), threading model, project dependency graph, and graceful shutdown.
+2. [**02 - Database Schema & Persistence Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/02_database_schema_and_persistence_lifecycle.md): Centralized SQLite and MySQL relational persistence, self-healing migrations (`AddColumnIfNotExists`), schema verification (`VerifySetup`), and 1-click migration engine.
+3. [**03 - Network Protocol & Action Codes**](file:///D:/GitHub/Wonderland-Private-Server/docs/03_network_protocol_and_action_codes.md): Binary wire framing, `0x44F4` magic header, XOR `0xAD` encryption, little-endian serialization ([`Tools.FromFormat`](file:///D:/GitHub/Wonderland-Private-Server/RCLibrary/Core/Tools.cs)), and complete Action Code reference catalog (`AC 0` to `AC 226`).
+4. [**04 - Binary Asset Pipeline & Decoders**](file:///D:/GitHub/Wonderland-Private-Server/docs/04_binary_asset_pipeline_and_decoders.md): In-memory client asset decoders (`Npc.dat`, `itemDat.wpdat`, `Talk.dat`, `Mark.dat`, `SceneData.dat`, `Eve.emg`, `Formula.dat`, `Compound2.dat`) and [Starter Outfit Pipeline](file:///D:/GitHub/Wonderland-Private-Server/docs/starter_outfit_and_item_pipeline.md).
+5. [**05 - Map Engine, Spatial AI & Scene Entity Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/05_map_engine_spatial_ai_and_scene_lifecycle.md): Isometric coordinate systems, NPC roaming AI, 209-item ground harvesting loop, 14-byte `AC 22:4` scene table, concealment frame sequencing, and puppet suppression.
+6. [**06 - Dialogue, Quest State Machine & Cutscenes**](file:///D:/GitHub/Wonderland-Private-Server/docs/06_dialogue_quest_state_machine_and_cutscenes.md): Modal dialogue boxes, 24-bit talk IDs, choice callbacks, quest state monotonic progression, PreEvent condition evaluation, and cinematic timelines.
+7. [**07 - Turn-Based Combat Engine & Battlefield**](file:///D:/GitHub/Wonderland-Private-Server/docs/07_turn_based_combat_engine_and_battlefield.md): 4v4 isometric battlefield grid, byte-for-byte `AC 11:5` fighter serialization, 30s turn loop, elemental wheel, knockouts, fair-play drops, and 7-step exit handshake.
+8. [**08 - Companion Pet Lifecycle & Vehicles**](file:///D:/GitHub/Wonderland-Private-Server/docs/08_companion_pet_lifecycle_and_vehicles.md): Companion login sync (`AC 15:1`), skill unlocks, amity decay and desertion (<20), rebirth ascension, overworld follower spawning, and 7-step raft shore shipwreck protocol.
+9. [**09 - Tent Housing & Manufacturing System**](file:///D:/GitHub/Wonderland-Private-Server/docs/09_tent_housing_and_manufacturing_system.md): Instanced personal tents keyed by `CharID`, multi-tenant instance isolation, overworld multi-tent replication (`SendOpenTents`), tent locking, visitor guards, overworld coordinate preservation (`TentReturnMap`), furniture placement (`chartent_items`), 2nd floor expansions, and authentic `Compound2.dat` synthesis (`AC 64`).
+10. [**10 - Social Systems, Player Trade, Friends & Chat**](file:///D:/GitHub/Wonderland-Private-Server/docs/10_social_systems_trade_friends_and_chat.md): 50-slot bag with 31-byte records, bilateral friend roster (`AC 14:5`) and removal (`AC 14:4`), 4-phase atomic player trade, and multi-channel chat moderation.
+11. [**11 - GUI Administration Suite & GM Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/11_gui_administration_suite_and_gm_engine.md): Modernized Windows Forms dashboard with two-tier horizontal navigation, 24 operational modules, executive telemetry header, database-backed MOTD persistence, and GM chat commands.
+12. [**12 - Formula.dat Specification & Experience Engine**](file:///D:/GitHub/Wonderland-Private-Server/docs/12_formula_dat_specification_and_exp_engine.md): Complete 407-byte binary schema, IEEE-754 double precision coefficients, client `TCalculator` disassembly, normal/reborn/pet EXP formulas, combat monster EXP distribution, and real-time multiplier control.
+13. [**13 - Quest Ecosystem, Census & Flag Mapping**](file:///D:/GitHub/Wonderland-Private-Server/docs/13_quest_ecosystem_census_and_flag_mapping.md): Comprehensive census across `Mark.dat` and `Eve.emg`, explanation of community ~502 canonical journal quest count vs internal 1,027 master quests and 1,507 flag scripts, regional breakdowns, and pairing mechanics.
+14. [**14 - Developer Tooling, Reverse Engineering & Deployment**](file:///D:/GitHub/Wonderland-Private-Server/docs/14_developer_tooling_reverse_engineering_and_deployment.md): Prerequisites, zero-error build command, client configuration (`SERVER.INI`), asynchronous diagnostic logger (`DebugSystem`), PCAP analysis, Ghidra disassembly addresses, and bot testing framework.
+15. [**15 - Gap Analysis, Missing Features & Feature Roadmap**](file:///D:/GitHub/Wonderland-Private-Server/docs/15_gap_analysis_and_feature_roadmap.md): Protocol gap analysis, unhandled Eve script opcodes (15, 16, 17), anti-exploit security checklist, and phased 5-tier implementation roadmap.
+16. [**16 - REA Reverse Engineering Agent Tooling**](file:///D:/GitHub/Wonderland-Private-Server/docs/16_rea_reverse_engineering_agent_tooling.md): REA (`morluto/rea`) CLI and MCP toolchain configuration, Ghidra 12.1.2 decompiler integration, PE/CLI and native binary inspection.
+17. [**17 - aLogin.exe Reverse Engineering & Protocol Analysis**](file:///D:/GitHub/Wonderland-Private-Server/docs/17_alogin_reverse_engineering_and_protocol_analysis.md): Client binary architecture (PE32 x86, Delphi VCL forms, `TGmForm`), socket topology (ports 6414 and 6416), `SERVER.INI` parsing, and process dispatching.
+18. [**18 - Complete Client Engine & GM Suite Reverse Engineering Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/18_complete_client_engine_and_gm_suite_analysis.md): Monolithic client engine topology (`aLogin.exe` vs `Main.exe`), 81 in-game forms (AutoPlayerPlus botting, Capsulem, Compound alchemy, ATM banking, instance dungeons), exhaustive 56-button GM administration suite (`TGmForm` / `CY_GmForm`), chat bitmasks, and built-in server event state machines.
+19. [**19 - Experimental Features Lab & Gap Implementation**](file:///D:/GitHub/Wonderland-Private-Server/docs/19_experimental_features_and_gap_implementation.md): Complete specifications for the experimental gameplay suite, AC 85/183/184/57/226/199 wire handlers, Opcode 16/17 script bridges, and operator administration cockpit.
+20. [**20 - Extended Experimental Features & Decompiled Gap Census**](file:///D:/GitHub/Wonderland-Private-Server/docs/20_extended_experimental_features_and_decompiled_gap_census.md): Exhaustive specifications for the 10 extended experimental gameplay engines (AC 82, 76, 40, 41, 90, 44, 24, 53, 88, 84/86), parameter specifications, data contracts, and expanded administrative cockpit integration.
+21. [**21 - Experimental Stall & Player Nullsafety Hotfix**](file:///D:/GitHub/Wonderland-Private-Server/docs/21_experimental_stall_and_player_nullsafety_hotfix.md): Architectural fix resolving null reference crash during test stall spawning with synthetic vendors.
+22. [**22 - Wave 3 Decompiled Experimental Systems Specification**](file:///D:/GitHub/Wonderland-Private-Server/docs/22_wave_3_decompiled_experimental_systems_specification.md): Specifications for Wave 3 experimental engines: ATM banking, player prestige titles, geological excavation, carnival lottery wheel, tent butler, and combat status condition rules.
+23. [**23 - Experimental Engines Verification & Custom Stall Spawning**](file:///D:/GitHub/Wonderland-Private-Server/docs/23_experimental_engines_verification_and_custom_stall_spawning.md): Verification matrix for all 23 experimental engines, dual-entity stall architecture (Map NPC + Visual Actor), coordinate spawning, wire protocol packets, and in-game purchase commands.
+24. [**24 - Personal Player Stall & Custom Kiosk Uncoupling**](file:///D:/GitHub/Wonderland-Private-Server/docs/24_personal_player_stall_and_custom_kiosk_uncoupling.md): Architectural separation of player personal vending kiosks and custom map NPC stalls.
+25. [**25 - Native Client Private Shop Protocol & GM Guard Relaxation**](file:///D:/GitHub/Wonderland-Private-Server/docs/25_native_client_private_shop_protocol_and_gm_guard_relaxation.md): S->C AC 23:30 native confirmation packet, sign board banner sync (`AC 56:30`), sitting stance transition, and GM chat stall creation for non-GM accounts.
+26. [**26 - Native Stall Closure Opcode Alignment & Posture Recovery**](file:///D:/GitHub/Wonderland-Private-Server/docs/26_stall_close_opcode_alignment_and_posture_recovery.md): Jump table `0x002E5A1F` alignment, opcode 32 routing to `FUN_00454cb8`, clearing player stall mutex `0x2231 = 0`, pet stall flag `0x2232 = 0`, and posture acknowledgement via `AC 32:2`.
+27. [**27 - Custom Stall Actor Rendering & Map Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/27_custom_stall_actor_rendering_and_map_synchronization.md): Synthetic vendor actor instantiation via AC 4, online presence AC 10:3, coordinates AC 7, sitting emote AC 32:2, kiosk AC 5:16, signboard AC 56:30, and 15-byte AC 12 despawning.
+28. [**28 - Persistent Custom Stalls & Infinite Bazaar Catalog**](file:///D:/GitHub/Wonderland-Private-Server/docs/28_persistent_custom_stalls_and_infinite_bazaar_catalog.md): Dual-database persistence (SQLite & MySQL), synthetic vendor allocation (`8900001+`), infinite vs limited stock semantics, and bootloader restoration.
+29. [**29 - Native Stall Appearance, Table/Banner Attachment & Form Closure Protocol**](file:///D:/GitHub/Wonderland-Private-Server/docs/29_native_stall_appearance_and_form_closure_protocol.md): Authentic 3D stall table and floating signboard banner attachment (`AC 23:31`), despawn dismissal (`AC 23:32`), native Form_PrivateShop closure (`AC 23:165 1`), elimination of "Stall is in use" lockup, posture ping-pong suppression in `AC 32:2`, and fully clothed synthetic vendor avatar.
+30. [**30 - Native Stall Browse & Purchase Protocol**](file:///D:/GitHub/Wonderland-Private-Server/docs/30_native_stall_browse_and_purchase_protocol.md): Authentic client interaction flow for clicking stalls in-game, rendering Form_BuyItemStall_1 via S -> C AC 23:33 (19-byte header + 39-byte records), infinite stock auto-reset mechanics, elimination of bogus quiz cooldown messages (AC 20:18), visual Bazaar Stall Studio administration GUI with search-as-you-type item catalog autocompletion, map presets, position capture, and dual in-game purchase channels.
+31. [**31 - Pet & Vehicle Stall Vending Protocol**](file:///D:/GitHub/Wonderland-Private-Server/docs/31_pet_and_vehicle_stall_vending_protocol.md): Companion pet and vehicle stall vending protocol, trade lock safeguards, and price serialization.
+32. [**32 - Narrative Cutscene & Scene Gate Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/32_narrative_cutscene_and_scene_gate_lifecycle.md): Early-game narrative and cutscene engine synchronization, scene gate and HUD restoration (`AC 5:4`), Kran Island S. Monkey CG movie trigger (`AC 186:12` / `AC 20:1 Type 5`), Robinson beach arrival sequence with cutscene timeline progression, Event 8 first-contact rescue dialogue, and duplicate dialogue prevention with trailing click debouncing.
+33. [**33 - Pet Hotel Concurrency & Modal State Machine**](file:///D:/GitHub/Wonderland-Private-Server/docs/33_pet_hotel_concurrency_and_modal_state_machine.md): Storage manager lock flags (`AC 31:8`), `Form_PetHotel` modal input lock clearance (`AC 31:12` resetting `[Form_PetHotel + 0x174]` via `0x002ea4c5`), companion withdrawal memory sequencing (`AC 31:5` copy before `AC 31:4` slot clear), and capacity validation on deposits and exchanges.
+34. [**34 - NPC Vendor Procurement & Catalog Protocol**](file:///D:/GitHub/Wonderland-Private-Server/docs/34_npc_vendor_procurement_and_catalog_protocol.md): NPC merchant store catalog resolution (`AC 35:12` with catalog IDs `0x0001FB83`..`0x0001FB85`), decoupling purchasing from liquidation (`Form_EquipStore` / `Form_ThingStore` vs `Form_Sale`), shopping cart order validation (`AC 27:1`), gold deduction, bag capacity verification, and atomic item delivery in `Inventory.BuyFromNpc`.
+35. [**35 - Tent Housing Virtual Map & Entry Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/35_tent_housing_virtual_map_and_entry_lifecycle.md): Instanced personal tent virtual map routing (`MapID = 100000 + CharID`), dual-keying in map dictionary, stream pointer realignment (`p.SetPtr(6)`) for 32-bit owner CharID extraction in `AC 65:1`, map initialization and load completion packet transmission (`AC 23:102` / `AC 20:8`), and authentic reward item injection (`36002` Personal Tent / `34058` Remote Control).
+36. [**36 - Inventory Item Dispatching & Mount Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/36_inventory_item_dispatching_and_mount_lifecycle.md): Universal inventory double-click dispatcher (`AC 23:15`), equipment wearing (`WearEQ`), mount/dismount lifecycle for vehicles and Bamboo Dragonfly (`34169`), Quest Notebook rendering (`32000`), combat auto-battle Remote Control (`34058` / `AC 29:6`), Return Scrolls (`30001`, `34163`), EXP Potion consumption, and `AC 23:54` fishing/gathering mutex state clearance.
+
+---
+
+## 7. Decompiled Client Reverse Engineering Compendium
+
+The complete reverse engineering of the monolithic client binaries (`aLogin.exe` and `Main.exe`), asset pipelines, memory structures, and protocol dispatchers is cataloged in [`decompiled/README.md`](file:///D:/GitHub/Wonderland-Private-Server/decompiled/README.md):
+
+* **Specifications 01-20:** Client architecture, GM studio (`CY_GmForm`), form automation, wire framing, actor memory layout, asset parsers, companion lifecycle, quests, authentication, Item Mall, chat constraints, alchemy, combat validation, minigames, marriage, instance dungeons, forge potential, DirectX audio, and the complete 9,451 function inventory catalog.
+* **Specifications 21-40:** Binary asset formats, patcher/updater engines, rebirth stat layout, server broadcasts, alchemy chemistry matrix, motion state resolver, vehicle GPS navigation, weather particle systems, arcade state machines, guild emblems, lodging, character creation wizard, courier dispatch, co-op battles, tent camping, alchemy grades, Mario platformer, and church charity tithes.
+* **Specifications 41-60:** Durability wear, Gobang chess board, companion riding, aquaculture catch tables, hot springs, casino gaming, ATM banking, cursor state machines, quest trackers, DirectDraw blitting, skill trees, guild authority, player stalls, PIN vaults, character sheets, duplicate mission controllers, bulletin boards, instant messenger ICQ, and title achievements.
+* **Specifications 61-80:** Token redemption, express freight, furniture storage, challenge chambers, hotkey macro docks, wallpapers, emotes, party tactics, dialogue trees, ante stakes, audio preferences, offline mailbox, character deletion challenge, guild bylaws, point card recharge, church tithe donation boxes, vendor liquidation safeguards, HUD docks, and inn resting.
+* **Specifications 81-100:** Pet rebirth ascension, UFO claw machines, underground treasure mining, rhythm boxing power meters, lottery ball physics, memory concentration poker, tent butler automation, dynamic scene lighting, DirectDraw clippers, combat radial targeting, status condition buffs/debuffs, vendor bulk procurement, consignment bazaars, password rotation, character creation wizards, furniture stall vending, gacha capsule machines, guild emblem canvas, and the grand master implementation manual.
+
+---
+
+## 8. License & Disclaimer
+
+Wonderland Online is a registered trademark of Chinese Gamer International Corp. / IGG Inc. This project is an independent clean-room reverse-engineering and educational research emulator intended solely for archival, research, and private development purposes. All original assets and trademarks belong to their respective copyright holders.
