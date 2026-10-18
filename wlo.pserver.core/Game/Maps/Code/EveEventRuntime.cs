@@ -829,7 +829,17 @@ namespace Game.Maps
                 {
                     player.LastNpcClick = clickId;
                     player.LastNpcMap = (ushort)map.MapID;
-                    player.NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(2500);
+                    // Robinson's cutscene-triggered intro on Rhode Island Beach (Map 10035/10039, NPC clickId 1)
+                    // concludes with Quest 12040 at Step 1. The client's proximity auto-click fires within the
+                    // standard 2500 ms window and immediately re-triggers the next branch, causing Robinson to
+                    // appear to speak twice. Extend the debounce to 10 s so the player must deliberately click
+                    // Robinson before the recruitment dialogue is offered.
+                    bool isRobinsonIntro = clickId == 1 &&
+                        (map.MapID == 10035 || map.MapID == 10039) &&
+                        player.Quests != null &&
+                        player.Quests.TryGetValue(12040, out var robQ) &&
+                        robQ.State == QuestState.InProgress && robQ.Step == 1;
+                    player.NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(isRobinsonIntro ? 10000 : 2500);
                 }
                 QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
                 player.SaveCharacterData();
