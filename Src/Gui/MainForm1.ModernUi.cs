@@ -774,18 +774,50 @@ namespace Wonderland_Private_Server
                     }
                 };
 
+                Button btnPacketDebugToggle = new Button
+                {
+                    Text = DebugSystem.PacketDebugEnabled ? "Packet Debug: ON" : "Packet Debug: OFF",
+                    Location = new Point(480, 3),
+                    Size = new Size(130, 26),
+                    Font = ModernTheme.FontBoldSmall,
+                    BackColor = DebugSystem.PacketDebugEnabled ? ModernTheme.Emerald50 : ModernTheme.Rose50,
+                    ForeColor = DebugSystem.PacketDebugEnabled ? ModernTheme.Emerald700 : ModernTheme.Rose700,
+                    FlatStyle = FlatStyle.Flat
+                };
+                btnPacketDebugToggle.Click += (s, e) =>
+                {
+                    DebugSystem.PacketDebugEnabled = !DebugSystem.PacketDebugEnabled;
+                    if (cGlobal.SrvSettings != null)
+                    {
+                        cGlobal.SrvSettings.EnablePacketDebugLogging = DebugSystem.PacketDebugEnabled;
+                    }
+                    if (DebugSystem.PacketDebugEnabled)
+                    {
+                        btnPacketDebugToggle.Text = "Packet Debug: ON";
+                        btnPacketDebugToggle.BackColor = ModernTheme.Emerald50;
+                        btnPacketDebugToggle.ForeColor = ModernTheme.Emerald700;
+                    }
+                    else
+                    {
+                        btnPacketDebugToggle.Text = "Packet Debug: OFF";
+                        btnPacketDebugToggle.BackColor = ModernTheme.Rose50;
+                        btnPacketDebugToggle.ForeColor = ModernTheme.Rose700;
+                    }
+                    DebugSystem.Write(DebugItemType.Info_Light, $"[System] Packet Debug Logging has been turned {(DebugSystem.PacketDebugEnabled ? "ON" : "OFF")}.");
+                };
+
                 TextBox txtSearch = new TextBox
                 {
-                    Location = new Point(485, 5),
-                    Width = 120,
+                    Location = new Point(615, 5),
+                    Width = 110,
                     Font = new Font("Segoe UI", 8.5f)
                 };
 
                 Button btnFind = new Button
                 {
                     Text = "Find",
-                    Location = new Point(610, 3),
-                    Size = new Size(50, 26),
+                    Location = new Point(730, 3),
+                    Size = new Size(48, 26),
                     Font = new Font("Segoe UI", 8.5f),
                     BackColor = Color.White,
                     FlatStyle = FlatStyle.Flat
@@ -823,8 +855,8 @@ namespace Wonderland_Private_Server
                 Button btnExportLog = new Button
                 {
                     Text = "Export...",
-                    Location = new Point(665, 3),
-                    Size = new Size(70, 26),
+                    Location = new Point(782, 3),
+                    Size = new Size(68, 26),
                     Font = new Font("Segoe UI", 8.5f),
                     BackColor = Color.White,
                     FlatStyle = FlatStyle.Flat
@@ -854,6 +886,7 @@ namespace Wonderland_Private_Server
                 logToolPanel.Controls.Add(btnClear);
                 logToolPanel.Controls.Add(btnCopy);
                 logToolPanel.Controls.Add(btnAutoScrollToggle);
+                logToolPanel.Controls.Add(btnPacketDebugToggle);
                 logToolPanel.Controls.Add(txtSearch);
                 logToolPanel.Controls.Add(btnFind);
                 logToolPanel.Controls.Add(btnExportLog);

@@ -49,6 +49,32 @@ namespace Network.ActionCodes {
                     }
 
                     switch (commandHeader) {
+                        #region Packet Debug Toggle Command
+                        case ":packetdebug":
+                        case "/packetdebug":
+                        case ":debugpkt":
+                        case "/debugpkt": {
+                                try {
+                                    if (words.Length >= 2) {
+                                        string arg = words[1].ToLowerInvariant();
+                                        if (arg == "on" || arg == "true" || arg == "1" || arg == "enable") {
+                                            DebugSystem.PacketDebugEnabled = true;
+                                        } else if (arg == "off" || arg == "false" || arg == "0" || arg == "disable") {
+                                            DebugSystem.PacketDebugEnabled = false;
+                                        }
+                                    } else {
+                                        DebugSystem.PacketDebugEnabled = !DebugSystem.PacketDebugEnabled;
+                                    }
+                                    if (cGlobal.SrvSettings != null) {
+                                        cGlobal.SrvSettings.EnablePacketDebugLogging = DebugSystem.PacketDebugEnabled;
+                                    }
+                                    p.SendSystemMessage($"[Server] Packet Debug Logging: {(DebugSystem.PacketDebugEnabled ? "ENABLED (Logging all RECV/SEND packets)" : "DISABLED")}");
+                                    DebugSystem.Write(DebugItemType.Info_Light, $"[PacketDebug] Toggled to {(DebugSystem.PacketDebugEnabled ? "ON" : "OFF")} by {p.CharName}");
+                                } catch { }
+                            }
+                            break;
+                        #endregion
+
                         #region Heal / HP / SP Command
                         case ":heal":
                         case "/heal":

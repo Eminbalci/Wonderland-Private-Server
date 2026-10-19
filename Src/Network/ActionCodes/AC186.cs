@@ -54,6 +54,31 @@ namespace Network.ActionCodes
                 {
                     p.StormCutsceneAckReceived = true;
                     DebugSystem.Write($"[AC186.Recv9] Storm cutscene #1 handshake confirmed for {p.CharName}. Awaiting client completion AC 20:6.");
+
+                    // Failsafe watchdog (25s) in case client fails to emit AC 20:6 after 123.sty completes
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(25000);
+                            if (p.PlayingStormCutscene && p.CurMap != null && (p.CurMap.MapID >= 10014 && p.CurMap.MapID <= 10018))
+                            {
+                                p.PlayingStormCutscene = false;
+                                p.StormCutsceneAckReceived = false;
+                                p.PendingBeachCutscene = true;
+                                p.ClearInteraction();
+                                p.Send(Tools.FromFormat("bb", 20, 8));
+                                p.Send(Tools.FromFormat("bb", 20, 7));
+                                var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
+                                p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);
+                                DebugSystem.Write($"[AC186.Recv9] Storm cutscene watchdog (25s) triggered -> Warped {p.CharName} to Beach (Map 10035)");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write(DebugItemType.Error, $"[AC186.Recv9] Error in storm cutscene watchdog: {ex.Message}");
+                        }
+                    });
                 }
                 else
                 {

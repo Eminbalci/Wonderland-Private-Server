@@ -1659,9 +1659,9 @@ namespace Game.QuestRelated
             }
         }
 
-        // EVE stores native marks, not the client completion-bit indices.
         public static void SendQuestUpdate(Player player, uint questId, QuestState state, byte step = 1)
         {
+            DebugSystem.Write($"[QuestManager] Player '{player?.CharName}' Quest #{questId} updated -> State: {state}, Step: {step}");
             Game.PlayerRelated.NotebookManager.SendQuestUpdate(player, questId, state, step);
         }
 

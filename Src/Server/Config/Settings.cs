@@ -31,6 +31,7 @@ namespace Server.Config
         public string WelcomeMessage = "Welcome to the WLO Community Server! Enjoy!";
         public List<string> WelcomeMessages = new List<string>();
         public bool EnableLoginEventPrompts = false;
+        public bool EnablePacketDebugLogging = true;
 
         public List<string> GetAllWelcomeMessages()
         {

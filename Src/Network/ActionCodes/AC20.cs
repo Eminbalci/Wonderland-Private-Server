@@ -266,7 +266,7 @@ namespace Wonderland_Private_Server.ActionCodes
             {
                 if (!p.StormCutsceneAckReceived)
                 {
-                    DebugSystem.Write($"[AC20.Recv6] Absorbed premature AC 20:6 before AC 186:9 handshake for {p.CharName}");
+                    DebugSystem.Write($"[AC20.Recv6] Ignored premature AC 20:6 before storm cutscene handshake for {p.CharName}");
                     return;
                 }
 
@@ -274,6 +274,7 @@ namespace Wonderland_Private_Server.ActionCodes
                 p.StormCutsceneAckReceived = false;
                 p.PendingBeachCutscene = true;
                 p.ClearInteraction();
+                p.Send(Tools.FromFormat("bb", 20, 8)); // Stop / clear client cutscene
                 p.Send(Tools.FromFormat("bb", 20, 7)); // Frame 0328: AC 20:7 Warp Out
                 var warp = new WarpData() { DstMap = 10035, DstX_Axis = 1038, DstY_Axis = 2235 };
                 p.CurMap?.Teleport(TeleportType.CmD, p, 0, warp);

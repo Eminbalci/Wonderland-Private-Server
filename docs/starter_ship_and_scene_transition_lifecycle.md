@@ -53,13 +53,11 @@ Dialogue with Captain (`TID 14003`, Event 11) concludes with an authentic packet
    - Server responds with playback status acknowledgment `AC 186:9 [186, 9, 1, 0, 1, 0, 0, 0, 0]` (Frame 0325).
    - Sets `player.StormCutsceneAckReceived = true` confirming active playback.
    - Any premature `AC 20:6` frames arriving prior to this handshake are absorbed without state mutation.
-3. **Warp Execution:**
-   - Once playback completes on the client, the client emits `AC 20:6` (Frame 0327).
-   - In [`AC20.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC20.cs#L235), receipt of `AC 20:6` while `StormCutsceneAckReceived` is true triggers the scene transition:
-     - Clears `PlayingStormCutscene` and `StormCutsceneAckReceived`.
-     - Sets `PendingBeachCutscene = true`, and invokes `ClearInteraction()`.
-     - Emits `AC 20:7` Warp Out frame (Frame 0328).
-     - Teleports character to Rhode Island Beach (`Map 10035`, `1038, 2235`).
+3. **Warp Execution & Cutscene Cleardown:**
+   - Client acknowledges cutscene initiation via `AC 186:9` (Frame 0322).
+   - In [`AC186.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC186.cs), receipt of `AC 186:9` confirms the cinematic handshake and arms a 25-second failsafe watchdog.
+   - When `123.sty` completes on the client, the client sends `AC 20:6` (Frame 0327).
+   - In [`AC20.cs`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC20.cs), receiving `AC 20:6` while `StormCutsceneAckReceived == true` sends `AC 20:8` (clearing client cutscene stage) followed by `AC 20:7` (Warp Out) and teleports the character to Rhode Island Beach (`Map 10035`, `1038, 2235`). Premature warps while `123.sty` is still active are eliminated so the ship animation never leaks into the beach scene.
 4. **Beach Arrival (`Map 10035`):**
    - Handled via [`AC12.Recv1`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC12.cs#L47) upon receiving client map load confirmation `AC 12:1` (Frame 0330):
      - Sets `BeachCutsceneActive = true`, `BeachCutsceneStep = 2`, `Emote = 9` (lying on sand), and sends immobilize (`AC 5:30 [1]`).

@@ -1038,6 +1038,151 @@ namespace Game
                 return;
             }
             p.Flags = pFlags;
+
+            if (DebugSystem.PacketDebugEnabled && p != null && p.Buffer != null && p.Buffer.Length > 0)
+            {
+                byte[] buf = p.Buffer;
+                byte acId = 0;
+                byte subId = 0;
+                int offset = 0;
+                if (buf.Length >= 6 && buf[0] == 0xF4 && buf[1] == 0x44)
+                {
+                    acId = buf[4];
+                    subId = buf[5];
+                    offset = 4;
+                }
+                else if (buf.Length >= 2)
+                {
+                    acId = buf[0];
+                    subId = buf[1];
+                    offset = 0;
+                }
+
+                string hexData = BitConverter.ToString(buf).Replace("-", " ");
+                string who = string.IsNullOrEmpty(CharName) ? "Client" : CharName;
+
+                // Detailed labels for animation, cutscene, dialogue, and emotion packets
+                string animLabel = "";
+                if (acId == 20 && subId == 1)
+                {
+                    if (buf.Length >= offset + 7)
+                    {
+                        byte step = buf.Length > offset + 5 ? buf[offset + 5] : (byte)0;
+                        byte type = buf[offset + 6];
+                        byte portrait = buf.Length > offset + 7 ? buf[offset + 7] : (byte)0;
+                        ushort actor = buf.Length >= offset + 10 ? BitConverter.ToUInt16(buf, offset + 8) : (ushort)0;
+                        byte mode = buf.Length > offset + 10 ? buf[offset + 10] : (byte)0;
+                        uint value = buf.Length >= offset + 15 ? BitConverter.ToUInt32(buf, offset + 11) : 0;
+                        ushort text = buf.Length >= offset + 17 ? BitConverter.ToUInt16(buf, offset + 15) : (ushort)0;
+
+                        if (type == 1) // Dialogue / Speech
+                        {
+                            uint talkId = text > 0 ? text : value;
+                            string dialogText = "";
+                            string txt = null;
+                            if (talkId > 0 && global::DataFiles.TalkResolver.TryResolve(talkId, out txt, who, true))
+                            {
+                                dialogText = $": \"{txt}\"";
+                            }
+                            string speakerLabel = portrait == 7 ? "Player" : $"NPC(Actor {actor})";
+                            animLabel = $" [DIALOGUE Step={step} Speaker={speakerLabel} TalkID={talkId}{dialogText}]";
+                        }
+                        else if (type == 5) // In-Engine Cutscene
+                        {
+                            uint cutsceneId = value > 0 ? value : text;
+                            animLabel = $" [CUTSCENE / STAGE DIR CutsceneID={cutsceneId} Mode={mode} Step={step}]";
+                        }
+                        else
+                        {
+                            animLabel = $" [SCRIPT ACTION Type={type} Step={step} Mode={mode} Val={value}]";
+                        }
+                    }
+                    else
+                    {
+                        animLabel = " [SCRIPT ACTION]";
+                    }
+                }
+                else if (acId == 20 && subId == 2)
+                {
+                    animLabel = " [DIALOGUE / STEP ADVANCE]";
+                }
+                else if (acId == 20 && subId == 3)
+                {
+                    animLabel = " [EMOTICON BUBBLE]";
+                }
+                else if (acId == 20 && subId == 7)
+                {
+                    animLabel = " [STAGE ACTION / ANIMATION]";
+                }
+                else if (acId == 20 && subId == 8)
+                {
+                    animLabel = " [RESTORE UI / DIALOG END]";
+                }
+                else if (acId == 20 && subId == 10)
+                {
+                    animLabel = " [BGM SFX / FANFARE]";
+                }
+                else if (acId == 186 && subId == 12)
+                {
+                    ushort cutsceneId = buf.Length >= offset + 4 ? BitConverter.ToUInt16(buf, offset + 2) : (ushort)0;
+                    animLabel = $" [CG MOVIE START CutsceneID={cutsceneId}]";
+                }
+                else if (acId == 186 && subId == 9)
+                {
+                    ushort scene = buf.Length >= offset + 4 ? BitConverter.ToUInt16(buf, offset + 2) : (ushort)0;
+                    animLabel = $" [CG MOVIE STATUS Scene={scene}]";
+                }
+                else if (acId == 22 && subId == 10)
+                {
+                    ushort clickId = buf.Length >= offset + 4 ? BitConverter.ToUInt16(buf, offset + 2) : (ushort)0;
+                    animLabel = $" [NPC DESPAWN ClickID={clickId}]";
+                }
+                else if (acId == 22 && subId == 11)
+                {
+                    ushort clickId = buf.Length >= offset + 4 ? BitConverter.ToUInt16(buf, offset + 2) : (ushort)0;
+                    animLabel = $" [NPC POSE / EMOTE ClickID={clickId}]";
+                }
+                else if (acId == 22 && subId == 12)
+                {
+                    ushort clickId = buf.Length >= offset + 4 ? BitConverter.ToUInt16(buf, offset + 2) : (ushort)0;
+                    animLabel = $" [NPC MOVE / WALK ClickID={clickId}]";
+                }
+                else if (acId == 23 && subId == 2)
+                {
+                    animLabel = " [PLAYER ANIMATION / MOTION]";
+                }
+                else if (acId == 23 && subId == 7)
+                {
+                    animLabel = " [PLAYER EMOTICON]";
+                }
+                else if (acId == 23 && subId == 57)
+                {
+                    string msg = buf.Length > offset + 3 ? System.Text.Encoding.ASCII.GetString(buf.Skip(offset + 3).ToArray()).Trim('\0') : "";
+                    animLabel = $" [SYSTEM NOTIFICATION: \"{msg}\"]";
+                }
+                else if (acId == 5 && subId == 4)
+                {
+                    animLabel = " [RESTORE SCENE GATE & HUD]";
+                }
+                else if (acId == 5 && subId == 30)
+                {
+                    byte immob = buf.Length >= 12 ? buf[11] : (byte)0;
+                    animLabel = $" [PLAYER IMMOBILIZE State={immob}]";
+                }
+                else if (acId == 6 && subId == 2)
+                {
+                    byte stance = buf.Length >= offset + 3 ? buf[offset + 2] : (byte)0;
+                    animLabel = $" [PLAYER STANCE / LOCK State={stance}]";
+                }
+                else if (acId == 32 && subId == 2)
+                {
+                    byte emote = buf.Length > offset + 6 ? buf[offset + 6] : (byte)0;
+                    animLabel = $" [ACTION / POSTURE Emote={emote}]";
+                }
+
+                DebugSystem.Write(DebugItemType.Error, $"[SEND PKT] [{who}] AC={acId}, Sub={subId}{animLabel} Len={buf.Length} Hex: {hexData}");
+            }
+
             m_socket?.SendPacket(p);
 
         }
@@ -1057,13 +1202,51 @@ namespace Game
                 string hexData = BitConverter.ToString(p.Buffer).Replace("-", " ");
                 string who = string.IsNullOrEmpty(CharName) ? "Client" : CharName;
 
-                if (ac == null)
+                if (DebugSystem.PacketDebugEnabled)
                 {
-                    DebugSystem.Write(DebugItemType.Error, $"[RECV PKT] [{who}] AC={p.A}, Sub={p.B} (Handler: NONE) Len={p.Buffer.Length} Hex: {hexData}");
-                }
-                else
-                {
-                    DebugSystem.Write(DebugItemType.Error, $"[RECV PKT] [{who}] AC={p.A}, Sub={p.B} (Handler: {ac.GetType().Name}) Len={p.Buffer.Length} Hex: {hexData}");
+                    string animLabel = "";
+                    if (p.A == 20 && p.B == 6)
+                    {
+                        animLabel = " [EVENT / CUTSCENE STEP ACK]";
+                    }
+                    else if (p.A == 20 && p.B == 2)
+                    {
+                        byte step = p.Buffer.Length >= 7 ? p.Buffer[6] : (byte)0;
+                        animLabel = $" [DIALOGUE NEXT STEP ACK Step={step}]";
+                    }
+                    else if (p.A == 20 && p.B == 9)
+                    {
+                        byte choice = p.Buffer.Length >= 7 ? p.Buffer[6] : (byte)0;
+                        animLabel = $" [DIALOGUE CHOICE SELECTED Choice=0x{choice:X}]";
+                    }
+                    else if (p.A == 20 && p.B == 1)
+                    {
+                        ushort clickId = p.Buffer.Length >= 8 ? BitConverter.ToUInt16(p.Buffer, 6) : (ushort)0;
+                        animLabel = $" [NPC CLICK ClickID={clickId}]";
+                    }
+                    else if (p.A == 186 && p.B == 9)
+                    {
+                        ushort scene = p.Buffer.Length >= 8 ? BitConverter.ToUInt16(p.Buffer, 6) : (ushort)0;
+                        animLabel = $" [CG MOVIE ACK / HANDSHAKE Scene={scene}]";
+                    }
+                    else if (p.A == 20 && p.B == 4)
+                    {
+                        animLabel = " [REGION TRIGGER ACK]";
+                    }
+                    else if (p.A == 32 && p.B == 2)
+                    {
+                        byte emote = p.Buffer.Length >= 7 ? p.Buffer[6] : (byte)0;
+                        animLabel = $" [PLAYER EMOTE / POSTURE Emote={emote}]";
+                    }
+
+                    if (ac == null)
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[RECV PKT] [{who}] AC={p.A}, Sub={p.B}{animLabel} (Handler: NONE) Len={p.Buffer.Length} Hex: {hexData}");
+                    }
+                    else
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[RECV PKT] [{who}] AC={p.A}, Sub={p.B}{animLabel} (Handler: {ac.GetType().Name}) Len={p.Buffer.Length} Hex: {hexData}");
+                    }
                 }
 
                 // The installed host has no AC20:4 dispatcher. Handle native region
@@ -1082,9 +1265,11 @@ namespace Game
                     var c = this;
                     try
                     {
-                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Calling ProcessPkt for AC {ac.ID}");
+                        if (DebugSystem.PacketDebugEnabled)
+                            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Calling ProcessPkt for AC {ac.ID}");
                         ac.ProcessPkt(c, p);
-                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] ProcessPkt completed for AC {ac.ID}");
+                        if (DebugSystem.PacketDebugEnabled)
+                            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] ProcessPkt completed for AC {ac.ID}");
                     }
                     catch (Exception ex)
                     {

@@ -178,14 +178,7 @@ namespace Game.Maps
 
                     player.QueueData.Clear();
 
-                    // 1. Dispatch authentic CG Movie packet AC 186:12 (Cutscene 12000)
-                    SendPacket cgPkt = new SendPacket();
-                    cgPkt.PackArray(new byte[] { 186, 12 });
-                    cgPkt.Pack16(12000);
-                    cgPkt.Pack8(0); cgPkt.Pack8(0); cgPkt.Pack8(0);
-                    player.Send(cgPkt);
-
-                    // 2. Dispatch authentic in-engine Cinematic Cutscene frame AC 20:1 Type 5 Mode 1 (Cutscene ID 12000)
+                    // 1. Dispatch authentic in-engine Cinematic Cutscene frame AC 20:1 Type 5 Mode 1 (Cutscene ID 12000)
                     SendPacket animPkt = new SendPacket();
                     animPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 5, 0 });
                     animPkt.Pack16(0);
@@ -194,16 +187,19 @@ namespace Game.Maps
                     animPkt.Pack16(0);
                     animPkt.Pack8(1); // Branch 1
                     player.Send(animPkt);
+                    player.Send(Tools.FromFormat("bbw", 186, 12, 12000));
 
-                    // 3. Freeze player posture and immobilize during cutscene playback
+                    // 2. Freeze player posture and immobilize during cutscene playback
                     player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                     player.Send(Tools.FromFormat("bbbdb", 5, 30, 0, player.CharID, (byte)1));
 
-                    DebugSystem.Write($"[EveEventInterpreter] Dispatched authentic S.Monkey Cutscene 12000 (AC 20:1 Type 5 & AC 186:12) to {player.CharName} (isTeamFull={isTeamFull})");
+                    DebugSystem.Write($"[EveEventInterpreter] [S.Monkey Cutscene] Dispatched authentic CPR resuscitation Cutscene 12000 (12000.sty) to {player.CharName} (isTeamFull={isTeamFull})");
 
-                    // 4. Await client AC 20:6 completion ACK before executing fanfare, dialogue, and recruitment
+                    // 3. Await client AC 20:6 completion ACK before executing post-cutscene dialogue and recruitment
                     player.OnInteractionComplete = () =>
                     {
+                        DebugSystem.Write($"[EveEventInterpreter] [S.Monkey Cutscene] Client completed Cutscene 12000. Starting dialogue for {player.CharName} (isTeamFull={isTeamFull})");
+
                         if (isTeamFull)
                         {
                             SendPacket step1 = BuildDialoguePacket((byte)clickId, 31146, 1, 7);
@@ -217,38 +213,62 @@ namespace Game.Maps
                                 player.Send(Tools.FromFormat("bb", 20, 8));
                                 player.Send(Tools.FromFormat("bb", 5, 4));
                                 player.SaveCharacterData();
+                                DebugSystem.Write($"[EveEventInterpreter] [S.Monkey Dialogue] Dialogue completed for {player.CharName} (Team full, could not recruit)");
                             };
                             player.Send(Tools.FromFormat("bbb", 6, 2, 1));
                             player.Send(step1);
                             return;
                         }
 
-                        // Fanfare SFX (BGM 11011 / AC 20:10)
-                        player.Send(Tools.FromFormat("bb", 20, 10));
+                        // Authentic follow-up: Story Album CG Cutscene 11011 (11011.sty) displaying JRole_5_3.jpg and dialogues 20048..20053
+                        player.QueueData.Clear();
 
-                        // Despawn S.Monkey from map (AC 22:10)
-                        player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
+                        // Register Star 29 (JRole_5_3 - S.Monkey CG photo in album)
+                        player.Send(Tools.FromFormat("bbbb", 15, 20, 29, 0));
 
-                        // Recruit S.Monkey
-                        QuestManager.SendCompanionReward(player, 17162, "S.Monkey");
-                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "S.Monkey has joined your party!"));
-                        DebugSystem.Write($"[EveEventInterpreter] Recruited S.Monkey (TID 17162) for {player.CharName} after Cutscene 12000 completion");
+                        // Dispatch authentic Cutscene 11011 frame AC 20:1 Type 5 Mode 1 (Cutscene ID 11011)
+                        SendPacket photoPkt = new SendPacket();
+                        photoPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 2, 5, 0 });
+                        photoPkt.Pack16(0);
+                        photoPkt.Pack8(1); // Mode 1: Play cutscene and send AC 20:6 when finished
+                        photoPkt.Pack32(11011); // Cutscene ID 11011 (11011.sty with JRole_5_3.jpg CG photo)
+                        photoPkt.Pack16(0);
+                        photoPkt.Pack8(1); // Branch 1
+                        player.Send(photoPkt);
+                        player.Send(Tools.FromFormat("bbw", 186, 12, 11011));
 
-                        // Update Quests 12002 and 12003
-                        if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
-                        player.Quests[12002] = new PlayerQuest(12002, QuestState.Completed, 1);
-                        player.Quests[12003] = new PlayerQuest(12003, QuestState.InProgress, 1);
-                        QuestManager.SavePlayerQuest(player, 12002);
-                        QuestManager.SavePlayerQuest(player, 12003);
-                        QuestManager.SendQuestUpdate(player, 12002, QuestState.Completed, 1);
-                        QuestManager.SendQuestUpdate(player, 12003, QuestState.InProgress, 1);
+                        DebugSystem.Write($"[EveEventInterpreter] [S.Monkey CG Photo] Dispatched authentic Story CG Cutscene 11011 (11011.sty / JRole_5_3.jpg) and Star 29 unlock to {player.CharName}");
 
-                        // Mobilize player and restore scene gate & HUD
-                        player.Send(Tools.FromFormat("bbbdb", 5, 30, 0, player.CharID, (byte)0));
-                        player.Send(Tools.FromFormat("bbb", 6, 2, 0));
-                        player.Send(Tools.FromFormat("bb", 20, 8));
-                        player.Send(Tools.FromFormat("bb", 5, 4));
-                        player.SaveCharacterData();
+                        // Await client AC 20:6 completion ACK for Cutscene 11011 before completing recruitment
+                        player.OnInteractionComplete = () =>
+                        {
+                            // Fanfare SFX (BGM 11011 / AC 20:10)
+                            player.Send(Tools.FromFormat("bb", 20, 10));
+
+                            // Despawn S.Monkey from map (AC 22:10)
+                            player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
+
+                            // Recruit S.Monkey
+                            QuestManager.SendCompanionReward(player, 17162, "S.Monkey");
+                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "S.Monkey has joined your party!"));
+                            DebugSystem.Write($"[EveEventInterpreter] [S.Monkey Recruited] Cutscene 11011 finished. Recruited S.Monkey (TID 17162) for {player.CharName}. Quests 12002 (Completed) & 12003 (InProgress) updated.");
+
+                            // Update Quests 12002 and 12003
+                            if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+                            player.Quests[12002] = new PlayerQuest(12002, QuestState.Completed, 1);
+                            player.Quests[12003] = new PlayerQuest(12003, QuestState.InProgress, 1);
+                            QuestManager.SavePlayerQuest(player, 12002);
+                            QuestManager.SavePlayerQuest(player, 12003);
+                            QuestManager.SendQuestUpdate(player, 12002, QuestState.Completed, 1);
+                            QuestManager.SendQuestUpdate(player, 12003, QuestState.InProgress, 1);
+
+                            // Mobilize player and restore scene gate & HUD
+                            player.Send(Tools.FromFormat("bbbdb", 5, 30, 0, player.CharID, (byte)0));
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                            player.Send(Tools.FromFormat("bb", 20, 8));
+                            player.Send(Tools.FromFormat("bb", 5, 4));
+                            player.SaveCharacterData();
+                        };
                     };
 
                     return true;

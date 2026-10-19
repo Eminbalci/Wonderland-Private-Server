@@ -38,6 +38,8 @@ public static class DebugSystem
 
 	public static int VerboseLvl = 0;
 
+	public static bool PacketDebugEnabled = true;
+
 	public static string LogFilePath
 	{
 		get
@@ -308,10 +310,7 @@ public static class DebugSystem
 			}
 		}
 
-		if (rtfbox == null && txtbox == null)
-		{
-			try { Console.WriteLine(formattedMsg); } catch { }
-		}
+		try { Console.WriteLine(formattedMsg); } catch { }
 
 		if (Outputlog)
 		{
@@ -413,10 +412,7 @@ public static class DebugSystem
 			logout.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
 		}
 
-		if (rtfbox == null && txtbox == null)
-		{
-			try { Console.WriteLine(formattedMsg); } catch { }
-		}
+		try { Console.WriteLine(formattedMsg); } catch { }
 
 		if (Outputlog)
 		{

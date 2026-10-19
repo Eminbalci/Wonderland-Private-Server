@@ -109,25 +109,41 @@ public static class NarrativeCutsceneTests {
         bool executed = EveEventInterpreter.TryExecute(player, gmap, 1);
         if (!executed) throw new Exception("FAIL: S.Monkey TryExecute returned false!");
 
-        // Execute OnInteractionComplete callback
+        // Execute OnInteractionComplete callback (cutscene finish)
         if (player.OnInteractionComplete == null) throw new Exception("FAIL: OnInteractionComplete was not set!");
         player.OnInteractionComplete.Invoke();
 
-        bool hasAc186_12 = sock.SentBuffers.Any(b => b.Length >= 8 && b[4] == 186 && b[5] == 12 &&
+        // Complete subsequent dialogue sequence if interactive dialogue follows cutscene
+        if (player.OnInteractionComplete != null) {
+            player.OnInteractionComplete.Invoke();
+        }
+
+        bool hasAc186_12_12000 = sock.SentBuffers.Any(b => b.Length >= 8 && b[4] == 186 && b[5] == 12 &&
             b[6] == (12000 & 0xFF) && b[7] == ((12000 >> 8) & 0xFF));
 
         bool hasAc20_1_Cutscene12000 = sock.SentBuffers.Any(b => b.Length >= 15 && b[4] == 20 && b[5] == 1 &&
             b[10] == 5 && BitConverter.ToUInt32(b, 15) == 12000);
 
+        bool hasAc186_12_11011 = sock.SentBuffers.Any(b => b.Length >= 8 && b[4] == 186 && b[5] == 12 &&
+            b[6] == (11011 & 0xFF) && b[7] == ((11011 >> 8) & 0xFF));
+
+        bool hasAc20_1_Cutscene11011 = sock.SentBuffers.Any(b => b.Length >= 15 && b[4] == 20 && b[5] == 1 &&
+            b[10] == 5 && BitConverter.ToUInt32(b, 15) == 11011);
+
+        bool hasStar29 = sock.SentBuffers.Any(b => b.Length >= 8 && b[4] == 15 && b[5] == 20 && b[6] == 29 && b[7] == 0);
+
         bool hasRecruited = player.PlayerPets.Values.Any(p => p != null && p.PetID == 17162);
         bool hasAc5_4 = sock.SentBuffers.Any(b => b.Length >= 6 && b[4] == 5 && b[5] == 4);
 
-        if (!hasAc186_12) throw new Exception("FAIL: AC 186:12 Cutscene 12000 was NOT emitted!");
+        if (!hasAc186_12_12000) throw new Exception("FAIL: AC 186:12 Cutscene 12000 was NOT emitted!");
         if (!hasAc20_1_Cutscene12000) throw new Exception("FAIL: AC 20:1 Type 5 Cutscene 12000 was NOT emitted!");
+        if (!hasAc186_12_11011) throw new Exception("FAIL: AC 186:12 Cutscene 11011 (CG Photo) was NOT emitted!");
+        if (!hasAc20_1_Cutscene11011) throw new Exception("FAIL: AC 20:1 Type 5 Cutscene 11011 (CG Photo) was NOT emitted!");
+        if (!hasStar29) throw new Exception("FAIL: AC 15:20 Star 29 (Story Album CG) was NOT emitted!");
         if (!hasRecruited) throw new Exception("FAIL: S.Monkey (TID 17162) was not recruited!");
         if (!hasAc5_4) throw new Exception("FAIL: AC 5:4 was NOT emitted on S.Monkey completion!");
 
-        Console.WriteLine("    [PASS] S.Monkey storyline authentically dispatches AC 186:12 (12000), AC 20:1 Type 5 (12000), and AC 5:4.");
+        Console.WriteLine("    [PASS] S.Monkey storyline authentically dispatches Cutscene 12000, Story CG Cutscene 11011 (JRole_5_3), Star 29, and AC 5:4.");
     }
 
     private static void Test3_RobinsonBeachArrivalSequence(string repoRoot, PhxItemDat itemDat) {

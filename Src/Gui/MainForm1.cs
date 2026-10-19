@@ -411,6 +411,7 @@ namespace Wonderland_Private_Server
                     cGlobal.SrvSettings.WelcomeMessage = Server.ServerStatusManager.Motd;
                 if (!string.IsNullOrEmpty(Server.ServerStatusManager.ServerName))
                     cGlobal.SrvSettings.ServerName = Server.ServerStatusManager.ServerName;
+                DebugSystem.PacketDebugEnabled = cGlobal.SrvSettings.EnablePacketDebugLogging;
 
                 this.BeginInvoke(new Action(() =>
                 {
