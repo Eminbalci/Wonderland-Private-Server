@@ -220,11 +220,8 @@ namespace Game.Maps
                             return;
                         }
 
-                        // Authentic follow-up: Story Album CG Cutscene 11011 (11011.sty) displaying JRole_5_3.jpg and dialogues 20048..20053
+                        // Authentic follow-up: Story Cutscene 11011 (11011.sty) displaying JRole_5_3.jpg CG photo and dialogues 20048..20053
                         player.QueueData.Clear();
-
-                        // Register Star 29 (JRole_5_3 - S.Monkey CG photo in album)
-                        player.Send(Tools.FromFormat("bbbb", 15, 20, 29, 0));
 
                         // Dispatch authentic Cutscene 11011 frame AC 20:1 Type 5 Mode 1 (Cutscene ID 11011)
                         SendPacket photoPkt = new SendPacket();
@@ -235,9 +232,8 @@ namespace Game.Maps
                         photoPkt.Pack16(0);
                         photoPkt.Pack8(1); // Branch 1
                         player.Send(photoPkt);
-                        player.Send(Tools.FromFormat("bbw", 186, 12, 11011));
 
-                        DebugSystem.Write($"[EveEventInterpreter] [S.Monkey CG Photo] Dispatched authentic Story CG Cutscene 11011 (11011.sty / JRole_5_3.jpg) and Star 29 unlock to {player.CharName}");
+                        DebugSystem.Write($"[EveEventInterpreter] [S.Monkey CG Photo] Dispatched authentic Story Cutscene 11011 (11011.sty / JRole_5_3.jpg) to {player.CharName}");
 
                         // Await client AC 20:6 completion ACK for Cutscene 11011 before completing recruitment
                         player.OnInteractionComplete = () =>

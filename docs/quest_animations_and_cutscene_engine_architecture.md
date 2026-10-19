@@ -125,10 +125,8 @@ To achieve 100% authentic quest staging, all story cutscenes adhere to the coord
   Client -> Server: AC 20:6 (Cutscene 12000 Concluded ACK)
          |
          v
-[Phase 3: Story Album CG Cutscene & Subtitle Progression]
-  Server -> Client: AC 15:20 [29, 0] (Unlock Star 29 in Story CG Album)
+[Phase 3: In-Engine Story Cutscene & CG Photo Progression]
   Server -> Client: AC 20:1 Type 5 Mode 1 CutsceneID=11011 (11011.sty / JRole_5_3.jpg)
-  Server -> Client: AC 186:12 [11011]
   Client displays full-screen JRole_5_3 illustration with TalkIDs 20048..20053
   Client -> Server: AC 20:6 (Cutscene 11011 Concluded ACK)
          |
@@ -140,3 +138,8 @@ To achieve 100% authentic quest staging, all story cutscenes adhere to the coord
   Server -> Client: AC 24:1 / 24:5 (Quest 12002 Completed & Quest 12003 InProgress)
   Server -> Client: AC 20:8 (End Dialog) + AC 6:2 [0] + AC 5:4 (HUD Restore)
 ```
+
+> [!CAUTION]
+> **Constellation Packet Isolation (`AC 15:20`):**
+> `AC 15:20` (`15, 20, StarID, ActorID`) is strictly reserved for character birth sign horoscopes and celestial companion sacrifice memorials (Cygnus Star 1 for Xaolan, Niss Star 6, Roca Star 8, Bootes Star 20). Emitting `AC 15:20` triggers the full-screen celestial star dome (such as Corona Australis "南冕座" for Star 29), overriding the overworld map. It must never be sent during standard `.sty` companion recruitments.
+
