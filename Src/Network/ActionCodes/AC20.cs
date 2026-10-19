@@ -79,17 +79,6 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv1(Player p, RecievePacket r)
         {
-            if (p.PlayingStormCutscene || p.BeachCutsceneActive || p.NativeEventActive)
-            {
-                p.Send(Tools.FromFormat("bb", 20, 8));
-                return;
-            }
-            if (p.CurMap == null)
-            {
-                p.Send(Tools.FromFormat("bb", 20, 8));
-                return;
-            }
-
             // NPC click - unpack 16-bit or 8-bit click ID
             ushort clickID = 0;
             int rem = r.Buffer.Count() - r.GetPtr();
@@ -107,9 +96,28 @@ namespace Wonderland_Private_Server.ActionCodes
                 clickID = r.Unpack8();
             }
 
+            DebugSystem.Write($"[AC20.Recv1] Incoming click: Player={p.CharName} ClickID={clickID} MapID={p.CurMap?.MapID} Storm={p.PlayingStormCutscene} Beach={p.BeachCutsceneActive} NativeEvent={p.NativeEventActive}");
+
+            if (p.PlayingStormCutscene || p.BeachCutsceneActive || p.NativeEventActive)
+            {
+                DebugSystem.Write($"[AC20.Recv1] Click #{clickID} BLOCKED: Active State (Storm={p.PlayingStormCutscene}, Beach={p.BeachCutsceneActive}, NativeEvent={p.NativeEventActive}) for {p.CharName}");
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
+            if (p.CurMap == null)
+            {
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
+
             // Closing a native choice can queue a second click on the actor below it.
             if (p.LastNpcClick == clickID && p.LastNpcMap == p.CurMap.MapID && DateTime.UtcNow < p.NpcClickResumeAt)
-            { p.Send(Tools.FromFormat("bb", 20, 8)); return; }
+            {
+                double remainMs = (p.NpcClickResumeAt - DateTime.UtcNow).TotalMilliseconds;
+                DebugSystem.Write($"[AC20.Recv1] Debounce BLOCKED click on NPC #{clickID} for {p.CharName}. Remaining cooldown: {remainMs:F0}ms");
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
             p.LastNpcClick = clickID; p.LastNpcMap = (ushort)p.CurMap.MapID;
             p.PendingRestMap = 0; p.NpcSaleMode = null;
             var gMap = p.CurMap as GameMap;
@@ -173,6 +181,8 @@ namespace Wonderland_Private_Server.ActionCodes
         {
             if (!p.BeachCutsceneActive) return;
 
+            DebugSystem.Write($"[BeachCutscene] AdvanceBeachCutscene called for {p.CharName}: CurrentStep={p.BeachCutsceneStep}, ForceComplete={forceComplete}");
+
             if (forceComplete)
             {
                 p.BeachCutsceneStep = 6;
@@ -184,17 +194,14 @@ namespace Wonderland_Private_Server.ActionCodes
                     // Client ACK (Frame 0332: AC 20:6) confirming stage setup: Trigger Beach Wakeup Animation (Cutscene ID 12008)
                     p.BeachCutsceneStep = 2;
                     SendPacket animPkt = new SendPacket();
-                    animPkt.Pack8(20);
+                    animPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 5, 0 });
+                    animPkt.Pack16(0);
                     animPkt.Pack8(1);
-                    animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                    animPkt.Pack8(1); // Step 1
-                    animPkt.Pack8(5); // Type 5: Cutscene Animation
-                    animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0); // Speaker 0
-                    animPkt.Pack8(1); // Flag 1
-                    animPkt.Pack32(12008); // Cutscene ID 12008 (Beach Wake Up)
-                    animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                    animPkt.Pack32(12008);
+                    animPkt.Pack16(0);
+                    animPkt.Pack8(1);
                     p.Send(animPkt);
-                    DebugSystem.Write($"[BeachCutscene] Step 1 ACK received -> Dispatched Cutscene 12008 to {p.CharName}");
+                    DebugSystem.Write($"[BeachCutscene] Step 1 ACK received -> Dispatched authentic Cutscene 12008 frame to {p.CharName}");
                     break;
 
                 case 2:
@@ -227,7 +234,7 @@ namespace Wonderland_Private_Server.ActionCodes
                     p.BeachCutsceneStep = 6;
                     p.Send(Tools.FromFormat("bbbbbb", 22, 12, 1, 1, 0, 6));
                     p.Send(Tools.FromFormat("bb", 20, 10));
-                    DebugSystem.Write($"[BeachCutscene] Step 5 completed for {p.CharName} -> sent AC 22:12 + AC 20:10");
+                    DebugSystem.Write($"[BeachCutscene] Step 5 completed for {p.CharName} -> sent AC 22:12 (Actor 1 Robinson walk) + AC 20:10");
                     break;
 
                 case 6:
@@ -260,6 +267,8 @@ namespace Wonderland_Private_Server.ActionCodes
 
         void Recv6(Player p, RecievePacket r)
         {
+            DebugSystem.Write($"[AC20.Recv6] Incoming ACK: Player={p.CharName} Storm={p.PlayingStormCutscene} Beach={p.BeachCutsceneActive} (Step {p.BeachCutsceneStep}) NativeEvent={p.NativeEventActive} Choice={p.OnDialogueChoice != null} Queue={p.QueueData?.Count ?? 0} Steps={p.StepQueue?.Count ?? 0}");
+
             // If the player is currently watching the ship storm cutscene, client AC 20:6 signals cutscene finished -> warp to beach
             if (p.PlayingStormCutscene)
             {
@@ -287,14 +296,19 @@ namespace Wonderland_Private_Server.ActionCodes
                 return;
             }
 
-            if (!p.ContinueInteraction())
+            bool advanced = p.ContinueInteraction();
+            DebugSystem.Write($"[AC20.Recv6] ContinueInteraction result={advanced} for {p.CharName}");
+
+            if (!advanced)
             {
                 // If the player is currently on an interactive choice prompt, keep the dialog open
                 if (p.OnDialogueChoice != null)
                 {
+                    DebugSystem.Write($"[AC20.Recv6] Interactive choice prompt active for {p.CharName}, keeping dialogue open");
                     return;
                 }
 
+                DebugSystem.Write($"[AC20.Recv6] Interaction completed for {p.CharName}, sending posture/HUD unlock AC 20:8 + AC 5:4");
                 p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                 p.Send(Tools.FromFormat("bb", 20, 8));
                 p.Send(Tools.FromFormat("bb", 5, 4));
@@ -310,6 +324,7 @@ namespace Wonderland_Private_Server.ActionCodes
                 byte choice = r.Unpack8();
                 if (choice == 40)
                 {
+                    DebugSystem.Write($"[AC20.Recv9] Player {p.CharName} closed dialogue choice prompt (0x28 / 40)");
                     p.CancelInteraction();
                     return;
                 }
@@ -319,6 +334,10 @@ namespace Wonderland_Private_Server.ActionCodes
                     var callback = p.OnDialogueChoice;
                     p.OnDialogueChoice = null;
                     callback.Invoke(choice);
+                }
+                else
+                {
+                    DebugSystem.Write($"[AC20.Recv9] Warning: No active OnDialogueChoice callback registered for {p.CharName}");
                 }
             }
             catch (Exception ex)

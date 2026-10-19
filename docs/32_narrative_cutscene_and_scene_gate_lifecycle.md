@@ -104,9 +104,9 @@ When players warp onto South Island Beach (Map 10035 / 10039), the client plays 
 3. At the end of the sequence, the player remained stuck in posture 1 (sitting/unconscious) with speed 0 due to an unresolved `AC 5:30 [1]` immobilize flag.
 
 ### Technical Resolution
-1. **Pure Packet Progression & Direct Cutscene Trigger**: In `AC12.cs`, receiving `AC 12:1` (Frame 0330) initializes `BeachCutsceneStep = 2`, sends Emote 9, immobilize `AC 5:30 [1]`, scene staging (`AC 20:8`, `AC 22:11`, `AC 6:2 [1]`, `AC 22:12`), and immediately dispatches `AC 20:1` Type 5 Cutscene 12008 (Beach Wake Up animation). Zero artificial delays or deadlocked stage ACK waits are spawned.
-2. **Cutscene Playback & Completion Handshake**: The client renders Cutscene 12008 on screen. Upon animation completion, the client returns `AC 20:6` (Frame 2928).
-3. **Step 2-5 Progression**: Each client `AC 20:6` advances the timeline through Step 3 (`AC 24:1` + `AC 20:10`), Step 4 (`AC 20:10`), Step 5 (`AC 24:5` + `AC 20:10`), and Step 6 (`AC 22:12` + `AC 20:10`).
+1. **Pure Packet Progression & Direct Cutscene Trigger**: In `AC12.cs`, receiving `AC 12:1` initializes `BeachCutsceneStep = 2`, sends Emote 9, immobilize `AC 5:30 [1]`, scene staging (`AC 20:8`, `AC 22:11`, `AC 6:2 [1]`, `AC 22:12` targeting Actor 1 Robinson), and dispatches the authentic 18-byte `BuildEventFrame` for Cutscene ID 12008 (`[20, 1, 0, 0, 0, 1, 5, 0, 0, 0, 1, 12008 (uint32), 0, 0, 1]`). Previous corrupted byte alignments (misaligned speaker bytes) are eliminated.
+2. **Actor Staging & Approach**: In `AC12.cs`, `AC 22:12` explicitly targets `Actor 1` (Robinson on Map 10035/10039), ensuring Robinson performs the intended rescue walk toward the player rather than targeting invalid or non-humanoid actors.
+3. **Step 2-5 Progression**: Each client `AC 20:6` advances the timeline through Step 3 (`AC 24:1` + `AC 20:10`), Step 4 (`AC 20:10`), Step 5 (`AC 24:5` + `AC 20:10`), and Step 6 (`AC 22:12` targeting Actor 1 + `AC 20:10`).
 4. **Quest State Preservation**: Removed premature `p.Quests[12040] = InProgress` from Step 2. Quest 12040 remains `NotStarted` until Robinson initiates the rescue dialogue.
 5. **Step 6 Mobilization & Posture Recovery**:
    - Dispatches `AC 5:30 [0]` (`[5, 30, 0, CharID, 0]`) to clear the movement freeze.
@@ -120,20 +120,14 @@ When players warp onto South Island Beach (Map 10035 / 10039), the client plays 
 ## 4. Robinson Duplicate Dialogue Prevention & Click Debounce
 
 ### Defect Analysis
-In previous iterations, Robinson on Map 10035/10039 frequently engaged the player in two consecutive dialogues (first his rescue speech TalkIDs 20304..20312, immediately followed by the Beginner's Guide choices TalkIDs 20317..20326). Root-cause analysis revealed two distinct defect vectors:
-1. **Cutscene Interaction Leak (`AC 20:1` in `AC20.cs:Recv1`)**:
-   When `Player.BeachCutsceneActive` or `PlayingStormCutscene` was active, `AC20.Recv1` lacked state guards. A user clicking the screen or Robinson during the Cutscene 12008 wake-up sequence directly invoked `ProcessInteraction(1)`, triggering Robinson dialogue mid-cutscene. When Step 6 finished, `AdvanceBeachCutscene` invoked `EveEventInterpreter.TryExecute(p, gMap, 1)` a second time.
-2. **Debounce Bypass on Dialogue Closure**:
-   Because `AdvanceBeachCutscene` Step 6 directly triggered dialogue server-side, `player.LastNpcClick` remained `0`. When the player clicked "OK" to dismiss Robinson's final dialogue balloon (TalkID 20312), the cursor was situated directly over Robinson (`1038, 2235`), queuing a client `AC 20:1 [ClickID = 1]`.
-   In `AC20.Recv1`, the debounce check `player.LastNpcClick == clickID` failed (`0 != 1`). Since Robinson's rescue speech had just transitioned Quest 12040 to `InProgress Step 1`, `SelectMatchingBranch` evaluated SubEntry 2 (Question 1 Beginner Guide) as matching, immediately popping open the second dialogue.
+In previous iterations, Robinson on Map 10035/10039 engaged the player in two disjointed dialogues (first his rescue speech TalkIDs 20304..20312, followed by the dialogue closing, and immediately re-opening with Beginner's Guide choices TalkIDs 20317..20326). Root-cause analysis revealed:
+1. **Disjointed Event Branches**: In `eve.Emg` Event 8, Branch 1 (SubEntry 0) concludes by setting Quest 12040 to Step 1 (`Opcode 5`), and calling `finish()`. This closed the window, fired `CancelInteraction()`, and sent `AC 20:8` + `AC 5:4`.
+2. **Immediate Hitbox Re-click**: The player cursor, resting on Robinson's sprite, immediately submitted an `AC 20:1` packet to the server, which matched Branch 3 (SubEntry 2, requiring Quest 12040 Step 1), causing a second jarring dialogue popup.
 
 ### Technical Resolution
-1. **Recv1 Interaction State Guards**: In `AC20.cs:Recv1`, all incoming `AC 20:1` packets are immediately dropped with `AC 20:8` if `PlayingStormCutscene`, `BeachCutsceneActive`, or `NativeEventActive` is active.
-2. **Server-Initiated Debounce Initialization**: In `AC20.cs:AdvanceBeachCutscene` Step 6, before invoking `TryExecute`, the server sets:
-   - `player.LastNpcClick = 1`
-   - `player.LastNpcMap = (ushort)p.CurMap.MapID`
-   - `player.NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(2500)`
-3. **EVE Session Start & Finish Debounce**: In `EveEventRuntime.cs:StartSession`, `LastNpcClick` and `LastNpcMap` are recorded whenever `clickId > 0`. Upon session `finish()`, `NpcClickResumeAt` is refreshed to `UtcNow + 2500ms`, absorbing dialogue closure trailing clicks and preventing double-dialogue restarts while preserving legitimate subsequent interactions after 2.5 seconds.
+1. **Recv1 Interaction State & Debounce Guards**: In `AC20.cs:Recv1`, all incoming `AC 20:1` packets are logged with detailed diagnostic telemetry. Clicks arriving during cutscenes (`PlayingStormCutscene`, `BeachCutsceneActive`), active EVE sessions (`NativeEventActive`), or within the `NpcClickResumeAt` window are rejected with `AC 20:8` and logged with the exact millisecond cooldown remaining.
+2. **Seamless In-Session Branch Auto-Transition**: In `EveEventRuntime.cs`, when Robinson's Event 8 Branch 1 completes, rather than invoking `finish()` and abruptly terminating the session, the engine detects Map 10035/10039 Event 8 Branch 1 and seamlessly transitions directly to Branch 3 (Question 1: Beginner's Guide) within the same uninterrupted dialogue session.
+3. **EVE Opcode Tracing & Wire Telemetry**: Added per-step tracing in `EveEventRuntime.advance()` outputting opcode type, actor targets, speech TalkIDs, choice questions, and cutscene movie values to the debug log stream.
 
 ---
 
@@ -144,4 +138,4 @@ In previous iterations, Robinson on Map 10035/10039 frequently engaged the playe
 2. **Packet Drop During Beach Cutscene**: If the client fails to return `AC 20:6` ACKs during Steps 2..5, the 15-second watchdog in `AC12.cs` gracefully mobilizes the player and starts the Robinson dialogue without leaving the player stranded.
 3. **Repeated S. Monkey Interaction**: If a player clicks S. Monkey after recruitment, `EveEventInterpreter` sends squeak dialogue `#20038` and unfreezes the scene gate via `AC 5:4`.
 4. **Multi-Map Beach Compatibility**: Supports both Map 10035 (Rhode Island / South Island Shore) and Map 10039.
-5. **Trailing Click Suppression**: Closing dialogue bubbles over an NPC hitbox cannot re-trigger subsequent quest branches within the 2500ms debounce window. Legitimately re-clicking the NPC after the window correctly opens the subsequent quest branch.
+5. **Trailing Click Suppression**: Closing dialogue bubbles over an NPC hitbox cannot re-trigger subsequent quest branches within the debounce window. Legitimately re-clicking the NPC after the window correctly opens the subsequent quest branch.

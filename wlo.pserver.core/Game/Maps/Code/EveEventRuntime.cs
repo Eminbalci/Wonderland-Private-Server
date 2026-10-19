@@ -819,11 +819,13 @@ namespace Game.Maps
                 player.LastNpcClick = clickId;
                 player.LastNpcMap = (ushort)map.MapID;
             }
+            DebugSystem.Write($"[EveEventRuntime] Starting Event Session: Player={player.CharName} Map={map?.MapID} ClickID={clickId} EventID={ev?.clickID} ('{ev?.Name?.Trim()}') Branch={branch?.subIndex} TotalSteps={branch?.SubEntry?.Count ?? 0}");
             player.Send(Tools.FromFormat("bbb", 6, 2, 1));
             int index = 0;
             Action advance = null;
             Action finish = () => {
                 if (player.NativeEventToken != token) return;
+                DebugSystem.Write($"[EveEventRuntime] Session finish() invoked for Player={player.CharName} Map={map?.MapID} EventID={ev?.clickID} Branch={branch?.subIndex}");
                 player.CancelInteraction();
                 if (clickId > 0 && map != null)
                 {
@@ -869,16 +871,19 @@ namespace Game.Maps
                     {
                         var op = branch.SubEntry[index++];
                         byte step = op.subsubIndex;
+                        DebugSystem.Write($"[EveEventRuntime] Player={player.CharName} Map={map.MapID} Event={ev.clickID} Branch={branch.subIndex} Step={step}/{branch.SubEntry.Count} Opcode={op.DialogPtr} (d1={op.dialog1}, d2={op.dialog2}, d3={op.dialog3}, d4={op.dialog4})");
                         bool playerChoice = op.DialogPtr == 1 && op.dialog1 == 4;
                         if (playerChoice || (op.DialogPtr == 2 && op.dialog2 == 6))
                         {
                             ushort question = playerChoice ? op.dialog2 : op.dialog3;
+                            DebugSystem.Write($"[EveEventRuntime] -> Dispatched Choice Question prompt QuestionID={question} (isPlayerChoice={playerChoice}) to {player.CharName}");
                             player.OnDialogueChoice = choice => {
                                 if (player.NativeEventToken != token) return;
                                 // Native option callbacks are 20/21 or 30..39. Close is 40,
                                 // never an alias for the first option.
                                 if (choice == 40) { finish(); return; }
                                 ushort answer = choice;
+                                DebugSystem.Write($"[EveEventRuntime] <- Choice Received: answer=0x{answer:X} ({answer}) for QuestionID={question} from {player.CharName}");
                                 var selected = FindBranch(player, map, ev, 7, question, answer);
                                 if (selected == null) { finish(); return; }
                                 StartSession(player, map, clickId, ev, selected);
@@ -899,6 +904,7 @@ namespace Game.Maps
                         if (IsNpcPath(op))
                         {
                             player.OnInteractionComplete = advance;
+                            DebugSystem.Write($"[EveEventRuntime] -> Dispatched NPC Path movement group to {player.CharName}");
                             SendNpcPathGroup(player, branch, op, ref index);
                             return;
                         }
@@ -913,15 +919,22 @@ namespace Game.Maps
                         {
                             player.OnInteractionComplete = advance;
                             if (playerSpeech || npcSpeech)
+                            {
+                                ushort talkId = playerSpeech ? op.dialog2 : op.dialog3;
+                                DebugSystem.Write($"[EveEventRuntime] -> Dispatched Speech TalkID={talkId} (isPlayer={playerSpeech}, speakerActor={(playerSpeech ? 0 : op.dialog1)}) to {player.CharName}");
                                 player.Send(BuildEventFrame(1, (byte)(playerSpeech ? 7 : 3), (ushort)(playerSpeech ? 0 : op.dialog1),
-                                    1, 0, playerSpeech ? op.dialog2 : op.dialog3, step, branch.subIndex));
+                                    1, 0, talkId, step, branch.subIndex));
+                            }
                             // Mode 2 holds the client renderer until a map load (native
                             // main loop +0x566). Holding the first of these two movies
                             // prevents the second from rendering or acknowledging.
                             else if (movie && map.MapID == 11005 && (ev.clickID == 25 || ev.clickID == 26) &&
                                 DecodeActionValue(op) == 25010 && branch.SubEntry.Skip(index).Any(next =>
                                     next.DialogPtr == 8 && DecodeActionValue(next) == 156))
+                            {
+                                DebugSystem.Write($"[EveEventRuntime] -> Dispatched Movie CutsceneID=25010 to {player.CharName}");
                                 player.Send(BuildEventFrame(5, 0, 0, 1, 25010, 0, step, branch.subIndex));
+                            }
                             else if (movie && (map.MapID == 11039 || map.MapID == 11052 ||
                                 (map.MapID == 60014 && ev.clickID == 54) ||
                                 // Fred runs three movies before battle, then a victory movie
@@ -929,7 +942,10 @@ namespace Game.Maps
                                 (map.MapID == 11149 && (ev.clickID == 1 || ev.clickID == 2 || ev.clickID == 5)) ||
                                 (map.MapID == 11185 && ev.clickID == 4) ||
                                 (map.MapID == 11075 && (ev.clickID == 1 || ev.clickID == 2))))
+                            {
+                                DebugSystem.Write($"[EveEventRuntime] -> Dispatched Movie CutsceneID={DecodeActionValue(op)} to {player.CharName}");
                                 player.Send(BuildEventFrame(5, 0, 0, 1, DecodeActionValue(op), 0, step, branch.subIndex));
+                            }
                             else if (!ExecuteOpcode(player, map, clickId, ev, branch, op)) finish();
                             return;
                         }
@@ -1000,6 +1016,19 @@ namespace Game.Maps
                     {
                         var next = FindBranch(player, map, ev, exclude: branch);
                         if (next != null) { StartSession(player, map, clickId, ev, next, false); return; }
+                    }
+                    // Robinson first-contact dialogue on Rhode Island Beach (Map 10035/10039, Event 8, Branch 1)
+                    // concludes by setting Quest 12040 to Step 1. Transition directly into Branch 3 (Beginner's Guide question)
+                    // within the same session, preventing the dialogue box from closing and immediately reopening.
+                    if ((map.MapID == 10035 || map.MapID == 10039) && ev.clickID == 8 && branch.subIndex == 1)
+                    {
+                        var next = FindBranch(player, map, ev, exclude: branch);
+                        if (next != null)
+                        {
+                            DebugSystem.Write($"[EveEventRuntime] Robinson intro branch 1 completed for {player.CharName} -> seamlessly transitioning to branch {next.subIndex} (Beginner's Guide question)");
+                            StartSession(player, map, clickId, ev, next, false);
+                            return;
+                        }
                     }
                     // A pure mark/party transition may enable the next branch in this event
                     // (Roca returning the scroll, or clearing a retryable minigame mark).

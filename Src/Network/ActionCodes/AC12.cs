@@ -63,22 +63,19 @@ namespace Wonderland_Private_Server.ActionCodes
                         p.Send(Tools.FromFormat("bb", 20, 8));
                         p.Send(Tools.FromFormat("bbbbbb", 22, 11, 6, 0, 0xFF, 0xFF));
                         p.Send(Tools.FromFormat("bbb", 6, 2, 1));
-                        p.Send(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5));
-                        p.CurMap?.Broadcast(Tools.FromFormat("bbbbbb", 22, 12, 2, 11, 0, 5), "Ex", p.CharID);
+                        p.Send(Tools.FromFormat("bbbbbb", 22, 12, 1, 11, 0, 5)); // Actor 1 is Robinson
+                        p.CurMap?.Broadcast(Tools.FromFormat("bbbbbb", 22, 12, 1, 11, 0, 5), "Ex", p.CharID);
 
                         // Trigger Beach Wakeup Animation (Cutscene ID 12008)
                         SendPacket animPkt = new SendPacket();
-                        animPkt.Pack8(20);
+                        animPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 5, 0 });
+                        animPkt.Pack16(0);
                         animPkt.Pack8(1);
-                        animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                        animPkt.Pack8(1); // Step 1
-                        animPkt.Pack8(5); // Type 5: Cutscene Animation
-                        animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0); // Speaker 0
-                        animPkt.Pack8(1); // Flag 1
-                        animPkt.Pack32(12008); // Cutscene ID 12008 (Beach Wake Up)
-                        animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
+                        animPkt.Pack32(12008);
+                        animPkt.Pack16(0);
+                        animPkt.Pack8(1);
                         p.Send(animPkt);
-                        DebugSystem.Write($"[AC12] Sent Cutscene 12008 (Beach Wake Up) to {p.CharName}. Awaiting client AC 20:6.");
+                        DebugSystem.Write($"[AC12] Sent authentic Cutscene 12008 (Beach Wake Up) frame to {p.CharName}. Awaiting client AC 20:6.");
                     }
                     else
                     {
