@@ -177,104 +177,74 @@ namespace Game.Maps
                     bool isTeamFull = player.PlayerPets != null && player.PlayerPets.Count >= 4;
 
                     player.QueueData.Clear();
-                    var monkeySteps = new List<MonkeyDialogueStep>();
 
-                    // Authentic full dialogue sequence (Steps 1..11)
-                    monkeySteps.Add(new MonkeyDialogueStep(20038, 7, (byte)clickId)); // Player: Oh? It's a Monkey!
-                    monkeySteps.Add(new MonkeyDialogueStep(20039, 3, (byte)clickId)); // Monkey: Squeak~ Squeak~ Squeak~
-                    monkeySteps.Add(new MonkeyDialogueStep(20040, 7, (byte)clickId)); // Player: Monkey, are you ok?
-                    monkeySteps.Add(new MonkeyDialogueStep(20041, 7, (byte)clickId)); // Player: (Revive the monkey)
-                    monkeySteps.Add(new MonkeyDialogueStep(20042, 3, (byte)clickId)); // Monkey: Squeak! Squeak! Squeak!
-                    monkeySteps.Add(new MonkeyDialogueStep(20043, 7, (byte)clickId)); // Player: Ok, you have regained consciousness.
-                    monkeySteps.Add(new MonkeyDialogueStep(20044, 7, (byte)clickId)); // Player: Be careful next time! Monkey.
-                    monkeySteps.Add(new MonkeyDialogueStep(20045, 3, (byte)clickId)); // Monkey: ... ... ... ??
-                    monkeySteps.Add(new MonkeyDialogueStep(20046, 7, (byte)clickId)); // Player: Oh? Why are you following me?
-                    monkeySteps.Add(new MonkeyDialogueStep(20047, 7, (byte)clickId)); // Player: I don't have anything to eat, so don't follow me! Just stay back!
-                    monkeySteps.Add(new MonkeyDialogueStep(20048, 3, (byte)clickId)); // Monkey: Squeak~ Squeak~ Squeak~ (crying sound)
+                    // 1. Dispatch authentic CG Movie packet AC 186:12 (Cutscene 12000)
+                    SendPacket cgPkt = new SendPacket();
+                    cgPkt.PackArray(new byte[] { 186, 12 });
+                    cgPkt.Pack16(12000);
+                    cgPkt.Pack8(0); cgPkt.Pack8(0); cgPkt.Pack8(0);
+                    player.Send(cgPkt);
 
-                    if (isTeamFull)
-                    {
-                        monkeySteps.Add(new MonkeyDialogueStep(31146, 7, (byte)clickId)); // Player: My team is already full...
-                        monkeySteps.Add(new MonkeyDialogueStep(20048, 3, (byte)clickId)); // Monkey: Squeak~ crying
-                    }
-                    else
-                    {
-                        monkeySteps.Add(new MonkeyDialogueStep(20049, 7, (byte)clickId)); // Player: Oh? It seems that you have mistaken me for your mom?
-                        monkeySteps.Add(new MonkeyDialogueStep(20050, 3, (byte)clickId)); // Monkey: Squeak~ (Nods vigorously)
-                        monkeySteps.Add(new MonkeyDialogueStep(20051, 7, (byte)clickId)); // Player: Do I look like Female Monkey? How annoying!
-                        monkeySteps.Add(new MonkeyDialogueStep(20052, 7, (byte)clickId)); // Player: Ah! That's ok! You can accompany me! It's better to have one than none.
-                        monkeySteps.Add(new MonkeyDialogueStep(20053, 3, (byte)clickId)); // Monkey: Squeak, squeak, squeak!
-                    }
+                    // 2. Dispatch authentic in-engine Cinematic Cutscene frame AC 20:1 Type 5 Mode 1 (Cutscene ID 12000)
+                    SendPacket animPkt = new SendPacket();
+                    animPkt.PackArray(new byte[] { 20, 1, 0, 0, 0, 1, 5, 0 });
+                    animPkt.Pack16(0);
+                    animPkt.Pack8(1); // Mode 1: Play in-engine cutscene and send AC 20:6 when finished
+                    animPkt.Pack32(12000); // Cutscene ID 12000 (12000.sty)
+                    animPkt.Pack16(0);
+                    animPkt.Pack8(1); // Branch 1
+                    player.Send(animPkt);
 
-                    for (int i = 0; i < monkeySteps.Count; i++)
-                    {
-                        byte sNum = (byte)(i + 1);
-                        var sInfo = monkeySteps[i];
-                        SendPacket stepPkt = BuildDialoguePacket(sInfo.Speaker, sInfo.TalkId, sNum, sInfo.Portrait);
-                        string dText = global::DataFiles.TalkResolver.Resolve(sInfo.TalkId, player.CharName, true);
-                        if (!string.IsNullOrEmpty(dText))
-                        {
-                            dText = dText.Replace("\r", " ").Replace("\n", " ");
-                            if (dText.Length > 60) dText = dText.Substring(0, 60) + "...";
-                        }
-                        if (i == 0)
-                        {
-                            player.Send(Tools.FromFormat("bbb", 6, 2, 1));
-                            player.Send(stepPkt);
-                            DebugSystem.Write($"[EveEventInterpreter] Sent S.Monkey Step 1 (TalkID: #{sInfo.TalkId}) - \"{dText}\" to {player.CharName}");
-                        }
-                        else
-                        {
-                            player.QueueData.Enqueue(stepPkt);
-                            DebugSystem.Write($"[EveEventInterpreter] Enqueued S.Monkey Step {sNum} (TalkID: #{sInfo.TalkId}) - \"{dText}\" for {player.CharName}");
-                        }
-                    }
+                    // 3. Freeze player posture and immobilize during cutscene playback
+                    player.Send(Tools.FromFormat("bbb", 6, 2, 1));
+                    player.Send(Tools.FromFormat("bbbdb", 5, 30, 0, player.CharID, (byte)1));
 
+                    DebugSystem.Write($"[EveEventInterpreter] Dispatched authentic S.Monkey Cutscene 12000 (AC 20:1 Type 5 & AC 186:12) to {player.CharName} (isTeamFull={isTeamFull})");
+
+                    // 4. Await client AC 20:6 completion ACK before executing fanfare, dialogue, and recruitment
                     player.OnInteractionComplete = () =>
                     {
-                        if (!isTeamFull)
+                        if (isTeamFull)
                         {
-                            // 1. Dispatch CG Movie packet AC 186:12 (Cutscene 12000)
-                            SendPacket cgPkt = new SendPacket();
-                            cgPkt.PackArray(new byte[] { 186, 12 });
-                            cgPkt.Pack16(12000);
-                            cgPkt.Pack8(0); cgPkt.Pack8(0); cgPkt.Pack8(0);
-                            player.Send(cgPkt);
-
-                            // 2. Dispatch Cinematic Cutscene frame AC 20:1 Type 5 (Cutscene 12000)
-                            SendPacket animPkt = new SendPacket();
-                            animPkt.Pack8(20);
-                            animPkt.Pack8(1);
-                            animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                            animPkt.Pack8(1); // Step 1
-                            animPkt.Pack8(5); // Type 5: Cutscene Animation
-                            animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                            animPkt.Pack8(1); // Mode 1
-                            animPkt.Pack32(12000); // Cutscene ID 12000 (S.Monkey recruitment CG animation)
-                            animPkt.Pack8(0); animPkt.Pack8(0); animPkt.Pack8(0);
-                            player.Send(animPkt);
-
-                            // 3. Despawn S.Monkey from map
-                            player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
-
-                            // 4. Recruit S.Monkey
-                            QuestManager.SendCompanionReward(player, 17162, "S.Monkey");
-                            player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "S.Monkey has joined your party!"));
-                            DebugSystem.Write($"[EveEventInterpreter] Recruited S.Monkey (TID 17162) for {player.CharName} with CG Cutscene 12000");
-
-                            // 5. Update Quests 12002 and 12003
-                            if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
-                            player.Quests[12002] = new PlayerQuest(12002, QuestState.Completed, 1);
-                            player.Quests[12003] = new PlayerQuest(12003, QuestState.InProgress, 1);
-                            QuestManager.SavePlayerQuest(player, 12002);
-                            QuestManager.SavePlayerQuest(player, 12003);
-                            QuestManager.SendQuestUpdate(player, 12002, QuestState.Completed, 1);
-                            QuestManager.SendQuestUpdate(player, 12003, QuestState.InProgress, 1);
-
-                            // 6. Fanfare SFX (BGM 11011 / AC 20:10)
-                            player.Send(Tools.FromFormat("bb", 20, 10));
+                            SendPacket step1 = BuildDialoguePacket((byte)clickId, 31146, 1, 7);
+                            SendPacket step2 = BuildDialoguePacket((byte)clickId, 20048, 2, 3);
+                            player.QueueData.Clear();
+                            player.QueueData.Enqueue(step2);
+                            player.OnInteractionComplete = () =>
+                            {
+                                player.Send(Tools.FromFormat("bbbdb", 5, 30, 0, player.CharID, (byte)0));
+                                player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                                player.Send(Tools.FromFormat("bb", 20, 8));
+                                player.Send(Tools.FromFormat("bb", 5, 4));
+                                player.SaveCharacterData();
+                            };
+                            player.Send(Tools.FromFormat("bbb", 6, 2, 1));
+                            player.Send(step1);
+                            return;
                         }
 
+                        // Fanfare SFX (BGM 11011 / AC 20:10)
+                        player.Send(Tools.FromFormat("bb", 20, 10));
+
+                        // Despawn S.Monkey from map (AC 22:10)
+                        player.Send(Tools.FromFormat("bbwbb", 22, 10, clickId, 0xFF, 0xFF));
+
+                        // Recruit S.Monkey
+                        QuestManager.SendCompanionReward(player, 17162, "S.Monkey");
+                        player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "S.Monkey has joined your party!"));
+                        DebugSystem.Write($"[EveEventInterpreter] Recruited S.Monkey (TID 17162) for {player.CharName} after Cutscene 12000 completion");
+
+                        // Update Quests 12002 and 12003
+                        if (player.Quests == null) player.Quests = new Dictionary<uint, PlayerQuest>();
+                        player.Quests[12002] = new PlayerQuest(12002, QuestState.Completed, 1);
+                        player.Quests[12003] = new PlayerQuest(12003, QuestState.InProgress, 1);
+                        QuestManager.SavePlayerQuest(player, 12002);
+                        QuestManager.SavePlayerQuest(player, 12003);
+                        QuestManager.SendQuestUpdate(player, 12002, QuestState.Completed, 1);
+                        QuestManager.SendQuestUpdate(player, 12003, QuestState.InProgress, 1);
+
+                        // Mobilize player and restore scene gate & HUD
+                        player.Send(Tools.FromFormat("bbbdb", 5, 30, 0, player.CharID, (byte)0));
                         player.Send(Tools.FromFormat("bbb", 6, 2, 0));
                         player.Send(Tools.FromFormat("bb", 20, 8));
                         player.Send(Tools.FromFormat("bb", 5, 4));

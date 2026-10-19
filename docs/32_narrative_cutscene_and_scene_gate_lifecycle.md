@@ -54,20 +54,28 @@ When the Captain's dialogue concludes with Opcode 8 (`dialog4 == 31488 / 0x7B00`
 
 ---
 
-## 2. S. Monkey Recruitment CG Movie Trigger
+## 2. S. Monkey Recruitment Cinematic Cutscene & Lifecycle
 
 ### Defect Analysis
-In Map 11016 (Starter Beach), interacting with S. Monkey (NPC #1, Template ID 17162) triggers Event 1. In `eve.Emg`, SubEntry 6 defines Opcode 8 with Cutscene ID 12000. Previously, `EveEventInterpreter.TryExecute` intercepted S. Monkey recruitment to directly grant the pet, but omitted both the authentic full-screen CG movie packet (`AC 186:12`) and the in-engine cinematic animation packet (`AC 20:1 Type 5`).
+In Map 11016 (Starter Beach), interacting with S. Monkey (NPC #1, Template ID 17162) triggers Event 1 (`eve.Emg` SubEntry 7 / Branch 7). In authentic WLO, the recruitment begins with Cutscene 12000 (`sty\12000.sty`), in which the camera focuses on the monkey lying on the sand, the character performs the revival action, dialogues 20038..20047 are rendered within the cutscene engine itself, and the monkey revives.
+
+Previously, a hardcoded block enqueued 16 static chat dialogue steps (TalkIDs 20038..20053). Only upon the 16th dialogue completion did `OnInteractionComplete` fire. At that point, it emitted `AC 186:12` and `AC 20:1 Type 5`, but in the exact same TCP buffer emitted `AC 6:2 [0]`, `AC 20:8`, and `AC 5:4` (movement unlock and HUD unfreeze), immediately aborting the client cutscene player. As a result, players never witnessed the cutscene animation in-game.
 
 ### Technical Resolution
-Upon completion of the 16-step dialogue sequence (`OnInteractionComplete`), the server now executes:
-1. `AC 186:12`: Full-screen CG movie trigger for Cutscene ID 12000.
-2. `AC 20:1 Type 5`: Cinematic camera/animation frame for Cutscene ID 12000.
-3. `AC 22:10`: NPC despawn frame for ClickID 1.
-4. `QuestManager.SendCompanionReward`: Roster registration and pet attribute sync.
-5. `QuestManager.SendQuestUpdate`: Quest 12002 (Completed) and Quest 12003 (InProgress).
-6. `AC 20:10`: Fanfare audio SFX (`BGM 11011`).
-7. `AC 6:2 [0]`, `AC 20:8`, and `AC 5:4`: Posture reset, movement unlock, and HUD restoration.
+Clicking S. Monkey now immediately dispatches the authentic cinematic cutscene without premature dialogue interception:
+1. `AC 186:12`: Media registry packet for Cutscene ID 12000.
+2. `AC 20:1 Type 5 Mode 1`: Cinematic cutscene execution frame for Cutscene ID 12000 (`sty\12000.sty`).
+3. `AC 6:2 [1]` & `AC 5:30 [1]`: Entity posture lock and client immobilization during cutscene playback.
+4. **Client ACK Synchronization (`AC 20:6`):** The server registers `player.OnInteractionComplete` and waits for the client to conclude `12000.sty` and return `AC 20:6`.
+5. **Post-Cutscene Resolution:**
+   - *If Team Full:* Renders dialogue 31146 ("My team is already full...") and dialogue 20048 ("Squeak~ crying"), then mobilizes.
+   - *If Team Has Space:*
+     - Emits Fanfare SFX `AC 20:10` (`BGM 11011`).
+     - Despawns S.Monkey from map (`AC 22:10`).
+     - Grants S.Monkey to player roster (`QuestManager.SendCompanionReward`).
+     - Sends party join confirmation message (`AC 23:57`).
+     - Updates Quests 12002 (Completed) and 12003 (InProgress).
+     - Releases immobilization (`AC 5:30 [0]`), resets stance (`AC 6:2 [0]`), unfreezes movement (`AC 20:8`), and restores scene gate & HUD (`AC 5:4`).
 
 ### Wire Protocol Framing
 ```
@@ -80,17 +88,19 @@ Byte 6..7: 0xE0, 0x2E (12000: Cutscene ID, UInt16 Little-Endian)
 Byte 8..10: 0x00, 0x00, 0x00 (Padding)
 
 Cinematic Cutscene Frame:
-Server -> Client: AC 20:1 Type 5
-Byte 0..3: Header (0xF4, 0x44, 0x0E, 0x00)
+Server -> Client: AC 20:1 Type 5 Mode 1
+Byte 0..3: Header (0xF4, 0x44, 0x12, 0x00)
 Byte 4:    0x14 (20: Dialogue/Cutscene)
 Byte 5:    0x01 (1: Script Action)
 Byte 6..8: 0x00, 0x00, 0x00 (Padding)
 Byte 9:    0x01 (Step 1)
 Byte 10:   0x05 (Type 5: Cutscene Animation)
-Byte 11..13: 0x00, 0x00, 0x00 (Padding)
-Byte 14:   0x01 (Mode 1)
+Byte 11:   0x00 (Subject 0)
+Byte 12..13: 0x00, 0x00 (Actor 0, UInt16)
+Byte 14:   0x01 (Mode 1: Send AC 20:6 on completion)
 Byte 15..18: 0xE0, 0x2E, 0x00, 0x00 (12000: Cutscene ID, UInt32 Little-Endian)
-Byte 19..21: 0x00, 0x00, 0x00 (Padding)
+Byte 19..20: 0x00, 0x00 (Text 0, UInt16)
+Byte 21:   0x01 (Branch 1)
 ```
 
 ---
