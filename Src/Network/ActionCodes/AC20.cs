@@ -248,15 +248,7 @@ namespace Wonderland_Private_Server.ActionCodes
                     p.Send(Tools.FromFormat("bb", 5, 4));
                     p.CurMap?.Broadcast(Tools.FromFormat("bbdb", 32, 2, p.CharID, (byte)0), "Ex", p.CharID);
                     p.SaveCharacterData();
-                    DebugSystem.Write($"[BeachCutscene] Cutscene finished! Mobilized {p.CharName}. Triggering Robinson dialogue.");
-
-                    if (p.CurMap is GameMap gMap)
-                    {
-                        p.LastNpcClick = 1;
-                        p.LastNpcMap = (ushort)p.CurMap.MapID;
-                        p.NpcClickResumeAt = DateTime.UtcNow.AddMilliseconds(2500);
-                        EveEventInterpreter.TryExecute(p, gMap, 1);
-                    }
+                    DebugSystem.Write($"[BeachCutscene] Cutscene finished! Mobilized {p.CharName}. Awaiting player manual click on Robinson.");
                     break;
 
                 default:

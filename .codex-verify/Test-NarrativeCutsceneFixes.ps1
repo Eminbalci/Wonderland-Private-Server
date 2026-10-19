@@ -5,7 +5,11 @@ $phoenixCoreDll = "$repoRoot\Phoenix.Core\bin\Debug\net462\Phoenix.Core.dll"
 $wloCoreDll = "$repoRoot\Wlo.Core\bin\Debug\net462\Wlo.Core.dll"
 $rcLibraryDll = "$repoRoot\RCLibrary\bin\Debug\net462\RCLibrary.dll"
 $pserverCoreDll = "$repoRoot\wlo.pserver.core\bin\Debug\wlo.pserver.core.dll"
+$serverExe = "$repoRoot\bin\Debug\Wonderland Private Server.exe"
 $serverDll = "$repoRoot\bin\Debug\WonderlandPrivateServer.dll"
+if (Test-Path $serverExe) {
+    Copy-Item $serverExe $serverDll -Force
+}
 
 Add-Type -Path $phoenixDataDll
 Add-Type -Path $phoenixCoreDll
@@ -174,13 +178,21 @@ public static class NarrativeCutsceneTests {
         if (!sock.SentBuffers.Any(b => b.Length >= 6 && b[4] == 5 && b[5] == 4))
             throw new Exception("FAIL: AC 5:4 unfreeze was not sent in Step 6!");
 
-        // Verify Robinson first-contact dialogue TalkID 20304 was queued/started
+        // Step 6 mobilizes player without auto-dialogue: ensure Robinson dialogue is NOT automatically dispatched
         bool hasRobinsonDialogue = sock.SentBuffers.Any(b => b.Length >= 22 && b[4] == 20 && b[5] == 1 &&
             (b[19] | (b[20] << 8)) == 20304);
-        if (!hasRobinsonDialogue)
-            throw new Exception("FAIL: Robinson rescue dialogue TalkID 20304 was NOT started in Step 6!");
+        if (hasRobinsonDialogue)
+            throw new Exception("FAIL: Robinson dialogue was prematurely auto-started in Step 6!");
 
-        Console.WriteLine("    [PASS] Beach sequence advanced through Steps 2-5, Step 6 mobilized player (AC 5:30[0], AC 5:4), and Event 8 Sub 0 rescue dialogue (TalkID 20304) matched cleanly.");
+        // Manual player click on Robinson (Click ID 1) triggers Event 8 Sub 0
+        sock.SentBuffers.Clear();
+        EveEventInterpreter.TryExecute(player, gmap, 1);
+        bool hasRobinsonManualDialogue = sock.SentBuffers.Any(b => b.Length >= 22 && b[4] == 20 && b[5] == 1 &&
+            (b[19] | (b[20] << 8)) == 20304);
+        if (!hasRobinsonManualDialogue)
+            throw new Exception("FAIL: Robinson dialogue TalkID 20304 was NOT started on manual click!");
+
+        Console.WriteLine("    [PASS] Beach sequence advanced through Steps 2-5, Step 6 mobilized player without forced dialogue, and manual click on Robinson correctly started Event 8.");
     }
 
     private static void Test4_ShipStormCutsceneTiming(string repoRoot, PhxItemDat itemDat) {
@@ -334,20 +346,25 @@ public static class NarrativeCutsceneTests {
             throw new Exception("FAIL: AC 20:1 during PlayingStormCutscene did not reply with AC 20:8!");
         player.PlayingStormCutscene = false;
 
-        // Subtest 3: Robinson dialogue started from AdvanceBeachCutscene Step 6
-        // must set LastNpcClick = 1, LastNpcMap = 10035, and NpcClickResumeAt > UtcNow
+        // Subtest 3: AdvanceBeachCutscene Step 6 mobilizes player without starting dialogue
         player.BeachCutsceneActive = true;
         player.BeachCutsceneStep = 6;
         sock.SentBuffers.Clear();
         AC20.AdvanceBeachCutscene(player);
+        if (player.BeachCutsceneActive)
+            throw new Exception("FAIL: Step 6 did not deactivate BeachCutsceneActive!");
+        if (player.NativeEventActive)
+            throw new Exception("FAIL: Step 6 unexpectedly started NativeEventActive dialogue!");
+
+        // Manual player click on Robinson starts dialogue and sets debounce
+        sock.SentBuffers.Clear();
+        ac20.ProcessPkt(player, rxClickRobinson);
         if (player.LastNpcClick != 1)
-            throw new Exception("FAIL: Step 6 did not set LastNpcClick = 1!");
+            throw new Exception("FAIL: Manual click on Robinson did not set LastNpcClick = 1!");
         if (player.LastNpcMap != 10035)
-            throw new Exception("FAIL: Step 6 did not set LastNpcMap = 10035!");
-        if (player.NpcClickResumeAt <= DateTime.UtcNow)
-            throw new Exception("FAIL: Step 6 did not set NpcClickResumeAt > UtcNow!");
+            throw new Exception("FAIL: Manual click on Robinson did not set LastNpcMap = 10035!");
         if (!player.NativeEventActive)
-            throw new Exception("FAIL: Step 6 did not start Robinson NativeEventActive dialogue!");
+            throw new Exception("FAIL: Manual click on Robinson did not start Robinson NativeEventActive dialogue!");
 
         // Subtest 4: Trailing click during active dialogue must be dropped with AC 20:8
         sock.SentBuffers.Clear();

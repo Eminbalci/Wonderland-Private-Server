@@ -107,13 +107,12 @@ When players warp onto South Island Beach (Map 10035 / 10039), the client plays 
 1. **Pure Packet Progression & Direct Cutscene Trigger**: In `AC12.cs`, receiving `AC 12:1` initializes `BeachCutsceneStep = 2`, sends Emote 9, immobilize `AC 5:30 [1]`, scene staging (`AC 20:8`, `AC 22:11`, `AC 6:2 [1]`, `AC 22:12` targeting Actor 1 Robinson), and dispatches the authentic 18-byte `BuildEventFrame` for Cutscene ID 12008 (`[20, 1, 0, 0, 0, 1, 5, 0, 0, 0, 1, 12008 (uint32), 0, 0, 1]`). Previous corrupted byte alignments (misaligned speaker bytes) are eliminated.
 2. **Actor Staging & Approach**: In `AC12.cs`, `AC 22:12` explicitly targets `Actor 1` (Robinson on Map 10035/10039), ensuring Robinson performs the intended rescue walk toward the player rather than targeting invalid or non-humanoid actors.
 3. **Step 2-5 Progression**: Each client `AC 20:6` advances the timeline through Step 3 (`AC 24:1` + `AC 20:10`), Step 4 (`AC 20:10`), Step 5 (`AC 24:5` + `AC 20:10`), and Step 6 (`AC 22:12` targeting Actor 1 + `AC 20:10`).
-4. **Quest State Preservation**: Removed premature `p.Quests[12040] = InProgress` from Step 2. Quest 12040 remains `NotStarted` until Robinson initiates the rescue dialogue.
 5. **Step 6 Mobilization & Posture Recovery**:
    - Dispatches `AC 5:30 [0]` (`[5, 30, 0, CharID, 0]`) to clear the movement freeze.
    - Dispatches `AC 20:8` to unlock player controls.
    - Dispatches `AC 6:2 [0]` and broadcasts `AC 32:2` (Posture 0) to stand the player up.
    - Dispatches `AC 5:4` to restore client movement speed and unfreeze the scene gate.
-   - Triggers `EveEventInterpreter.TryExecute(p, p.CurMap, 1)` to run Robinson Event 8 SubEntry 0 (TalkID 20304).
+   - Ends the beach cutscene sequence, leaving the player standing freely on the beach. Dialogue is not auto-forced; Robinson Event 8 SubEntry 0 (TalkID 20304) triggers only when the player manually clicks on Robinson.
 
 ---
 
@@ -135,7 +134,7 @@ In previous iterations, Robinson on Map 10035/10039 engaged the player in two di
 
 ### Edge Cases Handled
 1. **Dialogue Interruption / Window Close**: If a player cancels dialogue via `CancelInteraction()`, `AC 5:4` is guaranteed to fire, preventing HUD disappearance.
-2. **Packet Drop During Beach Cutscene**: If the client fails to return `AC 20:6` ACKs during Steps 2..5, the 15-second watchdog in `AC12.cs` gracefully mobilizes the player and starts the Robinson dialogue without leaving the player stranded.
+2. **Packet Drop During Beach Cutscene**: If the client fails to return `AC 20:6` ACKs during Steps 2..5, the 15-second watchdog in `AC12.cs` gracefully mobilizes the player without leaving the player stranded.
 3. **Repeated S. Monkey Interaction**: If a player clicks S. Monkey after recruitment, `EveEventInterpreter` sends squeak dialogue `#20038` and unfreezes the scene gate via `AC 5:4`.
 4. **Multi-Map Beach Compatibility**: Supports both Map 10035 (Rhode Island / South Island Shore) and Map 10039.
 5. **Trailing Click Suppression**: Closing dialogue bubbles over an NPC hitbox cannot re-trigger subsequent quest branches within the debounce window. Legitimately re-clicking the NPC after the window correctly opens the subsequent quest branch.
