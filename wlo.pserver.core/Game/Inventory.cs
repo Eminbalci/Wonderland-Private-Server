@@ -23,37 +23,207 @@ namespace Game.Code
     public enum NpcBuyResult : byte
     {
         Success = 0,
-        NotEnoughGold = 1,
-        InventoryFull = 2,
-        ItemUnavailable = 3,
-        TooManyItems = 4,
-        Rejected = 5
+        Rejected = 1,
+        NotEnoughGold = 2,
+        InventoryFull = 3,
+        ItemUnavailable = 1,
+        TooManyItems = 1
     }
 
     public class Inventory
     {
         private static readonly Lazy<Dictionary<ushort, uint[]>> NpcSalePrices = new Lazy<Dictionary<ushort, uint[]>>(() => {
             var rows = new Dictionary<ushort, uint[]>();
-            using (var reader = new System.IO.StreamReader(typeof(Inventory).Assembly.GetManifestResourceStream("NpcSalePrices")))
+            var stream = typeof(Inventory).Assembly.GetManifestResourceStream("NpcSalePrices");
+            if (stream != null)
             {
-                reader.ReadLine();
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                using (var reader = new System.IO.StreamReader(stream))
                 {
-                    var fields = line.Split(',');
-                    rows[ushort.Parse(fields[0])] = new[] { uint.Parse(fields[1]), uint.Parse(fields[2]) };
+                    reader.ReadLine();
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        var fields = line.Split(',');
+                        if (fields.Length >= 3 && ushort.TryParse(fields[0], out ushort id) && uint.TryParse(fields[1], out uint p1) && uint.TryParse(fields[2], out uint p2))
+                        {
+                            rows[id] = new[] { p1, p2 };
+                        }
+                    }
+                }
+            }
+            if (rows.Count == 0)
+            {
+                string[] candidates = { "Data/npc_sale_prices.csv", "../Data/npc_sale_prices.csv", "../../Data/npc_sale_prices.csv" };
+                foreach (var p in candidates)
+                {
+                    if (System.IO.File.Exists(p))
+                    {
+                        using (var reader = new System.IO.StreamReader(p))
+                        {
+                            reader.ReadLine();
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                var fields = line.Split(',');
+                                if (fields.Length >= 3 && ushort.TryParse(fields[0], out ushort id) && uint.TryParse(fields[1], out uint p1) && uint.TryParse(fields[2], out uint p2))
+                                {
+                                    rows[id] = new[] { p1, p2 };
+                                }
+                            }
+                        }
+                        break;
+                    }
                 }
             }
             return rows;
         });
 
+        private static readonly Lazy<Dictionary<ushort, uint>> NpcBuyPrices = new Lazy<Dictionary<ushort, uint>>(() => {
+            var rows = new Dictionary<ushort, uint>();
+            var stream = typeof(Inventory).Assembly.GetManifestResourceStream("NpcBuyPrices");
+            if (stream != null)
+            {
+                using (var reader = new System.IO.StreamReader(stream))
+                {
+                    reader.ReadLine();
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        var fields = line.Split(',');
+                        if (fields.Length >= 2 && ushort.TryParse(fields[0], out ushort id) && uint.TryParse(fields[1], out uint price))
+                        {
+                            rows[id] = price;
+                        }
+                    }
+                }
+            }
+
+            if (rows.Count == 0)
+            {
+                string[] candidates = { "Data/npc_buy_prices.csv", "../Data/npc_buy_prices.csv", "../../Data/npc_buy_prices.csv" };
+                foreach (var p in candidates)
+                {
+                    if (System.IO.File.Exists(p))
+                    {
+                        using (var reader = new System.IO.StreamReader(p))
+                        {
+                            reader.ReadLine();
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                var fields = line.Split(',');
+                                if (fields.Length >= 2 && ushort.TryParse(fields[0], out ushort id) && uint.TryParse(fields[1], out uint price))
+                                {
+                                    rows[id] = price;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (rows.Count == 0)
+            {
+                string[] itemDatPaths = { "Data/Item.dat", "../Data/Item.dat", "../../Data/Item.dat" };
+                foreach (var p in itemDatPaths)
+                {
+                    if (System.IO.File.Exists(p))
+                    {
+                        try
+                        {
+                            byte[] bytes = System.IO.File.ReadAllBytes(p);
+                            int recSize = 451;
+                            int count = bytes.Length / recSize;
+                            for (int i = 1; i < count; i++)
+                            {
+                                int offset = i * recSize;
+                                ushort rawId = BitConverter.ToUInt16(bytes, offset + 16);
+                                ushort id = (ushort)((rawId ^ 0xEFC3) - 9);
+                                uint rawBuy = BitConverter.ToUInt32(bytes, offset + 114);
+                                uint buy = (uint)((rawBuy ^ 0x0B80F4B4) - 9);
+                                if (id >= 10000 && id <= 60000)
+                                {
+                                    rows[id] = buy;
+                                }
+                            }
+                        }
+                        catch { }
+                        break;
+                    }
+                }
+            }
+
+            return rows;
+        });
+
+        public ushort ResolveCatalogItem(ushort slotOrItemId)
+        {
+            if (slotOrItemId >= 1000) return slotOrItemId;
+            if (slotOrItemId == 0) return 0;
+
+            byte shopType = 3; // 3 = Props Shop, 2 = Weapon Shop
+            if (owner != null)
+            {
+                if (owner.CurrentShopCatalogId == 0x0001FB84u) shopType = 2; // Weapon Shop
+                else if (owner.CurrentShopCatalogId == 0x0001FB83u) shopType = 2; // Armor Shop
+                else if (owner.CurrentShopCatalogId == 0x0001FB85u) shopType = 3; // Props Shop
+            }
+
+            // 1. Try resolving from active map's InteractiveInfo in EveData
+            if (owner?.CurMap != null)
+            {
+                var mapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)owner.CurMap.MapID);
+                if (mapData != null && mapData.InteractiveInfo != null && mapData.InteractiveInfo.Count > 0)
+                {
+                    var shopEntry = mapData.InteractiveInfo.FirstOrDefault(e => e.unknownbyte1 == shopType && e.subentry != null && e.subentry.Count > 0);
+                    if (shopEntry == null)
+                    {
+                        shopEntry = mapData.InteractiveInfo.FirstOrDefault(e => (e.unknownbyte1 == 2 || e.unknownbyte1 == 3) && e.subentry != null && e.subentry.Count > 0);
+                    }
+
+                    if (shopEntry != null && shopEntry.subentry != null && shopEntry.subentry.Count > 0)
+                    {
+                        var sub = shopEntry.subentry.FirstOrDefault(s => s.unknownbyte1 == slotOrItemId);
+                        if (sub == null && slotOrItemId >= 1 && slotOrItemId <= shopEntry.subentry.Count)
+                        {
+                            sub = shopEntry.subentry[slotOrItemId - 1];
+                        }
+
+                        if (sub != null)
+                        {
+                            ushort itemId = (ushort)(sub.unknownbyte2 | (sub.unknownbyte3 << 8));
+                            if (itemId > 0) return itemId;
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback catalog tables if map InteractiveInfo is not present
+            ushort[] fallback = (shopType == 2)
+                ? new ushort[] { 17064, 14032, 21061, 18032, 15032, 24067 }
+                : new ushort[] { 32011, 32002, 45001, 45007, 42008, 45007 };
+
+            if (slotOrItemId >= 1 && slotOrItemId <= fallback.Length)
+            {
+                return fallback[slotOrItemId - 1];
+            }
+
+            return slotOrItemId;
+        }
+
         public NpcSaleResult SellToNpc(byte[] slots, byte mode)
         {
             if (slots == null || slots.Length == 0 || mode > 1) return NpcSaleResult.Rejected;
             if (slots.Length > 50) return NpcSaleResult.TooManyItems;
-            if (owner?.NpcSaleMode != mode || owner.CurMap == null || owner.NpcSaleMap != owner.CurMap.MapID ||
-                slots.Distinct().Count() != slots.Length || slots.Any(s => s < 1 || s > 50) ||
-                Game.Battle.PvEBattleManager.IsInBattle(owner)) return NpcSaleResult.Rejected;
+            if (owner?.CurMap == null || Game.Battle.PvEBattleManager.IsInBattle(owner)) return NpcSaleResult.Rejected;
+            if (slots.Distinct().Count() != slots.Length || slots.Any(s => s < 1 || s > 50)) return NpcSaleResult.Rejected;
+
+            // Session check: ensure the player has an active sale or shop session on this map
+            bool hasValidSaleSession = (owner.NpcSaleMode != null || owner.CurrentShopCatalogId != 0 || (owner.LastNpcClick != 0 && owner.LastNpcMap == owner.CurMap.MapID)) &&
+                                       (owner.NpcSaleMap == 0 || owner.NpcSaleMap == owner.CurMap.MapID);
+            if (!hasValidSaleSession) return NpcSaleResult.Rejected;
+
             lock (mylock)
             {
                 ulong total = 0;
@@ -62,15 +232,15 @@ namespace Game.Code
                     var item = this[slot]; uint[] price;
                     if (item == null || item.ItemID == 0 || item.Ammt == 0) return NpcSaleResult.ItemUnavailable;
                     // Only slots 1..6 are worn equipment; 7..10 are inventory-use items.
-                    bool equipment = item.Data.Equippos >= 1 && item.Data.Equippos <= 6;
-                    if (item.Parent != 0 || item.isLocked ||
-                        !NpcSalePrices.Value.TryGetValue(item.ItemID, out price) || (price[1] & 16) != 0 ||
-                        (mode == 0) != equipment) return NpcSaleResult.Rejected;
+                    bool equipment = item.Data != null && item.Data.Equippos >= 1 && item.Data.Equippos <= 6;
+                    if (item.Parent != 0 || item.isLocked || (mode == 0) != equipment) return NpcSaleResult.Rejected;
+                    if (!NpcSalePrices.Value.TryGetValue(item.ItemID, out price) || (price[1] & 16) != 0) return NpcSaleResult.Rejected;
                     total += (ulong)price[0] * item.Ammt;
                 }
                 if (total > 999999 || owner.Eqs.Gold + total > 999999) return NpcSaleResult.GoldLimit;
                 if (total > 0 && !owner.Eqs.AddGold((int)total)) return NpcSaleResult.GoldLimit;
                 foreach (byte slot in slots) RemoveItem(slot, this[slot].Ammt);
+                owner.NpcSaleMode = mode;
                 owner.Eqs.SendGold();
                 owner.SaveCharacterData();
                 return NpcSaleResult.Success;
@@ -91,14 +261,22 @@ namespace Game.Code
                 foreach (var entry in cartItems)
                 {
                     if (entry.ammt == 0) continue;
-                    ushort itemId = entry.slot;
+                    ushort itemId = ResolveCatalogItem(entry.slot);
 
                     var itemInfo = ItemDat?.GetItemByID(itemId);
                     if (itemInfo == null) return NpcBuyResult.ItemUnavailable;
 
-                    uint[] priceInfo;
-                    NpcSalePrices.Value.TryGetValue(itemId, out priceInfo);
-                    uint unitPrice = (priceInfo != null && priceInfo[0] > 0) ? (priceInfo[0] * 2) : 10u;
+                    uint unitPrice = 0;
+                    if (NpcBuyPrices.Value.TryGetValue(itemId, out uint buyPrice) && buyPrice > 0)
+                    {
+                        unitPrice = buyPrice;
+                    }
+                    else
+                    {
+                        uint[] priceInfo;
+                        NpcSalePrices.Value.TryGetValue(itemId, out priceInfo);
+                        unitPrice = (priceInfo != null && priceInfo[0] > 0) ? (priceInfo[0] * 10) : 10u;
+                    }
                     totalCost += (ulong)unitPrice * entry.ammt;
 
                     if (requestedItems.ContainsKey(itemId))

@@ -301,6 +301,10 @@ namespace Wonderland_Private_Server.ActionCodes
                     return;
                 }
 
+                // Clear any active NPC shop catalog or sale liquidation session upon dialog/modal completion
+                p.NpcSaleMode = null;
+                p.CurrentShopCatalogId = 0;
+
                 DebugSystem.Write($"[AC20.Recv6] Interaction completed for {p.CharName}, sending posture/HUD unlock AC 20:8 + AC 5:4");
                 p.Send(Tools.FromFormat("bbb", 6, 2, 0));
                 p.Send(Tools.FromFormat("bb", 20, 8));

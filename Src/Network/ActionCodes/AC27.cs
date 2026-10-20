@@ -30,15 +30,15 @@ namespace Network.ActionCodes
                     byte[] data = p.Buffer.Skip(6).ToArray();
                     var cart = new List<ShoppingCart>();
 
-                    if (data.Length >= 3 && data.Length % 3 == 0)
+                    // 1. Official client format: [count: byte], [[slot: byte], [ammt: byte]] * count
+                    if (data.Length >= 3 && (data.Length - 1) % 2 == 0 && data[0] == (data.Length - 1) / 2)
                     {
-                        for (int i = 0; i + 2 < data.Length; i += 3)
+                        for (int i = 1; i + 1 < data.Length; i += 2)
                         {
-                            ushort id = BitConverter.ToUInt16(data, i);
-                            byte ammt = data[i + 2];
-                            cart.Add(new ShoppingCart { slot = id, ammt = ammt });
+                            cart.Add(new ShoppingCart { slot = data[i], ammt = data[i + 1] });
                         }
                     }
+                    // 2. Count-prefixed 3-byte records: [count: byte], [[itemId: ushort], [ammt: byte]] * count
                     else if (data.Length >= 4 && (data.Length - 1) % 3 == 0 && data[0] == (data.Length - 1) / 3)
                     {
                         for (int i = 1; i + 2 < data.Length; i += 3)
@@ -48,15 +48,20 @@ namespace Network.ActionCodes
                             cart.Add(new ShoppingCart { slot = id, ammt = ammt });
                         }
                     }
-                    else
+                    // 3. Unprefixed 3-byte records: [[itemId: ushort], [ammt: byte]] * N
+                    else if (data.Length >= 3 && data.Length % 3 == 0)
                     {
-                        int offset = 0;
-                        if (data.Length >= 1 && (data.Length - 1) % 2 == 0 && data[0] == (data.Length - 1) / 2)
+                        for (int i = 0; i + 2 < data.Length; i += 3)
                         {
-                            offset = 1; // Skip count prefix byte if present
+                            ushort id = BitConverter.ToUInt16(data, i);
+                            byte ammt = data[i + 2];
+                            cart.Add(new ShoppingCart { slot = id, ammt = ammt });
                         }
-
-                        for (int i = offset; i + 1 < data.Length; i += 2)
+                    }
+                    // 4. Unprefixed 2-byte records: [[slot: byte], [ammt: byte]] * N
+                    else if (data.Length >= 2 && data.Length % 2 == 0)
+                    {
+                        for (int i = 0; i + 1 < data.Length; i += 2)
                         {
                             cart.Add(new ShoppingCart { slot = data[i], ammt = data[i + 1] });
                         }
@@ -66,7 +71,9 @@ namespace Network.ActionCodes
                         ? c.Inv.BuyFromNpc(cart.ToArray())
                         : NpcBuyResult.Rejected;
 
+                    DebugSystem.Write($"[AC27:1] Player {c.CharName} purchased {cart.Count} items. Result={result} (0x{(byte)result:X2})");
                     c.Send(Tools.FromFormat("bbb", 27, 1, (byte)result));
+                    c.Send(Tools.FromFormat("bbb", 27, 2, (byte)result));
                     return;
                 }
 
@@ -78,6 +85,8 @@ namespace Network.ActionCodes
                     var result = data.Length >= 2 && data[data.Length - 1] <= 1
                         ? c.Inv.SellToNpc(data.Take(data.Length - 1).ToArray(), data[data.Length - 1])
                         : NpcSaleResult.Rejected;
+                    DebugSystem.Write($"[AC27:2] Player {c.CharName} sold {data.Length - 1} slots in mode {data[data.Length - 1]}. Result={result} (0x{(byte)result:X2})");
+                    // Send official client liquidation ACK (Subcode 2 at VA 0x002FE0B6)
                     c.Send(Tools.FromFormat("bbb", 27, 2, (byte)result));
                     return;
                 }

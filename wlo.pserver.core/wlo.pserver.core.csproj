@@ -273,5 +273,6 @@
   -->
   <ItemGroup>
     <EmbeddedResource Include="..\Data\npc_sale_prices.csv"><LogicalName>NpcSalePrices</LogicalName></EmbeddedResource>
+    <EmbeddedResource Include="..\Data\npc_buy_prices.csv"><LogicalName>NpcBuyPrices</LogicalName></EmbeddedResource>
   </ItemGroup>
 </Project>

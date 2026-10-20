@@ -812,8 +812,23 @@ namespace Game.Maps
                                     case 3:
                                         uint catalogId = (actionOrMap == 1) ? 0x0001FB84u : ((actionOrMap == 2) ? 0x0001FB85u : 0x0001FB83u);
                                         player.CurrentShopCatalogId = catalogId;
-                                        player.Send(Tools.FromFormat("bbd", 35, 12, catalogId));
-                                        player.Send(Tools.FromFormat("bb", 20, 8));
+                                        player.NpcSaleMap = (ushort)(player.CurMap != null ? player.CurMap.MapID : 0);
+                                        player.NpcSaleMode = (byte)(catalogId == 0x0001FB85u ? 1 : 0);
+
+                                        // If this branch was triggered by a "Sell goods" choice (sub.unknownbyte1 == 7 && sub.unknownword2 == 31):
+                                        bool isSellChoice = sub != null && sub.unknownbyte1 == 7 &&
+                                            (sub.unknownword2 == 31 || sub.unknownword2 == 0x1F || sub.unknownword2 == 0x29 || sub.unknownword2 == 2) &&
+                                            ev?.SubEntry != null && ev.SubEntry.Any(b => b.SubEntry != null && b.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 6));
+
+                                        if (!isSellChoice)
+                                        {
+                                            player.Send(Tools.FromFormat("bbd", 35, 12, catalogId));
+                                            DebugSystem.Write($"[EveEventInterpreter] Opcode 7: Opened NPC Buy Catalog 0x{catalogId:X} for {player.CharName}");
+                                        }
+                                        else
+                                        {
+                                            DebugSystem.Write($"[EveEventInterpreter] Opcode 7: Prepared NPC Sale (mode {player.NpcSaleMode}) for {player.CharName} from Sell choice trigger (w1={sub.unknownword1}, w2={sub.unknownword2})");
+                                        }
                                         return true;
 
                                     // 4: Props Keep / Storage Bank

@@ -673,7 +673,7 @@ namespace Game
         public void OpenNpcSale(byte mode)
         {
             NpcSaleMode = mode;
-            NpcSaleMap = (ushort)CurMap.MapID;
+            NpcSaleMap = (ushort)(CurMap != null ? CurMap.MapID : 0);
             Send(Tools.FromFormat("bb", 27, mode == 0 ? 4 : 3));
         }
 
@@ -844,6 +844,8 @@ namespace Game
                     ClearInteraction();
                     PendingRestMap = 0;
                     NpcSaleMode = null;
+                    NpcSaleMap = 0;
+                    CurrentShopCatalogId = 0;
                     NpcClickResumeAt = DateTime.MinValue;
                 }
                 if (base.CurMap != null)

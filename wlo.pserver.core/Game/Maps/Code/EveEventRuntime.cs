@@ -354,6 +354,53 @@ namespace Game.Maps
             return null;
         }
 
+        private static bool TryHandleMerchantChoice(Player player, GameMap map, ushort clickId, ushort question, ushort answer, Action finish)
+        {
+            var mapNpc = map?.NpcList?.FirstOrDefault(n => n.CickID == clickId) as QuestNpc;
+            var eveData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)(map != null ? map.MapID : 0));
+            var npcEntry = eveData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+            ushort tid = npcEntry != null ? (ushort)npcEntry.npcId : (mapNpc != null ? (ushort)mapNpc.TemplateID : (ushort)0);
+            string npcName = mapNpc != null ? mapNpc.Name : string.Empty;
+
+            bool isMerchantQuestion = question == 5 || question == 6 || question == 8 || question == 9 || question == 1 || question == 2;
+            bool isMerchantNpc = tid == 13007 || tid == 13006 || tid == 13005 ||
+                npcName.IndexOf("shop", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                npcName.IndexOf("merchant", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (!isMerchantQuestion && !isMerchantNpc) return false;
+
+            bool isWeapon = question == 8 || question == 9 || tid == 13006 || tid == 13005 ||
+                npcName.IndexOf("weapon", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                npcName.IndexOf("armor", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            uint catalogId = (tid == 13005 || npcName.IndexOf("armor", StringComparison.OrdinalIgnoreCase) >= 0)
+                ? 0x0001FB83u
+                : (isWeapon ? 0x0001FB84u : 0x0001FB85u);
+            byte saleMode = (byte)(catalogId == 0x0001FB85u ? 1 : 0);
+
+            // Option 1: Buy goods / Buy equipment (30, 0x1E, 0x28, 1)
+            if (answer == 30 || answer == 0x1E || answer == 0x28 || answer == 1)
+            {
+                finish();
+                player.CurrentShopCatalogId = catalogId;
+                player.NpcSaleMap = (ushort)(player.CurMap != null ? player.CurMap.MapID : 0);
+                player.NpcSaleMode = saleMode;
+                player.Send(Tools.FromFormat("bbd", 35, 12, catalogId));
+                DebugSystem.Write($"[EveEventRuntime] Merchant Intercept: Opened Buy Catalog 0x{catalogId:X} for {player.CharName} (Q={question}, A={answer})");
+                return true;
+            }
+            // Option 2: Sell goods / Selling equipment (31, 0x1F, 0x29, 2)
+            else if (answer == 31 || answer == 0x1F || answer == 0x29 || answer == 2)
+            {
+                finish();
+                player.OpenNpcSale(saleMode);
+                DebugSystem.Write($"[EveEventRuntime] Merchant Intercept: Opened NPC Sale Mode {saleMode} for {player.CharName} (Q={question}, A={answer})");
+                return true;
+            }
+
+            return false;
+        }
+
         private static bool CompareValue(int actual, int expected, int comparison)
         {
             switch (comparison)
@@ -885,7 +932,15 @@ namespace Game.Maps
                                 ushort answer = choice;
                                 DebugSystem.Write($"[EveEventRuntime] <- Choice Received: answer=0x{answer:X} ({answer}) for QuestionID={question} from {player.CharName}");
                                 var selected = FindBranch(player, map, ev, 7, question, answer);
-                                if (selected == null) { finish(); return; }
+                                if (selected == null)
+                                {
+                                    if (TryHandleMerchantChoice(player, map, clickId, question, answer, finish))
+                                    {
+                                        return;
+                                    }
+                                    finish();
+                                    return;
+                                }
                                 StartSession(player, map, clickId, ev, selected);
                             };
                             // Native question mode 0 sends AC20:9 AND a closing AC20:6.
@@ -953,7 +1008,20 @@ namespace Game.Maps
                         bool external = op.DialogPtr == 4 || op.DialogPtr == 6 || op.DialogPtr == 9;
                         if (!ExecuteOpcode(player, map, clickId, ev, branch, op)) { finish(); return; }
                         if (external) return;
-                        if (op.DialogPtr == 7) { finish(); return; }
+                        if (op.DialogPtr == 7)
+                        {
+                            bool isSellChoice = branch != null && branch.unknownbyte1 == 7 &&
+                                (branch.unknownword2 == 31 || branch.unknownword2 == 0x1F || branch.unknownword2 == 0x29 || branch.unknownword2 == 2) &&
+                                ev?.SubEntry != null && ev.SubEntry.Any(b => b.SubEntry != null && b.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 6));
+                            byte saleMode = (byte)(player.NpcSaleMode ?? 1);
+                            finish();
+                            if (isSellChoice)
+                            {
+                                player.OpenNpcSale(saleMode);
+                                DebugSystem.Write($"[EveEventRuntime] Opcode 7: Opened NPC Sale (mode {saleMode}) for {player.CharName}");
+                            }
+                            return;
+                        }
                         if (player.NativeEventToken != token) return; // teleport/cancellation
                         if (player.OnInteractionComplete != null) return;
                     }

@@ -42,6 +42,17 @@ namespace Network.ActionCodes
                     p.SendSystemMessage("[Stall] You moved; your vending stall has been closed.");
                 }
 
+                // Clean up any lingering NPC shop / liquidation session upon movement and release client interaction locks
+                if (movedDistance > 0 && (p.NpcSaleMode != null || p.CurrentShopCatalogId != 0))
+                {
+                    DebugSystem.Write($"[AC06.Recv1] Player {p.CharName} moved ({movedDistance:F1} units) with active vendor session (Catalog=0x{p.CurrentShopCatalogId:X}, SaleMode={p.NpcSaleMode}). Clearing session and resetting client interaction locks.");
+                    p.NpcSaleMode = null;
+                    p.CurrentShopCatalogId = 0;
+                    p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                    p.Send(Tools.FromFormat("bb", 20, 8));
+                    p.Send(Tools.FromFormat("bb", 5, 4));
+                }
+
                 if (!Game.Battle.PvEBattleManager.IsInBattle(p) && p.CurMap is GameMap eventMap &&
                     Game.Maps.EveEventInterpreter.TryExecuteRegion(p, eventMap, previousX, previousY)) return;
 

@@ -546,6 +546,8 @@ namespace Game.Maps
                                 if (choice2 == 30 || choice2 == 0x28 || choice2 == 1) // Choice 1: Buy
                                 {
                                     src.CurrentShopCatalogId = shopCatalogId;
+                                    src.NpcSaleMap = (ushort)(src.CurMap != null ? src.CurMap.MapID : 0);
+                                    src.NpcSaleMode = (byte)(shopCatalogId == 0x0001FB85u ? 1 : 0);
                                     src.Send(Tools.FromFormat("bbd", 35, 12, shopCatalogId)); // Open Shop Buy Catalog UI
                                 }
                                 else if (choice2 == 31 || choice2 == 0x29 || choice2 == 2) // Choice 2: Sell
@@ -558,7 +560,6 @@ namespace Game.Maps
                         }
                         else // "No" (0x1F / 2) -> Cancel / Farewell
                         {
-                            src.Send(Tools.FromFormat("bb", 27, 3));
                             src.Send(Tools.FromFormat("bb", 20, 9));
                             src.Send(Tools.FromFormat("bb", 20, 8));
                         }
