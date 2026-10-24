@@ -12,15 +12,24 @@ namespace Game.Maps
         public string ItemName { get; set; }
         public byte Count { get; set; }
         public int Weight { get; set; }
+        public int Gold { get; set; }
+
+        public bool IsGold => Gold > 0 || (ItemID == 0 && Gold > 0);
 
         public ChestLootEntry() { }
 
-        public ChestLootEntry(ushort itemId, string itemName, byte count = 1, int weight = 100)
+        public ChestLootEntry(ushort itemId, string itemName, byte count = 1, int weight = 100, int gold = 0)
         {
             ItemID = itemId;
             ItemName = itemName;
             Count = count;
             Weight = weight;
+            Gold = gold;
+        }
+
+        public static ChestLootEntry CreateGold(int gold, int weight = 100)
+        {
+            return new ChestLootEntry(0, $"{gold} Gold", 1, weight, gold);
         }
     }
 
@@ -43,6 +52,36 @@ namespace Game.Maps
             LoadFromFile();
         }
 
+        public static bool IsBeachMap(uint mapId)
+        {
+            return mapId == 10035 || mapId == 10036 || mapId == 10037 || mapId == 10038 || mapId == 10039;
+        }
+
+        public static bool IsCrate(string propName, uint templateId = 0)
+        {
+            if (templateId == 19034 || templateId == 16001 || templateId == 16007 || 
+                templateId == 19036 || templateId == 19037 || templateId == 19272)
+                return true;
+
+            string lower = (propName ?? "").ToLower().Trim();
+            return lower.Contains("crate") || lower.Contains("cask") || lower.Contains("barrel") ||
+                   lower.Contains("box") || lower.Contains("cargo") || lower.Contains("wreckage") ||
+                   lower.Contains("driftwood");
+        }
+
+        public static bool IsChest(string propName, uint templateId = 0)
+        {
+            if (templateId == 19035 || templateId == 16000 || templateId == 16002 || 
+                templateId == 16003 || templateId == 16006 || templateId == 16008 || 
+                templateId == 16009 || templateId == 16010 || templateId == 16011 || 
+                templateId == 19038 || templateId == 19114 || templateId == 19115 || 
+                templateId == 19116 || templateId == 19117 || templateId == 19157)
+                return true;
+
+            string lower = (propName ?? "").ToLower().Trim();
+            return lower.Contains("chest") || lower.Contains("ches");
+        }
+
         public static void InitializeLootTables()
         {
             lock (_lock)
@@ -50,73 +89,114 @@ namespace Game.Maps
                 MapLootTables.Clear();
                 CategoryLootTables.Clear();
 
-                // 1. Map 10036 (Shipwreck Beach / South Island Coast)
-                MapLootTables[10036] = new List<ChestLootEntry>
+                // 1. Beach Crates: Common survival resources (Wood, Melon, Healing items)
+                CategoryLootTables["beach_crate"] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(41066, "1 pcs Coconut", 1, 40),
-                    new ChestLootEntry(28014, "1 pcs Fresh Fruit", 1, 30),
-                    new ChestLootEntry(28001, "1 pcs Sea Water", 1, 15),
-                    new ChestLootEntry(27001, "1 pcs Ordinary Wood", 1, 15)
+                    // Common survival resources: Wood
+                    new ChestLootEntry(45001, "Ordinary Wood", 2, 35),
+                    new ChestLootEntry(45005, "Wood", 2, 25),
+                    new ChestLootEntry(45002, "Oak wood", 1, 15),
+
+                    // Common survival resources: Melon
+                    new ChestLootEntry(41028, "Melon", 1, 30),
+                    new ChestLootEntry(41047, "Watermelon", 1, 25),
+                    new ChestLootEntry(41053, "Muskmelon", 1, 15),
+
+                    // Common survival resources: Healing & Survival food
+                    new ChestLootEntry(41066, "Coconut", 2, 30),
+                    new ChestLootEntry(32011, "Bread", 2, 25),
+                    new ChestLootEntry(34014, "Tao Rice Ball", 1, 20),
+                    new ChestLootEntry(33019, "Recovery Potion", 1, 20),
+                    new ChestLootEntry(33046, "Recovery Medicine", 1, 15),
+                    new ChestLootEntry(30259, "Black Medicine", 1, 10)
                 };
 
-                // 2. Map 10001 (Kelan Woods / Forests)
+                // 2. Beach Chests: Beginner equipment or gold
+                CategoryLootTables["beach_chest"] = new List<ChestLootEntry>
+                {
+                    // Beginner weapons
+                    new ChestLootEntry(10031, "Copper Knife", 1, 20),
+                    new ChestLootEntry(10032, "Bronze Knife", 1, 15),
+                    new ChestLootEntry(11031, "Copper Sword", 1, 20),
+                    new ChestLootEntry(11032, "Bronze Sword", 1, 15),
+                    new ChestLootEntry(13066, "Wooden Bow", 1, 15),
+                    new ChestLootEntry(14093, "Wooden Wand", 1, 15),
+
+                    // Beginner armor & wearables
+                    new ChestLootEntry(22061, "Headband", 1, 25),
+                    new ChestLootEntry(21073, "Cotton Clothes", 1, 20),
+                    new ChestLootEntry(23064, "Wooden Bracers", 1, 20),
+                    new ChestLootEntry(24013, "Wooden Shoes", 1, 20),
+
+                    // Gold rewards
+                    ChestLootEntry.CreateGold(100, 35),
+                    ChestLootEntry.CreateGold(250, 25),
+                    ChestLootEntry.CreateGold(500, 15)
+                };
+
+                // Map 10036 (Shipwreck Beach / South Island Coast) fallback table
+                MapLootTables[10036] = new List<ChestLootEntry>(CategoryLootTables["beach_crate"]);
+
+                // Map 10001 (Kelan Woods / Forests)
                 MapLootTables[10001] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(28006, "1 pcs Red Apple", 1, 35),
-                    new ChestLootEntry(28012, "1 pcs Mushroom", 1, 25),
-                    new ChestLootEntry(30001, "1 pcs Herb Potion", 1, 20),
-                    new ChestLootEntry(27002, "1 pcs Pine Wood", 1, 20)
+                    new ChestLootEntry(28006, "Red Apple", 1, 35),
+                    new ChestLootEntry(28012, "Mushroom", 1, 25),
+                    new ChestLootEntry(30001, "Herb Potion", 1, 20),
+                    new ChestLootEntry(27002, "Pine Wood", 1, 20)
                 };
 
-                // 3. Map 10010 (Kelan Village / Residential)
+                // Map 10010 (Kelan Village / Residential)
                 MapLootTables[10010] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(30259, "1 pcs Black Medicine", 1, 40),
-                    new ChestLootEntry(28003, "1 pcs Cooking Salt", 1, 20),
-                    new ChestLootEntry(28015, "1 pcs White Rice", 1, 20),
-                    new ChestLootEntry(28007, "1 pcs Fresh Milk", 1, 20)
+                    new ChestLootEntry(30259, "Black Medicine", 1, 40),
+                    new ChestLootEntry(28003, "Cooking Salt", 1, 20),
+                    new ChestLootEntry(28015, "White Rice", 1, 20),
+                    new ChestLootEntry(28007, "Fresh Milk", 1, 20)
                 };
 
-                // 4. Map 10020 (Maka Cave / Underground Mines)
+                // Map 10020 (Maka Cave / Underground Mines)
                 MapLootTables[10020] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(24001, "1 pcs Iron Ore", 1, 35),
-                    new ChestLootEntry(24002, "1 pcs Copper Ore", 1, 25),
-                    new ChestLootEntry(24005, "1 pcs Coal", 1, 25),
-                    new ChestLootEntry(24010, "1 pcs Gold Sand", 1, 15)
+                    new ChestLootEntry(24001, "Iron Ore", 1, 35),
+                    new ChestLootEntry(24002, "Copper Ore", 1, 25),
+                    new ChestLootEntry(24005, "Coal", 1, 25),
+                    new ChestLootEntry(24010, "Gold Sand", 1, 15)
                 };
 
                 // Category Fallbacks
                 CategoryLootTables["coconut"] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(41066, "1 pcs Coconut", 1, 80),
-                    new ChestLootEntry(28014, "1 pcs Fresh Fruit", 1, 20)
+                    new ChestLootEntry(41066, "Coconut", 1, 80),
+                    new ChestLootEntry(28014, "Fresh Fruit", 1, 20)
                 };
 
                 CategoryLootTables["medicine"] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(30259, "1 pcs Black Medicine", 1, 70),
-                    new ChestLootEntry(30001, "1 pcs Herb Potion", 1, 30)
+                    new ChestLootEntry(30259, "Black Medicine", 1, 70),
+                    new ChestLootEntry(30001, "Herb Potion", 1, 30)
                 };
 
                 CategoryLootTables["headband"] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(22061, "1 pcs Headband", 1, 100)
+                    new ChestLootEntry(22061, "Headband", 1, 100)
                 };
 
                 CategoryLootTables["ore"] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(24001, "1 pcs Iron Ore", 1, 40),
-                    new ChestLootEntry(24002, "1 pcs Copper Ore", 1, 30),
-                    new ChestLootEntry(24005, "1 pcs Coal", 1, 30)
+                    new ChestLootEntry(24001, "Iron Ore", 1, 40),
+                    new ChestLootEntry(24002, "Copper Ore", 1, 30),
+                    new ChestLootEntry(24005, "Coal", 1, 30)
                 };
+
+                CategoryLootTables["default_crate"] = new List<ChestLootEntry>(CategoryLootTables["beach_crate"]);
 
                 CategoryLootTables["default_chest"] = new List<ChestLootEntry>
                 {
-                    new ChestLootEntry(28014, "1 pcs Fresh Fruit", 1, 40),
-                    new ChestLootEntry(30001, "1 pcs Herb Potion", 1, 30),
-                    new ChestLootEntry(27001, "1 pcs Ordinary Wood", 1, 20),
-                    new ChestLootEntry(28001, "1 pcs Sea Water", 1, 10)
+                    new ChestLootEntry(28014, "Fresh Fruit", 1, 35),
+                    new ChestLootEntry(30001, "Herb Potion", 1, 25),
+                    new ChestLootEntry(45001, "Ordinary Wood", 1, 20),
+                    ChestLootEntry.CreateGold(100, 20)
                 };
             }
         }
@@ -148,8 +228,15 @@ namespace Game.Maps
                     item_id INT NOT NULL,
                     item_name TEXT,
                     count INT DEFAULT 1,
-                    chance INT DEFAULT 20
+                    chance INT DEFAULT 20,
+                    gold INT DEFAULT 0
                 );");
+
+                try
+                {
+                    RCLibrary.Core.DataBase.Execute("ALTER TABLE chest_drops ADD COLUMN gold INT DEFAULT 0;");
+                }
+                catch { }
             }
             catch (Exception ex)
             {
@@ -170,7 +257,7 @@ namespace Game.Maps
                     {
                         foreach (var entry in kvp.Value)
                         {
-                            string sql = $"INSERT INTO chest_drops (map_id, category, item_id, item_name, count, chance) VALUES ({kvp.Key}, NULL, {entry.ItemID}, '{entry.ItemName.Replace("'", "''")}', {entry.Count}, {entry.Weight});";
+                            string sql = $"INSERT INTO chest_drops (map_id, category, item_id, item_name, count, chance, gold) VALUES ({kvp.Key}, NULL, {entry.ItemID}, '{entry.ItemName.Replace("'", "''")}', {entry.Count}, {entry.Weight}, {entry.Gold});";
                             RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }
@@ -179,7 +266,7 @@ namespace Game.Maps
                     {
                         foreach (var entry in kvp.Value)
                         {
-                            string sql = $"INSERT INTO chest_drops (map_id, category, item_id, item_name, count, chance) VALUES (0, '{kvp.Key.Replace("'", "''")}', {entry.ItemID}, '{entry.ItemName.Replace("'", "''")}', {entry.Count}, {entry.Weight});";
+                            string sql = $"INSERT INTO chest_drops (map_id, category, item_id, item_name, count, chance, gold) VALUES (0, '{kvp.Key.Replace("'", "''")}', {entry.ItemID}, '{entry.ItemName.Replace("'", "''")}', {entry.Count}, {entry.Weight}, {entry.Gold});";
                             RCLibrary.Core.DataBase.Execute(sql);
                         }
                     }
@@ -214,11 +301,11 @@ namespace Game.Maps
                         dt = RCLibrary.Core.DataBase.Query("SELECT * FROM chest_drops;");
                     }
 
-                    MapLootTables.Clear();
-                    CategoryLootTables.Clear();
-
-                    if (dt != null)
+                    if (dt != null && dt.Rows.Count > 0)
                     {
+                        MapLootTables.Clear();
+                        CategoryLootTables.Clear();
+
                         foreach (System.Data.DataRow row in dt.Rows)
                         {
                             uint mid = Convert.ToUInt32(row["map_id"]);
@@ -227,8 +314,11 @@ namespace Game.Maps
                             string itemName = row["item_name"]?.ToString() ?? "";
                             byte count = Convert.ToByte(row["count"]);
                             int weight = Convert.ToInt32(row["chance"]);
+                            int gold = 0;
+                            if (row.Table.Columns.Contains("gold") && row["gold"] != DBNull.Value)
+                                gold = Convert.ToInt32(row["gold"]);
 
-                            var entry = new ChestLootEntry(itemId, itemName, count, weight);
+                            var entry = new ChestLootEntry(itemId, itemName, count, weight, gold);
 
                             if (mid > 0)
                             {
@@ -241,9 +331,9 @@ namespace Game.Maps
                                 CategoryLootTables[cat].Add(entry);
                             }
                         }
-                    }
 
-                    DebugSystem.Write($"[ChestDropManager] Loaded {MapLootTables.Count} map drop tables and {CategoryLootTables.Count} category drop tables from SQLite database.");
+                        DebugSystem.Write($"[ChestDropManager] Loaded {MapLootTables.Count} map drop tables and {CategoryLootTables.Count} category drop tables from SQLite database.");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -254,7 +344,6 @@ namespace Game.Maps
 
         private static void SeedDatabase()
         {
-            // Seed defaults
             InitializeLootTables();
             SaveToDatabase();
         }
@@ -310,15 +399,25 @@ namespace Game.Maps
         }
 
         /// <summary>
-        /// Rolls an authentic drop from the map or category loot pool.
+        /// Rolls an authentic drop from the map or category loot pool with template ID awareness.
         /// </summary>
-        public static ChestLootEntry RollDrop(uint mapId, string propName)
+        public static ChestLootEntry RollDrop(uint mapId, string propName, uint templateId = 0)
         {
             lock (_lock)
             {
                 string lower = (propName ?? "").ToLower().Trim();
 
-                // Specific Category Matches
+                // 1. Beach maps specific crate vs chest differentiation
+                if (IsBeachMap(mapId))
+                {
+                    if (IsCrate(propName, templateId) && CategoryLootTables.TryGetValue("beach_crate", out var beachCrates) && beachCrates.Count > 0)
+                        return PickRandom(beachCrates);
+
+                    if (IsChest(propName, templateId) && CategoryLootTables.TryGetValue("beach_chest", out var beachChests) && beachChests.Count > 0)
+                        return PickRandom(beachChests);
+                }
+
+                // 2. Specific Resource / Gathering Category Matches
                 if (lower.Contains("coconut") && CategoryLootTables.ContainsKey("coconut"))
                     return PickRandom(CategoryLootTables["coconut"]);
                 if ((lower.Contains("cabinet") || lower.Contains("shelf") || lower.Contains("bick")) && CategoryLootTables.ContainsKey("medicine"))
@@ -328,24 +427,31 @@ namespace Game.Maps
                 if ((lower.Contains("mine") || lower.Contains("ore") || lower.Contains("vein")) && CategoryLootTables.ContainsKey("ore"))
                     return PickRandom(CategoryLootTables["ore"]);
 
-                // Map specific match
+                // 3. Generic Crate category fallback
+                if (IsCrate(propName, templateId))
+                {
+                    if (CategoryLootTables.TryGetValue("beach_crate", out var crates) && crates.Count > 0)
+                        return PickRandom(crates);
+                }
+
+                // 4. Map specific match
                 if (MapLootTables.TryGetValue(mapId, out var mapList) && mapList.Count > 0)
                 {
                     return PickRandom(mapList);
                 }
 
-                // Default chest fallback
+                // 5. Default chest fallback
                 if (CategoryLootTables.TryGetValue("default_chest", out var def) && def.Count > 0)
                     return PickRandom(def);
 
-                return new ChestLootEntry(28014, "1 pcs Fresh Fruit", 1, 100);
+                return new ChestLootEntry(45001, "Ordinary Wood", 1, 100);
             }
         }
 
         private static ChestLootEntry PickRandom(List<ChestLootEntry> entries)
         {
             if (entries == null || entries.Count == 0)
-                return new ChestLootEntry(28014, "1 pcs Fresh Fruit", 1, 100);
+                return new ChestLootEntry(45001, "Ordinary Wood", 1, 100);
 
             int totalWeight = entries.Sum(e => e.Weight);
             if (totalWeight <= 0) return entries[0];

@@ -1445,9 +1445,9 @@ namespace DataBase
                 }
                 else
                 {
-                    mapID = "10001";
-                    mapX = "500";
-                    mapY = "500";
+                    mapID = "12000";
+                    mapX = "892";
+                    mapY = "734";
                 }
             }
             else
@@ -1733,6 +1733,7 @@ namespace DataBase
                     if (row["tenttype"] != DBNull.Value) player.Tent.TentType = byte.Parse(row["tenttype"].ToString());
                 }
 
+                bool hadTentRecord = (dt != null && dt.Rows.Count > 0);
                 // 2. Load Tent Placed Items
                 DataTable itemsDt = GetDataTable($"SELECT * FROM chartent_items WHERE charID = '{player.CharID}'");
                 if (itemsDt != null && itemsDt.Rows.Count > 0)
@@ -1749,10 +1750,15 @@ namespace DataBase
                     }
                     DebugSystem.Write($"[TentDB] Loaded {player.Tent.TentObjects.Count} tent items for {player.CharName} (CharID={player.CharID})");
                 }
+                else if (hadTentRecord)
+                {
+                    // Existing tent where owner picked up all furniture
+                    player.Tent.TentObjects.Clear();
+                }
                 else
                 {
-                    // If no tent items saved yet in DB for this character, save the default initial items to DB
-                    SaveTentData(player);
+                    // Brand new character tent: persist the default initial items to DB
+                    SaveTentData(player, force: true);
                 }
             }
             catch (Exception ex)

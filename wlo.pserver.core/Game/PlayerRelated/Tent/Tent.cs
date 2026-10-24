@@ -74,7 +74,7 @@ namespace Game.Code
                 {
                     _ownerMap = MapManager.Instance.GetMap(mapId);
                 }
-                if (x > 0 && y > 0)
+                if (x > 0 && y > 0 && !(x == 460 && y == 700))
                 {
                     _mapx = x;
                     _mapy = y;
@@ -190,7 +190,9 @@ namespace Game.Code
                             DstX_Axis = dstX,
                             DstY_Axis = dstY
                         };
+                        player.Flags.Remove(PlayerFlag.InTent);
                         player.CurMap.Teleport(TeleportType.CmD, player, 0, warp);
+                        player.SaveCharacterData();
                         DebugSystem.Write($"[Tent.Close] Teleported occupant {player.CharName} out of closing tent to Map {dstMap} ({dstX},{dstY})");
                     }
                 }
@@ -248,20 +250,12 @@ namespace Game.Code
             //build queue
             //storeroom
             #region TentItems Send
-            // REVERTING: SubCmd 3 was showing items (even if outside tent)
-            // Using SubCmd 3 format that worked before
-            SendPacket initPacket = new SendPacket();
-            initPacket.Pack8(23);
-            initPacket.Pack8(3);
-            t.Send(initPacket);
-
             DebugSystem.Write(DebugItemType.Error, $"[Tent] SendMapInfo called - sending items to {t.CharName}");
             SendTentItemsToPlayer(t);
             #endregion
 
-            // TEMPORARILY DISABLED FOR TESTING
-            //t.Send(Tools.FromFormat("bbw", 62, 14, _floorcolor));//floor
-            //t.Send(Tools.FromFormat("bbw", 62, 15, _wallcolor));//wallpaper
+            t.Send(Tools.FromFormat("bbw", 62, 14, _floorcolor));//floor
+            t.Send(Tools.FromFormat("bbw", 62, 15, _wallcolor));//wallpaper
 
             //65,11 ???
 
@@ -400,8 +394,8 @@ namespace Game.Code
         void InitializeDefaultItems()
         {
             // Default beginner crafting furniture in Wonderland Online
-            PlaceItem(38027, 43, 42, 0, 0); // Coconut Basin (38027)
-            PlaceItem(38049, 45, 42, 0, 0); // Work Platform / Low Workbench (38049)
+            PlaceItem(38055, 34, 42, 0, 0); // Resource Recycling / Trash Can (38055)
+            PlaceItem(38049, 37, 42, 0, 0); // Work Platform / Low Workbench (38049)
         }
 
         /// <summary>
@@ -451,6 +445,22 @@ namespace Game.Code
         }
 
         /// <summary>
+        /// Remove an item from the tent at specific index
+        /// </summary>
+        public bool RemoveItem(ushort index)
+        {
+            if (index < _tentObjects.Count)
+            {
+                var removed = _tentObjects[index];
+                _tentObjects.RemoveAt(index);
+                IsDirty = true;
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Removed item {removed?.ItemID} at index {index}");
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Move an item in the tent (identified by index)
         /// </summary>
         public void MoveItem(ushort index, int x, int y, int floor, byte rotation)
@@ -472,33 +482,38 @@ namespace Game.Code
         }
 
         /// <summary>
-        /// Send all tent items to the player using discovered protocol
+        /// Send all tent items to the player using native WLO AC 62:4 protocol
         /// </summary>
         public void SendTentItemsToPlayer(Player player)
         {
             if (player == null) return;
             try
             {
+                SendPacket pkt = new SendPacket();
+                pkt.Pack8(62); // ActionCode 62 (0x3E)
+                pkt.Pack8(4);  // SubCode 4
+                pkt.Pack32((uint)(_owner?.CharID ?? player.CharID));
+
+                ushort clientIndex = 1;
                 int sentCount = 0;
                 foreach (var item in _tentObjects)
                 {
-                    if (item.ItemID == 0) continue;
+                    if (item == null || item.ItemID == 0) continue;
 
-                    SendPacket pkt = new SendPacket();
-                    pkt.Pack8(23);
-                    pkt.Pack8(3);
+                    pkt.Pack16(clientIndex);
                     pkt.Pack16(item.ItemID);
                     pkt.Pack32((uint)item.tentX);
                     pkt.Pack32((uint)item.tentY);
                     pkt.Pack32((uint)item.floor);
-                    pkt.Pack8(1);
                     pkt.Pack8(item.rotate);
-                    pkt.Pack16(0);
-                    player.Send(pkt);
+                    pkt.PackArray(new byte[42]); // 42 bytes zero padding -> 57 bytes item data
+
+                    clientIndex++;
                     sentCount++;
                 }
 
-                DebugSystem.Write(DebugItemType.Error, $"[Tent]  Sent {sentCount} items via AC 23:3 to {player.CharName} (MapID={this.MapID})");
+                player.Send(pkt);
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] Sent {sentCount} items via AC 62:4 to {player.CharName} (OwnerCharID={_owner?.CharID ?? player.CharID}, MapID={this.MapID})");
             }
             catch (Exception ex)
             {

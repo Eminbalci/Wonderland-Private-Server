@@ -138,6 +138,10 @@ namespace Game.Maps
                 // If no candidate event had an eligible branch, gracefully unfreeze player and exit
                 if (eventEntry == null || selectedSub == null)
                 {
+                    if (mapNpc != null && mapNpc.IsStaticNpc())
+                    {
+                        return false;
+                    }
                     player.Send(Tools.FromFormat("bb", 20, 8));
                     return true;
                 }
@@ -277,6 +281,10 @@ namespace Game.Maps
                 }
                 if (selectedSub == null || selectedSub.SubEntry == null || selectedSub.SubEntry.Count == 0)
                 {
+                    if (mapNpc != null && mapNpc.IsStaticNpc())
+                    {
+                        return false;
+                    }
                     // If chest or prop is already opened / completed
                     if (eventEntry.SubEntry.Any(s => s.SubEntry != null && s.SubEntry.Any(o => o.DialogPtr == 2 && o.dialog2 == 5)))
                     {
@@ -1038,7 +1046,7 @@ namespace Game.Maps
             return false;
         }
 
-        private static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3, byte subIndex = 1)
+        public static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3, byte subIndex = 1)
         {
             SendPacket dPkt = new SendPacket();
             dPkt.Pack8(20);                                   // AC

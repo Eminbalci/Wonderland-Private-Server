@@ -35,35 +35,91 @@ namespace Wonderland_Private_Server.ActionCodes
         {
             if (p == null || p.CurMap == null || p.NativeEventActive) return;
 
-            if (p.CurMap is GameMap regionMap && EveEventInterpreter.TryExecuteRegion(p, regionMap)) return;
+            // Portal debounce and spawn proximity guard (bypassed for tent interior)
+            bool isTent = p.CurMap is Game.Code.Tent || p.CurMap?.Type == MapType.Tent || p.Flags.HasFlag(PlayerFlag.InTent);
 
-            // Portal debounce and spawn proximity guard
-            double elapsedMs = (DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds;
-            if (elapsedMs < 2500)
-            {
-                DebugSystem.Write($"[AC20.Recv8] Portal cooldown active ({elapsedMs:F0}ms / 2500ms) for {p.CharName}. Ignoring request.");
-                p.Send(Tools.FromFormat("bb", 20, 8));
-                return;
-            }
+            if (!isTent && p.CurMap is GameMap regionMap && EveEventInterpreter.TryExecuteRegion(p, regionMap)) return;
 
-            // If player just entered map and is within 120 pixels of their spawn location, ignore re-triggering return portal
-            if (elapsedMs < 4000 && p.LastSpawnX > 0 && p.LastSpawnY > 0)
+            if (!isTent)
             {
-                double spawnDist = Math.Sqrt(Math.Pow((int)p.CurX - (int)p.LastSpawnX, 2) + Math.Pow((int)p.CurY - (int)p.LastSpawnY, 2));
-                if (spawnDist < 120)
+                double elapsedMs = (DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds;
+                if (elapsedMs < 2500)
                 {
-                    DebugSystem.Write($"[AC20.Recv8] Spawn proximity guard active for {p.CharName} (dist={spawnDist:F1}px from spawn {p.LastSpawnX},{p.LastSpawnY}). Ignoring immediate return portal.");
+                    DebugSystem.Write($"[AC20.Recv8] Portal cooldown active ({elapsedMs:F0}ms / 2500ms) for {p.CharName}. Ignoring request.");
                     p.Send(Tools.FromFormat("bb", 20, 8));
                     return;
                 }
+
+                // If player just entered map and is within 120 pixels of their spawn location, ignore re-triggering return portal
+                if (elapsedMs < 4000 && p.LastSpawnX > 0 && p.LastSpawnY > 0)
+                {
+                    double spawnDist = Math.Sqrt(Math.Pow((int)p.CurX - (int)p.LastSpawnX, 2) + Math.Pow((int)p.CurY - (int)p.LastSpawnY, 2));
+                    if (spawnDist < 120)
+                    {
+                        DebugSystem.Write($"[AC20.Recv8] Spawn proximity guard active for {p.CharName} (dist={spawnDist:F1}px from spawn {p.LastSpawnX},{p.LastSpawnY}). Ignoring immediate return portal.");
+                        p.Send(Tools.FromFormat("bb", 20, 8));
+                        return;
+                    }
+                }
             }
 
-            ushort portalID = r.Unpack16();
-            if (p.CurMap is GameMap entryMap && EveEventInterpreter.TryExecuteEntry(p, entryMap, portalID)) return;
-            DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} stepped on portal {portalID} on Map {p.CurMap?.MapID} at pos({p.CurX},{p.CurY})");
+            int rem = r.Buffer.Length - r.GetPtr();
+            ushort portalID = 0;
+            if (rem >= 2) portalID = r.Unpack16();
+            else if (rem == 1) portalID = r.Unpack8();
+            if (!isTent && p.CurMap is GameMap entryMap && EveEventInterpreter.TryExecuteEntry(p, entryMap, portalID)) return;
+            DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} stepped on portal {portalID} on Map {p.CurMap?.MapID} (isTent={isTent}) at pos({p.CurX},{p.CurY})");
 
             if (p.CurMap != null)
             {
+                if (isTent)
+                {
+                    ushort dstMap = 0, dstX = 0, dstY = 0;
+                    if (p.TentReturnMap != null && p.TentReturnMap.DstMap > 0 && !(p.TentReturnMap.DstX_Axis == 460 && p.TentReturnMap.DstY_Axis == 700))
+                    {
+                        dstMap = p.TentReturnMap.DstMap;
+                        dstX = p.TentReturnMap.DstX_Axis;
+                        dstY = p.TentReturnMap.DstY_Axis;
+                    }
+                    else if (p.Tent != null && p.Tent.OwnerMap != null && (p.Tent.X > 0 || p.Tent.Y > 0) && !(p.Tent.X == 460 && p.Tent.Y == 700))
+                    {
+                        dstMap = (ushort)p.Tent.OwnerMap.MapID;
+                        dstX = (ushort)p.Tent.X;
+                        dstY = (ushort)p.Tent.Y;
+                    }
+                    else if (p.CurMap is Game.Code.Tent curTent && curTent.OwnerMap != null && (curTent.X > 0 || curTent.Y > 0) && !(curTent.X == 460 && curTent.Y == 700))
+                    {
+                        dstMap = (ushort)curTent.OwnerMap.MapID;
+                        dstX = (ushort)curTent.X;
+                        dstY = (ushort)curTent.Y;
+                    }
+                    else if (p.PrevMap != null && p.PrevMap.DstMap > 0 && !(p.PrevMap.DstX_Axis == 460 && p.PrevMap.DstY_Axis == 700))
+                    {
+                        dstMap = p.PrevMap.DstMap;
+                        dstX = p.PrevMap.DstX_Axis;
+                        dstY = p.PrevMap.DstY_Axis;
+                    }
+                    else if (p.TentReturnMap != null && p.TentReturnMap.DstMap > 0)
+                    {
+                        dstMap = p.TentReturnMap.DstMap;
+                        dstX = p.TentReturnMap.DstX_Axis;
+                        dstY = p.TentReturnMap.DstY_Axis;
+                    }
+                    else
+                    {
+                        dstMap = 12000;
+                        dstX = 892;
+                        dstY = 734;
+                    }
+
+                    p.Flags.Remove(PlayerFlag.InTent);
+                    WarpData warp = new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY };
+                    p.CurMap.Teleport(TeleportType.CmD, p, 0, warp);
+                    p.SaveCharacterData();
+                    DebugSystem.Write($"[AC20.Recv8] Tent Exit: Teleported {p.CharName} out of tent to Map {dstMap} ({dstX},{dstY})");
+                    return;
+                }
+
                 // Authored EVE entries above decide destinations. Do not fabricate
                 // an active raft or destroy unrelated vehicles when crossing a portal.
                 bool landQuestRaft = p.CurMap.MapID == 11016 && p.ActiveVehicleID == 48016;

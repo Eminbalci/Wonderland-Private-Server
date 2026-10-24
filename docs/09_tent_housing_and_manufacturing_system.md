@@ -66,10 +66,12 @@ The tent housing subsystem provides instanced personal player spaces, interior f
 
 ---
 
-## 4. Furniture Placement & Spatial Rotation (`AC 62`)
+## 4. Furniture Placement, Retrieval & Spatial Rotation (`AC 62`)
 
-* **Placement (`AC 62:1`):** Player drags furniture from bag onto tent grid. Server checks item type, deducts from bag, allocates new item entry in `chartent_items`, and broadcasts `AC 23:3` to all visitors.
-* **Movement & Rotation (`AC 62:3`):** Unpacks target coordinates and rotation angle (0, 90, 180, 270 degrees), updates collision grid, and commits change to database.
+* **Default Provisioning:** Each tent initializes with Resource Recycling (`38055`) at `(43, 42)` and Work Platform (`38049`) at `(45, 42)`.
+* **Placement (`AC 62:1`):** Player drags furniture from bag onto tent grid. Server checks item type, deducts from bag, allocates new item entry in `chartent_items`, broadcasts `AC 23:3` to all visitors, and returns confirmation `AC 62:1`.
+* **Retrieval / Pickup (`AC 62:2`):** Player activates "Remove" on placed furniture. Server validates inventory slot availability, transfers the item to the bag via `p.Inv.AddItem(itemID, 1)`, deletes the entity from `_tentObjects`, clears and updates spatial occupancy via `AC 23:3`, emits confirmation `AC 62:2`, and commits changes to `chartent_items`.
+* **Movement & Rotation (`AC 62:3`):** Unpacks target coordinates and rotation angle (0, 90, 180, 270 degrees), updates object state via `p.Tent.MoveItem`, re-synchronizes occupants via `p.Tent.SendTentItemsToAll()`, emits confirmation `AC 62:3`, and commits change to database.
 
 ---
 

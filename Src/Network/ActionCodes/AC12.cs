@@ -33,11 +33,19 @@ namespace Wonderland_Private_Server.ActionCodes
                 if (p.Flags.HasFlag(PlayerFlag.Warping))
                 {
                     p.Flags.Remove(PlayerFlag.Warping, PlayerFlag.Logging_into_Map);
+                    if (p.CurMap?.Type != MapType.Tent && !(p.CurMap is Game.Code.Tent)) p.Flags.Remove(PlayerFlag.InTent);
                     p.Flags.Add(PlayerFlag.InMap);
                     // AC12:1 acknowledges native map loading. AC5:4 releases the
                     // client's scene-load gate only after that acknowledgement.
                     p.Send(Tools.FromFormat("bb", 5, 4));
                     DebugSystem.Write($"[AC12] Map load completed for {p.CharName}: MapID={p.CurMap.MapID}, Warping=False");
+
+                    if (p.CurMap is Game.Code.Tent tentMap)
+                    {
+                        tentMap.SendTentItemsToPlayer(p);
+                        p.Send(Tools.FromFormat("bbw", 62, 14, tentMap.Floor1Color));
+                        p.Send(Tools.FromFormat("bbw", 62, 15, tentMap.Floor1Wallpaper));
+                    }
 
                     // Restore the validated vehicle only after native map loading finishes.
                     Game.PlayerRelated.VehicleManager.SyncVehicleOnMapEntry(p);

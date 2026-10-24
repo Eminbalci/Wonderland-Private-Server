@@ -487,7 +487,9 @@ namespace Game
             src.SaveCharacterData();
         }
 
-        public void onItemPickup(Player src, byte pos)
+        public void onItemPickup(Player src, byte pos) => onItemPickup(src, (ushort)pos);
+
+        public void onItemPickup(Player src, ushort pos)
         {
             if (src?.Inv == null || pos == 0) return;
             lock (mlock)
@@ -495,16 +497,16 @@ namespace Game
                 if (!ReferenceEquals(src.CurMap, this) || src.NativeEventActive ||
                     Game.Battle.PvEBattleManager.IsInBattle(src)) return;
                 DroppedItem drop;
-                if (ItemsDropped.TryGetValue(pos, out drop))
+                if (pos <= 255 && ItemsDropped.TryGetValue((byte)pos, out drop))
                 {
                     double dx = src.CurX - drop.X, dy = src.CurY - drop.Y;
                     if (dx * dx + dy * dy > 180 * 180) return;
-                    if (src.Inv.AddItem(drop) != 1)
+                    if (src.Inv.AddItem(drop) <= 0)
                     {
                         src.SendHeadBanner("Your inventory is full.");
                         return;
                     }
-                    ItemsDropped.Remove(pos);
+                    ItemsDropped.Remove((byte)pos);
                     src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)pos, (byte)1));
                     Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)pos, (byte)0), "Ex", src.CharID);
                     DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up dropped item #{drop.ItemID} from ground slot {pos}.");
@@ -517,13 +519,14 @@ namespace Game
                     if (gi == null || gi.IsPickedUp) return;
                     double dx = src.CurX - gi.X, dy = src.CurY - gi.Y;
                     if (dx * dx + dy * dy > 180 * 180) return;
-                    if (src.Inv.AddItem(gi.ItemID, 1) != 1)
+                    if (src.Inv.AddItem(gi.ItemID, 1) <= 0)
                     {
                         src.SendHeadBanner("Your inventory is full.");
                         return;
                     }
                     gi.IsPickedUp = true;
-                    gi.RespawnTime = DateTime.Now.AddSeconds(gi.RespawnSeconds);
+                    int respawnSeconds = gi.RespawnSeconds > 0 ? gi.RespawnSeconds : 120;
+                    gi.RespawnTime = DateTime.Now.AddSeconds(respawnSeconds);
                     src.Send(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)1));
                     Broadcast(Tools.FromFormat("bbwb", 23, 2, (ushort)gi.Slot, (byte)0), "Ex", src.CharID);
                     DebugSystem.Write($"[Map {MapID}] {src.CharName} picked up ground item #{gi.ItemID} from slot {gi.Slot}.");
@@ -601,6 +604,14 @@ namespace Game
             DebugSystem.Write(DebugItemType.Info_Heavy, "{0} warping into {1}", src.CharName, MapName);
 
             src.Flags.Remove(PlayerFlag.InMap);
+            if (this.Type == MapType.Tent || this is Tent)
+            {
+                src.Flags.Add(PlayerFlag.InTent);
+            }
+            else
+            {
+                src.Flags.Remove(PlayerFlag.InTent);
+            }
             src.CurMap = this;
             src.CurX = from.DstX_Axis;//switch x
             src.CurY = from.DstY_Axis;//switch y
@@ -845,7 +856,7 @@ namespace Game
                 if (!hasTent)
                 {
                     // 1. Play Tent acquisition cutscene frame
-                    src.Send(Tools.FromFormat("bbbbwb", 20, 1, 0, 1, (ushort)30126, (byte)0));
+                    src.Send(QuestNpc.BuildDialogueStep(0, 30126, 1, 3));
 
                     // 2. Add Authentic Tent (36002) and Remote Control (34058) to inventory
                     if (src.Inv != null)
@@ -884,7 +895,7 @@ namespace Game
 
         public Game.DataFiles.MapData mapData
         {
-            get { return DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(Convert.ToUInt16(this.MapID)); }
+            get { return (this.Type == MapType.Tent || this is Tent) ? null : DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(Convert.ToUInt16(this.MapID)); }
         }
 
         public bool LookupPortal(ushort portalID, int px, int py, out ushort dstMap, out ushort dstX, out ushort dstY)
@@ -894,13 +905,26 @@ namespace Game
             // Tent exit portal handling: if this map is a tent, return to saved overworld location
             if (this.Type == MapType.Tent || this is Tent)
             {
-                if (this is Tent t && t.OwnerMap != null)
+                if (this is Tent t && t.OwnerMap != null && (t.X > 0 || t.Y > 0) && !(t.X == 460 && t.Y == 700))
                 {
                     dstMap = (ushort)t.OwnerMap.MapID;
                     dstX = (ushort)t.X;
                     dstY = (ushort)t.Y;
                     return true;
                 }
+                dstMap = 12000;
+                dstX = 892;
+                dstY = 734;
+                return true;
+            }
+
+            // Astrologer Laura Cave (Map 10001) Exit to Kelan Village (Map 10000)
+            if (MapID == 10001 && portalID == 1)
+            {
+                dstMap = 10000;
+                dstX = 1892;
+                dstY = 1655;
+                return true;
             }
 
             // 1. Check local Portals and Destinations dictionaries (legacy overrides)
@@ -959,6 +983,7 @@ namespace Game
 
                     foreach (var w in currentWarpLoc)
                     {
+                        if (w.mapID == 0) continue;
                         var dstMapData = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(w.mapID);
                         if (dstMapData != null && dstMapData.WarpLoc != null)
                         {
@@ -1074,6 +1099,9 @@ namespace Game
 
             if (teletype == TeleportType.Regular)
             {
+                bool isTent = Type == MapType.Tent || this is Tent || sender.Flags.HasFlag(PlayerFlag.InTent);
+                if (!isTent)
+                {
                 double elapsedMs = (DateTime.UtcNow - sender.LastTeleportTime).TotalMilliseconds;
                 if (elapsedMs < 2500)
                 {
@@ -1090,6 +1118,7 @@ namespace Game
                         sender.Send(Tools.FromFormat("bb", 20, 8));
                         return false;
                     }
+                }
                 }
                 DebugSystem.Write($"[Teleport] Req: {teletype}, PortalID: {portalID}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
             }
@@ -1157,7 +1186,7 @@ namespace Game
                         else if (Type == MapType.Tent || this is Tent)
                         {
                             // Tent exit portal: return to saved overworld location!
-                            if (sender.TentReturnMap != null && sender.TentReturnMap.DstMap > 0)
+                            if (sender.TentReturnMap != null && sender.TentReturnMap.DstMap > 0 && !(sender.TentReturnMap.DstX_Axis == 460 && sender.TentReturnMap.DstY_Axis == 700))
                             {
                                 dstMap = sender.TentReturnMap.DstMap;
                                 dstX = sender.TentReturnMap.DstX_Axis;
@@ -1165,7 +1194,7 @@ namespace Game
                                 foundPortal = true;
                                 DebugSystem.Write($"[Tent Exit Portal] Returning {sender.CharName} from Tent {MapID} to saved Map {dstMap} ({dstX},{dstY})");
                             }
-                            else if (this is Tent tent && tent.OwnerMap != null)
+                            else if (this is Tent tent && tent.OwnerMap != null && (tent.X > 0 || tent.Y > 0) && !(tent.X == 460 && tent.Y == 700))
                             {
                                 dstMap = (ushort)tent.OwnerMap.MapID;
                                 dstX = (ushort)tent.X;
@@ -1173,7 +1202,7 @@ namespace Game
                                 foundPortal = true;
                                 DebugSystem.Write($"[Tent Exit Portal] Returning {sender.CharName} from Tent {MapID} to owner map {dstMap} ({dstX},{dstY})");
                             }
-                            else if (sender.PrevMap != null && sender.PrevMap.DstMap > 0)
+                            else if (sender.PrevMap != null && sender.PrevMap.DstMap > 0 && !(sender.PrevMap.DstX_Axis == 460 && sender.PrevMap.DstY_Axis == 700))
                             {
                                 dstMap = sender.PrevMap.DstMap;
                                 dstX = sender.PrevMap.DstX_Axis;
@@ -1214,7 +1243,7 @@ namespace Game
                         {
                             try
                             {
-                                Warp_Out((byte)(portalID & 0xFF), sender, sender.PrevMap);
+                                Warp_Out((byte)(portalID & 0xFF), sender, new WarpData() { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY });
                             }
                             catch (Exception ex) { DebugSystem.Write($"[Teleport] Warp_Out exception (Map {MapID}→PrevMap): {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}"); }
 
@@ -1275,26 +1304,40 @@ namespace Game
                         }
 
                         // Save pre-warp overworld coordinates before switching to interior tent coordinates
-                        if (sender.CurMap != null && sender.CurMap.Type != MapType.Tent)
+                        if (sender.CurMap != null && sender.CurMap.Type != MapType.Tent && !(sender.CurMap is Tent))
                         {
-                            sender.TentReturnMap = new WarpData()
+                            ushort retMap = (ushort)sender.CurMap.MapID;
+                            ushort retX = sender.CurX;
+                            ushort retY = sender.CurY;
+                            if ((retX == 0 || retY == 0 || (retX == 460 && retY == 700)) && targetTent != null && targetTent.X > 0)
                             {
-                                DstMap = (ushort)sender.CurMap.MapID,
-                                DstX_Axis = sender.CurX,
-                                DstY_Axis = sender.CurY
-                            };
+                                retX = (ushort)targetTent.X;
+                                retY = (ushort)targetTent.Y;
+                            }
+
+                            if (sender.TentReturnMap == null || sender.TentReturnMap.DstMap == 0 || (sender.TentReturnMap.DstX_Axis == 460 && sender.TentReturnMap.DstY_Axis == 700))
+                            {
+                                sender.TentReturnMap = new WarpData()
+                                {
+                                    DstMap = retMap,
+                                    DstX_Axis = retX,
+                                    DstY_Axis = retY
+                                };
+                            }
                             sender.PrevMap = new WarpData()
                             {
-                                DstMap = (ushort)sender.CurMap.MapID,
-                                DstX_Axis = sender.CurX,
-                                DstY_Axis = sender.CurY
+                                DstMap = retMap,
+                                DstX_Axis = retX,
+                                DstY_Axis = retY
                             };
-                            DebugSystem.Write($"[Teleport.Tent] Saved return location for {sender.CharName}: Map {sender.CurMap.MapID} ({sender.CurX},{sender.CurY})");
+                            if (targetTent != null)
+                            {
+                                targetTent.SetReturnLocation(retMap, retX, retY);
+                            }
+                            DebugSystem.Write($"[Teleport.Tent] Captured return location for {sender.CharName}: Map {retMap} ({retX},{retY})");
                         }
 
                         Warp_Out((byte)(portalID & 0xFF), sender, warp, true);// warp out of map
-                        sender.CurX = warp.DstX_Axis;//switch x
-                        sender.CurY = warp.DstY_Axis;//switch y
                         targetTent.Warp_In(TeleportType.Tent, sender, warp);
                     }
                     break;
@@ -1591,11 +1634,12 @@ namespace Game
             }
 
             // Save player's current overworld location before entering tent
-            if (this.Type != MapType.Tent)
+            if (this.Type != MapType.Tent && !(this is Tent))
             {
+                ushort retMap = (ushort)this.MapID;
                 ushort retX = (ushort)p.CurX;
                 ushort retY = (ushort)p.CurY;
-                if ((retX == 0 || retY == 0) && targetTent.X > 0)
+                if ((retX == 0 || retY == 0 || (retX == 460 && retY == 700)) && targetTent.X > 0)
                 {
                     retX = (ushort)targetTent.X;
                     retY = (ushort)targetTent.Y;
@@ -1603,17 +1647,18 @@ namespace Game
 
                 p.TentReturnMap = new WarpData()
                 {
-                    DstMap = (ushort)this.MapID,
+                    DstMap = retMap,
                     DstX_Axis = retX,
                     DstY_Axis = retY
                 };
                 p.PrevMap = new WarpData()
                 {
-                    DstMap = (ushort)this.MapID,
+                    DstMap = retMap,
                     DstX_Axis = retX,
                     DstY_Axis = retY
                 };
-                DebugSystem.Write($"[Map.onEnterTent] Saved return location for {p.CharName}: Map {this.MapID} ({retX},{retY})");
+                targetTent.SetReturnLocation(retMap, retX, retY);
+                DebugSystem.Write($"[Map.onEnterTent] Saved return location for {p.CharName}: Map {retMap} ({retX},{retY})");
             }
 
             // Lock guard: if tent is locked, non-owners cannot enter

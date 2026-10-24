@@ -481,7 +481,13 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte pos = r.Unpack8();
+                if (p?.CurMap == null) return;
+                ushort pos = 0;
+                int rem = r.Buffer.Length - r.GetPtr();
+                if (rem >= 2) pos = r.Unpack16();
+                else if (rem == 1) pos = r.Unpack8();
+                if (pos == 0) return;
+
                 ((GameMap)p.CurMap).onItemPickup(p, pos);
                 p.SaveCharacterData();
             }

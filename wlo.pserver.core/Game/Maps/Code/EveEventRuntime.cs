@@ -139,6 +139,7 @@ namespace Game.Maps
         // the map's single-exit teleport fallback when their conditions do not match.
         public static bool TryExecuteEntry(Player player, GameMap map, ushort entryId)
         {
+            if (map == null || map is Game.Code.Tent || map.Type == MapType.Tent) return false;
             var data = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
             // The packet carries an entry ID, not a WarpLoc ID. Doors (2)
             // also link to scripts, including conditional destinations.
@@ -198,6 +199,7 @@ namespace Game.Maps
 
         public static bool TryExecuteRegion(Player player, GameMap map, ushort? previousX = null, ushort? previousY = null)
         {
+            if (map == null || map is Game.Code.Tent || map.Type == MapType.Tent) return false;
             if (player.NativeEventActive) return true;
             var data = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
             if (data?.Entry_Points == null) return false;
@@ -224,7 +226,7 @@ namespace Game.Maps
         // Visibility replay alone must not consume their movie or quest actions.
         public static bool TryExecuteStoryArrival(Player player, GameMap map)
         {
-            if (player == null || map == null || player.CurMap != map) return false;
+            if (player == null || map == null || player.CurMap != map || map is Game.Code.Tent || map.Type == MapType.Tent) return false;
             if (player.NativeEventActive) return true;
             // A disconnect after the spider movie resumes the authored farewell, not the battle.
             if (map.MapID == 11077 && player.Quests.TryGetValue(13086, out var fate) &&
@@ -618,17 +620,28 @@ namespace Game.Maps
         }
 
         // Native client AC20:1 layout: type, subject, actor, mode, uint value,
-        // ushort text/question, byte branch. Path/movie completion returns AC20:6.
+        // 24-bit talk ID for type 1 (or ushort text/question + branch for other types).
+        // Path/movie completion returns AC20:6.
         private static SendPacket BuildEventFrame(byte type, byte subject, ushort actor, byte mode,
-            uint value, ushort text, byte step, byte branch)
+            uint value, uint text, byte step, byte branch)
         {
             var packet = new SendPacket();
             packet.PackArray(new byte[] { 20, 1, 0, 0, 0, step, type, subject });
             packet.Pack16(actor);
             packet.Pack8(mode);
             packet.Pack32(value);
-            packet.Pack16(text);
-            packet.Pack8(branch);
+            if (type == 1)
+            {
+                // 24-bit Little-Endian serialization for Talk IDs > 65535 (LSB, MID, MSB)
+                packet.Pack8((byte)(text & 0xFF));
+                packet.Pack8((byte)((text >> 8) & 0xFF));
+                packet.Pack8((byte)((text >> 16) & 0xFF));
+            }
+            else
+            {
+                packet.Pack16((ushort)text);
+                packet.Pack8(branch);
+            }
             return packet;
         }
 
@@ -975,8 +988,16 @@ namespace Game.Maps
                             player.OnInteractionComplete = advance;
                             if (playerSpeech || npcSpeech)
                             {
-                                ushort talkId = playerSpeech ? op.dialog2 : op.dialog3;
-                                DebugSystem.Write($"[EveEventRuntime] -> Dispatched Speech TalkID={talkId} (isPlayer={playerSpeech}, speakerActor={(playerSpeech ? 0 : op.dialog1)}) to {player.CharName}");
+                                uint talkId = playerSpeech ? (uint)op.dialog2 : (uint)op.dialog3;
+                                if (playerSpeech && op.dialog3 > 0 && op.dialog3 < 256)
+                                {
+                                    talkId = (uint)op.dialog2 | ((uint)op.dialog3 << 16);
+                                }
+                                else if (npcSpeech && op.dialog4 > 0 && op.dialog4 < 256)
+                                {
+                                    talkId = (uint)op.dialog3 | ((uint)op.dialog4 << 16);
+                                }
+                                DebugSystem.Write($"[EveEventRuntime] -> Dispatched Speech TalkID=0x{talkId:X} ({talkId}) (isPlayer={playerSpeech}, speakerActor={(playerSpeech ? 0 : op.dialog1)}) to {player.CharName}");
                                 player.Send(BuildEventFrame(1, (byte)(playerSpeech ? 7 : 3), (ushort)(playerSpeech ? 0 : op.dialog1),
                                     1, 0, talkId, step, branch.subIndex));
                             }

@@ -193,8 +193,8 @@ namespace Game.Code
         public string Name { get { return Data.ItemName != null ? ASCIIEncoding.ASCII.GetString(Data.ItemName) : string.Empty; } }
         public UInt16 ItemID { get { return (Data != null) ? Data.ItemID : (ushort)0; } }
         public int Crit => Game.Battle.CriticalHitManager.GetItemChance(ItemID);
-        public virtual int Height => 1;
-        public virtual int Width => 1;
+        public virtual int Height => (Data != null && Data.cellheight > 0) ? Data.cellheight : 1;
+        public virtual int Width => (Data != null && Data.cellwidth > 0) ? Data.cellwidth : 1;
         //public ushort Control { get { return Data.Control; } }
         public eWearSlot Wear_At { get { return (eWearSlot)Data.Equippos; } }
         public byte Level { get { return (byte)Data.level; } }

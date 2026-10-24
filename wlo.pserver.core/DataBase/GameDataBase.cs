@@ -345,6 +345,7 @@ namespace DataBase
                         }
                     }
                     DebugSystem.Write($"[GameDataBase] Loaded {src.Rows.Count} inventory/equip records for {c.CharName}");
+                    c.Inv.RebuildOccupancyGrid();
                 }
             }
             catch (Exception ex)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Game;
 using Game.Code;
 using Network;
@@ -43,7 +43,7 @@ namespace Network.ActionCodes
                 p.Inv.RemoveItem(bagSlot, transferAmmt, true);
 
                 // Sync bag so right pane updates
-                p.Send(new SendPacket(p.Inv.GetAC23_5()));
+                // Bag delta already synchronized natively via AddItem/RemoveItem
 
                 // Notify client storage update
                 SendPacket sp = new SendPacket();
@@ -94,7 +94,7 @@ namespace Network.ActionCodes
                 p.Storage.RemoveItem(storSlot, transferAmmt, false);
 
                 // Sync bag so right pane updates
-                p.Send(new SendPacket(p.Inv.GetAC23_5()));
+                // Bag delta already synchronized natively via AddItem/RemoveItem
 
                 // Notify client storage update
                 SendPacket sp = new SendPacket();

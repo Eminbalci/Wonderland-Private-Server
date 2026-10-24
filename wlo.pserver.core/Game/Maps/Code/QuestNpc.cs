@@ -33,6 +33,7 @@ namespace Game.Maps
         // Chest & Gathering Prop State
         public bool IsBroken { get; set; } = false;
         public DateTime RespawnTime { get; set; } = DateTime.MinValue;
+        private readonly object _propLock = new object();
 
         private static readonly Random _rng = new Random();
         private static readonly object _rngLock = new object();
@@ -69,25 +70,28 @@ namespace Game.Maps
             // Handle Gathering Nodes Respawning (e.g. Coconut, Wood, Ore)
             if (IsBroken)
             {
-                if (now >= RespawnTime)
+                lock (_propLock)
                 {
-                    IsBroken = false;
-                    if (IsWildMonster())
+                    if (IsBroken && now >= RespawnTime)
                     {
-                        X = SpawnX; Y = SpawnY; CurStep = 0;
-                        NextWalkTime = now.AddSeconds(3);
+                        IsBroken = false;
+                        if (IsWildMonster())
+                        {
+                            X = SpawnX; Y = SpawnY; CurStep = 0;
+                            NextWalkTime = now.AddSeconds(3);
+                            foreach (var viewer in map.PlayersList.ToArray())
+                                if (Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(viewer, (ushort)map.MapID, CickID))
+                                    Game.QuestRelated.PreEventInterpreter.SendActorShow(viewer, CickID);
+                            return;
+                        }
+                        // Restore each client and its per-player visibility cache together.
                         foreach (var viewer in map.PlayersList.ToArray())
-                            if (Game.QuestRelated.PreEventInterpreter.ShouldNpcBeVisible(viewer, (ushort)map.MapID, CickID))
-                                Game.QuestRelated.PreEventInterpreter.SendActorShow(viewer, CickID);
-                        return;
+                            Game.QuestRelated.PreEventInterpreter.SendActorShow(viewer, this.CickID);
+                        // Restore unbroken sprite animation frame (AC 22:1 action 0)
+                        SendPacket restoreFrame = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)0);
+                        map.Broadcast(restoreFrame);
+                        DebugSystem.Write($"[QuestNpc] Gathering node '{Name}' (ClickID: {this.CickID}) respawned on Map {map.MapID}");
                     }
-                    // Restore each client and its per-player visibility cache together.
-                    foreach (var viewer in map.PlayersList.ToArray())
-                        Game.QuestRelated.PreEventInterpreter.SendActorShow(viewer, this.CickID);
-                    // Restore unbroken sprite animation frame (AC 22:1 action 0)
-                    SendPacket restoreFrame = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)0);
-                    map.Broadcast(restoreFrame);
-                    DebugSystem.Write($"[QuestNpc] Gathering node '{Name}' (ClickID: {this.CickID}) respawned on Map {map.MapID}");
                 }
                 return;
             }
@@ -361,9 +365,11 @@ namespace Game.Maps
 
             // Prop / chest / object template ID ranges in WLO:
             // 12000-12999: containers, crates, beach wreckage props
+            // 16000-16011: chests, barrels, interactive props
             // 19000-19999: static scenery props (statues, swords, guideposts, honeycomb, etc.)
             // 25000-35000: static map props & mechanisms
             if ((this.TemplateID >= 12000 && this.TemplateID <= 12999) ||
+                (this.TemplateID >= 16000 && this.TemplateID <= 16011) ||
                 (this.TemplateID >= 19000 && this.TemplateID <= 19999) ||
                 (this.TemplateID >= 25000 && this.TemplateID <= 35000))
             {
@@ -573,36 +579,79 @@ namespace Game.Maps
 
                 if (this.IsStaticNpc())
                 {
-                    // Static Chest, Crate, Barrel, Ore Vein, Herb, or Gathering Prop
-                    if (this.IsBroken)
+                    lock (_propLock)
                     {
-                        src.SendSystemMessage(" This node/chest is currently empty and will respawn soon.");
+                        // Spatial proximity check (verify player is within 200 units of NPC)
+                        double dx = src.CurX - this.X;
+                        double dy = src.CurY - this.Y;
+                        if ((dx * dx) + (dy * dy) > (200 * 200))
+                        {
+                            src.Send(Tools.FromFormat("bb", 20, 8));
+                            return;
+                        }
+
+                        // Static Chest, Crate, Barrel, Ore Vein, Herb, or Gathering Prop
+                        if (this.IsBroken)
+                        {
+                            src.SendSystemMessage(" This node/chest is currently empty and will respawn soon.");
+                            src.Send(Tools.FromFormat("bb", 20, 8));
+                            return;
+                        }
+
+                        // Roll authentic loot from ChestDropManager
+                        var drop = ChestDropManager.RollDrop((uint)(src.CurMap?.MapID ?? 0), this.Name, this.TemplateID);
+                        if (drop == null)
+                        {
+                            src.Send(Tools.FromFormat("bb", 20, 8));
+                            return;
+                        }
+
+                        if (drop.IsGold)
+                        {
+                            src.Eqs?.AddGold(drop.Gold);
+                            src.Eqs?.SendGold(); // Sends AC 26:4
+                            src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {drop.Gold} Gold"));
+                            src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
+                            src.SendSystemMessage($" Opened '{this.Name}' and obtained {drop.Gold} Gold!");
+                            DebugSystem.Write($"[QuestNpc] Player {src.CharName} opened static chest/prop '{this.Name}' (ClickID: {this.CickID}) and received {drop.Gold} Gold.");
+                        }
+                        else if (drop.ItemID > 0)
+                        {
+                            if (src.Inv != null)
+                            {
+                                int added = 0;
+                                lock (src.Inv.SyncRoot)
+                                {
+                                    added = src.Inv.AddItem(drop.ItemID, drop.Count);
+                                }
+                                if (added <= 0)
+                                {
+                                    src.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Inventory is full!"));
+                                    src.SendSystemMessage(" Your inventory is full! Make space before opening this chest.");
+                                    src.Send(Tools.FromFormat("bb", 20, 8));
+                                    return;
+                                }
+
+                                string itemName = Game.Battle.MonsterDropManager.ResolveItemName(drop.ItemID) ?? drop.ItemName;
+                                src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
+                                src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
+                                src.SendSystemMessage($" Opened '{this.Name}' and obtained {drop.Count}x {itemName}!");
+                                DebugSystem.Write($"[QuestNpc] Player {src.CharName} opened static chest/prop '{this.Name}' (ClickID: {this.CickID}) and received {drop.Count}x {itemName} (#{drop.ItemID}).");
+                            }
+                        }
+
+                        // Play chest open / break animation (AC 22:1 action 1)
+                        SendPacket anim = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)1);
+                        src.Send(anim);
+                        src.CurMap?.Broadcast(anim);
+
+                        this.IsBroken = true;
+                        this.RespawnTime = DateTime.Now.AddSeconds(ChestDropManager.DefaultRespawnSeconds);
+
+                        src.SaveCharacterData();
                         src.Send(Tools.FromFormat("bb", 20, 8));
                         return;
                     }
-
-                    // Play chest open animation (AC 22:1 or AC 22:10)
-                    SendPacket anim = Tools.FromFormat("bbwb", 22, 1, (ushort)this.CickID, (byte)1);
-                    src.Send(anim);
-                    src.CurMap?.Broadcast(anim);
-
-                    this.IsBroken = true;
-                    this.RespawnTime = DateTime.Now.AddSeconds(ChestDropManager.DefaultRespawnSeconds);
-
-                    // Roll authentic loot from ChestDropManager
-                    var drop = ChestDropManager.RollDrop((uint)(src.CurMap?.MapID ?? 0), this.Name);
-                    if (drop != null && drop.ItemID > 0)
-                    {
-                        src.Inv?.AddItem(drop.ItemID, drop.Count);
-                        string itemName = Game.Battle.MonsterDropManager.ResolveItemName(drop.ItemID) ?? drop.ItemName;
-                        src.Send(Tools.FromFormat("bbbs", 23, 57, 0, $"Obtain {itemName}"));
-                        src.Send(Tools.FromFormat("bb", 20, 10)); // Fanfare
-                        src.SendSystemMessage($" Opened '{this.Name}' and obtained {drop.Count}x {itemName}!");
-                        DebugSystem.Write($"[QuestNpc] Player {src.CharName} opened static chest/prop '{this.Name}' (ClickID: {this.CickID}) and received {drop.Count}x {itemName} (#{drop.ItemID}).");
-                    }
-
-                    src.Send(Tools.FromFormat("bb", 20, 8));
-                    return;
                 }
 
                 // 1.7 Handle Storage / Bank / Exchanger Keepers
@@ -726,7 +775,7 @@ namespace Game.Maps
             return 0x21284C; // "Welcome to Kelan Village."
         }
 
-        private static SendPacket BuildDialogueStep(byte clickId, uint talkId, byte step, byte portraitType)
+        public static SendPacket BuildDialogueStep(byte clickId, uint talkId, byte step = 1, byte portraitType = 3)
         {
             SendPacket dlgPkt = new SendPacket();
             dlgPkt.Pack8(20);                                 // [0] AC

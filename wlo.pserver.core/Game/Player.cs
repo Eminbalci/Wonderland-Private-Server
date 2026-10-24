@@ -862,7 +862,7 @@ namespace Game
                         {
                             if ((base.CurMap as GameMap)?.Type != MapType.Tent)
                             {
-                                TentReturnMap = new WarpData()
+                                if ((TentReturnMap == null || TentReturnMap.DstMap == 0 || (TentReturnMap.DstX_Axis == 460 && TentReturnMap.DstY_Axis == 700)) && (CurX != 460 || CurY != 700)) TentReturnMap = new WarpData()
                                 {
                                     DstMap = (ushort)base.CurMap.MapID,
                                     DstX_Axis = CurX,

@@ -319,6 +319,133 @@ namespace Game.Code
                 m_Items[a] = new InvItem();
         }
 
+        public static int GetCol(byte slot) => (slot - 1) % 5;
+        public static int GetRow(byte slot) => (slot - 1) / 5;
+        public static byte GetSlot(int col, int row) => (byte)(row * 5 + col + 1);
+
+        public byte GetItemWidth(ushort itemId)
+        {
+            var info = ItemDat?.GetItemByID(itemId);
+            if (info != null && info.cellwidth > 0 && info.cellwidth <= 10) return info.cellwidth;
+            return 1;
+        }
+
+        public byte GetItemHeight(ushort itemId)
+        {
+            var info = ItemDat?.GetItemByID(itemId);
+            if (info != null && info.cellheight > 0 && info.cellheight <= 10) return info.cellheight;
+            return 1;
+        }
+
+        public bool CanFitItem(ushort itemId, byte rootSlot, byte ignoreRootSlot = 0)
+        {
+            if (rootSlot < 1 || rootSlot > 50) return false;
+            int col = GetCol(rootSlot);
+            int row = GetRow(rootSlot);
+            int w = GetItemWidth(itemId);
+            int h = GetItemHeight(itemId);
+
+            if (col + w > 5 || row + h > 10) return false;
+
+            for (int r = 0; r < h; r++)
+            {
+                for (int c = 0; c < w; c++)
+                {
+                    byte s = GetSlot(col + c, row + r);
+                    if (s < 1 || s > 50) return false;
+                    if (ignoreRootSlot > 0 && (s == ignoreRootSlot || m_Items[s - 1].Parent == ignoreRootSlot))
+                        continue;
+                    if (m_Items[s - 1].ItemID != 0 || m_Items[s - 1].Parent != 0 || m_Items[s - 1].isLocked)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        public byte FindAvailableSlot(ushort itemId)
+        {
+            for (byte s = 1; s <= 50; s++)
+            {
+                if (CanFitItem(itemId, s))
+                    return s;
+            }
+            return 0;
+        }
+
+        public void LockSlaveSlots(byte rootSlot, ushort itemId)
+        {
+            if (rootSlot < 1 || rootSlot > 50) return;
+            int col = GetCol(rootSlot);
+            int row = GetRow(rootSlot);
+            int w = GetItemWidth(itemId);
+            int h = GetItemHeight(itemId);
+
+            for (int r = 0; r < h; r++)
+            {
+                for (int c = 0; c < w; c++)
+                {
+                    byte s = GetSlot(col + c, row + r);
+                    if (s >= 1 && s <= 50)
+                    {
+                        if (s == rootSlot)
+                        {
+                            m_Items[s - 1].Parent = 0;
+                            m_Items[s - 1].isLocked = false;
+                        }
+                        else
+                        {
+                            m_Items[s - 1].Clear();
+                            m_Items[s - 1].Parent = rootSlot;
+                            m_Items[s - 1].isLocked = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        public void UnlockSlaveSlots(byte rootSlot)
+        {
+            for (int i = 0; i < 50; i++)
+            {
+                if (m_Items[i].Parent == rootSlot)
+                {
+                    m_Items[i].Clear();
+                }
+            }
+        }
+
+        public void RebuildOccupancyGrid()
+        {
+            lock (mylock)
+            {
+                // 1. Clear any dangling slave markers
+                for (int i = 0; i < 50; i++)
+                {
+                    if (m_Items[i].ItemID == 0)
+                    {
+                        m_Items[i].Parent = 0;
+                        m_Items[i].isLocked = false;
+                    }
+                }
+
+                // 2. Lock slave cells for all multi-cell items
+                for (byte s = 1; s <= 50; s++)
+                {
+                    var item = m_Items[s - 1];
+                    if (item != null && item.ItemID > 0 && item.Parent == 0)
+                    {
+                        int w = GetItemWidth(item.ItemID);
+                        int h = GetItemHeight(item.ItemID);
+                        if (w > 1 || h > 1)
+                        {
+                            LockSlaveSlots(s, item.ItemID);
+                        }
+                    }
+                }
+            }
+        }
+
+
         public InvItem this[byte key]
         {
             get
@@ -566,7 +693,7 @@ namespace Game.Code
                 if (Game.PlayerRelated.VehicleManager.BaseVehicleID(vehicleItemId) != 48010 && vehicleItemId != 48016) return;
                 item.Damage = (byte)Math.Min(100, item.Damage + wearAmount);
                 if (item.Damage == 100) Game.PlayerRelated.VehicleManager.WreckVehicle(owner, vehicleItemId);
-                else owner.Send(new SendPacket(GetAC23_5()));
+
             }
         }
         /// <summary>
@@ -597,15 +724,24 @@ namespace Game.Code
         {
             lock (mylock)
             {
-                if (at < 1 || at > 50 || ammt == 0 || this[at].ItemID == 0 || this[at].Ammt == 0) return null;
+                if (at < 1 || at > 50 || ammt == 0) return null;
+                if (this[at].Parent != 0) at = this[at].Parent;
+                if (at < 1 || at > 50 || this[at].ItemID == 0 || this[at].Ammt == 0) return null;
                 byte removed = (byte)Math.Min(ammt, this[at].Ammt);
                 var remItem = new InvItem();
                 remItem.CopyFrom(this[at]);
                 remItem.Ammt = removed;
                 if (owner != null && owner.ActiveVehicleID != 0 && owner.MountedVehicleSlot == at && this[at].Ammt == removed)
                     Game.PlayerRelated.VehicleManager.DismountVehicle(owner);
-                if (this[at].Ammt == removed) this[at].Clear();
-                else this[at].Ammt -= removed;
+                if (this[at].Ammt == removed)
+                {
+                    this[at].Clear();
+                    UnlockSlaveSlots(at);
+                }
+                else
+                {
+                    this[at].Ammt -= removed;
+                }
                 if (senddata && owner != null)
                     owner.Send(Tools.FromFormat("bbbb", 23, 9, at, removed));
                 return remItem;
@@ -638,7 +774,95 @@ namespace Game.Code
 
         public bool CanAddItems(IDictionary<ushort, int> amounts)
         {
-            return TryAddItems(amounts, 0, 0, false);
+            if (amounts == null || amounts.Count == 0) return true;
+            lock (mylock)
+            {
+                bool[] occupied = new bool[50];
+                for (int i = 0; i < 50; i++)
+                {
+                    occupied[i] = (m_Items[i].ItemID > 0 || m_Items[i].Parent > 0 || m_Items[i].isLocked);
+                }
+
+                var remaining = new Dictionary<ushort, int>();
+                foreach (var kvp in amounts)
+                {
+                    ushort itemId = kvp.Key;
+                    int needed = kvp.Value;
+                    var info = ItemDat?.GetItemByID(itemId);
+                    int w = GetItemWidth(itemId);
+                    int h = GetItemHeight(itemId);
+                    bool stackable = (info != null && w <= 1 && h <= 1);
+
+                    if (stackable)
+                    {
+                        for (byte s = 1; s <= 50 && needed > 0; s++)
+                        {
+                            var cur = this[s];
+                            if (cur != null && cur.ItemID == itemId && cur.SpaceLeft > 0 && cur.Parent == 0)
+                            {
+                                int toStack = Math.Min(needed, cur.SpaceLeft);
+                                needed -= toStack;
+                            }
+                        }
+                    }
+
+                    if (needed > 0)
+                    {
+                        remaining[itemId] = needed;
+                    }
+                }
+
+                foreach (var kvp in remaining)
+                {
+                    ushort itemId = kvp.Key;
+                    int needed = kvp.Value;
+                    int w = GetItemWidth(itemId);
+                    int h = GetItemHeight(itemId);
+
+                    while (needed > 0)
+                    {
+                        int toPlace = (w == 1 && h == 1) ? Math.Min(needed, 50) : 1;
+                        bool placed = false;
+
+                        for (int slot = 1; slot <= 50; slot++)
+                        {
+                            int col = (slot - 1) % 5;
+                            int row = (slot - 1) / 5;
+                            if (col + w > 5 || row + h > 10) continue;
+
+                            bool canFit = true;
+                            for (int r = 0; r < h; r++)
+                            {
+                                for (int c = 0; c < w; c++)
+                                {
+                                    int idx = (row + r) * 5 + (col + c);
+                                    if (occupied[idx])
+                                    {
+                                        canFit = false;
+                                        break;
+                                    }
+                                }
+                                if (!canFit) break;
+                            }
+
+                            if (canFit)
+                            {
+                                for (int r = 0; r < h; r++)
+                                    for (int c = 0; c < w; c++)
+                                        occupied[(row + r) * 5 + (col + c)] = true;
+
+                                placed = true;
+                                needed -= toPlace;
+                                break;
+                            }
+                        }
+
+                        if (!placed) return false;
+                    }
+                }
+
+                return true;
+            }
         }
 
         public bool TryExchangeItem(byte sourceSlot, ushort expectedItemId, IDictionary<ushort, int> rewards)
@@ -830,19 +1054,24 @@ namespace Game.Code
                 int addedTotal = 0;
                 var additions = new Dictionary<byte, byte>();
 
+                int w = GetItemWidth(item.ItemID);
+                int h = GetItemHeight(item.ItemID);
+                bool isMultiCell = (w > 1 || h > 1);
+
                 // Case 1: Specific slot requested
                 if (at >= 1 && at <= 50)
                 {
                     var target = this[at];
-                    if (target.ItemID == 0)
+                    if (target.ItemID == 0 && target.Parent == 0 && !target.isLocked && CanFitItem(item.ItemID, at))
                     {
                         target.CopyFrom(item);
                         target.Parent = 0;
-                        int toPut = item.Stackable ? Math.Min(needed, 50) : 1;
+                        int toPut = (item.Stackable && !isMultiCell) ? Math.Min(needed, 50) : 1;
                         target.Ammt = (byte)toPut;
+                        LockSlaveSlots(at, item.ItemID);
                         addedTotal = toPut;
                     }
-                    else if (target.ItemID == item.ItemID && target.SpaceLeft > 0)
+                    else if (target.ItemID == item.ItemID && target.SpaceLeft > 0 && !isMultiCell)
                     {
                         int toStack = Math.Min(needed, target.SpaceLeft);
                         target.Ammt += (byte)toStack;
@@ -859,13 +1088,13 @@ namespace Game.Code
                 }
 
                 // Case 2: Dynamic placement (at == 0)
-                // Pass 1: If stackable, stack onto existing stacks with SpaceLeft > 0
-                if (item.Stackable)
+                // Pass 1: If stackable and not multi-cell, stack onto existing stacks
+                if (item.Stackable && !isMultiCell)
                 {
                     for (byte s = 1; s <= 50 && needed > 0; s++)
                     {
                         var cur = this[s];
-                        if (cur != null && cur.ItemID == item.ItemID && cur.SpaceLeft > 0)
+                        if (cur != null && cur.ItemID == item.ItemID && cur.SpaceLeft > 0 && cur.Parent == 0)
                         {
                             int toStack = Math.Min(needed, cur.SpaceLeft);
                             cur.Ammt += (byte)toStack;
@@ -878,22 +1107,27 @@ namespace Game.Code
                     }
                 }
 
-                // Pass 2: Place remaining into empty slots (ItemID == 0)
-                for (byte s = 1; s <= 50 && needed > 0; s++)
+                // Pass 2: Place remaining into free slots that fit 2D bounds
+                while (needed > 0)
                 {
-                    var cur = this[s];
-                    if (cur != null && cur.ItemID == 0)
+                    byte freeSlot = FindAvailableSlot(item.ItemID);
+                    if (freeSlot == 0)
                     {
-                        cur.CopyFrom(item);
-                        cur.Parent = 0;
-                        int toPlace = item.Stackable ? Math.Min(needed, 50) : 1;
-                        cur.Ammt = (byte)toPlace;
-                        needed -= toPlace;
-                        addedTotal += toPlace;
-
-                        additions[s] = (byte)toPlace;
-                        DebugSystem.Write($"[Inventory.AddItem] Added new item #{item.ItemID} x{toPlace} into slot {s} for {owner?.CharName ?? "Unknown"}");
+                        DebugSystem.Write($"[Inventory.AddItem] No available 2D space for item #{item.ItemID} ({w}x{h}) for {owner?.CharName ?? "Unknown"}");
+                        break;
                     }
+
+                    var cur = this[freeSlot];
+                    cur.CopyFrom(item);
+                    cur.Parent = 0;
+                    int toPlace = (item.Stackable && !isMultiCell) ? Math.Min(needed, 50) : 1;
+                    cur.Ammt = (byte)toPlace;
+                    LockSlaveSlots(freeSlot, item.ItemID);
+                    needed -= toPlace;
+                    addedTotal += toPlace;
+
+                    additions[freeSlot] = (byte)toPlace;
+                    DebugSystem.Write($"[Inventory.AddItem] Added new item #{item.ItemID} ({w}x{h}) x{toPlace} into slot {freeSlot} for {owner?.CharName ?? "Unknown"}");
                 }
 
                 if (addedTotal > 0 && sendData && owner != null)
@@ -917,24 +1151,58 @@ namespace Game.Code
                 if (from < 1 || from > 50 || to < 1 || to > 50 || from == to || ammt == 0) return;
                 if (owner != null && owner.ActiveVehicleID != 0 &&
                     (from == owner.MountedVehicleSlot || to == owner.MountedVehicleSlot)) return;
+
+                // If 'from' is a slave slot, redirect to master root
+                if (this[from].Parent != 0) from = this[from].Parent;
+                if (from < 1 || from > 50) return;
+
                 var source = this[from];
+                if (source.ItemID == 0 || source.Ammt == 0) return;
+
+                int w = GetItemWidth(source.ItemID);
+                int h = GetItemHeight(source.ItemID);
+                bool isMultiCell = (w > 1 || h > 1);
+
                 var target = this[to];
-                if (source.ItemID == 0 || source.isLocked || target.isLocked) return;
-                if (target.ItemID != 0 && (target.ItemID != source.ItemID || !source.Stackable || source.Damage != target.Damage)) return;
-                int capacity = target.ItemID == 0 ? (source.Stackable ? 50 : 1) : target.SpaceLeft;
-                byte moved = (byte)Math.Min(Math.Min(ammt, source.Ammt), Math.Max(0, capacity));
-                if (moved == 0) return;
-                // Validate the destination before changing either slot; move only what fits.
-                if (target.ItemID == 0)
+
+                // Stacking onto target (only for 1x1 stackable items of same ID)
+                if (!isMultiCell && target.ItemID == source.ItemID && source.Stackable && target.SpaceLeft > 0 && source.Damage == target.Damage && target.Parent == 0)
                 {
+                    byte moved = (byte)Math.Min(Math.Min(ammt, source.Ammt), target.SpaceLeft);
+                    if (moved > 0)
+                    {
+                        target.Ammt += moved;
+                        if (source.Ammt == moved)
+                        {
+                            source.Clear();
+                            UnlockSlaveSlots(from);
+                        }
+                        else
+                        {
+                            source.Ammt -= moved;
+                        }
+                        owner?.Send(Tools.FromFormat("bbbbb", 23, 10, from, moved, to));
+                    }
+                    return;
+                }
+
+                // Moving to destination slot with 2D bounds check
+                if (CanFitItem(source.ItemID, to, ignoreRootSlot: from))
+                {
+                    byte moved = source.Ammt;
+                    UnlockSlaveSlots(from);
                     target.CopyFrom(source);
                     target.Parent = 0;
                     target.Ammt = moved;
+                    LockSlaveSlots(to, target.ItemID);
+                    source.Clear();
+                    owner?.Send(Tools.FromFormat("bbbbb", 23, 10, from, moved, to));
+                    DebugSystem.Write($"[Inventory.MoveItem] Moved item #{target.ItemID} ({w}x{h}) from slot {from} to slot {to} for {owner?.CharName ?? "Unknown"}");
                 }
-                else target.Ammt += moved;
-                if (source.Ammt == moved) source.Clear();
-                else source.Ammt -= moved;
-                owner?.Send(Tools.FromFormat("bbbbb", 23, 10, from, moved, to));
+                else
+                {
+                    DebugSystem.Write($"[Inventory.MoveItem] Rejected move for item #{source.ItemID} ({w}x{h}) from slot {from} to slot {to}: target space unavailable.");
+                }
             }
         }
 
@@ -1007,7 +1275,7 @@ namespace Game.Code
         }
         public int FilledCount
         {
-            get { lock (mylock) { return m_Items.Count(c => c != null && c.ItemID > 0); } }
+            get { lock (mylock) { return m_Items.Count(c => c != null && (c.ItemID > 0 || c.Parent > 0 || c.isLocked)); } }
         }
         public int unFilledCount
         {
