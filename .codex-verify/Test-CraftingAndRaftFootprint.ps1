@@ -125,9 +125,16 @@ if ($player.Inv.GetItemCount(43002) -lt 1 -or $player.Inv.GetItemCount(45007) -l
 }
 Write-Host "Player inventory prepared with 43002 x1 and 45007 x1."
 
-# Build AC 64:1 packet: benchIndex = 1, formulaIndex = 526 (0x020E)
-# Packet format: [F4 44] [Len: 05 00] [AC: 64] [Sub: 1] [Bench: 1] [Formula: 0E 02]
-$pktBytes = [byte[]]@(0xF4, 0x44, 0x05, 0x00, 64, 1, 1, 0x0E, 0x02)
+# Build AC 64:1 packet from live client capture:
+# Hex: F4 44 1A 00 40 01 02 00 0E 02 01 00 00 00 00 00 00 02 06 01 07 01 00 00 00 00 00 00 00 00
+# benchIndex = 2 (ushort: 02 00), formulaIndex = 526 (ushort: 0E 02)
+$pktBytes = [byte[]]@(
+    0xF4, 0x44, 0x1A, 0x00, 0x40, 0x01,
+    0x02, 0x00, 0x0E, 0x02, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x06, 0x01, 0x07, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+)
 $rxPkt = New-Object Network.RecievePacket (,$pktBytes)
 
 $ac64 = New-Object Network.ActionCodes.AC64

@@ -35,10 +35,10 @@ namespace Network.ActionCodes
                 tp.EyeColor = e.Unpack16();
                 tp.Eqs.Element = (Affinity)e.Unpack8();
                 tp.Eqs.Str = e.Unpack8();
-                tp.Eqs.Agi = e.Unpack8();
-                tp.Eqs.Wis = e.Unpack8();
-                tp.Eqs.Int = e.Unpack8();
                 tp.Eqs.Con = e.Unpack8();
+                tp.Eqs.Int = e.Unpack8();
+                tp.Eqs.Wis = e.Unpack8();
+                tp.Eqs.Agi = e.Unpack8();
                 if (string.IsNullOrEmpty(tp.UserAcc.Cipher))
                 {
                     try

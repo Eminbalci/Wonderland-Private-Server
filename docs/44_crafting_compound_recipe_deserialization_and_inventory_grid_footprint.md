@@ -9,19 +9,27 @@ This specification documents the resolution of two interconnected core gameplay 
 
 ## 2. Root Cause Analysis
 
-### 2.1 Action Code 64 Packet Pointer Offset (`AC64.cs`)
-In the Wonderland Online protocol architecture, incoming client packet buffers follow this structure:
+### 2.1 Action Code 64 Packet Wire Protocol & 16-Bit Word Alignment (`AC64.cs`)
+In the Wonderland Online protocol architecture, incoming client manufacturing request packet buffers follow this structure:
 - Bytes `0..1`: Protocol magic header (`0xF4, 0x44`).
-- Bytes `2..3`: 16-bit packet payload length (little-endian).
+- Bytes `2..3`: 16-bit packet payload length (little-endian, e.g. `0x1A, 0x00` = 26 bytes).
 - Byte `4`: Action Code (`AC`, e.g. `64` / `0x40`).
 - Byte `5`: Sub-action Code (`SubCode`, e.g. `1` for manufacturing request).
-- Byte `6+`: Action payload.
+- Bytes `6..7`: `ushort benchIndex` (16-bit little-endian integer, e.g. `0x02, 0x00` -> 2).
+- Bytes `8..9`: `ushort formulaIndex` (16-bit little-endian integer, e.g. `0x0E, 0x02` -> 526).
+- Byte `10`: `byte craftCount` (e.g. `0x01` = 1).
+- Bytes `11..16`: 6 bytes metadata / padding (`00 00 00 00 00 00`).
+- Byte `17`: `byte ingredientSlotCount` (e.g. `0x02` = 2).
+- Bytes `18..19`: Slot 6, 1 item (`43002 x1`).
+- Bytes `20..21`: Slot 7, 1 item (`45007 x1`).
+- Bytes `22..29`: Remaining ingredient slots.
 
-In [`Player.ProcessSocket`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core/Game/Player.cs#L1200), the packet pointer is initialized to 4 and unpacks byte 4, leaving `p.Ptr = 5`.
-In [`AC64.ProcessPkt`](file:///D:/GitHub/Wonderland-Private-Server/Src/Network/ActionCodes/AC64.cs), `p.SetPtr(6)` was omitted. Consequently:
-- `benchIndex = p.Unpack8()` unpacked byte 5 (which contained the subcode `1` rather than `benchIndex`).
-- `formulaIndex = p.Unpack16()` unpacked byte 6 (`benchIndex`) and byte 7 (the low byte of `formulaIndex`).
-- The resulting `formulaIndex` integer was bitwise scrambled (e.g., formula 526 was unpacked as 3585), resulting in out-of-bounds recipe lookups or referencing incorrect formulas whose required materials differed from the player's inventory.
+In `AC64.ProcessPkt`, `p.SetPtr(6)` positions the read pointer at offset 6.
+Previously, `benchIndex = p.Unpack8()` was used instead of `p.Unpack16()`. Consequently:
+- `p.Unpack8()` consumed only byte 6 (`0x02`).
+- The subsequent `p.Unpack16()` unpacked byte 7 (`0x00`) and byte 8 (`0x0E`), evaluating `(0x0E << 8) | 0x00 = 0x0E00 = 3584` instead of reading bytes 8 and 9 (`0x020E = 526`).
+- Because recipe 3584 is out of bounds (`Compound2.dat` contains 789 records), the server emitted `[AC64] Unknown recipe formulaIndex=3584` and `Bilinmeyen tarif!`. If the bit-shifted value hit an existing recipe, it evaluated unrelated materials the player did not hold, outputting `Yetersiz malzeme!`.
+- Correcting line 38 to `ushort benchIndex = p.Unpack16();` cleanly decodes `benchIndex = 2` and `formulaIndex = 526`.
 
 ### 2.2 Record 0 Header Contamination (`Compound2.dat`)
 Disassembly of client binary `aLogin.exe` at `0x2BC80C` reveals:
@@ -102,5 +110,5 @@ In [`Inventory.cs`](file:///D:/GitHub/Wonderland-Private-Server/wlo.pserver.core
 Automated test script [`.codex-verify/Test-CraftingAndRaftFootprint.ps1`](file:///D:/GitHub/Wonderland-Private-Server/.codex-verify/Test-CraftingAndRaftFootprint.ps1) verified:
 1. **Recipe Deserialization:** Loaded all 789 records from `Compound2.dat`, verified record 0 is zeroed, recipe 526 requires `43002 x1` and `45007 x1` (yielding Stone Knife `38058`), and recipe 744 requires `45007 x5` and `37132 x9` (yielding Raft `48010`).
 2. **Multi-Cell Grid Integrity:** Added Raft (`48010`) to inventory. Verified 4x3 footprint, confirmed 1 master slot and exactly 11 slave slots locked, and verified `CanFitItem` rejects adjacent overlapping placement.
-3. **End-to-End AC 64:1 Execution:** Dispatched client packet `[F4 44 05 00 40 01 01 0E 02]` with materials present in inventory. Ingredients were consumed atomically, item `38058` was placed in inventory slot 1, `AC 23:9`, `AC 23:5`, `AC 64:9`, and `AC 23:57` packets were emitted, and no errors occurred.
+3. **End-to-End AC 64:1 Execution:** Dispatched live client packet `[F4 44 1A 00 40 01 02 00 0E 02 01 00 00 00 00 00 00 02 06 01 07 01 00 00 00 00 00 00 00 00]` with materials present in inventory. Decoded `benchIndex = 2` and `formulaIndex = 526`. Ingredients were consumed atomically, item `38058` (Stone Knife) was placed in inventory slot 1, `AC 23:9`, `AC 23:5`, `AC 64:9`, and `AC 23:57` packets were emitted, and no errors occurred.
 4. **Compilation:** `dotnet build` succeeded with 0 Warnings and 0 Errors.

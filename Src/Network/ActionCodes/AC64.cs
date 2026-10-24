@@ -35,7 +35,7 @@ namespace Network.ActionCodes
             {
                 if (r.Tent == null) return;
 
-                byte benchIndex = p.Unpack8();
+                ushort benchIndex = p.Unpack16();
                 ushort formulaIndex = p.Unpack16();
 
                 DebugSystem.Write(DebugItemType.Error, $"[AC64] Recv1: BenchIndex={benchIndex}, FormulaIndex={formulaIndex} for {r.CharName}");
@@ -98,9 +98,9 @@ namespace Network.ActionCodes
                     r.Tent.SendTentItemsToPlayer(r);
                     cGlobal.gCharacterDataBase?.SaveTentData(r);
 
-                    Send64_1(r, benchIndex, outId);
-                    Send64_2(r, benchIndex);
-                    Send64_4(r, benchIndex);
+                    Send64_1(r, (byte)benchIndex, outId);
+                    Send64_2(r, (byte)benchIndex);
+                    Send64_4(r, (byte)benchIndex);
                 }
                 else
                 {
