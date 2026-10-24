@@ -33,6 +33,7 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
                 Console.SetCursorPosition(7, Console.CursorTop);
                 Console.Write(string.Format("Loaded {0} out of {1}",n+1,max));
             }
+            Loaded = true;
             timer.Stop();
             Console.WriteLine("Operaation took -> " + timer.Elapsed.ToString());
             if (Loaded)
@@ -53,6 +54,7 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
                 e.Load(data, n);
                 buildList.Add(e);
             }
+            Loaded = true;
             timer.Stop();
             return Loaded;
         }
@@ -113,6 +115,19 @@ namespace Wonderland_Private_Server.DataManagement.DataFiles
 
         public void Load(byte[] data, int index)
         {
+            buildCode = (ushort)index;
+            if (index == 0)
+            {
+                resultID = 0;
+                planID = 0;
+                toolID = 0;
+                ammtRecv = 0;
+                materialID1 = materialID2 = materialID3 = materialID4 = materialID5 = 0;
+                materialAmmt1 = materialAmmt2 = materialAmmt3 = materialAmmt4 = materialAmmt5 = 0;
+                buildTime = 0;
+                return;
+            }
+
             int ptr = index * 65;
             resultID = wordXor(getWord(data, ptr)); ptr += 2;
             if (resultID == 41142)

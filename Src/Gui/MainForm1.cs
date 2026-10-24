@@ -159,11 +159,9 @@ namespace Wonderland_Private_Server
             {
                 DebugSystem.Write(DebugItemType.Info_Light, "Loading Compound/Alchemy Data...");
                 cGlobal.gCompoundDat = new Wonderland_Private_Server.DataManagement.DataFiles.cCompound2Dat();
-                string comp1 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound.dat");
-                if (File.Exists(comp1)) cGlobal.gCompoundDat.Load(comp1);
                 string comp2 = RCLibrary.Core.PathHelper.GetDataFilePath("Compound2.dat");
-                if (File.Exists(comp2)) cGlobal.gCompoundDat.Load(comp2, false); // append
-                DebugSystem.Write(DebugItemType.Info_Light, "Compound Data Loaded.");
+                if (File.Exists(comp2)) cGlobal.gCompoundDat.Load(comp2);
+                DebugSystem.Write(DebugItemType.Info_Light, $"Compound Data Loaded ({cGlobal.gCompoundDat.buildList.Count} authentic recipes).");
             }
             catch (Exception ex)
             {

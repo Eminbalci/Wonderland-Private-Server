@@ -1399,6 +1399,18 @@ namespace DataBase
             Cache.TryRemove((int)charID, out cached);
             #endregion
 
+            #region write default tent
+            try
+            {
+                ExecuteNonQuery($"INSERT INTO chartent (charID, locked, enlarged, tenttype, floor1Color, floor1wallpaper, floor2Color, floor2wallpaperr) VALUES ('{charID}', 0, 0, 1, 39062, 39064, 0, 0);");
+                ExecuteNonQuery($"INSERT INTO chartent_items (charID, itemID, posX, posY, floor, rotate) VALUES ('{charID}', 38055, 34, 42, 0, 0), ('{charID}', 38049, 37, 42, 0, 0);");
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error writing default tent for new charID {charID}: {ex.Message}");
+            }
+            #endregion
+
             return true;
         }
         public bool WritePlayer(uint charID, Player player)
@@ -1730,10 +1742,21 @@ namespace DataBase
                     if (row["floor2wallpaperr"] != DBNull.Value) player.Tent.Floor2Wallpaper = ushort.Parse(row["floor2wallpaperr"].ToString());
                     if (row["locked"] != DBNull.Value) player.Tent.Locked = row["locked"].ToString() == "1";
                     if (row["enlarged"] != DBNull.Value) player.Tent.Enlarged = row["enlarged"].ToString() == "1";
-                    if (row["tenttype"] != DBNull.Value) player.Tent.TentType = byte.Parse(row["tenttype"].ToString());
+                    if (row["tenttype"] != DBNull.Value)
+                    {
+                        byte tt = byte.Parse(row["tenttype"].ToString());
+                        player.Tent.TentType = (tt == 0 ? (byte)1 : tt);
+                    }
+                    else
+                    {
+                        player.Tent.TentType = 1;
+                    }
+                }
+                else
+                {
+                    player.Tent.TentType = 1;
                 }
 
-                bool hadTentRecord = (dt != null && dt.Rows.Count > 0);
                 // 2. Load Tent Placed Items
                 DataTable itemsDt = GetDataTable($"SELECT * FROM chartent_items WHERE charID = '{player.CharID}'");
                 if (itemsDt != null && itemsDt.Rows.Count > 0)
@@ -1750,14 +1773,10 @@ namespace DataBase
                     }
                     DebugSystem.Write($"[TentDB] Loaded {player.Tent.TentObjects.Count} tent items for {player.CharName} (CharID={player.CharID})");
                 }
-                else if (hadTentRecord)
-                {
-                    // Existing tent where owner picked up all furniture
-                    player.Tent.TentObjects.Clear();
-                }
                 else
                 {
-                    // Brand new character tent: persist the default initial items to DB
+                    // If no items in DB, ensure default beginner items (Trash Can & Work Platform) exist
+                    player.Tent.EnsureDefaultItemsIfEmpty();
                     SaveTentData(player, force: true);
                 }
             }

@@ -69,13 +69,22 @@ namespace Network.ActionCodes
 
                     p.Tent.PlaceItem(placeItemId, (int)x, (int)y, (int)floor, 0);
 
-                    p.Tent.SendTentItemsToAll();
-
-                    // Send Confirmation
+                    // Send authentic 61-byte AC 62:1 confirmation
                     SendPacket confirmation = new SendPacket();
-                    confirmation.PackArray(new byte[] { 62, 1 });
+                    confirmation.Pack8(62);
                     confirmation.Pack8(1);
+                    confirmation.Pack16((ushort)p.Tent.TentObjects.Count);
+                    confirmation.Pack16(placeItemId);
+                    confirmation.Pack32(x);
+                    confirmation.Pack32(y);
+                    confirmation.Pack32(1); // Z = 1
+                    confirmation.Pack8(0);  // rotate = 0
+                    confirmation.PackArray(new byte[32]);
+                    confirmation.Pack8((byte)floor);
+                    confirmation.PackArray(new byte[9]);
                     p.Send(confirmation);
+
+                    p.Tent.SendTentItemsToAll();
 
                     cGlobal.gCharacterDataBase?.SaveTentData(p);
                 }
@@ -196,14 +205,14 @@ namespace Network.ActionCodes
                     {
                         p.Tent.MoveItem((ushort)targetIndex, (int)x, (int)y, (int)floor, rotation);
 
-                        // Send move confirmation to client: [62, 3, rawIndex:2, x:4, y:4, floor:4, rot:1]
+                        // Send move confirmation to client: [62, 3, rawIndex:2, x:4, y:4, z:4, rot:1]
                         SendPacket confirmation = new SendPacket();
                         confirmation.Pack8(62);
                         confirmation.Pack8(3);
                         confirmation.Pack16(rawIndex);
                         confirmation.Pack32(x);
                         confirmation.Pack32(y);
-                        confirmation.Pack32(floor);
+                        confirmation.Pack32(1); // Z = 1 (Elevation layer MUST be 1)
                         confirmation.Pack8(rotation);
                         p.Send(confirmation);
 
