@@ -54,6 +54,90 @@ namespace Game.Code
         public bool IsClosed { get { return _closed; } }
         public bool IsDirty { get; set; } = false;
 
+        public static bool IsWallpaperItem(PhxItemInfo itemData, ushort itemId)
+        {
+            if (itemId >= 39041 && itemId <= 39044) return true;
+            if (itemId == 39064 || itemId == 39128 || itemId == 39130 || itemId == 39136 || itemId == 39138 || 
+                itemId == 39140 || itemId == 39142 || itemId == 39144 || itemId == 39169 || itemId == 39171 || 
+                itemId == 39174 || itemId == 39176 || itemId == 39181 || itemId == 39193 || itemId == 39195 || 
+                itemId == 39197 || itemId == 39199 || itemId == 39213 || itemId == 39297 || itemId == 39311 || 
+                itemId == 39312 || itemId == 39326 || itemId == 39327 || itemId == 39336 || itemId == 39361 || 
+                itemId == 39370 || itemId == 39441 || itemId == 39451 || itemId == 39484 || itemId == 39486 || 
+                itemId == 39507 || itemId == 39524 || itemId == 39562 || itemId == 39595 || itemId == 39690)
+            {
+                return true;
+            }
+            if (itemData != null && itemData.ItemName != null && itemData.ItemName.Length > 0)
+            {
+                string name = Encoding.ASCII.GetString(itemData.ItemName).ToLowerInvariant();
+                if (name.Contains("wall") && !name.Contains("lamp") && !name.Contains("light") && !name.Contains("furnace") && !name.Contains("painting") && !name.Contains("clock"))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static bool IsFloorItem(PhxItemInfo itemData, ushort itemId)
+        {
+            if ((itemId >= 39033 && itemId <= 39036) || itemId == 39062 || itemId == 39067 || itemId == 39068 || 
+                itemId == 39131 || itemId == 39177 || (itemId >= 39189 && itemId <= 39191) || itemId == 39214 || 
+                itemId == 39310 || itemId == 39335 || itemId == 39362 || itemId == 39372 || itemId == 39462 || 
+                itemId == 39506 || itemId == 39561 || itemId == 39584)
+            {
+                return true;
+            }
+            if (itemData != null && itemData.ItemName != null && itemData.ItemName.Length > 0)
+            {
+                string name = Encoding.ASCII.GetString(itemData.ItemName).ToLowerInvariant();
+                if ((name.Contains("floor") || name.Contains("tile")) && !name.Contains("lamp") && !name.Contains("light") && !name.Contains("gift"))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void SetWallpaper(ushort wallpaperId, int floor = 0)
+        {
+            if (floor == 1)
+            {
+                _wall2color = wallpaperId;
+            }
+            else
+            {
+                _wallcolor = wallpaperId;
+            }
+            IsDirty = true;
+            SendPacket pkt = Tools.FromFormat("bbw", 62, 15, wallpaperId);
+            Broadcast(pkt);
+            if (_owner != null && !m_playerlist.Contains(_owner))
+            {
+                _owner.Send(pkt);
+            }
+            DebugSystem.Write(DebugItemType.Error, $"[Tent] SetWallpaper: Applied wallpaper #{wallpaperId} to floor {floor} for {_owner?.CharName}");
+        }
+
+        public void SetFloorColor(ushort floorColorId, int floor = 0)
+        {
+            if (floor == 1)
+            {
+                _floor2color = floorColorId;
+            }
+            else
+            {
+                _floorcolor = floorColorId;
+            }
+            IsDirty = true;
+            SendPacket pkt = Tools.FromFormat("bbw", 62, 14, floorColorId);
+            Broadcast(pkt);
+            if (_owner != null && !m_playerlist.Contains(_owner))
+            {
+                _owner.Send(pkt);
+            }
+            DebugSystem.Write(DebugItemType.Error, $"[Tent] SetFloorColor: Applied floor color #{floorColorId} to floor {floor} for {_owner?.CharName}");
+        }
+
         public static event Action<Player> OnTentItemsSent;
 
         // TENT ITEMS

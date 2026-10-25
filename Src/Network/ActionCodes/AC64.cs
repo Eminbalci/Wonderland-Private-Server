@@ -9,6 +9,7 @@ using wlo.pserver.core.Game.Enums;
 using wlo.pserver.core;
 using Network;
 using Game;
+using Game.Code;
 using DataFiles;
 using Wonderland_Private_Server.DataManagement.DataFiles;
 
@@ -22,6 +23,8 @@ namespace Network.ActionCodes
         public ushort ResultID { get; set; }
         public byte Count { get; set; }
         public bool IsFurniture { get; set; }
+        public bool IsWallpaper { get; set; }
+        public bool IsFloor { get; set; }
         public int TotalDurationSeconds { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
@@ -159,8 +162,10 @@ namespace Network.ActionCodes
                 ushort outId = formula.resultID;
 
                 var itemData = cGlobal.ItemDatManager?.GetItemByID(outId);
+                bool isWallpaper = Tent.IsWallpaperItem(itemData, outId);
+                bool isFloor = Tent.IsFloorItem(itemData, outId);
                 bool isFurniture = false;
-                if (itemData != null)
+                if (itemData != null && !isWallpaper && !isFloor)
                 {
                     // Item types: 29 = Manufacture_Tool, 30 = Tent_Decoration
                     // Multi-cell furniture appliances go to tent floor.
@@ -177,7 +182,39 @@ namespace Network.ActionCodes
                 // Immediate craft for 0-duration recipes
                 if (durationSeconds == 0)
                 {
-                    if (isFurniture)
+                    if (isWallpaper)
+                    {
+                        if (r.Tent != null)
+                        {
+                            r.Tent.SetWallpaper(outId);
+                            cGlobal.gCharacterDataBase?.SaveTentData(r, force: true);
+                        }
+                        if (outputCount > 1)
+                        {
+                            r.Inv.AddItem(outId, (byte)(outputCount - 1));
+                            Send64_9(r);
+                        }
+                        Send64_1(r, (byte)benchIndex, outId, 0, requestedBatchCount);
+                        Send64_2(r, (byte)benchIndex);
+                        Send64_4(r, (byte)benchIndex);
+                    }
+                    else if (isFloor)
+                    {
+                        if (r.Tent != null)
+                        {
+                            r.Tent.SetFloorColor(outId);
+                            cGlobal.gCharacterDataBase?.SaveTentData(r, force: true);
+                        }
+                        if (outputCount > 1)
+                        {
+                            r.Inv.AddItem(outId, (byte)(outputCount - 1));
+                            Send64_9(r);
+                        }
+                        Send64_1(r, (byte)benchIndex, outId, 0, requestedBatchCount);
+                        Send64_2(r, (byte)benchIndex);
+                        Send64_4(r, (byte)benchIndex);
+                    }
+                    else if (isFurniture)
                     {
                         PlaceFurnitureInTent(r, outId, itemData);
                         Send64_1(r, (byte)benchIndex, outId, 0, requestedBatchCount);
@@ -206,6 +243,8 @@ namespace Network.ActionCodes
                     ResultID = outId,
                     Count = outputCount,
                     IsFurniture = isFurniture,
+                    IsWallpaper = isWallpaper,
+                    IsFloor = isFloor,
                     TotalDurationSeconds = durationSeconds,
                     StartTime = DateTime.UtcNow,
                     EndTime = DateTime.UtcNow.AddSeconds(durationSeconds),
@@ -332,7 +371,35 @@ namespace Network.ActionCodes
             var itemData = cGlobal.ItemDatManager?.GetItemByID(session.ResultID);
             string itemName = GetItemDisplayName(itemData, session.ResultID);
 
-            if (session.IsFurniture)
+            if (session.IsWallpaper)
+            {
+                if (p.Tent != null)
+                {
+                    p.Tent.SetWallpaper(session.ResultID);
+                    cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
+                }
+                if (session.Count > 1)
+                {
+                    p.Inv.AddItem(session.ResultID, (byte)(session.Count - 1));
+                    Send64_9(p);
+                }
+                Send64_4(p, session.BenchIndex);
+            }
+            else if (session.IsFloor)
+            {
+                if (p.Tent != null)
+                {
+                    p.Tent.SetFloorColor(session.ResultID);
+                    cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
+                }
+                if (session.Count > 1)
+                {
+                    p.Inv.AddItem(session.ResultID, (byte)(session.Count - 1));
+                    Send64_9(p);
+                }
+                Send64_4(p, session.BenchIndex);
+            }
+            else if (session.IsFurniture)
             {
                 PlaceFurnitureInTent(p, session.ResultID, itemData);
                 Send64_4(p, session.BenchIndex);
@@ -382,6 +449,19 @@ namespace Network.ActionCodes
         private static void PlaceFurnitureInTent(Player r, ushort itemId, PhxItemInfo itemData)
         {
             if (r == null || r.Tent == null) return;
+            if (Tent.IsWallpaperItem(itemData, itemId))
+            {
+                r.Tent.SetWallpaper(itemId);
+                cGlobal.gCharacterDataBase?.SaveTentData(r, force: true);
+                return;
+            }
+            if (Tent.IsFloorItem(itemData, itemId))
+            {
+                r.Tent.SetFloorColor(itemId);
+                cGlobal.gCharacterDataBase?.SaveTentData(r, force: true);
+                return;
+            }
+
             int targetX = 42;
             int targetY = 42;
             int itemW = itemData != null && itemData.cellwidth > 0 ? itemData.cellwidth : 1;

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Network;
 using Game;
+using Game.Code;
 using Wonderland_Private_Server.Utilities;
 
 namespace Network.ActionCodes
@@ -64,10 +65,30 @@ namespace Network.ActionCodes
                     }
 
                     ushort placeItemId = p.Inv[slotIndex].ItemID;
+                    var placedInfo = p.Inv?.ItemDat?.GetItemByID(placeItemId);
+
+                    // Check if item is a Wallpaper
+                    if (Tent.IsWallpaperItem(placedInfo, placeItemId))
+                    {
+                        p.Inv.RemoveItem(slotIndex, 1, true);
+                        p.Tent.SetWallpaper(placeItemId, (int)floor);
+                        cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
+                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Duvar kagidi uygulandi!"));
+                        return;
+                    }
+
+                    // Check if item is a Flooring / Tile
+                    if (Tent.IsFloorItem(placedInfo, placeItemId))
+                    {
+                        p.Inv.RemoveItem(slotIndex, 1, true);
+                        p.Tent.SetFloorColor(placeItemId, (int)floor);
+                        cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
+                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Zemin kaplamasi uygulandi!"));
+                        return;
+                    }
 
                     int itemW = 1;
                     int itemH = 1;
-                    var placedInfo = p.Inv?.ItemDat?.GetItemByID(placeItemId);
                     if (placedInfo != null)
                     {
                         itemW = placedInfo.cellwidth > 0 ? placedInfo.cellwidth : 1;
