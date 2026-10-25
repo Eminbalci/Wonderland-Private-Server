@@ -54,6 +54,8 @@ namespace Game.Code
         public bool IsClosed { get { return _closed; } }
         public bool IsDirty { get; set; } = false;
 
+        public static event Action<Player> OnTentItemsSent;
+
         // TENT ITEMS
         private List<TentItem> _tentObjects;
         public List<TentItem> TentObjects { get { return _tentObjects; } }
@@ -434,6 +436,7 @@ namespace Game.Code
                 // Default beginner crafting furniture in Wonderland Online
                 PlaceItem(38055, 34, 42, 0, 0); // Resource Recycling / Trash Can (38055)
                 PlaceItem(38049, 37, 42, 0, 0); // Work Platform / Low Workbench (38049)
+                IsDirty = false;
             }
         }
 
@@ -559,6 +562,33 @@ namespace Game.Code
         }
 
         /// <summary>
+        /// Check whether an item fits completely within the valid floor bounds of the tent
+        /// </summary>
+        public bool IsInFloorBounds(int x, int y, int w, int h, int floor)
+        {
+            if (floor != 0 && floor != 1) return false;
+            if (w <= 0) w = 1;
+            if (h <= 0) h = 1;
+
+            int minX = 29;
+            int maxX = 44;
+            int minY = 38;
+            int maxY = 50;
+
+            if (Enlarged || TentType >= 2)
+            {
+                minY = (TentType >= 3) ? 27 : 32;
+            }
+
+            // Client validates placement by anchor tile coordinate (29 <= x <= 44, minY <= y <= 50)
+            // matching aLogin.exe FUN_003e67c0 grid validation
+            if (x < minX || x > maxX) return false;
+            if (y < minY || y > maxY) return false;
+
+            return true;
+        }
+
+        /// <summary>
         /// Move an item in the tent (identified by index)
         /// </summary>
         public void MoveItem(ushort index, int x, int y, int z, byte rotation)
@@ -644,19 +674,28 @@ namespace Game.Code
                     pkt.Pack16(acc.toolId);
                     pkt.Pack32(0); // X = 0
                     pkt.Pack32(0); // Y = 0
-                    pkt.Pack32(1); // Z = 1
+                    pkt.Pack32(0); // Z = 0 (Must be 0 to bypass PtInPolygon at 0x416ae1 in aLogin.exe)
                     pkt.Pack8(0);  // rotate = 0
-                    pkt.Pack16(acc.hostIdx);     // Offset 15..16: Parent = hostIdx! (2B)
+                    pkt.Pack16(acc.hostIdx);     // Offset 15..16: Parent = hostIdx (2B)
                     pkt.Pack16(0);                // Offset 17..18: Reserved / Slot 0 padding (2B)
                     pkt.PackArray(new byte[20]);  // Offset 19..38: 10 accessory slots (all 0)
                     pkt.PackArray(new byte[9]);   // Offset 39..47: 9 bytes padding
-                    pkt.Pack8(0);                 // Offset 48: floor = 0 (1B)
+                    pkt.Pack8(1);                 // Offset 48: floor = 1 (Must be != 0 to bypass ground grid 2D collision at 0x413496 in aLogin.exe)
                     pkt.PackArray(new byte[8]);   // Offset 49..56: 8 bytes trailing padding (57 bytes total)
                     sentCount++;
                 }
 
                 player.Send(pkt);
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] Sent {sentCount} items (including {accessoryEntries.Count} accessories) via AC 62:4 to {player.CharName} (OwnerCharID={_owner?.CharID ?? player.CharID}, MapID={this.MapID})");
+
+                try
+                {
+                    OnTentItemsSent?.Invoke(player);
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write(DebugItemType.Error, $"[Tent] Error in OnTentItemsSent: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {

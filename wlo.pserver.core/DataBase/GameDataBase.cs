@@ -359,6 +359,14 @@ namespace DataBase
             #endregion
 
             #region Tent
+            try
+            {
+                CharacterDataBase.GlobalInstance?.LoadTentData(c);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GameDataBase] Error loading tent data for {c.CharName}: {ex.Message}");
+            }
             #endregion
 
             #region Friends

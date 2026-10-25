@@ -102,6 +102,9 @@ namespace Server
             MapTickThread.Init();
             DebugSystem.Write("[WorldServer] Map & NPC Tick Thread started (500ms cycle)");
 
+            // Initialize tent manufacturing / crafting timer system
+            Network.ActionCodes.AC64.Init();
+
             // Restore persistent custom stalls from database (SQLite / MySQL)
             try
             {

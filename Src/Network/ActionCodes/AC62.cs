@@ -28,7 +28,7 @@ namespace Network.ActionCodes
         void Recv1(Player p, RecievePacket r)
         {
             // Packet format: 14 Byte Payload (Header 4 + AC 1 + Sub 1 + Payload 14 = 20)
-            // Bag(1) + Slot(1) + X(4 BE) + Y(4 BE) + Floor(4 BE) = 14 Bytes
+            // SlotIndex(1) + X(4 LE) + Y(4 LE) + Z(4 LE) + Floor(1) = 14 Bytes
 
             if (r.Buffer.Length < 20)
             {
@@ -38,18 +38,16 @@ namespace Network.ActionCodes
 
             try
             {
-                byte bagIndex = r.Unpack8();        // Bag Index
-                byte slotIndex = r.Unpack8();       // Slot Index
+                byte slotIndex = r.Unpack8();       // 1-based bag slot index (1..50)
+                uint x = r.Unpack32();              // 32-bit integer LITTLE ENDIAN
+                uint y = r.Unpack32();              // 32-bit integer LITTLE ENDIAN
+                uint z = r.Unpack32();              // 32-bit integer LITTLE ENDIAN
+                if (z == 0) z = 1;
+                byte floor = 0;                     // Floor index (1B)
+                try { floor = r.Unpack8(); } catch { }
+                if (floor > 1) floor = 0;
 
-                // Read coordinates as 32-bit integers LITTLE ENDIAN (Standard)
-                uint x = r.Unpack32();
-                uint y = r.Unpack32();
-                uint floor = r.Unpack32();
-
-                DebugSystem.Write(DebugItemType.Error, $"[Tent] AC62,1 Place: Bag={bagIndex} Slot={slotIndex} Pos=({x},{y}) Flr={floor} (Forcing 0)");
-
-                // FORCE FLOOR 0 as requested
-                floor = 0;
+                DebugSystem.Write(DebugItemType.Error, $"[Tent] AC62,1 Place: Slot={slotIndex} Pos=({x},{y}) Z={z} Flr={floor}");
 
                 if (p.Tent != null)
                 {
@@ -75,6 +73,13 @@ namespace Network.ActionCodes
                         itemW = placedInfo.cellwidth > 0 ? placedInfo.cellwidth : 1;
                         itemH = placedInfo.cellheight > 0 ? placedInfo.cellheight : 1;
                     }
+                    if (!p.Tent.IsInFloorBounds((int)x, (int)y, itemW, itemH, (int)floor))
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected placement at ({x},{y}): Out of floor bounds");
+                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Gecersiz konum!"));
+                        return;
+                    }
+
                     if (p.Tent.IsAreaOccupied((int)x, (int)y, itemW, itemH, (int)floor))
                     {
                         DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected placement at ({x},{y}): Area occupied");
@@ -156,6 +161,9 @@ namespace Network.ActionCodes
                 }
 
                 ushort itemID = item.ItemID;
+                List<ushort> attachedToolsToRefund = (item.AttachedTools != null && item.AttachedTools.Count > 0)
+                    ? new List<ushort>(item.AttachedTools)
+                    : null;
 
                 // Add item back to inventory
                 int added = p.Inv.AddItem(itemID, 1, true);
@@ -163,6 +171,16 @@ namespace Network.ActionCodes
                 {
                     DebugSystem.Write(DebugItemType.Error, $"[Tent] Pickup failed: AddItem returned {added} for {p.CharName}");
                     return;
+                }
+
+                // If host item had attached tools, refund them back to player inventory
+                if (attachedToolsToRefund != null)
+                {
+                    foreach (var tool in attachedToolsToRefund)
+                    {
+                        p.Inv.AddItem(tool, 1, true);
+                        DebugSystem.Write(DebugItemType.Error, $"[Tent] Refunded attached tool #{tool} to inventory for {p.CharName}");
+                    }
                 }
 
                 // Remove from tent
@@ -178,7 +196,7 @@ namespace Network.ActionCodes
                 // Broadcast updated items to all occupants
                 p.Tent.SendTentItemsToAll();
 
-                cGlobal.gCharacterDataBase?.SaveTentData(p);
+                (cGlobal.gCharacterDataBase ?? DataBase.CharacterDataBase.GlobalInstance)?.SaveTentData(p, force: true);
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] Successfully picked up item {itemID} from index {targetIndex} (raw {rawIndex}) into inventory for {p.CharName}");
             }
             catch (Exception ex)
@@ -228,6 +246,14 @@ namespace Network.ActionCodes
                         if (itemW <= 0) itemW = 1;
                         if (itemH <= 0) itemH = 1;
 
+                        if (!p.Tent.IsInFloorBounds((int)x, (int)y, itemW, itemH, movingItem.floor))
+                        {
+                            DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected move of item {targetIndex} to ({x},{y}): Out of floor bounds");
+                            p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Gecersiz konum!"));
+                            p.Tent.SendTentItemsToPlayer(p);
+                            return;
+                        }
+
                         if (p.Tent.IsAreaOccupied((int)x, (int)y, itemW, itemH, movingItem.floor, movingItem))
                         {
                             DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected move of item {targetIndex} to ({x},{y}): Area occupied");
@@ -238,7 +264,7 @@ namespace Network.ActionCodes
 
                         p.Tent.MoveItem((ushort)targetIndex, (int)x, (int)y, (int)z, rotation);
 
-                        // Send move confirmation to client: [62, 3, rawIndex:2, x:4, y:4, z:4, rot:1]
+                        // Send move confirmation to client and occupants: [62, 3, rawIndex:2, x:4, y:4, z:4, rot:1]
                         SendPacket confirmation = new SendPacket();
                         confirmation.Pack8(62);
                         confirmation.Pack8(3);
@@ -247,10 +273,10 @@ namespace Network.ActionCodes
                         confirmation.Pack32(y);
                         confirmation.Pack32(z); // Z = 1 (Elevation layer MUST be 1)
                         confirmation.Pack8(rotation);
-                        p.Send(confirmation);
+                        p.Tent.Broadcast(confirmation);
 
                         p.Tent.SendTentItemsToAll();
-                        cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
+                        (cGlobal.gCharacterDataBase ?? DataBase.CharacterDataBase.GlobalInstance)?.SaveTentData(p, force: true);
                     }
                     else
                     {
@@ -353,8 +379,11 @@ namespace Network.ActionCodes
                 confirmation.Pack16(toolItemId);
                 confirmation.Pack16(rawTargetIndex);
 
-                // Broadcast AC 62:5 to all occupants in tent (triggers 0x0021fca8 craft UI refresh in client)
+                // Broadcast AC 62:5 to all occupants in tent (triggers incremental tool attachment)
                 p.Tent.Broadcast(confirmation);
+
+                // Broadcast full byte-exact synchronized tree ensuring client memory contains the accessory records
+                p.Tent.SendTentItemsToAll();
 
                 // Persist changes to database
                 cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);

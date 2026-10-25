@@ -1085,6 +1085,38 @@ namespace DataBase
                         t[i].Forge = c[i].Forge;
                     }
                 }
+
+                #region load settings from ExtData
+                try
+                {
+                    var srcExt = GetDataTable(string.Format("SELECT Settings FROM charactersExtData where charID = '{0}'", charID));
+                    if (srcExt != null && srcExt.Rows.Count > 0 && srcExt.Rows[0]["Settings"] != DBNull.Value)
+                    {
+                        string settingsStr = srcExt.Rows[0]["Settings"].ToString();
+                        if (!string.IsNullOrEmpty(settingsStr))
+                        {
+                            t.Settings.Load(settingsStr);
+                            DebugSystem.Write($"[DEBUG] Loaded settings for {t.CharName}: PKABLE={t.Settings.PKABLE}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[DEBUG] Error loading settings: {ex.Message}");
+                }
+                #endregion
+
+                #region load tent data
+                try
+                {
+                    LoadTentData(t);
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[DEBUG] Error loading tent data for {t.CharName}: {ex.Message}");
+                }
+                #endregion
+
                 return true;
             }
 
@@ -1836,6 +1868,8 @@ namespace DataBase
                     player.Tent.EnsureDefaultItemsIfEmpty();
                     SaveTentData(player, force: true);
                 }
+
+                player.Tent.IsDirty = false;
             }
             catch (Exception ex)
             {
@@ -1885,6 +1919,7 @@ namespace DataBase
                 }
 
                 player.Tent.IsDirty = false;
+                DebugSystem.Write($"[TentDB] Successfully saved {player.Tent.TentObjects?.Count ?? 0} items for {player.CharName} (CharID={player.CharID})");
             }
             catch (Exception ex)
             {
