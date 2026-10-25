@@ -1176,6 +1176,42 @@ namespace DataBase
             }
             // An empty saved equipment set is valid (all items may be in the bag).
 
+            #region load inventory (bag storID = 0)
+            try
+            {
+                src = GetDataTable("SELECT * FROM inventory where charID = '" + charID + "' AND storID = 0");
+                if (src != null && src.Rows.Count > 0)
+                {
+                    rows = new DataRow[src.Rows.Count];
+                    src.Rows.CopyTo(rows, 0);
+                    for (int i = 0; i < rows.Length; i++)
+                    {
+                        ushort id = ushort.Parse(rows[i]["itemID"].ToString());
+                        if (id != 0)
+                        {
+                            var baseItem = ItemDat?.GetItemByID(id) ?? new DataFiles.PhxItemInfo() { ItemID = id, ItemName = Encoding.ASCII.GetBytes("Item " + id) };
+                            byte pos = byte.Parse(rows[i]["pos"].ToString());
+                            byte qty = byte.Parse(rows[i]["qty"].ToString());
+                            byte dmg = byte.Parse(rows[i]["dmg"].ToString());
+                            if (pos >= 1 && pos <= 50 && t.Inv != null)
+                            {
+                                t.Inv[pos].CopyFrom(baseItem);
+                                t.Inv[pos].Ammt = Math.Max((byte)1, qty);
+                                t.Inv[pos].Damage = dmg;
+                                t.Inv[pos].Forge = Convert.ToByte(rows[i]["forge"] == DBNull.Value ? 0 : rows[i]["forge"]);
+                                t.Inv[pos].Parent = 0;
+                            }
+                        }
+                    }
+                    t.Inv.RebuildOccupancyGrid();
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error loading inventory for charID {charID}: {ex.Message}");
+            }
+            #endregion
+
             #region load storage (Props Keeper vault)
             try
             {
@@ -1757,6 +1793,9 @@ namespace DataBase
                     player.Tent.TentType = 1;
                 }
 
+                // Ensure accessories column exists
+                try { ExecuteNonQuery("ALTER TABLE chartent_items ADD COLUMN accessories TEXT DEFAULT '';"); } catch { }
+
                 // 2. Load Tent Placed Items
                 DataTable itemsDt = GetDataTable($"SELECT * FROM chartent_items WHERE charID = '{player.CharID}'");
                 if (itemsDt != null && itemsDt.Rows.Count > 0)
@@ -1769,7 +1808,25 @@ namespace DataBase
                         int y = int.Parse(r["posY"].ToString());
                         int floor = int.Parse(r["floor"].ToString());
                         byte rotate = byte.Parse(r["rotate"].ToString());
-                        player.Tent.PlaceItem(itemID, x, y, floor, rotate);
+
+                        List<ushort> attached = null;
+                        if (r.Table.Columns.Contains("accessories") && r["accessories"] != DBNull.Value)
+                        {
+                            string accStr = r["accessories"].ToString();
+                            if (!string.IsNullOrEmpty(accStr))
+                            {
+                                attached = new List<ushort>();
+                                foreach (var part in accStr.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    if (ushort.TryParse(part.Trim(), out ushort toolId) && toolId > 0)
+                                    {
+                                        attached.Add(toolId);
+                                    }
+                                }
+                            }
+                        }
+
+                        player.Tent.PlaceItem(itemID, x, y, floor, rotate, attached);
                     }
                     DebugSystem.Write($"[TentDB] Loaded {player.Tent.TentObjects.Count} tent items for {player.CharName} (CharID={player.CharID})");
                 }
@@ -1804,6 +1861,9 @@ namespace DataBase
                     ExecuteNonQuery($"UPDATE chartent SET locked = '{(player.Tent.Locked ? 1 : 0)}', enlarged = '{(player.Tent.Enlarged ? 1 : 0)}', tenttype = '{player.Tent.TentType}', floor1Color = '{player.Tent.Floor1Color}', floor1wallpaper = '{player.Tent.Floor1Wallpaper}', floor2Color = '{player.Tent.Floor2Color}', floor2wallpaperr = '{player.Tent.Floor2Wallpaper}' WHERE charID = '{player.CharID}';");
                 }
 
+                // Ensure accessories column exists
+                try { ExecuteNonQuery("ALTER TABLE chartent_items ADD COLUMN accessories TEXT DEFAULT '';"); } catch { }
+
                 // 2. Save chartent_items
                 ExecuteNonQuery($"DELETE FROM chartent_items WHERE charID = '{player.CharID}';");
                 if (player.Tent.TentObjects != null && player.Tent.TentObjects.Count > 0)
@@ -1812,12 +1872,15 @@ namespace DataBase
                     foreach (var item in player.Tent.TentObjects)
                     {
                         if (item.ItemID == 0) continue;
-                        itemRows.Add(string.Format("('{0}', '{1}', '{2}', '{3}', '{4}', '{5}')",
-                            player.CharID, item.ItemID, item.tentX, item.tentY, item.floor, item.rotate));
+                        string accStr = item.AttachedTools != null && item.AttachedTools.Count > 0
+                            ? string.Join(",", item.AttachedTools)
+                            : "";
+                        itemRows.Add(string.Format("('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', '{6}')",
+                            player.CharID, item.ItemID, item.tentX, item.tentY, item.floor, item.rotate, accStr));
                     }
                     if (itemRows.Count > 0)
                     {
-                        ExecuteNonQuery(string.Format("INSERT INTO chartent_items (charID, itemID, posX, posY, floor, rotate) VALUES {0};", string.Join(",", itemRows)));
+                        ExecuteNonQuery(string.Format("INSERT INTO chartent_items (charID, itemID, posX, posY, floor, rotate, accessories) VALUES {0};", string.Join(",", itemRows)));
                     }
                 }
 

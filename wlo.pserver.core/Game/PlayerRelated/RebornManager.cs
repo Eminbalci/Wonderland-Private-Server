@@ -58,13 +58,13 @@ namespace Game.PlayerRelated
                 player.Inv.AddItem(capeItemId, 1);
             }
 
-            // Play Rebirth Grand Visual Effect
+            // Play Rebirth Grand Visual Effect (AC 23:122) and clear shapeshift
             SendPacket pVisual = new SendPacket();
-            pVisual.Pack8(5);
-            pVisual.Pack8(5);
+            pVisual.Pack8(23);
+            pVisual.Pack8(122);
             pVisual.Pack32(player.CharID);
-            pVisual.Pack16(60050); // Rebirth aura/ascension effect
             player.CurMap?.Broadcast(pVisual);
+            player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
 
             // Announce server-wide
             SendPacket pAnnounce = new SendPacket();

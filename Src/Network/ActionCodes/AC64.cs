@@ -109,7 +109,8 @@ namespace Network.ActionCodes
                 }
 
                 // Play crafting sparkles effect AC 5:5
-                r.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, r.CharID, (ushort)60018));
+                r.CurMap?.Broadcast(Tools.FromFormat("bbd", 23, 122, r.CharID));
+                r.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, r.CharID, (ushort)0));
                 SendSystemMsg(r, $"Uretim tamamlandi! (Item ID: {outId})");
                 r.SaveCharacterData();
             }

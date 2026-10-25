@@ -34,13 +34,13 @@ namespace Game.Crafting
                 return false;
             }
 
-            // Play repair hammer effect
+            // Play repair effect (AC 23:122) and clear any shapeshift (AC 5:5 with 0)
             SendPacket p = new SendPacket();
-            p.Pack8(5);
-            p.Pack8(5);
+            p.Pack8(23);
+            p.Pack8(122);
             p.Pack32(player.CharID);
-            p.Pack16(60015); // Blacksmith hammer sound/spark effect
             player.CurMap?.Broadcast(p);
+            player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
 
             SendSystemMsg(player, $"[Blacksmith Repair] Successfully restored item #{itemId} to maximum durability!");
             DebugSystem.Write($"[EquipmentRepair] Player {player.CharName} repaired slot #{inventorySlot} (Item #{itemId}).");

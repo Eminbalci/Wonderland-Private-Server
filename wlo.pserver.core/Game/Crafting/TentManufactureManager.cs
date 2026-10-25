@@ -81,13 +81,13 @@ namespace Game.Crafting
 
             player.Inv.AddItem(match.OutputItem, 1);
 
-            // Play tent crafting effect
+            // Play tent crafting effect (AC 23:122) and clear any shapeshift (AC 5:5 with 0)
             SendPacket p = new SendPacket();
-            p.Pack8(5);
-            p.Pack8(5);
+            p.Pack8(23);
+            p.Pack8(122);
             p.Pack32(player.CharID);
-            p.Pack16(60018); // Crafting sparkles
             player.CurMap?.Broadcast(p);
+            player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
 
             SendSystemMsg(player, $"[{workbench} Manufacturing] Crafted 1x {match.OutputName}!");
             DebugSystem.Write($"[TentManufacture] Player {player.CharName} crafted {match.OutputName} at {workbench}.");

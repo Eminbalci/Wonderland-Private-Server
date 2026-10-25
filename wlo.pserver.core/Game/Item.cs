@@ -145,6 +145,21 @@ namespace Game.Code
         public override int Height => (Data != null && Data.cellheight > 0) ? Data.cellheight : 1;
         public override int Width => (Data != null && Data.cellwidth > 0) ? Data.cellwidth : 1;
 
+        public List<ushort> AttachedTools { get; } = new List<ushort>();
+
+        public bool HasTool(ushort toolId)
+        {
+            return AttachedTools.Contains(toolId);
+        }
+
+        public bool AddAttachedTool(ushort toolId)
+        {
+            if (AttachedTools.Contains(toolId)) return false;
+            if (AttachedTools.Count >= 10) return false;
+            AttachedTools.Add(toolId);
+            return true;
+        }
+
         public TentItem()
         {
         }

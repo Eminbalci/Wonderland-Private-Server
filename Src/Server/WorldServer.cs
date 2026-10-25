@@ -454,6 +454,7 @@ namespace Server
             DebugSystem.Write("[WorldServer] Loading Final Data...");
             cGlobal.gGameDataBase.LoadFinalData(src);
             src.SendCharacterData();
+            src.Send(Tools.FromFormat("bbdw", 5, 5, src.CharID, (ushort)0)); // Ensure any shapeshift morph is cleared on login
             Network.ActionCodes.AC14.NotifyFriendsStatus(src, true);
 
             // Populate PlayerSkills list in memory (no packets yet — must precede SendAllSkills below)

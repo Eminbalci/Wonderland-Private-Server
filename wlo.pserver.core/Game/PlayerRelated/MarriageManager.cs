@@ -194,13 +194,13 @@ namespace Game.PlayerRelated
             proposer.Inv.AddItem(49001, 1);
             target.Inv.AddItem(49002, 1);
 
-            // Broadcast Wedding Ceremony Fireworks & Visuals to Map
+            // Broadcast Wedding Ceremony Fireworks & Visuals to Map (AC 23:122) and clear shapeshift
             SendPacket pFireworks = new SendPacket();
-            pFireworks.Pack8(5);
-            pFireworks.Pack8(5);
+            pFireworks.Pack8(23);
+            pFireworks.Pack8(122);
             pFireworks.Pack32(proposer.CharID);
-            pFireworks.Pack16(60010); // Wedding fireworks visual effect
             target.CurMap?.Broadcast(pFireworks);
+            target.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, proposer.CharID, (ushort)0));
 
             // Global Notification Prompt
             SendPacket pMsg = new SendPacket();

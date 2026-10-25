@@ -163,13 +163,13 @@ namespace Game.Crafting
                 // Compound SUCCESS!
                 player.Inv.AddItem(matchedRecipe.OutputItem, 1);
 
-                // Play Compound Animation & Effect
+                // Play Compound Animation & Effect (AC 23:122) and clear any shapeshift (AC 5:5 with 0)
                 SendPacket pEffect = new SendPacket();
-                pEffect.Pack8(5);
-                pEffect.Pack8(5);
+                pEffect.Pack8(23);
+                pEffect.Pack8(122);
                 pEffect.Pack32(player.CharID);
-                pEffect.Pack16(60020); // Synthesis light effect
                 player.CurMap?.Broadcast(pEffect);
+                player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
 
                 SendSystemMsg(player, $"[Synthesis Success!] You successfully compounded {matchedRecipe.OutputName}!");
                 DebugSystem.Write($"[Alchemy] Player {player.CharName} compounded {matchedRecipe.OutputName} (#{matchedRecipe.OutputItem}).");

@@ -38,13 +38,13 @@ namespace Game.Crafting
             // Remove the gem
             player.Inv.RemoveItemAtSlot(gemSlot, 1);
 
-            // Play forging anvil spark effect
+            // Play forging effect (AC 23:122) and clear any shapeshift (AC 5:5 with 0)
             SendPacket p = new SendPacket();
-            p.Pack8(5);
-            p.Pack8(5);
+            p.Pack8(23);
+            p.Pack8(122);
             p.Pack32(player.CharID);
-            p.Pack16(60025); // Forging enhancement spark effect
             player.CurMap?.Broadcast(p);
+            player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
 
             SendSystemMsg(player, $"[Forging Success!] Successfully embedded {gemStat} into your equipment #{equipId}!");
             DebugSystem.Write($"[ForgingManager] Player {player.CharName} forged #{gemId} onto #{equipId}.");
