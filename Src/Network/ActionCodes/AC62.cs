@@ -66,28 +66,45 @@ namespace Network.ActionCodes
                     }
 
                     ushort placeItemId = p.Inv[slotIndex].ItemID;
-                    p.Inv.RemoveItem(slotIndex, 1, true);
 
+                    int itemW = 1;
+                    int itemH = 1;
+                    var placedInfo = p.Inv?.ItemDat?.GetItemByID(placeItemId);
+                    if (placedInfo != null)
+                    {
+                        itemW = placedInfo.cellwidth > 0 ? placedInfo.cellwidth : 1;
+                        itemH = placedInfo.cellheight > 0 ? placedInfo.cellheight : 1;
+                    }
+                    if (p.Tent.IsAreaOccupied((int)x, (int)y, itemW, itemH, (int)floor))
+                    {
+                        DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected placement at ({x},{y}): Area occupied");
+                        p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Alan dolu!"));
+                        return;
+                    }
+
+                    p.Inv.RemoveItem(slotIndex, 1, true);
                     p.Tent.PlaceItem(placeItemId, (int)x, (int)y, (int)floor, 0);
 
-                    // Send authentic 61-byte AC 62:1 confirmation
+                    // Send authentic 61-byte AC 62:1 confirmation (Header 4 + AC 1 + Sub 1 + clientIdx 2 + 57B payload)
                     SendPacket confirmation = new SendPacket();
                     confirmation.Pack8(62);
                     confirmation.Pack8(1);
                     confirmation.Pack16((ushort)p.Tent.TentObjects.Count);
-                    confirmation.Pack16(placeItemId);
-                    confirmation.Pack32(x);
-                    confirmation.Pack32(y);
-                    confirmation.Pack32(1); // Z = 1
-                    confirmation.Pack8(0);  // rotate = 0
-                    confirmation.PackArray(new byte[32]);
-                    confirmation.Pack8((byte)floor);
-                    confirmation.PackArray(new byte[9]);
+                    confirmation.Pack16(placeItemId); // 0..1
+                    confirmation.Pack32(x);           // 2..5
+                    confirmation.Pack32(y);           // 6..9
+                    confirmation.Pack32(1);           // 10..13 (Z = 1)
+                    confirmation.Pack8(0);            // 14 (rotate = 0)
+                    confirmation.Pack16(0);           // 15..16: parent = 0 (2B)
+                    confirmation.Pack16(0);           // 17..18: reserved / slot 0 padding (2B)
+                    confirmation.PackArray(new byte[20]); // 19..38: slots (20B)
+                    confirmation.PackArray(new byte[9]);  // 39..47: padding (9B)
+                    confirmation.Pack8((byte)floor);      // 48: floor index (1B)
+                    confirmation.PackArray(new byte[8]);  // 49..56: trailing padding (8B)
                     p.Send(confirmation);
 
                     p.Tent.SendTentItemsToAll();
-
-                    cGlobal.gCharacterDataBase?.SaveTentData(p);
+                    cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
                 }
             }
             catch (Exception ex)
@@ -205,6 +222,20 @@ namespace Network.ActionCodes
 
                     if (targetIndex >= 0 && targetIndex < p.Tent.TentObjects.Count)
                     {
+                        var movingItem = p.Tent.TentObjects[targetIndex];
+                        int itemW = (rotation == 1 || rotation == 3) ? movingItem.Height : movingItem.Width;
+                        int itemH = (rotation == 1 || rotation == 3) ? movingItem.Width : movingItem.Height;
+                        if (itemW <= 0) itemW = 1;
+                        if (itemH <= 0) itemH = 1;
+
+                        if (p.Tent.IsAreaOccupied((int)x, (int)y, itemW, itemH, movingItem.floor, movingItem))
+                        {
+                            DebugSystem.Write(DebugItemType.Error, $"[Tent] Rejected move of item {targetIndex} to ({x},{y}): Area occupied");
+                            p.Send(Tools.FromFormat("bbbs", 23, 57, 0, "Alan dolu!"));
+                            p.Tent.SendTentItemsToPlayer(p);
+                            return;
+                        }
+
                         p.Tent.MoveItem((ushort)targetIndex, (int)x, (int)y, (int)z, rotation);
 
                         // Send move confirmation to client: [62, 3, rawIndex:2, x:4, y:4, z:4, rot:1]
@@ -219,8 +250,7 @@ namespace Network.ActionCodes
                         p.Send(confirmation);
 
                         p.Tent.SendTentItemsToAll();
-
-                        cGlobal.gCharacterDataBase?.SaveTentData(p);
+                        cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
                     }
                     else
                     {
@@ -304,9 +334,16 @@ namespace Network.ActionCodes
 
                 // Attach tool to target appliance
                 targetItem.AddAttachedTool(toolItemId);
+                p.Tent.IsDirty = true;
 
-                // Assign accessory index: total objects + total accessories
-                ushort accessoryIndex = (ushort)(p.Tent.CalculateTotalItemCount());
+                // Assign sequential accessory index matching SendTentItemsToPlayer
+                int hostCount = p.Tent.TentObjects.Count(item => item != null && item.ItemID > 0);
+                int totalTools = 0;
+                foreach (var obj in p.Tent.TentObjects)
+                {
+                    if (obj != null && obj.ItemID > 0) totalTools += obj.AttachedTools.Count;
+                }
+                ushort accessoryIndex = (ushort)(hostCount + totalTools);
 
                 // Send AC 62:5 confirmation to client: [62, 5, accessoryIndex:2 LE, toolItemId:2 LE, hostIndex:2 LE]
                 SendPacket confirmation = new SendPacket();
@@ -315,13 +352,12 @@ namespace Network.ActionCodes
                 confirmation.Pack16(accessoryIndex);
                 confirmation.Pack16(toolItemId);
                 confirmation.Pack16(rawTargetIndex);
-                p.Send(confirmation);
 
-                // Broadcast updated tent layout to ensure all occupants stay in sync
-                p.Tent.SendTentItemsToAll();
+                // Broadcast AC 62:5 to all occupants in tent (triggers 0x0021fca8 craft UI refresh in client)
+                p.Tent.Broadcast(confirmation);
 
                 // Persist changes to database
-                cGlobal.gCharacterDataBase?.SaveTentData(p);
+                cGlobal.gCharacterDataBase?.SaveTentData(p, force: true);
                 p.SaveCharacterData();
 
                 DebugSystem.Write(DebugItemType.Error, $"[Tent] Successfully attached tool #{toolItemId} to Workbench #{targetItem.ItemID} (AccessoryIndex={accessoryIndex}, HostIndex={rawTargetIndex}) for {p.CharName}");

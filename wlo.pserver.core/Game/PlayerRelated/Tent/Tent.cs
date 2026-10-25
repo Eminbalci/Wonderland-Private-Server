@@ -446,9 +446,17 @@ namespace Game.Code
             {
                 TentItem newItem = new TentItem(); // Default constructor
 
-                PhxItemInfo info = new PhxItemInfo();
-                info.ItemID = itemID;
-                newItem.CopyFrom(info); // Use CopyFrom inheriting from Item
+                var info = _owner?.Inv?.ItemDat?.GetItemByID(itemID);
+                if (info != null)
+                {
+                    newItem.CopyFrom(info);
+                }
+                else
+                {
+                    PhxItemInfo fallback = new PhxItemInfo();
+                    fallback.ItemID = itemID;
+                    newItem.CopyFrom(fallback);
+                }
 
                 newItem.tentX = (ushort)x; // camelCase
                 newItem.tentY = (ushort)y;
@@ -528,6 +536,29 @@ namespace Game.Code
         }
 
         /// <summary>
+        /// Check whether an area on a specific floor is occupied by any placed tent object
+        /// </summary>
+        public bool IsAreaOccupied(int x, int y, int w, int h, int floor, TentItem ignoreItem = null)
+        {
+            foreach (var other in _tentObjects)
+            {
+                if (other == null || other == ignoreItem || other.ItemID == 0) continue;
+                if (other.floor != floor) continue;
+
+                int otherW = (other.rotate == 1 || other.rotate == 3) ? other.Height : other.Width;
+                int otherH = (other.rotate == 1 || other.rotate == 3) ? other.Width : other.Height;
+                if (otherW <= 0) otherW = 1;
+                if (otherH <= 0) otherH = 1;
+
+                bool overlapX = x < (other.tentX + otherW) && (x + w) > other.tentX;
+                bool overlapY = y < (other.tentY + otherH) && (y + h) > other.tentY;
+
+                if (overlapX && overlapY) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Move an item in the tent (identified by index)
         /// </summary>
         public void MoveItem(ushort index, int x, int y, int z, byte rotation)
@@ -589,17 +620,18 @@ namespace Game.Code
                     pkt.Pack32((uint)item.tentY);
                     pkt.Pack32(1); // Z = 1
                     pkt.Pack8(item.rotate);
-                    pkt.Pack16(0); // Offset 15..16: Parent = 0
+                    pkt.Pack16(0); // Offset 15..16: Parent = 0 (2B)
+                    pkt.Pack16(0); // Offset 17..18: Reserved / Slot 0 padding (2B)
 
-                    // Offset 17..36: 10 accessory slots (ushort each)
+                    // Offset 19..38: 10 accessory slots (ushort each for slots 1 to 10)
                     for (int s = 0; s < 10; s++)
                     {
                         pkt.Pack16(accessorySlots[s]);
                     }
 
-                    pkt.PackArray(new byte[10]); // Offset 37..46: 10 bytes padding
-                    pkt.Pack8((byte)item.floor); // Offset 47: floor index
-                    pkt.PackArray(new byte[9]);  // Offset 48..56: 9 bytes padding (57 bytes total)
+                    pkt.PackArray(new byte[9]);  // Offset 39..47: 9 bytes padding
+                    pkt.Pack8((byte)item.floor); // Offset 48: floor index (1B)
+                    pkt.PackArray(new byte[8]);  // Offset 49..56: 8 bytes trailing padding (57 bytes total)
 
                     clientIndex++;
                     sentCount++;
@@ -614,11 +646,12 @@ namespace Game.Code
                     pkt.Pack32(0); // Y = 0
                     pkt.Pack32(1); // Z = 1
                     pkt.Pack8(0);  // rotate = 0
-                    pkt.Pack16(acc.hostIdx); // Offset 15..16: Parent = hostIdx!
-                    pkt.PackArray(new byte[20]); // Offset 17..36: 10 accessory slots (all 0)
-                    pkt.PackArray(new byte[10]); // Offset 37..46: 10 bytes padding
-                    pkt.Pack8(0); // Offset 47: floor = 0
-                    pkt.PackArray(new byte[9]); // Offset 48..56: 9 bytes padding (57 bytes total)
+                    pkt.Pack16(acc.hostIdx);     // Offset 15..16: Parent = hostIdx! (2B)
+                    pkt.Pack16(0);                // Offset 17..18: Reserved / Slot 0 padding (2B)
+                    pkt.PackArray(new byte[20]);  // Offset 19..38: 10 accessory slots (all 0)
+                    pkt.PackArray(new byte[9]);   // Offset 39..47: 9 bytes padding
+                    pkt.Pack8(0);                 // Offset 48: floor = 0 (1B)
+                    pkt.PackArray(new byte[8]);   // Offset 49..56: 8 bytes trailing padding (57 bytes total)
                     sentCount++;
                 }
 

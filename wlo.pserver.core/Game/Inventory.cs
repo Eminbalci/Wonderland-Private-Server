@@ -302,7 +302,7 @@ namespace Game.Code
             }
         }
 
-        global::DataFiles.PhxItemDat ItemDat;
+        public global::DataFiles.PhxItemDat ItemDat;
 
 
         Player owner;
@@ -756,7 +756,8 @@ namespace Game.Code
                 {
                     if (this[a].ItemID == itemId)
                     {
-                        byte toTake = Math.Min(this[a].Ammt, needed);
+                        byte currentAmt = this[a].Ammt == 0 ? (byte)1 : this[a].Ammt;
+                        byte toTake = Math.Min(currentAmt, needed);
                         RemoveItem(a, toTake);
                         needed -= toTake;
                         if (needed == 0) break;
