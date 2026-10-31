@@ -42,6 +42,7 @@ namespace Network.ActionCodes
                 case 75: RecvPack(r, p); break; // Original pack/egg native double-click
                 case 128: RecvPack(r, p); break; // Later packs native double-click
                 case 77: Recv77(r, p); break;// Request Player Stall / Market Listings
+                case 89: Recv89(r, p); break;// Bamboo Dragonfly teleportation (0x17:0x59)
                 case 96: Recv96(r, p); break;// Use item from inventory (double-click/use)
                 case 124: Recv124(r, p); break;// confirm destroy 
                 default: DebugSystem.Write($"AC {p.A},{p.B} has not been coded"); break;
@@ -139,6 +140,27 @@ namespace Network.ActionCodes
         public static void SendCatalog(Player p)
         {
             Game.PlayerRelated.ItemMallManager.SendCatalog(p);
+        }
+
+        void Recv89(Player p, RecievePacket r)
+        {
+            try
+            {
+                // AC 23:89 (0x17:0x59) = Client Bamboo Dragonfly teleportation request
+                // Payload: [DestIndex (1B)] [InvSlot (1B)] [Type (1B)]
+                if (p == null || r == null) return;
+                if (r.Buffer.Length - r.GetPtr() < 3) return;
+
+                byte destId = r.Unpack8();
+                byte slot = r.Unpack8();
+                byte itemType = r.Unpack8();
+
+                BambooDragonflyManager.TeleportTo(p, slot, destId, itemType);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv89] Error: {ex.Message}");
+            }
         }
 
         void Recv77(Player p, RecievePacket r)

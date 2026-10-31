@@ -1129,6 +1129,16 @@ namespace Game.QuestRelated
                 }
             }
 
+            // 6. Dynamic NPC Spawn (AC 22:4) for this player upon quest completion
+            if (quest.SpawnNpcClickIDs != null && quest.SpawnNpcClickIDs.Count > 0)
+            {
+                foreach (var clickId in quest.SpawnNpcClickIDs)
+                {
+                    PreEventInterpreter.SendActorShow(player, (ushort)clickId);
+                    DebugSystem.Write($"[QuestManager] Spawned NPC (ClickID: {clickId}) via AC 22:4 for {player.CharName} following Quest '{quest.Title}' completion.");
+                }
+            }
+
             DebugSystem.Write($"[QuestManager] Granted rewards for Quest '{quest.Title}' to {player.CharName} (Gold: +{quest.Reward.Gold}, EXP: +{quest.Reward.Exp})");
         }
 
@@ -1929,6 +1939,22 @@ namespace Game.QuestRelated
                         {
                             player.TotalExp += (long)qDef.Reward.Exp;
                             player.Send(Tools.FromFormat("bbd", 23, 8, (uint)player.TotalExp));
+                        }
+                    }
+
+                    // Dynamic NPC Despawn & Spawn (AC 22:4) upon quest completion
+                    if (qDef.DespawnNpcClickIDs != null && qDef.DespawnNpcClickIDs.Count > 0)
+                    {
+                        foreach (var clickId in qDef.DespawnNpcClickIDs)
+                        {
+                            PreEventInterpreter.SendActorHide(player, (ushort)clickId);
+                        }
+                    }
+                    if (qDef.SpawnNpcClickIDs != null && qDef.SpawnNpcClickIDs.Count > 0)
+                    {
+                        foreach (var clickId in qDef.SpawnNpcClickIDs)
+                        {
+                            PreEventInterpreter.SendActorShow(player, (ushort)clickId);
                         }
                     }
                 }

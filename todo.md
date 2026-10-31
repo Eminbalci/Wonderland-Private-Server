@@ -1,8 +1,7 @@
-# Implementation Plan: AoE Multi-Target Per-Record Animation Synchronization
+# Implementation Plan: Automatic Non-Click Dialogue Architecture & Running Fix
 
-- [x] 1. Analyze `FUN_003abf3c` outer loop and `FUN_003ac7ac` target trigger semantics in `aLogin.exe`
-- [x] 2. Refactor Phase 4 `pAttackAnim` in `PvEBattleManager.cs` to emit authentic 19-byte records (`{ 0x11, 0x00, actorX, actorY, skillId, 0, 1, targetX, targetY, 1, def, 1, stat, dmg, hit }`) per hit target
-- [x] 3. Refactor Phase 2 `pSupport` in `PvEBattleManager.cs` to emit authentic 19-byte records per ally target with visual buff overlays
-- [x] 4. Build solution with `dotnet build "Wonderland Private Server.sln"` and verify 0 warnings, 0 errors
-- [x] 5. Verify multi-target record serialization and boundary alignments
-- [x] 6. Update root `README.md` and `docs/60_aoe_multi_target_damage_hit_animation_sync.md`
+- [x] 1. Investigate non-click automatic dialogue systems in Wonderland Online (walk-on regions, story arrival, client proximity auto-click, overhead bubbles).
+- [x] 2. Audit `AC06.cs` and `EveEventRuntime.cs` for walk-on triggers (`TryExecuteRegion`, `Entry_Points`).
+- [x] 3. Fix missing running packet handler (`AC 6, Sub 2`) in `AC06.cs` so running players trigger walk-on region auto-dialogues and warps.
+- [x] 4. Verify solution builds with 0 warnings and 0 errors.
+- [x] 5. Create technical documentation in `docs/69_walk_on_region_running_subcode_and_auto_dialogue.md` and update `README.md`.

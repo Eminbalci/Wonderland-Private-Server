@@ -200,7 +200,7 @@ namespace Game.QuestRelated
             {
                 if (player == null) return true;
                 bool eventVisible;
-                if (player.CurMap?.MapID == mapId && Game.Maps.EveEventInterpreter.UsesNativeMechanisms(mapId) &&
+                if (player.CurMap?.MapID == mapId && player.NativeEventActive &&
                     player.NativeActorVisibility.TryGetValue(clickId, out eventVisible)) return eventVisible;
                 var mapNpc = player.CurMap?.MapID == mapId
                     ? (player.CurMap as GameMap)?.NpcList?.OfType<Game.Maps.QuestNpc>().FirstOrDefault(n => n.CickID == clickId)
@@ -348,9 +348,9 @@ namespace Game.QuestRelated
                 {
                     foreach (var qDef in QuestManager.AllQuests.Values)
                     {
-                        if (qDef.MapID != mapId) continue;
+                        bool isQuestMap = (qDef.MapID == mapId || qDef.RelocateToMapID == mapId);
 
-                        if (qDef.DespawnNpcClickIDs != null && qDef.DespawnNpcClickIDs.Contains(clickId))
+                        if (isQuestMap && qDef.DespawnNpcClickIDs != null && qDef.DespawnNpcClickIDs.Contains(clickId))
                         {
                             if (player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.Completed)
                             {
@@ -358,11 +358,11 @@ namespace Game.QuestRelated
                             }
                         }
 
-                        if (qDef.SpawnNpcClickIDs != null && qDef.SpawnNpcClickIDs.Contains(clickId))
+                        if (isQuestMap && qDef.SpawnNpcClickIDs != null && qDef.SpawnNpcClickIDs.Contains(clickId))
                         {
                             bool questCompleted = player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.Completed;
-                            if (!questCompleted) return false;
-                            return true;
+                            if (questCompleted) return true;
+                            return false;
                         }
 
                         if (qDef.Steps != null)
@@ -379,8 +379,8 @@ namespace Game.QuestRelated
                                 if (step.SpawnNpcClickIDs != null && step.SpawnNpcClickIDs.Contains(clickId))
                                 {
                                     bool stepActive = player.Quests != null && player.Quests.TryGetValue(qDef.QuestID, out var pq) && pq.State == QuestState.InProgress && pq.Step == step.StepIndex;
-                                    if (!stepActive) return false;
-                                    return true;
+                                    if (stepActive) return true;
+                                    return false;
                                 }
                             }
                         }
@@ -391,29 +391,39 @@ namespace Game.QuestRelated
                 // A staged actor can have its own click events; duplicate-name heuristics
                 // cannot determine whether it belongs to the current quest phase.
                 bool visible = npcDef == null || (npcDef.unknownbyte1 & 1) != 0;
-                if (mapData?.PreEvents == null) return visible;
+                bool preEventControlled = false;
 
-                foreach (var preEvent in mapData.PreEvents)
+                if (mapData?.PreEvents != null)
                 {
-                    foreach (var rule in GetApplicableRules(player, mapId, preEvent))
+                    foreach (var preEvent in mapData.PreEvents)
                     {
-                        if (!rule.Conditions.All(cond => EvaluateConditionBlock(player, cond))) continue;
-                        if (rule.Actions != null)
+                        foreach (var rule in GetApplicableRules(player, mapId, preEvent))
                         {
-                            foreach (var action in rule.Actions)
+                            if (!rule.Conditions.All(cond => EvaluateConditionBlock(player, cond))) continue;
+                            if (rule.Actions != null)
                             {
-                                var data = action.unknown;
-                                if (data == null || data.Count < 5 || data[0] != 2) continue;
-                                var bytes = data.ToArray();
-                                if (BitConverter.ToUInt16(bytes, 1) != clickId) continue;
-                                ushort actionType = BitConverter.ToUInt16(bytes, 3);
-                                if (actionType == 2) visible = false;
-                                else if (actionType == 3) visible = true;
+                                foreach (var action in rule.Actions)
+                                {
+                                    var data = action.unknown;
+                                    if (data == null || data.Count < 5 || data[0] != 2) continue;
+                                    var bytes = data.ToArray();
+                                    if (BitConverter.ToUInt16(bytes, 1) != clickId) continue;
+                                    ushort actionType = BitConverter.ToUInt16(bytes, 3);
+                                    if (actionType == 2) { visible = false; preEventControlled = true; }
+                                    else if (actionType == 3) { visible = true; preEventControlled = true; }
+                                }
                             }
+                            // PreEvent rules are cumulative. Apply every matching rule in
+                            // file order, including hide/show pairs targeting the same actor.
                         }
-                        // PreEvent rules are cumulative. Apply every matching rule in
-                        // file order, including hide/show pairs targeting the same actor.
                     }
+                }
+
+                // If no matching PreEvent rule authoritatively controlled this actor, check runtime cache
+                if (!preEventControlled && player.CurMap?.MapID == mapId &&
+                    player.NativeActorVisibility.TryGetValue(clickId, out bool runtimeVis))
+                {
+                    visible = runtimeVis;
                 }
                 // Event 60002:51 explicitly shows the standing pair when they leave
                 // the party. Its high-amity branch also sets CG eligibility mark 50046,

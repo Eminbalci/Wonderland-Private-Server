@@ -1557,6 +1557,34 @@ namespace Game
                                 }
                             }
                         }
+                        else if (chatMsg.StartsWith("/quest", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith(":quest", StringComparison.OrdinalIgnoreCase) ||
+                                 chatMsg.StartsWith("/setquest", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!Game.PlayerRelated.GmManager.IsGm(c))
+                            {
+                                c.SendSystemMessage("You do not have GM privileges to manage quest flags.");
+                            }
+                            else
+                            {
+                                var parts = chatMsg.Split(' ');
+                                if (parts.Length > 1 && uint.TryParse(parts[1], out uint qId))
+                                {
+                                    byte qStep = 1;
+                                    if (parts.Length > 2 && byte.TryParse(parts[2], out byte parsedStep))
+                                        qStep = parsedStep;
+
+                                    Game.QuestRelated.QuestManager.SetPlayerQuestState(c, qId, Game.QuestRelated.QuestState.InProgress, qStep);
+                                    Game.QuestRelated.QuestManager.SavePlayerQuest(c, qId);
+                                    Game.QuestRelated.QuestManager.SyncPerPlayerNpcVisibility(c, (ushort)(c.CurMap?.MapID ?? c.MapID));
+                                    c.SendSystemMessage($"[GM] Quest #{qId} set to InProgress (Step {qStep})! Map NPCs synchronized.");
+                                }
+                                else
+                                {
+                                    c.SendSystemMessage("[GM] Usage: /quest <questId> [step=1]");
+                                }
+                            }
+                        }
 
                         string[] msgsSent = chatMsg.Split('>');
                         if (msgsSent.Length > 1)
@@ -1588,6 +1616,22 @@ namespace Game
                                     case "PR": //ride pet 
                                         RideVehicle(""); //unride any vehicles first
                                         if (AddPetToPartyList(cmdValue)) PutPetToRide(cmdValue);
+                                        break;
+                                    case "Q": //set quest flag
+                                        {
+                                            var qparts = cmdValue.Split('>');
+                                            if (qparts.Length > 0 && uint.TryParse(qparts[0], out uint qId))
+                                            {
+                                                byte qStep = 1;
+                                                if (qparts.Length > 1 && byte.TryParse(qparts[1], out byte parsedStep))
+                                                    qStep = parsedStep;
+
+                                                Game.QuestRelated.QuestManager.SetPlayerQuestState(this, qId, Game.QuestRelated.QuestState.InProgress, qStep);
+                                                Game.QuestRelated.QuestManager.SavePlayerQuest(this, qId);
+                                                Game.QuestRelated.QuestManager.SyncPerPlayerNpcVisibility(this, (ushort)(CurMap?.MapID ?? MapID));
+                                                SendSystemMessage($"[Cheat] Quest #{qId} set to InProgress (Step {qStep})! Map NPCs synchronized.");
+                                            }
+                                        }
                                         break;
                                 }
                             }

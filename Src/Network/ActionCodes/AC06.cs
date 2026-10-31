@@ -16,7 +16,7 @@ namespace Network.ActionCodes
                 switch (p.Unpack8())
                 {
                     case 1: Recv1(r, p); break;
-                    //case 2: Recv2(r, p); break;
+                    case 2: Recv2(r, p); break;
                     //case 3: Recv3(r, p); break;
                 }
         }
@@ -126,6 +126,7 @@ namespace Network.ActionCodes
         }
         void Recv2(Player p, RecievePacket r)
         {
+            Recv1(p, r);
         }
         void Recv3(Player p, RecievePacket r)
         {

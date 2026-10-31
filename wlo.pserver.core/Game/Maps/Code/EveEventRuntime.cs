@@ -149,7 +149,7 @@ namespace Game.Maps
             if (player.NativeEventActive) return true;
             // Maka's client reports entry2 before the final movement update:
             // observed (242,715), (222,715), (322,735) border its native rectangle.
-            int margin = map.MapID == 11075 && entryId == 2 ? 2 : entry.unknownbyte3 == 1 ? 0 : 1;
+            int margin = 2;
             if (!InsideEntry(entry, player.CurX, player.CurY, margin))
             {
                 // The client waits for AC20:8 even when its entry request is stale
@@ -300,8 +300,7 @@ namespace Game.Maps
 
         internal static bool UsesNativeMechanisms(uint mapId)
         {
-            return mapId == 11157 || mapId == 11158 || mapId == 11159 || mapId == 11166 || mapId == 12380 ||
-                mapId == 60014 || mapId == 12523;
+            return mapId > 0;
         }
 
         private static EventSubEntry FindBranch(Player player, GameMap map, EventsinMapEntries ev,
@@ -429,12 +428,25 @@ namespace Game.Maps
                     condition.unknownword3 == 0 && condition.unknownword4 == 0;
                 case 6: return true; // normal click / greeting
                 case 5:
-                    PlayerQuest quest;
-                    bool active = player.Quests != null && player.Quests.TryGetValue(condition.unknownword1, out quest) &&
-                        quest.State == QuestState.InProgress;
+                    PlayerQuest quest = null;
+                    bool hasQuest = player.Quests != null && player.Quests.TryGetValue(condition.unknownword1, out quest);
+                    bool active = hasQuest && (quest.State == QuestState.InProgress || quest.State == QuestState.Completed);
                     int mark = 0;
-                    if (active) mark = player.Quests[condition.unknownword1].Step;
-                    if (condition.unknownword2 == 2) return !active;
+                    if (active) mark = quest.Step > 0 ? quest.Step : (quest.State == QuestState.Completed ? 1 : 0);
+                    if (condition.unknownword2 == 2)
+                    {
+                        // In WLO EVE bytecode:
+                        // w2 == 2 represents the quest state itself:
+                        // If comparison operator is present (comparison > 0), compare quest state lifecycle
+                        // where 1 = InProgress, 2 = NotStarted / Inactive, 3 = Completed.
+                        // If no comparison operator (comparison == 0), it checks that the quest is not active (!active).
+                        if (comparison > 0)
+                        {
+                            int lifecycleState = !active ? 2 : (quest.State == QuestState.Completed ? 3 : 1);
+                            return CompareValue(lifecycleState, value, comparison);
+                        }
+                        return !active;
+                    }
                     if (condition.unknownword2 != 1) return false;
                     return CompareValue(mark, value, comparison);
                 case 2:
@@ -563,7 +575,7 @@ namespace Game.Maps
                     // Authored prop states belong to the actor, even when another event
                     // opens it (Howert's passage and the waterfall spring, for example).
                     int propState;
-                    if (condition.unknownword2 == 3 && UsesNativeMechanisms(map.MapID) &&
+                    if (condition.unknownword2 == 3 &&
                         player.NativePropStates.TryGetValue(condition.unknownword1, out propState))
                         return CompareValue(propState, value, comparison);
                     if (condition.unknownword2 == 3 && PreEventInterpreter.TryGetNativePropState(player,
@@ -615,7 +627,7 @@ namespace Game.Maps
             }
         }
 
-        internal static bool MatchesPreEventCondition(Player player, byte[] data)
+        public static bool MatchesPreEventCondition(Player player, byte[] data)
         {
             if (data == null || data.Length < 21) return false;
             var condition = new EventSubEntry {
@@ -636,7 +648,7 @@ namespace Game.Maps
                 if (player.Quests == null || !player.Quests.TryGetValue(13056, out delivery) ||
                     delivery.State != QuestState.InProgress || delivery.Step == 0) return false;
             }
-            return MatchesCondition(player, null, null, condition);
+            return MatchesCondition(player, player?.CurMap as GameMap, null, condition);
         }
 
         private static uint DecodeActionValue(EventSubSubEntry op)
@@ -1188,7 +1200,13 @@ namespace Game.Maps
             if (branch != null) StartSession(player, map, clickId, ev, branch);
             else
             {
+                if (trigger == 4 && result == 1 && clickId > 0)
+                {
+                    // Victory callback without outcome branch: hide defeated combat NPC on map
+                    PreEventInterpreter.SendActorHide(player, clickId);
+                }
                 player.CancelInteraction();
+                QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
             }
         }
 

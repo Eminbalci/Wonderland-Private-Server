@@ -41,6 +41,12 @@ namespace Game.Battle
         public Action OnFlee { get; set; }
     }
 
+    public class BattleSpawnEntry
+    {
+        public uint MonsterTid { get; set; }
+        public byte Slot { get; set; }
+    }
+
     public enum BattleFighterType : byte
     {
         Player = 2,
@@ -224,6 +230,8 @@ namespace Game.Battle
         }
 
         public List<BattleMonster> Monsters { get; set; } = new List<BattleMonster>();
+        public Dictionary<byte, Queue<uint>> ReinforcementQueues { get; set; } = new Dictionary<byte, Queue<uint>>();
+        public bool HasPendingReinforcements => ReinforcementQueues.Any(kvp => kvp.Value.Count > 0);
 
         public Player.PlayerPetData BattlePet
         {
@@ -309,6 +317,7 @@ namespace Game.Battle
                 }
                 if (target != null)
                 {
+                    target.ReinforcementQueues.Clear();
                     EndBattleVictory(target);
                     return true;
                 }
@@ -331,6 +340,7 @@ namespace Game.Battle
                 }
                 if (target != null)
                 {
+                    target.ReinforcementQueues.Clear();
                     EndBattleFlee(target);
                     return true;
                 }
@@ -396,6 +406,47 @@ namespace Game.Battle
             new byte[] { 1, 1 }, // Back Left
             new byte[] { 1, 4 }  // Back Far Right
         };
+
+        public static void GetEnemySlotCoordinates(byte slot, out byte gridX, out byte gridY)
+        {
+            switch (slot)
+            {
+                case 1: gridX = 2; gridY = 1; break; // Front Left
+                case 2: gridX = 2; gridY = 2; break; // Front Center-Left
+                case 3: gridX = 2; gridY = 3; break; // Front Center-Right
+                case 4: gridX = 2; gridY = 4; break; // Front Right
+                case 5: gridX = 1; gridY = 1; break; // Back Left
+                case 6: gridX = 1; gridY = 2; break; // Back Center-Left
+                case 7: gridX = 1; gridY = 3; break; // Back Center-Right
+                case 8: gridX = 1; gridY = 4; break; // Back Right
+                default: gridX = 2; gridY = 2; break;
+            }
+        }
+
+        public static byte GetSlotFromEnemyCoordinates(byte gridX, byte gridY)
+        {
+            if (gridX == 2)
+            {
+                switch (gridY)
+                {
+                    case 1: return 1;
+                    case 2: return 2;
+                    case 3: return 3;
+                    case 4: return 4;
+                }
+            }
+            else if (gridX == 1)
+            {
+                switch (gridY)
+                {
+                    case 1: return 5;
+                    case 2: return 6;
+                    case 3: return 7;
+                    case 4: return 8;
+                }
+            }
+            return 0;
+        }
 
         public static bool IsInBattle(Player player)
         {
@@ -701,7 +752,7 @@ namespace Game.Battle
             InitializeAndStartBattle(battle);
         }
 
-        public static void StartPvEBattle(Player player, ushort clickId, string monsterName, int npcLv = 10, int npcHp = 250, uint monsterTid = 11066, QuestBattleContext questContext = null, uint[] enemyTemplates = null)
+        public static void StartPvEBattle(Player player, ushort clickId, string monsterName, int npcLv = 10, int npcHp = 250, uint monsterTid = 11066, QuestBattleContext questContext = null, uint[] enemyTemplates = null, IEnumerable<BattleSpawnEntry> spawnEntries = null)
         {
             if (player == null) return;
 
@@ -735,10 +786,52 @@ namespace Game.Battle
                 battle.EncounterNpc = encounterNpc;
             }
 
-            var templates = enemyTemplates != null && enemyTemplates.Length > 0 ? enemyTemplates : new[] { monsterTid };
-            foreach (uint template in templates.Take(EnemyGridSlots.Length))
+            var slotQueues = new Dictionary<byte, Queue<uint>>();
+            byte[] preferredSlots = new byte[] { 2, 3, 6, 5, 1, 4, 7, 8 };
+
+            if (spawnEntries != null && spawnEntries.Any())
             {
-                int index = battle.Monsters.Count;
+                foreach (var entry in spawnEntries)
+                {
+                    if (entry.MonsterTid < 10000) continue;
+                    byte s = entry.Slot;
+                    if (s < 1 || s > 8)
+                    {
+                        s = preferredSlots.FirstOrDefault(ps => !slotQueues.ContainsKey(ps));
+                        if (s == 0) s = 2;
+                    }
+                    if (!slotQueues.ContainsKey(s))
+                    {
+                        slotQueues[s] = new Queue<uint>();
+                    }
+                    slotQueues[s].Enqueue(entry.MonsterTid);
+                }
+            }
+            else
+            {
+                var templates = enemyTemplates != null && enemyTemplates.Length > 0 ? enemyTemplates : new[] { monsterTid };
+                for (int i = 0; i < templates.Length; i++)
+                {
+                    byte s = GetSlotFromEnemyCoordinates(EnemyGridSlots[i % EnemyGridSlots.Length][0], EnemyGridSlots[i % EnemyGridSlots.Length][1]);
+                    if (!slotQueues.ContainsKey(s))
+                    {
+                        slotQueues[s] = new Queue<uint>();
+                    }
+                    slotQueues[s].Enqueue(templates[i]);
+                }
+            }
+
+            int spawnIndex = 0;
+            foreach (var kvp in slotQueues)
+            {
+                byte slot = kvp.Key;
+                var queue = kvp.Value;
+                if (queue.Count == 0) continue;
+
+                uint template = queue.Dequeue();
+                byte gridX, gridY;
+                GetEnemySlotCoordinates(slot, out gridX, out gridY);
+
                 var monster = new BattleMonster
                 {
                     MonsterId = template,
@@ -752,16 +845,29 @@ namespace Game.Battle
                     MonsterAtk = monAtk,
                     MonsterDef = monDef,
                     MonsterSpd = monSpd,
-                    ClickId = clickId,
-                    GridX = EnemyGridSlots[index][0],
-                    GridY = EnemyGridSlots[index][1]
+                    ClickId = clickId > 0 ? clickId : (ushort)(2000 + spawnIndex),
+                    GridX = gridX,
+                    GridY = gridY
                 };
-                if (enemyTemplates != null)
-                    ApplyQuestTemplate(monster, DataBase.GameDataBase.GlobalInstance?.GetNpcTemplate((int)template));
+                ApplyQuestTemplate(monster, DataBase.GameDataBase.GlobalInstance?.GetNpcTemplate((int)template));
                 battle.Monsters.Add(monster);
+
+                if (queue.Count > 0)
+                {
+                    battle.ReinforcementQueues[slot] = queue;
+                }
+                spawnIndex++;
             }
 
-            DebugSystem.Write($"[PvEBattle] Starting Quest PvE battle for {player.CharName} ({battle.AttackingPlayers.Count} team members) vs {string.Join(", ", battle.Monsters.Select(m => m.MonsterId + " Lv:" + m.MonsterLevel + " HP:" + m.MonsterHP))}");
+            int totalReinforcements = battle.ReinforcementQueues.Sum(q => q.Value.Count);
+            if (totalReinforcements > 0)
+            {
+                DebugSystem.Write($"[PvEBattle] Initialized {battle.Monsters.Count} monsters with {totalReinforcements} pending reinforcements across {battle.ReinforcementQueues.Count} slots for {player.CharName}");
+            }
+            else
+            {
+                DebugSystem.Write($"[PvEBattle] Starting Quest PvE battle for {player.CharName} ({battle.AttackingPlayers.Count} team members) vs {string.Join(", ", battle.Monsters.Select(m => m.MonsterId + " Lv:" + m.MonsterLevel + " HP:" + m.MonsterHP))}");
+            }
             InitializeAndStartBattle(battle);
         }
 
@@ -1312,7 +1418,7 @@ namespace Game.Battle
             }
 
             // Keep existing non-damage/status behavior outside this correction.
-            if (skill.IsPureStatusDebuff || skill.IsPureSupport || skill.Target != 0)
+            if (skill.IsPureStatusDebuff || skill.IsPureSupport || skill.Target != 0 || skill.IsShield || skill.IsHotBlooded || skill.IsSpeedUp || skill.IsVanish || skill.IsBuff)
                 return 0;
 
             if (skill.EffectLayer != (byte)EffectLayer.Physical && skill.EffectLayer != (byte)EffectLayer.Magical)
@@ -1358,12 +1464,16 @@ namespace Game.Battle
             if (actor.PetRef != null)
             {
                 actor.PetRef.EnsureSkills();
-                return actor.PetRef.Skills.Any(s => s.SkillID == skillId && s.Grade > 0) && actor.PetRef.SP >= skill.SP;
+                int currentSp = Math.Max(actor.CurSP, actor.PetRef.SP);
+                return actor.PetRef.Skills.Any(s => s.SkillID == skillId && s.Grade > 0) && currentSp >= skill.SP;
             }
             if (actor.PlayerRef != null)
+            {
+                int currentSp = Math.Max(actor.CurSP, actor.PlayerRef?.Eqs?.CurSP ?? 0);
                 return actor.PlayerRef.PlayerSkills.Any(s => s.Grade > 0 &&
                     (s.SkillID == skillId || SkillRelated.SkillManager.GetClientSkillId(actor.PlayerRef, s.SkillID) == skillId)) &&
-                    actor.PlayerRef.Eqs.CurSP >= skill.SP;
+                    currentSp >= skill.SP;
+            }
             return true; // Server-owned monsters use their configured actions.
         }
 
@@ -1533,6 +1643,11 @@ namespace Game.Battle
                 var ps = actor.PlayerRef.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId);
                 if (ps != null && ps.Grade > 0) return ps.Grade;
             }
+            if (actor?.PetRef?.Skills != null)
+            {
+                var ps = actor.PetRef.Skills.FirstOrDefault(s => s.SkillID == skillId);
+                if (ps != null && ps.Grade > 0) return ps.Grade;
+            }
             return 1;
         }
 
@@ -1631,8 +1746,11 @@ namespace Game.Battle
                     {
                         if (opposingFighters.All(f => f.IsDead))
                         {
-                            EndBattleVictory(battle);
-                            return;
+                            if (!battle.HasPendingReinforcements)
+                            {
+                                EndBattleVictory(battle);
+                                return;
+                            }
                         }
                         if (friendlyFighters.All(f => f.IsDead))
                         {
@@ -1697,24 +1815,25 @@ namespace Game.Battle
                             byte pattern = sk != null ? sk.GetPatternForGrade(grade) : (byte)1;
 
                             // Target ally (for revive, search dead allies first)
+                            var allyTeam = actor.Side == BattleTeamSide.Attacker ? battle.Attackers : battle.Defenders;
                             BattleFighter primaryAlly;
                             if (sk != null && sk.IsRevive)
                             {
-                                primaryAlly = friendlyFighters.FirstOrDefault(f => f.IsDead && f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
-                                           ?? friendlyFighters.FirstOrDefault(f => f.IsDead)
-                                           ?? friendlyFighters.FirstOrDefault(f => f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
+                                primaryAlly = allyTeam.FirstOrDefault(f => f.IsDead && f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
+                                           ?? allyTeam.FirstOrDefault(f => f.IsDead)
+                                           ?? allyTeam.FirstOrDefault(f => f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
                                            ?? actor;
                             }
                             else
                             {
-                                primaryAlly = friendlyFighters.FirstOrDefault(f => !f.IsDead && f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
-                                           ?? friendlyFighters.FirstOrDefault(f => !f.IsDead)
+                                primaryAlly = allyTeam.FirstOrDefault(f => !f.IsDead && f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
+                                           ?? allyTeam.FirstOrDefault(f => !f.IsDead)
                                            ?? actor;
                             }
 
                             var candidateAllies = (sk != null && sk.IsRevive)
-                                ? friendlyFighters.Where(f => f.IsDead).ToList()
-                                : friendlyFighters.Where(f => !f.IsDead).ToList();
+                                ? allyTeam.Where(f => f.IsDead).ToList()
+                                : allyTeam.Where(f => !f.IsDead).ToList();
 
                             var targetAllies = AoeTargetResolver.ResolveTargets(primaryAlly, pattern, candidateAllies);
                             if (targetAllies.Count == 0) targetAllies.Add(primaryAlly);
@@ -1762,7 +1881,8 @@ namespace Game.Battle
                             else if (sk != null && sk.IsHeal)
                             {
                                 supportKind = SkillRelated.SkillManager.SupportSkillKind.Heal;
-                                int healAmt = Math.Max(40, (int)(actor.Atk * 2.2) + (actor.Level * 15));
+                                int healStat = Math.Max(actor.Atk, actor.Matk);
+                                int healAmt = Math.Max(40, (int)(healStat * 2.2) + (actor.Level * 15));
                                 supportRestored = healAmt;
 
                                 foreach (var ally in targetAllies)
@@ -1791,7 +1911,8 @@ namespace Game.Battle
                             }
                             else if (sk != null && sk.IsManaRecovery)
                             {
-                                int spAmt = Math.Max(25, (int)(actor.Matk * 1.5) + (actor.Level * 10));
+                                int manaStat = Math.Max(actor.Atk, actor.Matk);
+                                int spAmt = Math.Max(25, (int)(manaStat * 1.5) + (actor.Level * 10));
                                 foreach (var ally in targetAllies)
                                 {
                                     ally.CurSP = Math.Min(ally.MaxSP, ally.CurSP + spAmt);
@@ -1908,7 +2029,7 @@ namespace Game.Battle
                                 int turns = baseTurns + 1;
                                 foreach (var ally in targetAllies)
                                 {
-                                    ally.AddStatus(FighterStatusType.SpeedUp, turns);
+                                    ally.AddStatus(FighterStatusType.SpeedUp, turns, 30);
                                     ally.Spd += 30;
 
                                     pSupport.PackArray(new byte[] { 0x11, 0x00 });
@@ -1923,6 +2044,27 @@ namespace Game.Battle
                                 }
                                 BroadcastToBattle(battle, pSupport);
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {primaryAlly.Name} enters [Speed Up] state! (+30 SPD for {baseTurns} turns)"));
+                            }
+                            else if (sk != null && sk.IsVanish)
+                            {
+                                int baseTurns = sk.NumberOfTurns > 0 ? (int)sk.NumberOfTurns : 2;
+                                int turns = baseTurns + 1;
+                                foreach (var ally in targetAllies)
+                                {
+                                    ally.AddStatus(FighterStatusType.Vanish, turns);
+
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0xE6); // Visual Vanish concealment overlay
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {primaryAlly.Name} enters [Vanish] state! (Concealed for {baseTurns} turns)"));
                             }
                             else
                             {
@@ -2085,8 +2227,11 @@ namespace Game.Battle
                             {
                                 if (opposingFighters.All(f => f.IsDead))
                                 {
-                                    EndBattleVictory(battle);
-                                    return;
+                                    if (!battle.HasPendingReinforcements)
+                                    {
+                                        EndBattleVictory(battle);
+                                        return;
+                                    }
                                 }
                                 break;
                             }
@@ -2277,8 +2422,11 @@ namespace Game.Battle
                         // Check if all opposing fighters defeated
                         if (opposingFighters.All(f => f.IsDead))
                         {
-                            EndBattleVictory(battle);
-                            return;
+                            if (!battle.HasPendingReinforcements)
+                            {
+                                EndBattleVictory(battle);
+                                return;
+                            }
                         }
 
                         // ---- Phase 5: Enemy Monster Retaliation (PvE) ----
@@ -2336,7 +2484,9 @@ namespace Game.Battle
                                     }
                                 }
 
-                                var target = livingTargets[_rng.Next(0, livingTargets.Count)];
+                                var nonVanishedTargets = livingTargets.Where(f => !f.HasStatus(FighterStatusType.Vanish)).ToList();
+                                var availableTargets = nonVanishedTargets.Count > 0 ? nonVanishedTargets : livingTargets;
+                                var target = availableTargets[_rng.Next(0, availableTargets.Count)];
                                 int rawDmg = Math.Max(5, (int)(monster.Atk * 1.2) - target.Def);
 
                                 if (defendingActors.Contains((target.GridX << 8) | target.GridY) || target.HasStatus(FighterStatusType.Shielded))
@@ -2418,7 +2568,117 @@ namespace Game.Battle
                             {
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {f.Name}'s [Shield] barrier has expired."));
                             }
+                            else if (exp == FighterStatusType.SpeedUp)
+                            {
+                                f.Spd = Math.Max(0, f.Spd - 30);
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {f.Name}'s [Speed Up] state has expired."));
+                            }
+                            else if (exp == FighterStatusType.Vanish)
+                            {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {f.Name}'s [Vanish] state has expired."));
+                            }
                         }
+                    }
+
+                    // ---- Phase 6.5: Reinforcement Spawning ----
+                    bool spawnedAnyReinforcements = false;
+                    var deadDefenders = battle.Defenders.Where(f => f.FighterType == BattleFighterType.Monster && f.IsDead).ToList();
+
+                    foreach (var deadFighter in deadDefenders)
+                    {
+                        byte slot = GetSlotFromEnemyCoordinates(deadFighter.GridX, deadFighter.GridY);
+                        if (slot > 0 && battle.ReinforcementQueues.TryGetValue(slot, out var queue) && queue.Count > 0)
+                        {
+                            uint nextTemplateId = queue.Dequeue();
+                            string nextMobName = Game.DataFiles.SceneDataManager.GetNpcName(nextTemplateId) ?? "Monster";
+
+                            var nextMonster = new BattleMonster
+                            {
+                                MonsterId = nextTemplateId,
+                                MonsterName = nextMobName,
+                                MonsterLevel = deadFighter.Level,
+                                MonsterMaxHP = deadFighter.MaxHP,
+                                MonsterHP = deadFighter.MaxHP,
+                                MonsterMaxSP = deadFighter.MaxSP,
+                                MonsterSP = deadFighter.MaxSP,
+                                MonsterElement = deadFighter.Element,
+                                MonsterAtk = deadFighter.Atk,
+                                MonsterDef = deadFighter.Def,
+                                MonsterSpd = deadFighter.Spd,
+                                ClickId = deadFighter.ClickID,
+                                GridX = deadFighter.GridX,
+                                GridY = deadFighter.GridY
+                            };
+                            ApplyQuestTemplate(nextMonster, DataBase.GameDataBase.GlobalInstance?.GetNpcTemplate((int)nextTemplateId));
+                            battle.Monsters.Add(nextMonster);
+
+                            var newFighter = new BattleFighter
+                            {
+                                Side = BattleTeamSide.Defender,
+                                FighterType = BattleFighterType.Monster,
+                                MonsterRef = nextMonster,
+                                ID = nextMonster.MonsterId,
+                                ClickID = deadFighter.ClickID,
+                                Name = nextMonster.MonsterName,
+                                GridX = deadFighter.GridX,
+                                GridY = deadFighter.GridY,
+                                Level = (byte)Math.Min(255, nextMonster.MonsterLevel),
+                                Element = (byte)nextMonster.MonsterElement,
+                                MaxHP = Math.Max(1, nextMonster.MonsterMaxHP),
+                                CurHP = Math.Max(1, nextMonster.MonsterHP),
+                                MaxSP = Math.Max(0, nextMonster.MonsterMaxSP),
+                                CurSP = Math.Max(0, nextMonster.MonsterSP),
+                                Atk = nextMonster.MonsterAtk > 0 ? nextMonster.MonsterAtk : (int)Math.Round(nextMonster.MonsterLevel * 1.5 + 5),
+                                Def = nextMonster.MonsterDef > 0 ? nextMonster.MonsterDef : (int)Math.Round(nextMonster.MonsterLevel * 1.2 + 3),
+                                Matk = nextMonster.MonsterAtk > 0 ? nextMonster.MonsterAtk : (int)Math.Round(nextMonster.MonsterLevel * 1.5 + 5),
+                                Mdef = nextMonster.MonsterDef > 0 ? nextMonster.MonsterDef : (int)Math.Round(nextMonster.MonsterLevel * 1.2 + 3),
+                                Spd = nextMonster.MonsterSpd > 0 ? nextMonster.MonsterSpd : (int)Math.Round(nextMonster.MonsterLevel * 1.3 + 4)
+                            };
+
+                            battle.Defenders.Remove(deadFighter);
+                            battle.Defenders.Add(newFighter);
+
+                            SendPacket pEnemy = new SendPacket();
+                            pEnemy.PackArray(new byte[] { 11, 5 });
+                            pEnemy.Pack8((byte)newFighter.Side);
+                            pEnemy.Pack8((byte)newFighter.FighterType);
+                            pEnemy.Pack32(newFighter.ID);
+                            pEnemy.Pack16(newFighter.ClickID);
+                            pEnemy.Pack32(0);
+                            pEnemy.Pack8(newFighter.GridX);
+                            pEnemy.Pack8(newFighter.GridY);
+                            pEnemy.Pack32((uint)newFighter.MaxHP);
+                            pEnemy.Pack16((ushort)Math.Min(0xFFFF, newFighter.MaxSP));
+                            pEnemy.Pack32((uint)newFighter.CurHP);
+                            pEnemy.Pack16((ushort)Math.Min(0xFFFF, newFighter.CurSP));
+                            pEnemy.Pack8(newFighter.Level);
+                            pEnemy.Pack8(newFighter.Element);
+                            pEnemy.Pack8(0);
+                            pEnemy.Pack8(0);
+                            pEnemy.Pack16(0);
+                            BroadcastToBattle(battle, pEnemy);
+
+                            foreach (var p in battle.AllPlayers)
+                            {
+                                SendStatSync(p, newFighter.GridX, newFighter.GridY, 0x19, (uint)newFighter.CurHP);
+                                SendStatSync(p, newFighter.GridX, newFighter.GridY, 0x1a, (uint)newFighter.CurSP);
+                            }
+
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {newFighter.Name} (Lv.{newFighter.Level}) enters as reinforcements!"));
+                            DebugSystem.Write($"[PvEBattle] Spawned reinforcement {newFighter.Name} (TID {newFighter.ID}, Lv.{newFighter.Level}) at Slot {slot} ({newFighter.GridX}, {newFighter.GridY}) in battle {battle.LeaderPlayer?.CharName}");
+                            spawnedAnyReinforcements = true;
+                        }
+                    }
+
+                    if (spawnedAnyReinforcements)
+                    {
+                        await Task.Delay(400);
+                    }
+
+                    if (battle.Defenders.All(f => f.IsDead) && !battle.HasPendingReinforcements)
+                    {
+                        EndBattleVictory(battle);
+                        return;
                     }
 
                     // ---- Phase 7: Open next round for all living players ----
@@ -2945,6 +3205,9 @@ namespace Game.Battle
                         player.Send(Tools.FromFormat("bbbs", 23, 57, 0, "You defeated the wolf and saved Grandmother! Quest Completed."));
                     }
                 }
+
+                // Symmetrically synchronize map NPC visibility following battle victory
+                QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)player.MapID);
             }
             catch (Exception qEx)
             {

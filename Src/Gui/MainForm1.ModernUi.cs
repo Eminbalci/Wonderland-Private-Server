@@ -546,6 +546,23 @@ namespace Wonderland_Private_Server
             }
 
             HighlightSubTabButton(subBtn);
+
+            if (tab == this.tabPageInventory)
+            {
+                LoadCharacterFilters();
+                if (cmbCharacterFilter.SelectedIndex >= 0)
+                {
+                    btnRefreshInventory_Click(null, null);
+                }
+            }
+            else if (tab == this.tabPageStats)
+            {
+                LoadCharacterFilters();
+                if (cmbCharacterFilterStats.SelectedIndex >= 0)
+                {
+                    btnRefreshStats_Click(null, null);
+                }
+            }
         }
 
         private void HighlightSubTabButton(Button subBtn)

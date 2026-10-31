@@ -739,7 +739,7 @@ namespace Game.Maps
                                  (map.MapID == 11185 && questId == 13203)) && state == QuestState.InProgress)
                                 QuestManager.SendStoryConstellations(player);
 
-                            if (map != null && !player.NativeEventActive)
+                            if (map != null)
                             {
                                 QuestManager.SyncPerPlayerNpcVisibility(player, (ushort)map.MapID);
                             }

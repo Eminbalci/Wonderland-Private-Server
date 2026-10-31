@@ -6,6 +6,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Data;
 using Game;
 using Plugin;
 
@@ -216,6 +217,22 @@ namespace Wonderland_Private_Server
                 }
 
                 if (cmbBroadcastColor.SelectedIndex < 0) cmbBroadcastColor.SelectedIndex = 0;
+                this.tabPageInventory.Enter += (s, ev) =>
+                {
+                    LoadCharacterFilters();
+                    if (cmbCharacterFilter.SelectedIndex >= 0)
+                    {
+                        btnRefreshInventory_Click(null, null);
+                    }
+                };
+                this.tabPageStats.Enter += (s, ev) =>
+                {
+                    LoadCharacterFilters();
+                    if (cmbCharacterFilterStats.SelectedIndex >= 0)
+                    {
+                        btnRefreshStats_Click(null, null);
+                    }
+                };
                 LoadCharacterFilters();
                 LoadChestDropTargets();
                 RefreshMonsterListGrid();
@@ -1588,42 +1605,180 @@ namespace Wonderland_Private_Server
         }
         #endregion
 
-        #region Inventory Management
+        #region Inventory & Character Selection Management
+        public class CharacterFilterItem
+        {
+            public uint CharID { get; set; }
+            public string Name { get; set; }
+            public bool IsOnline { get; set; }
+
+            public override string ToString()
+            {
+                return IsOnline ? $"{CharID} - {Name} [Online]" : $"{CharID} - {Name}";
+            }
+        }
+
+        private uint GetSelectedCharId(ComboBox cmb)
+        {
+            if (cmb == null || cmb.SelectedItem == null) return 0;
+            if (cmb.SelectedItem is CharacterFilterItem filterItem) return filterItem.CharID;
+
+            string selected = cmb.SelectedItem.ToString();
+            string idPart = selected.Split('-')[0].Trim();
+            idPart = System.Text.RegularExpressions.Regex.Replace(idPart, @"[^\d]", "");
+            if (uint.TryParse(idPart, out uint charID)) return charID;
+            return 0;
+        }
+
+        private string GetItemNameById(ushort itemId)
+        {
+            try
+            {
+                var itemInfo = cGlobal.ItemDatManager?.GetItemByID(itemId);
+                if (itemInfo != null && itemInfo.ItemName != null && itemInfo.ItemName.Length > 0)
+                {
+                    string name = System.Text.Encoding.Default.GetString(itemInfo.ItemName).Trim('\0', ' ');
+                    if (!string.IsNullOrEmpty(name)) return name;
+                }
+            }
+            catch { }
+            return "Item #" + itemId;
+        }
+
         private void btnRefreshInventory_Click(object sender, EventArgs e)
         {
             try
             {
-                // Get selected character from filter
-                uint charID = 0;
-                if (cmbCharacterFilter.SelectedItem != null)
+                // Auto-refresh character filters if unpopulated or no selection
+                if (cmbCharacterFilter.Items.Count == 0 || cmbCharacterFilter.SelectedItem == null)
                 {
-                    string selected = cmbCharacterFilter.SelectedItem.ToString();
-                    charID = uint.Parse(selected.Split('-')[0].Trim());
+                    LoadCharacterFilters();
+                }
+
+                uint charID = GetSelectedCharId(cmbCharacterFilter);
+                if (charID == 0 && cmbCharacterFilter.Items.Count > 0)
+                {
+                    cmbCharacterFilter.SelectedIndex = 0;
+                    charID = GetSelectedCharId(cmbCharacterFilter);
                 }
 
                 if (charID == 0)
                 {
-                    MessageBox.Show("Please select a character first.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("No characters found. Please log in or create a character first.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
-                // Query inventory with item names
-                var inventoryData = cGlobal.gGameDataBase.GetDataTable($@"
-                    SELECT
-                        i.charID,
-                        c.name as CharName,
-                        i.pos as Slot,
-                        i.itemID,
-                        i.dmg as Damage
-                    FROM inventory i
-                    LEFT JOIN characters c ON i.charID = c.charID
-                    WHERE i.charID = {charID} AND i.storID = 1
-                    ORDER BY i.pos
-                ");
+                DataTable dt = new DataTable();
+                dt.Columns.Add("charID", typeof(uint));
+                dt.Columns.Add("CharName", typeof(string));
+                dt.Columns.Add("Storage", typeof(string));
+                dt.Columns.Add("storID", typeof(byte));
+                dt.Columns.Add("Slot", typeof(int));
+                dt.Columns.Add("itemID", typeof(ushort));
+                dt.Columns.Add("ItemName", typeof(string));
+                dt.Columns.Add("Quantity", typeof(ushort));
+                dt.Columns.Add("Damage", typeof(byte));
 
-                if (inventoryData != null)
+                // Check if player is currently online
+                Player livePlayer = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(p => p.CharID == charID)
+                                    ?? cGlobal.gLoginServer?.GetAllPlayers()?.FirstOrDefault(p => p.CharID == charID);
+
+                if (livePlayer != null)
                 {
-                    dgvInventory.DataSource = inventoryData;
+                    string cName = !string.IsNullOrEmpty(livePlayer.CharName) ? livePlayer.CharName : "Online Player";
+
+                    // 1. Live Bag Items (storID = 0, slots 1-50)
+                    if (livePlayer.Inv != null)
+                    {
+                        for (byte s = 1; s <= 50; s++)
+                        {
+                            var itm = livePlayer.Inv[s];
+                            if (itm != null && itm.ItemID > 0)
+                            {
+                                string iName = GetItemNameById(itm.ItemID);
+                                dt.Rows.Add(charID, cName, "Bag", (byte)0, (int)s, itm.ItemID, iName, (ushort)itm.Ammt, itm.Damage);
+                            }
+                        }
+                    }
+
+                    // 2. Live Equipped Items (storID = 1, slots 1-6)
+                    if (livePlayer.Eqs != null)
+                    {
+                        for (byte s = 1; s <= 6; s++)
+                        {
+                            var eq = livePlayer.Eqs[s];
+                            if (eq != null && eq.ItemID > 0)
+                            {
+                                string iName = GetItemNameById(eq.ItemID);
+                                dt.Rows.Add(charID, cName, "Equipped", (byte)1, (int)s, eq.ItemID, iName, (ushort)eq.Ammt, eq.Damage);
+                            }
+                        }
+                    }
+
+                    // 3. Tent Storage Items from DB (storID = 2)
+                    try
+                    {
+                        var tentDt = cGlobal.gCharacterDataBase?.GetDataTable($"SELECT storID, pos as Slot, itemID, qty as Quantity, dmg as Damage FROM inventory WHERE charID = {charID} AND storID = 2 ORDER BY pos");
+                        if (tentDt != null)
+                        {
+                            foreach (System.Data.DataRow r in tentDt.Rows)
+                            {
+                                ushort iId = r["itemID"] != DBNull.Value ? Convert.ToUInt16(r["itemID"]) : (ushort)0;
+                                if (iId > 0)
+                                {
+                                    string iName = GetItemNameById(iId);
+                                    ushort qty = r["Quantity"] != DBNull.Value ? Convert.ToUInt16(r["Quantity"]) : (ushort)1;
+                                    byte dmg = r["Damage"] != DBNull.Value ? Convert.ToByte(r["Damage"]) : (byte)0;
+                                    int slot = r["Slot"] != DBNull.Value ? Convert.ToInt32(r["Slot"]) : 0;
+                                    dt.Rows.Add(charID, cName, "Tent", (byte)2, slot, iId, iName, qty, dmg);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                else
+                {
+                    // Offline player: read from database across all storID (0=Bag, 1=Equipped, 2=Tent)
+                    var inventoryData = cGlobal.gCharacterDataBase?.GetDataTable($@"
+                        SELECT
+                            i.charID,
+                            c.name as CharName,
+                            i.storID,
+                            i.pos as Slot,
+                            i.itemID,
+                            i.qty as Quantity,
+                            i.dmg as Damage
+                        FROM inventory i
+                        LEFT JOIN characters c ON i.charID = c.charID
+                        WHERE i.charID = {charID}
+                        ORDER BY i.storID, i.pos
+                    ");
+
+                    if (inventoryData != null)
+                    {
+                        foreach (System.Data.DataRow row in inventoryData.Rows)
+                        {
+                            byte storID = row["storID"] != DBNull.Value ? Convert.ToByte(row["storID"]) : (byte)0;
+                            string storName = storID == 0 ? "Bag" : (storID == 1 ? "Equipped" : (storID == 2 ? "Tent" : $"Storage {storID}"));
+                            ushort iId = row["itemID"] != DBNull.Value ? Convert.ToUInt16(row["itemID"]) : (ushort)0;
+                            if (iId == 0) continue;
+
+                            string iName = GetItemNameById(iId);
+                            ushort qty = row["Quantity"] != DBNull.Value ? Convert.ToUInt16(row["Quantity"]) : (ushort)1;
+                            byte dmg = row["Damage"] != DBNull.Value ? Convert.ToByte(row["Damage"]) : (byte)0;
+                            int slot = row["Slot"] != DBNull.Value ? Convert.ToInt32(row["Slot"]) : 0;
+                            string cName = row["CharName"] != DBNull.Value ? row["CharName"].ToString() : "";
+
+                            dt.Rows.Add(charID, cName, storName, storID, slot, iId, iName, qty, dmg);
+                        }
+                    }
+                }
+
+                dgvInventory.DataSource = dt;
+                if (dgvInventory.Columns["storID"] != null)
+                {
+                    dgvInventory.Columns["storID"].Visible = false;
                 }
             }
             catch (Exception ex)
@@ -1643,16 +1798,36 @@ namespace Wonderland_Private_Server
             var row = dgvInventory.SelectedRows[0];
             uint charID = Convert.ToUInt32(row.Cells["charID"].Value);
             int slot = Convert.ToInt32(row.Cells["Slot"].Value);
+            byte storID = row.Cells["storID"] != null && row.Cells["storID"].Value != null ? Convert.ToByte(row.Cells["storID"].Value) : (byte)0;
+            string storageName = row.Cells["Storage"]?.Value?.ToString() ?? ("Storage " + storID);
+            string itemName = row.Cells["ItemName"]?.Value?.ToString() ?? "Selected Item";
+            ushort itemId = row.Cells["itemID"] != null && row.Cells["itemID"].Value != null ? Convert.ToUInt16(row.Cells["itemID"].Value) : (ushort)0;
 
-            var result = MessageBox.Show($"Delete item at slot {slot}?",
+            var result = MessageBox.Show($"Delete {itemName} (ID: {itemId}) at {storageName} slot {slot}?",
                 "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
 
             if (result == DialogResult.Yes)
             {
                 try
                 {
-                    string deleteQuery = $"DELETE FROM inventory WHERE charID = {charID} AND pos = {slot} AND storID = 1";
-                    cGlobal.gGameDataBase.ExecuteNonQuery(deleteQuery);
+                    // Check if player is online and synchronize live memory
+                    Player livePlayer = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(p => p.CharID == charID)
+                                        ?? cGlobal.gLoginServer?.GetAllPlayers()?.FirstOrDefault(p => p.CharID == charID);
+
+                    if (livePlayer != null)
+                    {
+                        if (storID == 0 && livePlayer.Inv != null && slot >= 1 && slot <= 50)
+                        {
+                            livePlayer.Inv.RemoveItem((byte)slot, livePlayer.Inv[(byte)slot].Ammt, true);
+                        }
+                        else if (storID == 1 && livePlayer.Eqs != null && slot >= 1 && slot <= 6)
+                        {
+                            livePlayer.Eqs[(byte)slot].Clear();
+                        }
+                    }
+
+                    string deleteQuery = $"DELETE FROM inventory WHERE charID = {charID} AND pos = {slot} AND storID = {storID}";
+                    cGlobal.gCharacterDataBase?.ExecuteNonQuery(deleteQuery);
                     MessageBox.Show("Item deleted successfully.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     btnRefreshInventory_Click(null, null);
                 }
@@ -1674,22 +1849,27 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                // Get selected character from filter
-                uint charID = 0;
-                if (cmbCharacterFilterStats.SelectedItem != null)
+                // Auto-refresh character filters if unpopulated or no selection
+                if (cmbCharacterFilterStats.Items.Count == 0 || cmbCharacterFilterStats.SelectedItem == null)
                 {
-                    string selected = cmbCharacterFilterStats.SelectedItem.ToString();
-                    charID = uint.Parse(selected.Split('-')[0].Trim());
+                    LoadCharacterFilters();
+                }
+
+                uint charID = GetSelectedCharId(cmbCharacterFilterStats);
+                if (charID == 0 && cmbCharacterFilterStats.Items.Count > 0)
+                {
+                    cmbCharacterFilterStats.SelectedIndex = 0;
+                    charID = GetSelectedCharId(cmbCharacterFilterStats);
                 }
 
                 if (charID == 0)
                 {
-                    MessageBox.Show("Please select a character first.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("No characters found. Please log in or create a character first.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
                 // Query stats
-                var statsData = cGlobal.gCharacterDataBase.GetDataTable($@"
+                var statsData = cGlobal.gCharacterDataBase?.GetDataTable($@"
                     SELECT
                         s.charID,
                         c.name as CharName,
@@ -1704,7 +1884,10 @@ namespace Wonderland_Private_Server
                 if (statsData != null)
                 {
                     dgvStats.DataSource = statsData;
-                    dgvStats.Columns["StatusUp"].ReadOnly = false; // Make editable
+                    if (dgvStats.Columns["StatusUp"] != null)
+                    {
+                        dgvStats.Columns["StatusUp"].ReadOnly = false; // Make editable
+                    }
                 }
             }
             catch (Exception ex)
@@ -1740,10 +1923,11 @@ namespace Wonderland_Private_Server
                 try
                 {
                     string updateQuery = $"UPDATE stats SET StatusUp = {newStatValue} WHERE charID = {charID} AND statID = {statID}";
-                    cGlobal.gCharacterDataBase.ExecuteNonQuery(updateQuery);
+                    cGlobal.gCharacterDataBase?.ExecuteNonQuery(updateQuery);
 
                     // If player is currently online, update memory and sync client UI immediately
-                    var onlinePlayer = cGlobal.gLoginServer?.GetAllPlayers()?.FirstOrDefault(p => p.CharID == charID);
+                    var onlinePlayer = cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.FirstOrDefault(p => p.CharID == charID)
+                                       ?? cGlobal.gLoginServer?.GetAllPlayers()?.FirstOrDefault(p => p.CharID == charID);
                     if (onlinePlayer != null)
                     {
                         switch (statID)
@@ -1778,21 +1962,111 @@ namespace Wonderland_Private_Server
         {
             try
             {
-                var characters = cGlobal.gCharacterDataBase.GetAllCharacters();
+                uint prevSelectedInv = GetSelectedCharId(cmbCharacterFilter);
+                uint prevSelectedStats = GetSelectedCharId(cmbCharacterFilterStats);
+
+                var charMap = new Dictionary<uint, CharacterFilterItem>();
+
+                // 1. Load from DB
+                var characters = cGlobal.gCharacterDataBase?.GetAllCharacters();
                 if (characters != null)
+                {
+                    foreach (System.Data.DataRow row in characters.Rows)
+                    {
+                        if (row["charID"] != DBNull.Value && uint.TryParse(row["charID"].ToString(), out uint cid))
+                        {
+                            string cname = row["name"] != DBNull.Value ? row["name"].ToString() : "Unknown";
+                            charMap[cid] = new CharacterFilterItem { CharID = cid, Name = cname, IsOnline = false };
+                        }
+                    }
+                }
+
+                // 2. Load active online players
+                var onlinePlayers = new List<Player>();
+                if (cGlobal.gCharacterDataBase != null)
+                {
+                    var dbOnline = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                    if (dbOnline != null) onlinePlayers.AddRange(dbOnline);
+                }
+                if (cGlobal.gLoginServer != null)
+                {
+                    var loginOnline = cGlobal.gLoginServer.GetAllPlayers();
+                    if (loginOnline != null)
+                    {
+                        foreach (var p in loginOnline)
+                        {
+                            if (p != null && !onlinePlayers.Any(op => op.CharID == p.CharID))
+                                onlinePlayers.Add(p);
+                        }
+                    }
+                }
+
+                foreach (var p in onlinePlayers)
+                {
+                    if (p == null || p.CharID == 0) continue;
+                    if (charMap.TryGetValue(p.CharID, out var item))
+                    {
+                        item.IsOnline = true;
+                        if (!string.IsNullOrEmpty(p.CharName)) item.Name = p.CharName;
+                    }
+                    else
+                    {
+                        charMap[p.CharID] = new CharacterFilterItem
+                        {
+                            CharID = p.CharID,
+                            Name = !string.IsNullOrEmpty(p.CharName) ? p.CharName : "Online Character",
+                            IsOnline = true
+                        };
+                    }
+                }
+
+                // Sort: Online players first, then by CharID ascending
+                var sortedList = charMap.Values
+                    .OrderByDescending(c => c.IsOnline)
+                    .ThenBy(c => c.CharID)
+                    .ToList();
+
+                cmbCharacterFilter.BeginUpdate();
+                cmbCharacterFilterStats.BeginUpdate();
+                try
                 {
                     cmbCharacterFilter.Items.Clear();
                     cmbCharacterFilterStats.Items.Clear();
 
-                    foreach (System.Data.DataRow row in characters.Rows)
+                    int selectInvIndex = -1;
+                    int selectStatsIndex = -1;
+
+                    for (int i = 0; i < sortedList.Count; i++)
                     {
-                        string item = $"{row["charID"]} - {row["name"]}";
-                        cmbCharacterFilter.Items.Add(item);
-                        cmbCharacterFilterStats.Items.Add(item);
+                        var c = sortedList[i];
+                        cmbCharacterFilter.Items.Add(c);
+                        cmbCharacterFilterStats.Items.Add(c);
+
+                        if (prevSelectedInv != 0 && c.CharID == prevSelectedInv)
+                            selectInvIndex = i;
+                        if (prevSelectedStats != 0 && c.CharID == prevSelectedStats)
+                            selectStatsIndex = i;
                     }
+
+                    if (sortedList.Count > 0)
+                    {
+                        cmbCharacterFilter.SelectedIndex = selectInvIndex >= 0 ? selectInvIndex : 0;
+                        cmbCharacterFilterStats.SelectedIndex = selectStatsIndex >= 0 ? selectStatsIndex : 0;
+                    }
+
+                    cmbCharacterFilter.DropDownWidth = 280;
+                    cmbCharacterFilterStats.DropDownWidth = 280;
+                }
+                finally
+                {
+                    cmbCharacterFilter.EndUpdate();
+                    cmbCharacterFilterStats.EndUpdate();
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                DebugSystem.Write("[LoadCharacterFilters] Error: " + ex.Message);
+            }
         }
         #endregion
 
