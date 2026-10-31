@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -88,6 +88,25 @@ namespace Game.SkillRelated
         public byte NumberOfTurns { get; set; }
         public byte TypeOfInjury { get; set; }
         public ushort SkillTableOrder { get; set; }
+        public byte MaxSkillLevel { get; set; }
+        public byte SkillPattern1 { get; set; }
+        public byte SkillPattern2 { get; set; }
+        public byte SkillPattern3 { get; set; }
+        public byte SkillPattern4 { get; set; }
+
+        public byte GetPatternForGrade(byte grade)
+        {
+            if (grade >= 10) return SkillPattern4 > 0 ? SkillPattern4 : (SkillPattern3 > 0 ? SkillPattern3 : (SkillPattern2 > 0 ? SkillPattern2 : SkillPattern1));
+            if (grade >= 7)  return SkillPattern3 > 0 ? SkillPattern3 : (SkillPattern2 > 0 ? SkillPattern2 : SkillPattern1);
+            if (grade >= 4)  return SkillPattern2 > 0 ? SkillPattern2 : SkillPattern1;
+            return SkillPattern1;
+        }
+
+        public bool IsAoe(byte grade = 1)
+        {
+            byte pattern = GetPatternForGrade(grade);
+            return pattern >= 2;
+        }
 
         public bool IsHeal => Target == 1 || Target == 3 || Target == 5 || (Name != null && (Name.Contains("Heal") || Name.Contains("Recover") || Name.Contains("Blessing") || Name.Contains("Cure") || Name.Contains("Rest")));
         public bool IsRevive => Name != null && (Name.Contains("Reviv") || Name.Contains("Restoration"));
@@ -170,7 +189,17 @@ namespace Game.SkillRelated
                             PowerPerLevel = BitConverter.ToDouble(data, offset + 32),
                             StatMultiplier = BitConverter.ToDouble(data, offset + 40),
                             AdditionalDamage = (ushort)((BitConverter.ToUInt16(data, offset + 49) ^ 0x6EA0) - 4),
-                            SkillTableOrder = tableOrder
+                            SkillTableOrder = tableOrder,
+                            NumberOfTurns = (byte)((data[offset + 51] ^ 0xFD) - 4),
+                            Effect = (byte)((data[offset + 52] ^ 0xFD) - 4),
+                            Target = (byte)((data[offset + 99] ^ 0xFD) - 4),
+                            MaxSkillLevel = (byte)((data[offset + 105] ^ 0xFD) - 4),
+                            AdditionalEffect = (byte)((data[offset + 106] ^ 0xFD) - 4),
+                            SkillPattern1 = (byte)((data[offset + 109] ^ 0xFD) - 4),
+                            SkillPattern2 = (byte)((data[offset + 110] ^ 0xFD) - 4),
+                            SkillPattern3 = (byte)((data[offset + 111] ^ 0xFD) - 4),
+                            SkillPattern4 = (byte)((data[offset + 112] ^ 0xFD) - 4),
+                            TypeOfInjury = (byte)((data[offset + 113] ^ 0xFD) - 4)
                         };
                     }
                 }

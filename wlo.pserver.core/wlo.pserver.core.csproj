@@ -117,6 +117,7 @@
     <Compile Include="Game\Battle\BattleScene.cs">
       <SubType>Code</SubType>
     </Compile>
+        <Compile Include="Game\Battle\AoeTargetResolver.cs" />
     <Compile Include="Game\Battle\PvEBattleManager.cs" />
     <Compile Include="Game\Battle\CriticalHitManager.cs" />
     <Compile Include="Game\Battle\MonsterDropManager.cs" />

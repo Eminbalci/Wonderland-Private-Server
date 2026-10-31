@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -1493,6 +1493,16 @@ namespace Game.Battle
             return steps;
         }
 
+        private static byte GetFighterSkillGrade(BattleFighter actor, ushort skillId)
+        {
+            if (actor?.PlayerRef?.PlayerSkills != null)
+            {
+                var ps = actor.PlayerRef.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId);
+                if (ps != null && ps.Grade > 0) return ps.Grade;
+            }
+            return 1;
+        }
+
         private static bool IsBasicAttack(ushort skillId)
         {
             // Native Attack also selects monster and NPC weapon animations for pets.
@@ -1612,137 +1622,161 @@ namespace Game.Battle
                                     SendStatSync(p, actor.GridX, actor.GridY, 0x1a, (uint)actor.CurSP);
                             }
 
-                            // Target ally
-                            var targetAlly = friendlyFighters.FirstOrDefault(f => f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
-                                          ?? friendlyFighters.FirstOrDefault(f => !f.IsDead) ?? actor;
+                            byte grade = GetFighterSkillGrade(actor, sa.SkillId);
+                            byte pattern = sk != null ? sk.GetPatternForGrade(grade) : (byte)1;
 
-                            // Skill EXP is awarded after the effect so heals count what they restored.
+                            // Target ally (for revive, search dead allies first)
+                            BattleFighter primaryAlly;
+                            if (sk != null && sk.IsRevive)
+                            {
+                                primaryAlly = friendlyFighters.FirstOrDefault(f => f.IsDead && f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
+                                           ?? friendlyFighters.FirstOrDefault(f => f.IsDead)
+                                           ?? friendlyFighters.FirstOrDefault(f => f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
+                                           ?? actor;
+                            }
+                            else
+                            {
+                                primaryAlly = friendlyFighters.FirstOrDefault(f => !f.IsDead && f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
+                                           ?? friendlyFighters.FirstOrDefault(f => !f.IsDead)
+                                           ?? actor;
+                            }
+
+                            var candidateAllies = (sk != null && sk.IsRevive)
+                                ? friendlyFighters.Where(f => f.IsDead).ToList()
+                                : friendlyFighters.Where(f => !f.IsDead).ToList();
+
+                            var targetAllies = AoeTargetResolver.ResolveTargets(primaryAlly, pattern, candidateAllies);
+                            if (targetAllies.Count == 0) targetAllies.Add(primaryAlly);
+
                             var supportKind = SkillRelated.SkillManager.SupportSkillKind.Buff;
                             int supportRestored = 0;
-                            int supportHpBefore = targetAlly.CurHP;
+                            int supportHpBefore = primaryAlly.CurHP;
 
                             BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, actor.GridX, actor.GridY, 0));
 
-                            if (sk != null && sk.IsRevive && targetAlly.IsDead)
+                            SendPacket pSupport = new SendPacket();
+                            pSupport.PackArray(new byte[] { 50, 1 });
+                            pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                            pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                            pSupport.Pack16(sa.SkillId);
+                            pSupport.Pack8(0);
+                            pSupport.Pack8((byte)targetAllies.Count);
+
+                            if (sk != null && sk.IsRevive)
                             {
-                                int reviveHp = Math.Max(50, targetAlly.MaxHP / 3);
                                 supportKind = SkillRelated.SkillManager.SupportSkillKind.Revive;
-                                targetAlly.CurHP = reviveHp;
-                                if (targetAlly.PlayerRef?.Eqs != null) targetAlly.PlayerRef.Eqs.CurHP = reviveHp;
-                                if (targetAlly.PetRef != null) targetAlly.PetRef.HP = reviveHp;
+                                foreach (var ally in targetAllies)
+                                {
+                                    int reviveHp = Math.Max(50, ally.MaxHP / 3);
+                                    if (ally.IsDead)
+                                    {
+                                        ally.CurHP = reviveHp;
+                                        if (ally.PlayerRef?.Eqs != null) ally.PlayerRef.Eqs.CurHP = reviveHp;
+                                        if (ally.PetRef != null) ally.PetRef.HP = reviveHp;
+                                    }
 
-                                SendPacket pRevive = new SendPacket();
-                                pRevive.PackArray(new byte[] { 50, 1 });
-                                pRevive.PackArray(new byte[] { 0x11, 0x00 });
-                                pRevive.Pack8(actor.GridX); pRevive.Pack8(actor.GridY);
-                                pRevive.Pack16(sa.SkillId);
-                                pRevive.Pack8(0); pRevive.Pack8(1);
-                                pRevive.Pack8(targetAlly.GridX); pRevive.Pack8(targetAlly.GridY);
-                                pRevive.Pack8(1); pRevive.Pack8(0); pRevive.Pack8(1);
-                                pRevive.Pack8(0x19);
-                                pRevive.Pack32((uint)reviveHp);
-                                pRevive.Pack8(1);
-                                BroadcastToBattle(battle, pRevive);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0x19);
+                                    pSupport.Pack32((uint)reviveHp);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
 
-                                foreach (var p in battle.AllPlayers)
-                                    SendStatSync(p, targetAlly.GridX, targetAlly.GridY, 0x19, (uint)targetAlly.CurHP);
+                                foreach (var ally in targetAllies)
+                                {
+                                    foreach (var p in battle.AllPlayers)
+                                        SendStatSync(p, ally.GridX, ally.GridY, 0x19, (uint)ally.CurHP);
+                                }
                             }
                             else if (sk != null && sk.IsHeal)
                             {
-                                int healAmt = Math.Max(40, (int)(actor.Atk * 2.2) + (actor.Level * 15));
                                 supportKind = SkillRelated.SkillManager.SupportSkillKind.Heal;
+                                int healAmt = Math.Max(40, (int)(actor.Atk * 2.2) + (actor.Level * 15));
                                 supportRestored = healAmt;
-                                targetAlly.CurHP = Math.Min(targetAlly.MaxHP, targetAlly.CurHP + healAmt);
-                                if (targetAlly.PlayerRef?.Eqs != null) targetAlly.PlayerRef.Eqs.CurHP = targetAlly.CurHP;
-                                if (targetAlly.PetRef != null) targetAlly.PetRef.HP = targetAlly.CurHP;
 
-                                SendPacket pHeal = new SendPacket();
-                                pHeal.PackArray(new byte[] { 50, 1 });
-                                pHeal.PackArray(new byte[] { 0x11, 0x00 });
-                                pHeal.Pack8(actor.GridX); pHeal.Pack8(actor.GridY);
-                                pHeal.Pack16(sa.SkillId);
-                                pHeal.Pack8(0); pHeal.Pack8(1);
-                                pHeal.Pack8(targetAlly.GridX); pHeal.Pack8(targetAlly.GridY);
-                                pHeal.Pack8(1); pHeal.Pack8(0); pHeal.Pack8(1);
-                                pHeal.Pack8(0x19);
-                                pHeal.Pack32((uint)healAmt);
-                                pHeal.Pack8(1);
-                                BroadcastToBattle(battle, pHeal);
+                                foreach (var ally in targetAllies)
+                                {
+                                    ally.CurHP = Math.Min(ally.MaxHP, ally.CurHP + healAmt);
+                                    if (ally.PlayerRef?.Eqs != null) ally.PlayerRef.Eqs.CurHP = ally.CurHP;
+                                    if (ally.PetRef != null) ally.PetRef.HP = ally.CurHP;
 
-                                foreach (var p in battle.AllPlayers)
-                                    SendStatSync(p, targetAlly.GridX, targetAlly.GridY, 0x19, (uint)targetAlly.CurHP);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0x19);
+                                    pSupport.Pack32((uint)healAmt);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
+
+                                foreach (var ally in targetAllies)
+                                {
+                                    foreach (var p in battle.AllPlayers)
+                                        SendStatSync(p, ally.GridX, ally.GridY, 0x19, (uint)ally.CurHP);
+                                }
                             }
                             else if (sk != null && sk.IsShield)
                             {
-                                targetAlly.AddStatus(FighterStatusType.Shielded, sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3);
+                                int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3;
+                                foreach (var ally in targetAllies)
+                                {
+                                    ally.AddStatus(FighterStatusType.Shielded, turns);
 
-                                SendPacket pShield = new SendPacket();
-                                pShield.PackArray(new byte[] { 50, 1 });
-                                pShield.PackArray(new byte[] { 0x11, 0x00 });
-                                pShield.Pack8(actor.GridX); pShield.Pack8(actor.GridY);
-                                pShield.Pack16(sa.SkillId);
-                                pShield.Pack8(0); pShield.Pack8(1);
-                                pShield.Pack8(targetAlly.GridX); pShield.Pack8(targetAlly.GridY);
-                                pShield.Pack8(1); pShield.Pack8(0); pShield.Pack8(1);
-                                pShield.Pack8(0);
-                                pShield.Pack32(0);
-                                pShield.Pack8(1);
-                                BroadcastToBattle(battle, pShield);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
                             }
                             else if (sk != null && sk.IsHotBlooded)
                             {
-                                targetAlly.AddStatus(FighterStatusType.HotBlooded, sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3);
+                                int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3;
+                                foreach (var ally in targetAllies)
+                                {
+                                    ally.AddStatus(FighterStatusType.HotBlooded, turns);
 
-                                SendPacket pHot = new SendPacket();
-                                pHot.PackArray(new byte[] { 50, 1 });
-                                pHot.PackArray(new byte[] { 0x11, 0x00 });
-                                pHot.Pack8(actor.GridX); pHot.Pack8(actor.GridY);
-                                pHot.Pack16(sa.SkillId);
-                                pHot.Pack8(0); pHot.Pack8(1);
-                                pHot.Pack8(targetAlly.GridX); pHot.Pack8(targetAlly.GridY);
-                                pHot.Pack8(1); pHot.Pack8(0); pHot.Pack8(1);
-                                pHot.Pack8(0);
-                                pHot.Pack32(0);
-                                pHot.Pack8(1);
-                                BroadcastToBattle(battle, pHot);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
                             }
                             else if (sk != null && sk.IsSpeedUp)
                             {
-                                targetAlly.AddStatus(FighterStatusType.SpeedUp, sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3);
-                                targetAlly.Spd += 30;
+                                int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3;
+                                foreach (var ally in targetAllies)
+                                {
+                                    ally.AddStatus(FighterStatusType.SpeedUp, turns);
+                                    ally.Spd += 30;
 
-                                SendPacket pSpd = new SendPacket();
-                                pSpd.PackArray(new byte[] { 50, 1 });
-                                pSpd.PackArray(new byte[] { 0x11, 0x00 });
-                                pSpd.Pack8(actor.GridX); pSpd.Pack8(actor.GridY);
-                                pSpd.Pack16(sa.SkillId);
-                                pSpd.Pack8(0); pSpd.Pack8(1);
-                                pSpd.Pack8(targetAlly.GridX); pSpd.Pack8(targetAlly.GridY);
-                                pSpd.Pack8(1); pSpd.Pack8(0); pSpd.Pack8(1);
-                                pSpd.Pack8(0);
-                                pSpd.Pack32(0);
-                                pSpd.Pack8(1);
-                                BroadcastToBattle(battle, pSpd);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
                             }
                             else
                             {
                                 // General support
-                                SendPacket pGen = new SendPacket();
-                                pGen.PackArray(new byte[] { 50, 1 });
-                                pGen.PackArray(new byte[] { 0x11, 0x00 });
-                                pGen.Pack8(actor.GridX); pGen.Pack8(actor.GridY);
-                                pGen.Pack16(sa.SkillId);
-                                pGen.Pack8(0); pGen.Pack8(1);
-                                pGen.Pack8(targetAlly.GridX); pGen.Pack8(targetAlly.GridY);
-                                pGen.Pack8(1); pGen.Pack8(0); pGen.Pack8(1);
-                                pGen.Pack8(0);
-                                pGen.Pack32(0);
-                                pGen.Pack8(1);
-                                BroadcastToBattle(battle, pGen);
+                                foreach (var ally in targetAllies)
+                                {
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
                             }
 
                             uint supportExp = SkillRelated.SkillManager.CalculateSupportSkillExp(
-                                supportKind, supportRestored, supportHpBefore, targetAlly.MaxHP);
+                                supportKind, supportRestored, supportHpBefore, primaryAlly.MaxHP);
                             if (actor.PlayerRef != null && sa.SkillId > 0)
                             {
                                 SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, sa.SkillId, supportExp);
@@ -1913,13 +1947,12 @@ namespace Game.Battle
                                 SendPacket pAttackAnim = new SendPacket();
                                 pAttackAnim.PackArray(new byte[] { 50, 1 });
 
-                                int pairDmg = 0;
+                                var hitTargetsTotalDamage = new Dictionary<BattleFighter, int>();
+
                                 foreach (var a in comboPair)
                                 {
                                     var actor = a.Actor;
                                     var sk = SkillRelated.SkillManager.GetSkill(a.SkillId);
-
-                                    int baseDmg = CalculateBaseDamage(actor, targetFighter, a.SkillId, QuestNpc.NextRandom(1, 6));
 
                                     if (a.SkillId > 0 && !IsBasicAttack(a.SkillId))
                                     {
@@ -1940,95 +1973,106 @@ namespace Game.Battle
                                         }
                                     }
 
-                                    baseDmg = Math.Max(1, (int)(baseDmg * GetElementalMultiplier(actor.Element, targetFighter.Element)));
+                                    byte grade = GetFighterSkillGrade(actor, a.SkillId);
+                                    byte pattern = sk != null ? sk.GetPatternForGrade(grade) : (byte)1;
 
-                                    // Apply HotBlooded 2x ATK buff
-                                    if (actor.HasStatus(FighterStatusType.HotBlooded))
-                                    {
-                                        baseDmg = (int)(baseDmg * 2.0);
-                                    }
-
-                                    // Combo bonus
-                                    int finalDmg = isCombo ? (int)(baseDmg * 1.25) : baseDmg;
-
-                                    // Critical damage is included once in both HP loss and the animation packet.
-                                    bool isCritical;
-                                    finalDmg = CriticalHitManager.CalculateDamage(finalDmg, actor, a.ActionType, QuestNpc.NextRandom(0, 100), out isCritical);
-
-                                    // Target Shielded reduction
-                                    if (defendingActors.Contains((targetFighter.GridX << 8) | targetFighter.GridY) || targetFighter.HasStatus(FighterStatusType.Shielded))
-                                    {
-                                        finalDmg = Math.Max(1, finalDmg / 2);
-                                    }
-
-                                    pairDmg += finalDmg;
-
-                                    // Apply status effects to target
-                                    if (sk != null)
-                                    {
-                                        int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 2;
-                                        if (sk.IsFreeze) targetFighter.AddStatus(FighterStatusType.Frozen, turns);
-                                        else if (sk.IsSleep) targetFighter.AddStatus(FighterStatusType.Sleep, turns);
-                                        else if (sk.IsSeal) targetFighter.AddStatus(FighterStatusType.Sealed, turns);
-                                        else if (sk.IsConfuse) targetFighter.AddStatus(FighterStatusType.Confused, turns);
-                                        else if (sk.IsPoison) targetFighter.AddStatus(FighterStatusType.Poisoned, turns + 1);
-                                        else if (sk.IsParalyze) targetFighter.AddStatus(FighterStatusType.Paralyzed, turns);
-                                    }
-
-                                    // Award skill proficiency EXP to player
-                                    // Skill EXP = per-use EXP + % of the target's max HP removed by this hit.
-                                    // pairDmg already includes this hit; CurHP drops after the pair.
-                                    uint skillExp = SkillRelated.SkillManager.CalculateSkillExpForHit(
-                                        finalDmg, targetFighter.CurHP - pairDmg + finalDmg, targetFighter.MaxHP);
-                                    if (actor.PlayerRef != null && a.SkillId > 0)
-                                    {
-                                        SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, a.SkillId, skillExp);
-                                    }
-                                    else if (actor.PetRef != null)
-                                    {
-                                        SkillRelated.SkillManager.AddPetSkillExp(a.Player, actor.PetRef, a.SkillId, skillExp);
-                                    }
+                                    var livingEnemies = opposingFighters.Where(f => !f.IsDead).ToList();
+                                    var hitTargets = AoeTargetResolver.ResolveTargets(targetFighter, pattern, livingEnemies);
+                                    if (hitTargets.Count == 0) hitTargets.Add(targetFighter);
 
                                     pAttackAnim.PackArray(new byte[] { 0x11, 0x00 });
                                     pAttackAnim.Pack8(actor.GridX); pAttackAnim.Pack8(actor.GridY);
                                     pAttackAnim.Pack16(a.SkillId > 0 ? a.SkillId : (ushort)10001);
-                                    pAttackAnim.Pack8(0); pAttackAnim.Pack8(1);
-                                    pAttackAnim.Pack8(targetFighter.GridX); pAttackAnim.Pack8(targetFighter.GridY);
-                                    pAttackAnim.Pack8(1);
-                                    pAttackAnim.Pack8(defendingActors.Contains((targetFighter.GridX << 8) | targetFighter.GridY) ? (byte)1 : (byte)0);
-                                    pAttackAnim.Pack8(1);
-                                    pAttackAnim.Pack8(0x19); // HP damage
-                                    pAttackAnim.Pack32((uint)finalDmg);
-                                    // Native HP decrease: 1 = normal, 2 = enlarged critical digits.
-                                    pAttackAnim.Pack8(isCritical ? (byte)2 : (byte)1);
+                                    pAttackAnim.Pack8(0);
+                                    pAttackAnim.Pack8((byte)hitTargets.Count);
+
+                                    foreach (var target in hitTargets)
+                                    {
+                                        int baseDmg = CalculateBaseDamage(actor, target, a.SkillId, QuestNpc.NextRandom(1, 6));
+                                        baseDmg = Math.Max(1, (int)(baseDmg * GetElementalMultiplier(actor.Element, target.Element)));
+
+                                        if (actor.HasStatus(FighterStatusType.HotBlooded))
+                                        {
+                                            baseDmg = (int)(baseDmg * 2.0);
+                                        }
+
+                                        int finalDmg = isCombo ? (int)(baseDmg * 1.25) : baseDmg;
+
+                                        bool isCritical;
+                                        finalDmg = CriticalHitManager.CalculateDamage(finalDmg, actor, a.ActionType, QuestNpc.NextRandom(0, 100), out isCritical);
+
+                                        if (defendingActors.Contains((target.GridX << 8) | target.GridY) || target.HasStatus(FighterStatusType.Shielded))
+                                        {
+                                            finalDmg = Math.Max(1, finalDmg / 2);
+                                        }
+
+                                        if (!hitTargetsTotalDamage.ContainsKey(target)) hitTargetsTotalDamage[target] = 0;
+                                        hitTargetsTotalDamage[target] += finalDmg;
+
+                                        if (sk != null)
+                                        {
+                                            int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 2;
+                                            if (sk.IsFreeze) target.AddStatus(FighterStatusType.Frozen, turns);
+                                            else if (sk.IsSleep) target.AddStatus(FighterStatusType.Sleep, turns);
+                                            else if (sk.IsSeal) target.AddStatus(FighterStatusType.Sealed, turns);
+                                            else if (sk.IsConfuse) target.AddStatus(FighterStatusType.Confused, turns);
+                                            else if (sk.IsPoison) target.AddStatus(FighterStatusType.Poisoned, turns + 1);
+                                            else if (sk.IsParalyze) target.AddStatus(FighterStatusType.Paralyzed, turns);
+                                        }
+
+                                        if (target == targetFighter)
+                                        {
+                                            uint skillExp = SkillRelated.SkillManager.CalculateSkillExpForHit(
+                                                finalDmg, target.CurHP - hitTargetsTotalDamage[target] + finalDmg, target.MaxHP);
+                                            if (actor.PlayerRef != null && a.SkillId > 0)
+                                            {
+                                                SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, a.SkillId, skillExp);
+                                            }
+                                            else if (actor.PetRef != null)
+                                            {
+                                                SkillRelated.SkillManager.AddPetSkillExp(a.Player, actor.PetRef, a.SkillId, skillExp);
+                                            }
+                                        }
+
+                                        pAttackAnim.Pack8(target.GridX); pAttackAnim.Pack8(target.GridY);
+                                        pAttackAnim.Pack8(1);
+                                        pAttackAnim.Pack8(defendingActors.Contains((target.GridX << 8) | target.GridY) ? (byte)1 : (byte)0);
+                                        pAttackAnim.Pack8(1);
+                                        pAttackAnim.Pack8(0x19); // HP damage
+                                        pAttackAnim.Pack32((uint)finalDmg);
+                                        pAttackAnim.Pack8(isCritical ? (byte)2 : (byte)1);
+                                    }
                                 }
 
                                 BroadcastToBattle(battle, pAttackAnim);
 
-                                targetFighter.CurHP = Math.Max(0, targetFighter.CurHP - pairDmg);
-                                if (targetFighter.MonsterRef != null) targetFighter.MonsterRef.MonsterHP = targetFighter.CurHP;
-                                if (targetFighter.PlayerRef?.Eqs != null) targetFighter.PlayerRef.Eqs.CurHP = targetFighter.CurHP;
-                                if (targetFighter.PetRef != null) targetFighter.PetRef.HP = targetFighter.CurHP;
-
-                                // Waking up target if sleeping
-                                if (pairDmg > 0 && targetFighter.HasStatus(FighterStatusType.Sleep))
+                                var fallenTargets = new List<BattleFighter>();
+                                foreach (var kvp in hitTargetsTotalDamage)
                                 {
-                                    targetFighter.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Sleep);
+                                    var target = kvp.Key;
+                                    int totalDmg = kvp.Value;
+
+                                    target.CurHP = Math.Max(0, target.CurHP - totalDmg);
+                                    if (target.MonsterRef != null) target.MonsterRef.MonsterHP = target.CurHP;
+                                    if (target.PlayerRef?.Eqs != null) target.PlayerRef.Eqs.CurHP = target.CurHP;
+                                    if (target.PetRef != null) target.PetRef.HP = target.CurHP;
+
+                                    if (totalDmg > 0 && target.HasStatus(FighterStatusType.Sleep))
+                                    {
+                                        target.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Sleep);
+                                    }
+
+                                    if (target.IsDead) fallenTargets.Add(target);
                                 }
 
-                                // AC 50:1 already carries each hit's HP damage and the client applies it
-                                // at impact time. Sending AC 51:1 here sets final HP before impact, then
-                                // makes the client subtract the animation damage a second time.
-
-                                bool targetDied = targetFighter.IsDead;
-                                // Combo records run together; wait once for the longest animation.
                                 int animationDelay = comboPair.Max(a => GetAnimationDelayMs(a.SkillId, a.ActionType));
                                 await Task.Delay(animationDelay);
-                                if (targetDied)
+
+                                foreach (var fallen in fallenTargets)
                                 {
-                                    BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, targetFighter.GridX, targetFighter.GridY));
-                                    if (targetFighter.PetRef != null)
-                                        PetRelated.PetAmityManager.OnPetDeath(battle.AllPlayers.FirstOrDefault(p => p.CharID == targetFighter.OwnerID), targetFighter.PetRef);
+                                    BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, fallen.GridX, fallen.GridY));
+                                    if (fallen.PetRef != null)
+                                        PetRelated.PetAmityManager.OnPetDeath(battle.AllPlayers.FirstOrDefault(p => p.CharID == fallen.OwnerID), fallen.PetRef);
                                 }
                             }
                         }

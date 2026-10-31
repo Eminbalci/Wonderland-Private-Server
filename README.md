@@ -344,6 +344,8 @@ Authentic packet-level framing with magic header `0x44F4`, XOR `0xAD` encryption
 
 * **Turn Lifecycle:** 30-second turn timer prompting player input via `AC 52:1`, move acknowledgments via `AC 53:5`, active turn replay focus via `AC 50:6`, 19-byte `AC 50:1` animation records, knockouts via `AC 53:3`, and real-time attribute updates via `AC 51:1`.
 
+* **AOE Skill Targeting & Multi-Target Dispatch Engine:** Full geometry resolution for skill patterns 1 through 8 (single, column, row, cross/T-shape, 5-target, 6-target, full team) across 2x4 combat grids with grade-based pattern scaling (Grade 1..10), simultaneous multi-target packet dispatch via AC 50:1, elemental/critical damage calculation, multi-target status effects, and HP/death state synchronization. Detailed in [54_aoe_skill_targeting_and_battle_dispatch_engine.md](file:///D:/GitHub/Wonderland-Private-Server/docs/54_aoe_skill_targeting_and_battle_dispatch_engine.md).
+
 
 
 
