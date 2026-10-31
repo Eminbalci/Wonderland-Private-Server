@@ -34,6 +34,7 @@ namespace Network.ActionCodes
                 case 4: Recv4(r, p); break;  // Pre-join
                 case 5: Recv5(r, p); break;  // Join
                 case 6: Recv6(r, p); break;  // Exit instance
+                case 7: Recv7(r, p); break;  // 0x07: Opcode 0x0755 (MAP_WARP / EVENT_SCRIPT ACK)
                 case 10: Recv10(r, p); break;// Check members
                 case 11: Recv11(r, p); break;// Move tab members
                 case 13: Recv13(r, p); break;// Dismiss member
@@ -163,5 +164,17 @@ namespace Network.ActionCodes
                 DebugSystem.Write(new ExceptionData(ex));
             }
         }
-    }
+            private void Recv7(Player p, RecievePacket r)
+        {
+            try
+            {
+                DebugSystem.Write($"[AC85] Recv7 (MAP_WARP ACK) from {p.CharName}");
+                p.Send(Tools.FromFormat("bb", 20, 8)); // Mobility unfreeze
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+}
 }

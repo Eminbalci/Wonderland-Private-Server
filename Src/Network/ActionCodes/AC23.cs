@@ -65,6 +65,7 @@ namespace Network.ActionCodes
             if (r.Buffer.Length - r.GetPtr() != 2) return;
             ushort slot = r.Unpack16();
             if (slot < 1 || slot > 50) return;
+            if (BoxedItemManager.TryOpen(p, (byte)slot)) return;
             if (!GachaManager.TryOpen(p, (byte)slot))
                 p.SendHeadBanner("This pack has no configured rewards. Item retained.");
         }
@@ -80,6 +81,7 @@ namespace Network.ActionCodes
                 if (item == null || item.ItemID == 0) return;
 
                 if (Game.PetRelated.PetVoucherManager.TryRedeem(p, slot)) return;
+                if (BoxedItemManager.TryOpen(p, slot)) return;
                 if (GachaManager.TryOpen(p, slot)) return;
 
                 ushort itemId = item.ItemID;
@@ -735,6 +737,11 @@ namespace Network.ActionCodes
 
                 // 1. Pet Vouchers & Gacha
                 if (Game.PetRelated.PetVoucherManager.TryRedeem(p, slot, count, target)) return;
+                if (BoxedItemManager.IsBox(itemId))
+                {
+                    BoxedItemManager.TryOpen(p, slot);
+                    return;
+                }
                 if (GachaManager.IsGacha(itemId))
                 {
                     if (target == 0 && count == 1) GachaManager.TryOpen(p, slot);
@@ -786,8 +793,10 @@ namespace Network.ActionCodes
                     return;
                 }
 
-                // 7. Utility: Return Scrolls (Kelan 30001, Teleport 34163)
-                if (itemId == 30001 || itemId == 34163)
+                // 7. Utility: Return Scroll (Kelan 30001). Teleport Scrolls (34163/34195/34373)
+                // open the client world map and are handled by AC74, never by item use.
+                if (TeleportScrollManager.IsTeleportScroll(itemId)) return;
+                if (itemId == 30001)
                 {
                     p.Inv.RemoveItem(slot, 1);
                     WarpData warp = new WarpData { DstMap = 12000, DstX_Axis = 892, DstY_Axis = 734 };

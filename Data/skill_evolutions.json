@@ -1,0 +1,871 @@
+[
+  {
+    "from_skill": 10007,
+    "from_name": "Gun Attack",
+    "to_skill": 11014,
+    "to_name": "Wind Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11001,
+    "from_name": "Icicle Attack",
+    "to_skill": 15062,
+    "to_name": "Icicle Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11004,
+    "from_name": "Water Hit",
+    "to_skill": 11096,
+    "to_name": "Water Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11005,
+    "from_name": "Fire Blast Attack",
+    "to_skill": 30000,
+    "to_name": "Fire Blast Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11007,
+    "from_name": "Wind Attack",
+    "to_skill": 11014,
+    "to_name": "Wind Hit",
+    "required_grade": 10,
+    "note": "override: client Skill.dat lists 10007 (Gun Attack) as the prerequisite"
+  },
+  {
+    "from_skill": 11010,
+    "from_name": "Frost Hit",
+    "to_skill": 21201,
+    "to_name": "Frost Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11014,
+    "from_name": "Wind Hit",
+    "to_skill": 15113,
+    "to_name": "Wind Bead",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11015,
+    "from_name": "Wind Cut Attack",
+    "to_skill": 15009,
+    "to_name": "Wind Cut Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11016,
+    "from_name": "Flame Attack",
+    "to_skill": 11029,
+    "to_name": "Flame Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11017,
+    "from_name": "Earth Attack",
+    "to_skill": 11086,
+    "to_name": "Earth Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11019,
+    "from_name": "Rock Blast Attack",
+    "to_skill": 11093,
+    "to_name": "Rock Blast Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11022,
+    "from_name": "Chill Hit",
+    "to_skill": 11100,
+    "to_name": "Chill Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11023,
+    "from_name": "Storm Hit",
+    "to_skill": 20001,
+    "to_name": "Storm Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11024,
+    "from_name": "Thunder Attack",
+    "to_skill": 15010,
+    "to_name": "Thunder Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11029,
+    "from_name": "Flame Hit",
+    "to_skill": 11025,
+    "to_name": "Flame Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11031,
+    "from_name": "Rock Ball Attack",
+    "to_skill": 11094,
+    "to_name": "Rock Ball Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11034,
+    "from_name": "Fire Ball Attack",
+    "to_skill": 11117,
+    "to_name": "Fire Ball Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11035,
+    "from_name": "Fire Stone Attack",
+    "to_skill": 15112,
+    "to_name": "Fire Stone Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11040,
+    "from_name": "Chill Attack",
+    "to_skill": 11022,
+    "to_name": "Chill Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11044,
+    "from_name": "Water Attack",
+    "to_skill": 11004,
+    "to_name": "Water Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11045,
+    "from_name": "Instant Hit",
+    "to_skill": 15061,
+    "to_name": "Instant Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11046,
+    "from_name": "Wind Stress Attack",
+    "to_skill": 11098,
+    "to_name": "Wind Stress Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11061,
+    "from_name": "Aerolite Hit",
+    "to_skill": 15154,
+    "to_name": "Aerolite Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11071,
+    "from_name": "Rupture Hit",
+    "to_skill": 11088,
+    "to_name": "Rupture Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11085,
+    "from_name": "Rock Hit",
+    "to_skill": 15074,
+    "to_name": "Rock Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11086,
+    "from_name": "Earth Hit",
+    "to_skill": 11065,
+    "to_name": "Earth Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11087,
+    "from_name": "Rupture Attack",
+    "to_skill": 11071,
+    "to_name": "Rupture Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11090,
+    "from_name": "Rockfall Hit",
+    "to_skill": 11091,
+    "to_name": "Rockfall Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11093,
+    "from_name": "Rock Blast Hit",
+    "to_skill": 11092,
+    "to_name": "Rock Blast Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11094,
+    "from_name": "Rock Ball Hit",
+    "to_skill": 11105,
+    "to_name": "Rock Ball Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11098,
+    "from_name": "Wind Stress Hit",
+    "to_skill": 12032,
+    "to_name": "Wind Stress Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11107,
+    "from_name": "Megalith Attack",
+    "to_skill": 15152,
+    "to_name": "Megalith Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11110,
+    "from_name": "Ice Ball Attack",
+    "to_skill": 15098,
+    "to_name": "Ice Ball Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11113,
+    "from_name": "Ice Elf Attack",
+    "to_skill": 12002,
+    "to_name": "Ice Elf Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11114,
+    "from_name": "Turning Fire Attack",
+    "to_skill": 11115,
+    "to_name": "Turning Fire Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11115,
+    "from_name": "Turning Fire Hit",
+    "to_skill": 12022,
+    "to_name": "Turning Fire Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11117,
+    "from_name": "Fire Ball Hit",
+    "to_skill": 15106,
+    "to_name": "Fire Ball Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 11166,
+    "from_name": "Blast Attack",
+    "to_skill": 15104,
+    "to_name": "Blast Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12002,
+    "from_name": "Ice Elf Hit",
+    "to_skill": 11058,
+    "to_name": "Ice Elf Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12006,
+    "from_name": "Rock Elf Attack",
+    "to_skill": 21301,
+    "to_name": "Rock Elf Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12007,
+    "from_name": "Frost Attack",
+    "to_skill": 11010,
+    "to_name": "Frost Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12009,
+    "from_name": "Cyclone Hit",
+    "to_skill": 15129,
+    "to_name": "Cyclone Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12018,
+    "from_name": "Acrolith Attack",
+    "to_skill": 11061,
+    "to_name": "Aerolite Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12021,
+    "from_name": "Fire Combo Hit",
+    "to_skill": 12024,
+    "to_name": "Fire Combo Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12025,
+    "from_name": "Boulder Hit",
+    "to_skill": 15084,
+    "to_name": "Boulder Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12034,
+    "from_name": "Fire Wave Hit",
+    "to_skill": 12038,
+    "to_name": "Fire Wave Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 12039,
+    "from_name": "Fire Wave Attack",
+    "to_skill": 12034,
+    "to_name": "Fire Wave Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15000,
+    "from_name": "Whirlwind Hit",
+    "to_skill": 15124,
+    "to_name": "Whirlwind Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15002,
+    "from_name": "Instant Attack",
+    "to_skill": 11045,
+    "to_name": "Instant Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15007,
+    "from_name": "Fire Combo Arrow",
+    "to_skill": 15031,
+    "to_name": "Fly Fire Arrow",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15009,
+    "from_name": "Wind Cut Hit",
+    "to_skill": 15018,
+    "to_name": "Wind Cut Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15010,
+    "from_name": "Thunder Hit",
+    "to_skill": 15011,
+    "to_name": "Thunder Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15012,
+    "from_name": "Fire Arrow",
+    "to_skill": 15007,
+    "to_name": "Fire Combo Arrow",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15015,
+    "from_name": "Five Star Hit",
+    "to_skill": 15103,
+    "to_name": "Five Star Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15017,
+    "from_name": "Hagendis Hit",
+    "to_skill": 15045,
+    "to_name": "Hagendis Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15019,
+    "from_name": "Turning Ice Attack",
+    "to_skill": 15059,
+    "to_name": "Turning Ice Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15020,
+    "from_name": "Jump Hit",
+    "to_skill": 15043,
+    "to_name": "Jump Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15034,
+    "from_name": "Fall Attack",
+    "to_skill": 15046,
+    "to_name": "Fall Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15044,
+    "from_name": "Hagendis Attack",
+    "to_skill": 15017,
+    "to_name": "Hagendis Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15046,
+    "from_name": "Fall Hit",
+    "to_skill": 15047,
+    "to_name": "Fall Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15048,
+    "from_name": "Sky Attack",
+    "to_skill": 15050,
+    "to_name": "Sky Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15049,
+    "from_name": "Jump Attack",
+    "to_skill": 15020,
+    "to_name": "Jump Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15050,
+    "from_name": "Sky Hit",
+    "to_skill": 15051,
+    "to_name": "Sky Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15056,
+    "from_name": "Rockfall Attack",
+    "to_skill": 11090,
+    "to_name": "Rockfall Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15059,
+    "from_name": "Turning Ice Hit",
+    "to_skill": 15073,
+    "to_name": "Turning Ice Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15062,
+    "from_name": "Icicle Hit",
+    "to_skill": 15063,
+    "to_name": "Icicle Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15079,
+    "from_name": "Air Attack",
+    "to_skill": 15080,
+    "to_name": "Air Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15080,
+    "from_name": "Air Hit",
+    "to_skill": 15081,
+    "to_name": "Air Bead",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15083,
+    "from_name": "Boulder Attack",
+    "to_skill": 12025,
+    "to_name": "Boulder Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15085,
+    "from_name": "Rock Attack",
+    "to_skill": 11085,
+    "to_name": "Rock Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15086,
+    "from_name": "Stress Attack",
+    "to_skill": 15087,
+    "to_name": "Stress Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15087,
+    "from_name": "Stress Hit",
+    "to_skill": 15088,
+    "to_name": "Stress Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15091,
+    "from_name": "Ice Attack",
+    "to_skill": 15092,
+    "to_name": "Ice Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15092,
+    "from_name": "Ice Hit",
+    "to_skill": 15093,
+    "to_name": "Ice Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15096,
+    "from_name": "Water Pole Hit",
+    "to_skill": 15095,
+    "to_name": "Water Pole Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15097,
+    "from_name": "Water Pole Attack",
+    "to_skill": 15096,
+    "to_name": "Water Pole Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15098,
+    "from_name": "Ice Ball Hit",
+    "to_skill": 15099,
+    "to_name": "Ice Ball Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15101,
+    "from_name": "Sword Awn Attack",
+    "to_skill": 20003,
+    "to_name": "Sword Awn Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15102,
+    "from_name": "Five Star Attack",
+    "to_skill": 15015,
+    "to_name": "Five Star Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15104,
+    "from_name": "Blast Hit",
+    "to_skill": 15105,
+    "to_name": "Blast Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15107,
+    "from_name": "Blaze Hit",
+    "to_skill": 15108,
+    "to_name": "Blaze Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15109,
+    "from_name": "Blaze Attack",
+    "to_skill": 15107,
+    "to_name": "Blaze Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15111,
+    "from_name": "Fire Combo Attack",
+    "to_skill": 12021,
+    "to_name": "Fire Combo Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15112,
+    "from_name": "Fire Stone Hit",
+    "to_skill": 11059,
+    "to_name": "Fire Stone Bead",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15114,
+    "from_name": "Dead Wind Attack",
+    "to_skill": 15115,
+    "to_name": "Dead Wind Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15115,
+    "from_name": "Dead Wind Hit",
+    "to_skill": 15116,
+    "to_name": "Dead Wind Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15117,
+    "from_name": "Cyclone Attack",
+    "to_skill": 12009,
+    "to_name": "Cyclone Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15120,
+    "from_name": "Afterimage Attack",
+    "to_skill": 15121,
+    "to_name": "Afterimage Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15121,
+    "from_name": "Afterimage Hit",
+    "to_skill": 11012,
+    "to_name": "Afterimage Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15122,
+    "from_name": "Wind Blade Hit",
+    "to_skill": 11050,
+    "to_name": "Wind Blade Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15123,
+    "from_name": "Whirlwind Attack",
+    "to_skill": 15000,
+    "to_name": "Whirlwind Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15125,
+    "from_name": "Space Attack",
+    "to_skill": 15126,
+    "to_name": "Space Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15126,
+    "from_name": "Space Hit",
+    "to_skill": 15127,
+    "to_name": "Space Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15128,
+    "from_name": "Shadow Attack",
+    "to_skill": 15130,
+    "to_name": "Shadow Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15130,
+    "from_name": "Shadow Hit",
+    "to_skill": 15131,
+    "to_name": "Shadow Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15144,
+    "from_name": "Scurry Hit",
+    "to_skill": 15147,
+    "to_name": "Scurry Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15146,
+    "from_name": "Scurry Attack",
+    "to_skill": 15144,
+    "to_name": "Scurry Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15152,
+    "from_name": "Megalith Hit",
+    "to_skill": 15153,
+    "to_name": "Megalith Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15156,
+    "from_name": "Eddy Attack",
+    "to_skill": 15155,
+    "to_name": "Eddy Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15158,
+    "from_name": "Water Thunder Attack",
+    "to_skill": 15159,
+    "to_name": "Water Thunder Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15159,
+    "from_name": "Water Thunder Hit",
+    "to_skill": 15160,
+    "to_name": "Water Thunder Beatin",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15161,
+    "from_name": "Air Stress Attack",
+    "to_skill": 15162,
+    "to_name": "Air Stress Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15162,
+    "from_name": "Air Stress Hit",
+    "to_skill": 15163,
+    "to_name": "Air Stress Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15175,
+    "from_name": "Swirling Attack",
+    "to_skill": 15213,
+    "to_name": "Swirling Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15183,
+    "from_name": "Combo Earth Hit",
+    "to_skill": 15185,
+    "to_name": "Combo Earth Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15184,
+    "from_name": "Combo Earth Attack",
+    "to_skill": 15183,
+    "to_name": "Combo Earth Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15213,
+    "from_name": "Swirling Hit",
+    "to_skill": 15214,
+    "to_name": "Swirling Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15215,
+    "from_name": "Freeze Attack",
+    "to_skill": 15216,
+    "to_name": "Freeze Strike",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15216,
+    "from_name": "Freeze Strike",
+    "to_skill": 15186,
+    "to_name": "Freeze Beat-down",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15217,
+    "from_name": "Fancy Eagle Attack",
+    "to_skill": 15218,
+    "to_name": "Fancy Eagle Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15218,
+    "from_name": "Fancy Eagle Hit",
+    "to_skill": 15219,
+    "to_name": "Fancy Eagle Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15221,
+    "from_name": "Tornado Hit",
+    "to_skill": 15224,
+    "to_name": "Tornado Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 15223,
+    "from_name": "Tornado Attack",
+    "to_skill": 15221,
+    "to_name": "Tornado Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 20003,
+    "from_name": "Sword Awn Hit",
+    "to_skill": 15089,
+    "to_name": "Sword Awn Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 21301,
+    "from_name": "Rock Elf Hit",
+    "to_skill": 15094,
+    "to_name": "Rock Elf Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 21401,
+    "from_name": "Storm Attack",
+    "to_skill": 11023,
+    "to_name": "Storm Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 25016,
+    "from_name": "Confusion Hit",
+    "to_skill": 25020,
+    "to_name": "Confusion Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 25021,
+    "from_name": "Confusion Attack",
+    "to_skill": 25016,
+    "to_name": "Confusion Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 25022,
+    "from_name": "Vacuum Attack",
+    "to_skill": 25023,
+    "to_name": "Vacuum Hit",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 25023,
+    "from_name": "Vacuum Hit",
+    "to_skill": 25010,
+    "to_name": "Vacuum Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 25026,
+    "from_name": "Unclear Blast",
+    "to_skill": 25027,
+    "to_name": "Unclear Explosion",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 25028,
+    "from_name": "Unclear Burst",
+    "to_skill": 25026,
+    "to_name": "Unclear Blast",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 30000,
+    "from_name": "Fire Blast Hit",
+    "to_skill": 15110,
+    "to_name": "Fire Blast Beating",
+    "required_grade": 10
+  },
+  {
+    "from_skill": 30002,
+    "from_name": "Wind Blade Attack",
+    "to_skill": 15122,
+    "to_name": "Wind Blade Hit",
+    "required_grade": 10
+  }
+]

@@ -1,0 +1,135 @@
+[
+  {
+    "box_id": 26001,
+    "box_name": "Sky Sword Box",
+    "item_id": 11101,
+    "item_name": "Sky Sword",
+    "quantity": 1
+  },
+  {
+    "box_id": 26002,
+    "box_name": "Lord Sword Box",
+    "item_id": 11102,
+    "item_name": "Lord Sword",
+    "quantity": 1
+  },
+  {
+    "box_id": 26003,
+    "box_name": "Beast Fork Box",
+    "item_id": 12072,
+    "item_name": "Beast Fork",
+    "quantity": 1
+  },
+  {
+    "box_id": 26004,
+    "box_name": "Spirit Fork Box",
+    "item_id": 12073,
+    "item_name": "Spirit Fork",
+    "quantity": 1
+  },
+  {
+    "box_id": 26005,
+    "box_name": "Polished Wand Box",
+    "item_id": 14076,
+    "item_name": "Polished Wand",
+    "quantity": 1
+  },
+  {
+    "box_id": 26006,
+    "box_name": "Light Wand Box",
+    "item_id": 14078,
+    "item_name": "Light Wand",
+    "quantity": 1
+  },
+  {
+    "box_id": 26007,
+    "box_name": "Attack Pestle Box",
+    "item_id": 18063,
+    "item_name": "Attack Pestle",
+    "quantity": 1
+  },
+  {
+    "box_id": 26008,
+    "box_name": "Energy Halo Box",
+    "item_id": 22135,
+    "item_name": "Energy Halo",
+    "quantity": 1
+  },
+  {
+    "box_id": 26009,
+    "box_name": "Golden Ears Box",
+    "item_id": 22157,
+    "item_name": "Gold Ears",
+    "quantity": 1
+  },
+  {
+    "box_id": 26010,
+    "box_name": "Stand Ears Box",
+    "item_id": 22158,
+    "item_name": "Stand Ears",
+    "quantity": 1
+  },
+  {
+    "box_id": 26011,
+    "box_name": "Jade Ears Box",
+    "item_id": 22159,
+    "item_name": "Jade Ears",
+    "quantity": 1
+  },
+  {
+    "box_id": 26012,
+    "box_name": "Dark Evil Wing Box",
+    "item_id": 25191,
+    "item_name": "Dark Evil Wings",
+    "quantity": 1
+  },
+  {
+    "box_id": 26013,
+    "box_name": "Angel Wings Box",
+    "item_id": 25192,
+    "item_name": "Angel Wings",
+    "quantity": 1
+  },
+  {
+    "box_id": 26014,
+    "box_name": "Archangel Wings Box",
+    "item_id": 25215,
+    "item_name": "Archangel Wings",
+    "quantity": 1
+  },
+  {
+    "box_id": 26015,
+    "box_name": "Crescent Bow Box",
+    "item_id": 13061,
+    "item_name": "Crescent Bow",
+    "quantity": 1
+  },
+  {
+    "box_id": 26016,
+    "box_name": "Golden Rings Box",
+    "item_id": 15050,
+    "item_name": "Golden Rings",
+    "quantity": 1
+  },
+  {
+    "box_id": 26017,
+    "box_name": "Purple Wing Robe Box",
+    "item_id": 21174,
+    "item_name": "Purple Wing Robe",
+    "quantity": 1
+  },
+  {
+    "box_id": 26018,
+    "box_name": "Kung-Fu Suit Box",
+    "item_id": 21213,
+    "item_name": "Kung-Fu Suit",
+    "quantity": 1
+  },
+  {
+    "box_id": 26019,
+    "box_name": "Thunder Spear Box",
+    "item_id": 12101,
+    "item_name": "Thunder Spear",
+    "quantity": 1
+  }
+]

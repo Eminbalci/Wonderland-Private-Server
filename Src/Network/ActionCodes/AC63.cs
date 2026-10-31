@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using RCLibrary.Core.Networking;
 using Network;
 using Game;
+using Game.Code;
 
 namespace Network.ActionCodes
 {
@@ -20,9 +21,9 @@ namespace Network.ActionCodes
 
             switch (subCommand)
             {
-                case 0:
-                //case 3: Recv3(ref p, r); break;
+                case 0: break;
                 case 2: Recv2(ref p, r); break;
+                case 3: Recv3(ref p, r); break;
                 case 4: Recv4(ref p, r); break;
                 default: DebugSystem.Write($"[AC63] Unknown sub-command: {subCommand}"); break;
             }
@@ -31,13 +32,89 @@ namespace Network.ActionCodes
 
         void Recv3(ref Player p, RecievePacket r)
         {
-            //try
-            //{
-            //    cGlobal.gCharacterDataBase.unLockName(p.CharacterName);
-            //    p.UserName = "";
-            //    p.DataBaseID = 0;
-            //}
-            //catch (Exception t) { Utilities.LogServices.Log(t); }
+            DebugSystem.Write($"[AC63.Recv3] Character creation request from user '{p.UserAcc?.UserName}'");
+            try
+            {
+                byte slot = r.Unpack8();
+                string charName = r.UnpackString();
+                byte roleId = r.Unpack8();
+                byte element = r.Unpack8();
+                byte strV = r.Unpack8();
+                byte conV = r.Unpack8();
+                byte intV = r.Unpack8();
+                byte wisV = r.Unpack8();
+                byte agiV = r.Unpack8();
+
+                DebugSystem.Write($"[AC63.Recv3] Attributes: Slot={slot}, Name='{charName}', Role={roleId}, Elem={element}, STR={strV}, CON={conV}, INT={intV}, WIS={wisV}, AGI={agiV}");
+
+                if (slot < 1 || slot > 2) slot = 1;
+                p.Slot = slot;
+
+                if (string.IsNullOrEmpty(charName) || charName.Length < 3 || charName.Length > 16)
+                {
+                    charName = p.UserAcc?.UserName ?? "Hero";
+                }
+
+                p.CharName = charName;
+                p.Eqs.Body = (BodyStyle)roleId;
+                p.Eqs.Head = 1;
+                p.Eqs.Element = (Affinity)element;
+                p.Eqs.Str = strV;
+                p.Eqs.Con = conV;
+                p.Eqs.Int = intV;
+                p.Eqs.Wis = wisV;
+                p.Eqs.Agi = agiV;
+
+                p.SetBeginnerOutfit();
+                p.Eqs.ApplyCharacterBaseStats();
+                p.FillHP();
+                p.FillSP();
+                p.Settings.ChannelCode = (ChannelCodeType)31;
+                p.Settings.TRADABLE = true;
+                p.Settings.PKABLE = false;
+                p.Settings.JOINABLE = true;
+                p.Eqs.TotalExp = 6;
+                p.LoginMap = 10017;
+                p.CurX = 1042;
+                p.CurY = 1075;
+                p.SetGold(0);
+                p.Started_Quests.Add(new Quest() { QID = 1 });
+                Game.PlayerRelated.StarterPackManager.DeliverToPlayer(p, sendData: false);
+
+                if (cGlobal.gCharacterDataBase.WriteNewPlayer(p.CharID, p))
+                {
+                    cGlobal.gUserDataBase.Update_Player_ID(p.UserAcc.DataBaseID, p.CharID, (byte)p.Slot);
+                    cGlobal.gUserDataBase.UpdateUser(p.UserAcc.DataBaseID, p.UserAcc.Cipher);
+
+                    // Send Character Creation ACK (Action 1 Sub 3 Status 0)
+                    SendPacket ack = new SendPacket();
+                    ack.Pack8(1);
+                    ack.Pack8(3);
+                    ack.Pack8(0); // 0 = Success
+                    p.Send(ack);
+
+                    DebugSystem.Write($"[AC63.Recv3] Character created successfully for CharID={p.CharID}! Entering world...");
+                    cGlobal.gWorld.OnLogin(p);
+                }
+                else
+                {
+                    DebugSystem.Write($"[AC63.Recv3] WriteNewPlayer failed for CharID={p.CharID}");
+                    SendPacket fail = new SendPacket();
+                    fail.Pack8(1);
+                    fail.Pack8(3);
+                    fail.Pack8(1); // 1 = Fail
+                    p.Send(fail);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+                SendPacket fail = new SendPacket();
+                fail.Pack8(1);
+                fail.Pack8(3);
+                fail.Pack8(1);
+                p.Send(fail);
+            }
         }
 
         void Recv2(ref Player p, RecievePacket e)

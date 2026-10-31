@@ -172,6 +172,8 @@
     <Compile Include="Game\PlayerRelated\GmManager.cs" />
     <Compile Include="Game\PlayerRelated\ItemMallManager.cs" />
     <Compile Include="Game\PlayerRelated\GachaManager.cs" />
+    <Compile Include="Game\PlayerRelated\BoxedItemManager.cs" />
+    <Compile Include="Game\PlayerRelated\TeleportScrollManager.cs" />
     <Compile Include="Game\PetRelated\PetVoucherManager.cs" />
     <Compile Include="Game\PlayerRelated\MallForgingManager.cs" />
     <Compile Include="Game\PlayerRelated\Trade.cs" />

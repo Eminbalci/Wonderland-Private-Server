@@ -160,18 +160,20 @@ namespace DataBase
         {
             if (user == 0) return false;
 
-            string col = "";
-            switch (slot)
+            string col = (slot == 1) ? CharacterID1_Ref : CharacterID2_Ref;
+            try
             {
-                case 1: { col = CharacterID1_Ref; } break;
-                case 2: { col = CharacterID2_Ref; } break;
+                var src = GetDataTable($"SELECT * FROM {TableName} LIMIT 1");
+                if (src != null && src.Columns.Contains(col))
+                {
+                    ExecuteNonQuery($"UPDATE {TableName} SET {col} = '{id}' WHERE {DataBaseID_Ref} = '{user}'");
+                }
             }
-
-            Dictionary<string, string> cols = new Dictionary<string, string>();
-            cols.Add(col, id.ToString());
-
-            //try { Update(TableName, cols, UserID_Ref + " = '" + user + "'"); }
-            //catch (MySqlException ex) { DebugSystem.Write(ex); return false; }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+                return false;
+            }
 
             return true;
         }

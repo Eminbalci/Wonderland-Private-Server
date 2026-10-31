@@ -153,6 +153,8 @@ namespace Game
         public ushort Title { get; set; } = 0;
         public uint BankGold { get; set; } = 0;
         public byte RebornJob { get; set; } = 0;
+        /// <summary>Set when an NPC script (Job Palace, Eve action 10) opened the rebirth job form.</summary>
+        public bool RebornFormOpen { get; set; } = false;
         public bool Fishing { get; set; } = false;
         public void SendSystemMessage(string msg)
         {
@@ -1362,21 +1364,7 @@ namespace Game
                         {
                             Game.PlayerRelated.MarriageManager.TeleportToSpouse(c);
                         }
-                        else if (chatMsg.StartsWith("/reborn", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (!Game.PlayerRelated.GmManager.IsGm(c))
-                            {
-                                c.SendSystemMessage("You do not have GM privileges to use the /reborn command.");
-                            }
-                            else
-                            {
-                                var parts = chatMsg.Split(' ');
-                                if (parts.Length > 1 && Enum.TryParse<Game.PlayerRelated.RebornJob>(parts[1], true, out var job))
-                                {
-                                    Game.PlayerRelated.RebornManager.PerformReborn(c, job);
-                                }
-                            }
-                        }
+                        // :reborn / /reborn is handled by the GM command switch in AC02.
                         else if (chatMsg.StartsWith("/compound", StringComparison.OrdinalIgnoreCase))
                         {
                             var parts = chatMsg.Split(' ');

@@ -839,6 +839,28 @@ namespace Game.Maps
                                         }
                                         return true;
 
+                                    // 10: Rebirth job selection (Job Palace map 12625, Mahabrahman).
+                                    // Native client opens the job form on AC79:1 and answers with AC79:1 [job].
+                                    case 10:
+                                        if (player.Reborn)
+                                        {
+                                            player.SendHeadBanner("You have already undergone Rebirth.");
+                                            player.Send(Tools.FromFormat("bb", 20, 8));
+                                        }
+                                        else if (player.Level < Game.PlayerRelated.RebornManager.RequiredLevel)
+                                        {
+                                            player.SendHeadBanner($"You must reach Level {Game.PlayerRelated.RebornManager.RequiredLevel} to undergo Rebirth.");
+                                            player.Send(Tools.FromFormat("bb", 20, 8));
+                                        }
+                                        else
+                                        {
+                                            player.RebornFormOpen = true;
+                                            player.Send(Tools.FromFormat("bb", 20, 8));
+                                            player.Send(Tools.FromFormat("bb", 79, 1));
+                                            DebugSystem.Write($"[EveEventInterpreter] Opened rebirth job form for {player.CharName}");
+                                        }
+                                        return true;
+
                                     // 4: Props Keep / Storage Bank
                                     case 4:
                                         player.OpenPropsKeeper();
@@ -949,9 +971,12 @@ namespace Game.Maps
 
                     // These opcodes are not currency/EXP amounts. Keep unknown actions explicit;
                     // scalar player rewards are encoded by player action 1/1 above.
+                    // Opcode 10: 10/1 precedes sealed "Challenge Round" battles and 10/6 ends
+                    // mission maps (164 uses). It has no server-side reward; aborting here stopped
+                    // those quests before their battle or completion flags, so continue the branch.
                     case 10:
-                        DebugSystem.Write("[EveEventInterpreter] Unsupported native action " + op.DialogPtr);
-                        return false;
+                        DebugSystem.Write($"[EveEventInterpreter] Opcode 10 marker {op.dialog1} on map {map?.MapID} for {player.CharName}");
+                        return true;
 
                     // EVE converter 0x49c76c maps opcode 11 to subject 4 (skill),
                     // target=d1, mode=1, grade=packed value. All authored grants teach grade 1.

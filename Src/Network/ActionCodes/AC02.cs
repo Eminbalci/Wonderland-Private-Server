@@ -476,6 +476,25 @@ namespace Network.ActionCodes {
                             break;
                         #endregion
 
+                        #region Character Rebirth Command
+                        // :reborn <killer|warrior|knight|wit|priest|seer|1-6> [force]
+                        // "force" skips the level 100 requirement.
+                        case ":reborn":
+                        case "/reborn": {
+                                try {
+                                    if (words.Length < 2 || !Game.PlayerRelated.RebornManager.TryParseJob(words[1], out var rebornJob)) {
+                                        p.SendHeadBanner("Usage: :reborn <killer|warrior|knight|wit|priest|seer> [force]");
+                                    } else {
+                                        bool force = words.Length >= 3 && words[2].Equals("force", StringComparison.OrdinalIgnoreCase);
+                                        Game.PlayerRelated.RebornManager.PerformReborn(p, rebornJob, force);
+                                    }
+                                } catch (Exception ex) {
+                                    p.SendHeadBanner($"[GM] Rebirth error: {ex.Message}");
+                                }
+                            }
+                            break;
+                        #endregion
+
                         #region Pet Rebirth Command
                         case ":rebirth":
                         case "/rebirth":

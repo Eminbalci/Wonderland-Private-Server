@@ -441,6 +441,16 @@ namespace Game.SkillRelated
                     player.PlayerSkills.Add(new PlayerSkill(skId, 1, 0));
                 }
             }
+
+            // Also grant evolutions already earned (e.g. a grade 10 skill saved before
+            // evolutions worked). Evolved skills start at grade 1, so a few passes suffice.
+            for (int pass = 0; pass < 5; pass++)
+            {
+                var evolved = GetQualifiedEvolutionSkills(player);
+                if (evolved.Count == 0) break;
+                foreach (var skId in evolved)
+                    player.PlayerSkills.Add(new PlayerSkill(skId, 1, 0));
+            }
         }
 
         /// <summary>
@@ -554,112 +564,84 @@ namespace Game.SkillRelated
             return toUnlock;
         }
 
+        // Skill evolutions (Attack -> Hit -> Beating) come from Data/skill_evolutions.json,
+        // generated from client Skill.dat: each evolved skill stores its prerequisite
+        // skill ID at record offset 54. Evolution unlocks at grade 10.
+        private static Dictionary<uint, List<EvolutionEntry>> _evolutions = null;
+        private static readonly object _evolutionLock = new object();
+
+        private class EvolutionEntry
+        {
+            public uint from_skill { get; set; }
+            public uint to_skill { get; set; }
+            public int required_grade { get; set; }
+        }
+
+        private static Dictionary<uint, List<EvolutionEntry>> GetEvolutions()
+        {
+            lock (_evolutionLock)
+            {
+                if (_evolutions != null) return _evolutions;
+                var loaded = new Dictionary<uint, List<EvolutionEntry>>();
+                try
+                {
+                    string path = RCLibrary.Core.PathHelper.GetDataFilePath("skill_evolutions.json");
+                    if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                    {
+                        DebugSystem.Write("[SkillManager] skill_evolutions.json not found; skills cannot evolve.");
+                    }
+                    else
+                    {
+                        var list = new System.Web.Script.Serialization.JavaScriptSerializer()
+                            .Deserialize<List<EvolutionEntry>>(File.ReadAllText(path)) ?? new List<EvolutionEntry>();
+                        foreach (var entry in list)
+                        {
+                            if (entry == null || entry.from_skill == 0 || entry.to_skill == 0) continue;
+                            if (entry.required_grade <= 0) entry.required_grade = 10;
+                            List<EvolutionEntry> bucket;
+                            if (!loaded.TryGetValue(entry.from_skill, out bucket))
+                                loaded[entry.from_skill] = bucket = new List<EvolutionEntry>();
+                            bucket.Add(entry);
+                        }
+                        DebugSystem.Write($"[SkillManager] Loaded {list.Count} skill evolutions.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write("[SkillManager] Error loading skill evolutions: " + ex.Message);
+                    loaded.Clear();
+                }
+                _evolutions = loaded;
+                return _evolutions;
+            }
+        }
+
+        public static void ReloadEvolutions()
+        {
+            lock (_evolutionLock) { _evolutions = null; }
+        }
+
         /// <summary>
-        /// Returns skill evolutions (e.g. Attack -> Hit -> Beating) unlocked when a preceding skill reaches Grade 10.
+        /// Returns evolved skill IDs the player qualifies for and does not know yet.
         /// </summary>
         public static List<uint> GetQualifiedEvolutionSkills(Player player)
         {
-            List<uint> evolutions = new List<uint>();
-            if (player == null || player.PlayerSkills == null) return evolutions;
-
-            foreach (var sk in player.PlayerSkills.ToList())
+            var results = new List<uint>();
+            if (player == null || player.PlayerSkills == null) return results;
+            var evolutions = GetEvolutions();
+            foreach (var skill in player.PlayerSkills.ToList())
             {
-                if (sk.Grade >= 10)
+                List<EvolutionEntry> entries;
+                if (skill == null || !evolutions.TryGetValue(skill.SkillID, out entries)) continue;
+                foreach (var entry in entries)
                 {
-                    switch (sk.SkillID)
-                    {
-                        // --- Fire Physical ---
-                        case 11166: evolutions.Add(15104); break; // Blast Attack -> Blast Hit
-                        case 15104: evolutions.Add(15105); break; // Blast Hit -> Blast Beating
-                        case 15101: evolutions.Add(20003); break; // Sword Awn Attack -> Sword Awn Hit
-                        case 20003: evolutions.Add(15089); break; // Sword Awn Hit -> Sword Awn Beating
-                        case 11114: evolutions.Add(11115); break; // Turning Fire Attack -> Turning Fire Hit
-                        case 11115: evolutions.Add(12022); break; // Turning Fire Hit -> Turning Fire Beating
-                        case 12039: evolutions.Add(12034); break; // Fire Wave Attack -> Fire Wave Hit
-                        case 12034: evolutions.Add(12038); break; // Fire Wave Hit -> Fire Wave Beating
-                        case 15102: evolutions.Add(15015); break; // Five Star Attack -> Five Star Hit
-                        case 15015: evolutions.Add(15103); break; // Five Star Hit -> Five Star Beating
-                        case 15044: evolutions.Add(15017); break; // Hagendis Attack -> Hagendis Hit
-                        case 15017: evolutions.Add(15045); break; // Hagendis Hit -> Hagendis Beating
-
-                        // --- Fire Magical & Assistant ---
-                        case 11016: evolutions.Add(11029); break; // Flame Attack -> Flame Hit
-                        case 11029: evolutions.Add(11025); break; // Flame Hit -> Flame Beating
-                        case 11005: evolutions.Add(30000); break; // Fire Blast Attack -> Fire Blast Hit
-                        case 30000: evolutions.Add(15110); break; // Fire Blast Hit -> Fire Blast Beating
-                        case 11034: evolutions.Add(11117); break; // Fire Ball Attack -> Fire Ball Hit
-                        case 11117: evolutions.Add(15106); break; // Fire Ball Hit -> Fire Ball Beating
-                        case 15109: evolutions.Add(15107); break; // Blaze Attack -> Blaze Hit
-                        case 15107: evolutions.Add(15108); break; // Blaze Hit -> Blaze Beating
-                        case 15111: evolutions.Add(12021); break; // Fire Combo Attack -> Fire Combo Hit
-                        case 12021: evolutions.Add(12024); break; // Fire Combo Hit -> Fire Combo Beating
-                        case 11035: evolutions.Add(15112); break; // Fire Stone Attack -> Fire Stone Hit
-                        case 15112: evolutions.Add(11059); break; // Fire Stone Hit -> Fire Stone Bead
-                        case 15171: evolutions.Add(11008); break; // Fire Attack -> Magma Attack
-                        case 11008: evolutions.Add(12049); break; // Magma Attack -> Fire Dance
-
-                        // --- Earth ---
-                        case 11017: evolutions.Add(11086); break; // Earth Attack -> Earth Hit
-                        case 11086: evolutions.Add(11065); break; // Earth Hit -> Earth Beating
-                        case 11087: evolutions.Add(11071); break; // Rupture Attack -> Rupture Hit
-                        case 11071: evolutions.Add(11088); break; // Rupture Hit -> Rupture Beating
-                        case 15083: evolutions.Add(12025); break; // Jump Attack -> Jump Hit
-                        case 12025: evolutions.Add(15084); break; // Jump Hit -> Jump Beating
-                        case 15049: evolutions.Add(15020); break; // Earthquake Attack -> Earthquake Hit
-                        case 15020: evolutions.Add(15043); break; // Earthquake Hit -> Earthquake Beating
-                        case 15146: evolutions.Add(15147); break; // Gold Attack -> Gold Hit
-                        case 15085: evolutions.Add(11085); break; // Rock Attack -> Rock Hit
-                        case 11085: evolutions.Add(15074); break; // Rock Hit -> Rock Beating
-                        case 15056: evolutions.Add(11091); break; // Rockfall Attack -> Rockfall Hit
-                        case 11091: evolutions.Add(11093); break; // Rockfall Hit -> Rockfall Beating
-                        case 11107: evolutions.Add(15152); break; // Meteorite -> Meteorite Hit
-                        case 15152: evolutions.Add(15153); break; // Meteorite Hit -> Meteorite Beating
-
-                        // --- Water ---
-                        case 11001: evolutions.Add(15062); break; // Icicle Attack -> Icicle Hit
-                        case 15062: evolutions.Add(15063); break; // Icicle Hit -> Icicle Beating
-                        case 11044: evolutions.Add(11004); break; // Water Wave Attack -> Water Wave Hit
-                        case 11004: evolutions.Add(11096); break; // Water Wave Hit -> Water Wave Beating
-                        case 15019: evolutions.Add(15059); break; // Turning Ice Attack -> Turning Ice Hit
-                        case 15059: evolutions.Add(15073); break; // Turning Ice Hit -> Turning Ice Beating
-                        case 12007: evolutions.Add(11010); break; // Ice Spike Attack -> Ice Spike Hit
-                        case 11010: evolutions.Add(21201); break; // Ice Spike Hit -> Ice Spike Beating
-                        case 15156: evolutions.Add(15157); break; // Water Bomb -> Water Bomb Hit
-                        case 15091: evolutions.Add(15092); break; // Ice Attack -> Ice Hit
-                        case 15092: evolutions.Add(15093); break; // Ice Hit -> Ice Beating
-                        case 11040: evolutions.Add(15096); break; // Ice Ball Attack -> Ice Ball Hit
-                        case 15096: evolutions.Add(15095); break; // Ice Ball Hit -> Ice Ball Beating
-                        case 11113: evolutions.Add(11100); break; // Freezing Attack -> Freezing Hit
-                        case 11100: evolutions.Add(15098); break; // Freezing Hit -> Freezing Beating
-                        case 15158: evolutions.Add(15159); break; // Ice Dragon -> Ice Dragon Hit
-                        case 15159: evolutions.Add(15160); break; // Ice Dragon Hit -> Ice Dragon Beating
-
-                        // --- Wind ---
-                        case 15079: evolutions.Add(15009); break; // Wind Cut Attack -> Wind Cut Hit
-                        case 15009: evolutions.Add(15010); break; // Wind Cut Hit -> Wind Cut Beating
-                        case 15117: evolutions.Add(15118); break; // Shadow Attack -> Shadow Hit
-                        case 15118: evolutions.Add(15119); break; // Shadow Hit -> Shadow Beating
-                        case 15002: evolutions.Add(12028); break; // Instant Attack -> Instant Hit
-                        case 12028: evolutions.Add(15004); break; // Instant Hit -> Instant Beating
-                        case 11046: evolutions.Add(15024); break; // Dead Wind Attack -> Dead Wind Hit
-                        case 15024: evolutions.Add(15025); break; // Dead Wind Hit -> Dead Wind Beating
-                        case 15114: evolutions.Add(15115); break; // Furious Wind -> Furious Wind Hit
-                        case 15115: evolutions.Add(15116); break; // Furious Wind Hit -> Furious Wind Beating
-                        case 11007: evolutions.Add(11014); break; // Wind Attack -> Wind Hit
-                        case 11014: evolutions.Add(15113); break; // Wind Hit -> Wind Bead
-                        case 15123: evolutions.Add(15124); break; // Gale Attack -> Gale Hit
-                        case 15124: evolutions.Add(15082); break; // Gale Hit -> Gale Beating
-                        case 15125: evolutions.Add(15126); break; // Wind Storm Attack -> Wind Storm Hit
-                        case 15126: evolutions.Add(15081); break; // Wind Storm Hit -> Wind Storm Beating
-                        case 15048: evolutions.Add(15026); break; // Tornado -> Tornado Hit
-                        case 15026: evolutions.Add(15027); break; // Tornado Hit -> Tornado Beating
-                        case 15161: evolutions.Add(15162); break; // Hurricane -> Hurricane Hit
-                        case 15162: evolutions.Add(15163); break; // Hurricane Hit -> Hurricane Beating
-                    }
+                    if (skill.Grade >= entry.required_grade &&
+                        !player.PlayerSkills.Any(s => s.SkillID == entry.to_skill) &&
+                        !results.Contains(entry.to_skill))
+                        results.Add(entry.to_skill);
                 }
             }
-
-            return evolutions;
+            return results;
         }
 
         /// <summary>
@@ -686,6 +668,81 @@ namespace Game.SkillRelated
             if (skill.Grade > oldGrade)
                 owner.Send(Tools.FromFormat("bbbwbbdd", 8, 2, 4, (ushort)pet.ClientSlot, 110, 1, (uint)skill.Grade, skillId));
             owner.Send(Tools.FromFormat("bbbwbbdd", 8, 2, 4, (ushort)pet.ClientSlot, 111, 1, skill.Exp, skillId));
+        }
+
+        public enum SupportSkillKind { Heal, Revive, Buff }
+
+        /// <summary>EXP every support skill use earns (more than an attack's per-use EXP).</summary>
+        public const uint SupportExpPerUse = 15;
+        /// <summary>Flat bonus for buff/shield/speed skills.</summary>
+        public const uint BuffBonusExp = 25;
+        /// <summary>Flat bonus for reviving a dead ally.</summary>
+        public const uint ReviveBonusExp = 80;
+
+        /// <summary>
+        /// Skill EXP for one support use. Heal: SupportExpPerUse + 1.5x the % of max HP
+        /// actually restored (overheal ignored). Revive and buffs: flat bonuses. Max 200.
+        /// </summary>
+        public static uint CalculateSupportSkillExp(SupportSkillKind kind, int amountRestored, int targetHpBefore, int targetMaxHp)
+        {
+            long result;
+            switch (kind)
+            {
+                case SupportSkillKind.Heal:
+                    if (targetMaxHp <= 0 || amountRestored <= 0)
+                    {
+                        result = SupportExpPerUse;
+                    }
+                    else
+                    {
+                        int missingHp = Math.Max(0, targetMaxHp - targetHpBefore);
+                        long effective = Math.Min(amountRestored, missingHp);
+                        long healPercent = (effective * 100L + (targetMaxHp - 1)) / targetMaxHp;
+                        if (healPercent > 100) healPercent = 100;
+                        if (healPercent < 0) healPercent = 0;
+                        result = SupportExpPerUse + healPercent * 3 / 2;
+                    }
+                    break;
+                case SupportSkillKind.Revive:
+                    result = (long)SupportExpPerUse + ReviveBonusExp;
+                    break;
+                default:
+                    result = (long)SupportExpPerUse + BuffBonusExp;
+                    break;
+            }
+            if (result > 200) result = 200;
+            return (uint)result;
+        }
+
+        /// <summary>EXP a skill gains every time it is used in battle.</summary>
+        public const uint SkillExpPerUse = 10;
+
+        /// <summary>
+        /// Skill EXP for one use in battle: SkillExpPerUse plus the percentage of the
+        /// target's max HP the hit removed (0-100, rounded up, overkill ignored).
+        /// </summary>
+        public static uint CalculateSkillExpForHit(int damage, int targetHpBefore, int targetMaxHp)
+        {
+            if (damage <= 0 || targetMaxHp <= 0) return SkillExpPerUse;
+            long effectiveDamage = targetHpBefore <= 0 ? damage : Math.Min((long)damage, (long)targetHpBefore);
+            long percent = (effectiveDamage * 100 + targetMaxHp - 1) / targetMaxHp;
+            if (percent < 0) percent = 0;
+            if (percent > 100) percent = 100;
+            return SkillExpPerUse + (uint)percent;
+        }
+
+        /// <summary>
+        /// Skill EXP for one hit: the percentage of the target's max HP it removed,
+        /// rounded up and clamped to 1-100. Overkill beyond the target's HP does not count.
+        /// </summary>
+        public static uint CalculateSkillExpFromDamage(int damage, int targetHpBefore, int targetMaxHp)
+        {
+            if (targetMaxHp <= 0 || damage <= 0) return 1;
+            long effectiveDamage = targetHpBefore <= 0 ? damage : Math.Min((long)damage, (long)targetHpBefore);
+            long percent = (effectiveDamage * 100 + targetMaxHp - 1) / targetMaxHp;
+            if (percent < 1) return 1;
+            if (percent > 100) return 100;
+            return (uint)percent;
         }
 
         public static void AddSkillExp(Player player, uint skillId, uint expGain)

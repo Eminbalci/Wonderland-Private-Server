@@ -1,12 +1,14 @@
 using System;
 using Game;
+using Game.PlayerRelated;
 using Network;
 
 namespace Network.ActionCodes
 {
     /// <summary>
-    /// AC 74: Casino Lucky Roulette & Carnival Wheel Protocol.
-    /// Handles spinning the carnival wheel, calculating prize sectors, and granting rewards.
+    /// AC 74: Teleport Scroll (verified in aLogin.exe 0x13e3d2 / 0x45b0b9).
+    ///   C->S [74,1,slot,point] record current position; [74,2,slot,point] teleport.
+    ///   S->C [74,1,point,map,x,y] saved point for the client world map.
     /// </summary>
     public class AC74 : AC
     {
@@ -15,24 +17,19 @@ namespace Network.ActionCodes
         public override void ProcessPkt(Player c, RecievePacket p)
         {
             if (c == null || p == null) return;
-
-            byte subCode = p.B ?? 1;
-            DebugSystem.Write($"[AC74] Casino Roulette spin from {c.CharName}: SubCode={subCode}");
-
             try
             {
-                byte prizeSector = (byte)(new Random().Next(1, 12));
-
-                SendPacket resp = new SendPacket();
-                resp.Pack8((byte)ID);
-                resp.Pack8(subCode);
-                resp.Pack8(prizeSector); // Sector index 1-12
-                resp.Pack8(1);           // 1 = Spin Complete
-                c.Send(resp);
+                if (p.Buffer.Length < 8) return;
+                p.SetPtr(6); // header(4) + AC + sub; the sub code is p.B
+                byte slot = p.Unpack8();
+                byte idx = p.Unpack8();
+                if (p.B == 1) TeleportScrollManager.Record(c, slot, idx);
+                else if (p.B == 2) TeleportScrollManager.TeleportTo(c, slot, idx);
+                else DebugSystem.Write($"[AC74] Unhandled teleport sub {p.B} from {c.CharName}");
             }
             catch (Exception ex)
             {
-                DebugSystem.Write(new ExceptionData(ex));
+                DebugSystem.Write("[AC74] Error: " + ex.Message);
             }
         }
     }

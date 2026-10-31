@@ -12,6 +12,25 @@ namespace Network.ActionCodes
 {
     public class AC62 : AC
     {
+        void RecvPing(Player p, RecievePacket r)
+        {
+            try
+            {
+                uint pingId = (r.Buffer.Length >= 10) ? BitConverter.ToUInt32(r.Buffer, 6) : (uint)Environment.TickCount;
+                p.LastPacketTime = DateTime.Now;
+
+                SendPacket resp = new SendPacket();
+                resp.Pack8(62); // 0x3E
+                resp.Pack8(45); // 0x2D
+                resp.Pack32(pingId);
+                p.Send(resp);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
         public override int ID { get { return 62; } }
         public override void ProcessPkt(Player p, RecievePacket r)
         {
@@ -23,6 +42,7 @@ namespace Network.ActionCodes
                 case 2: Recv2(p, r); break; // Pick up item from tent into inventory
                 case 3: Recv3(p, r); break; // rotate, move objects in tent.
                 case 4: Recv4(p, r); break; // add item type especial
+                case 45: RecvPing(p, r); break; // 0x2D: Opcode 0x3E2D (PING / KEEPALIVE)
                 default: Console.WriteLine(r.A + "," + r.B + " Has not been coded"); break;
             }
         }

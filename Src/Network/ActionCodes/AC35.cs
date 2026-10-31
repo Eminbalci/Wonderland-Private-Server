@@ -16,6 +16,7 @@ namespace Network.ActionCodes
             switch (r.Unpack8())
             {
                 case 2: Recv2(p, r); break;
+                case 12: Recv12(p, r); break; // 0x0C: Opcode 0x230C (CHAT_BROADCAST)
             }
         }
 
@@ -55,5 +56,59 @@ namespace Network.ActionCodes
             player.Send(Tools.FromFormat("bbbb", 24, 5, value, 0));
 
         }
-    }
+            void Recv12(Player p, RecievePacket r)
+        {
+            try
+            {
+                byte channelId = (r.GetPtr() < r.Buffer.Length) ? r.Unpack8() : (byte)0;
+                string msg = r.UnpackStringN();
+                if (string.IsNullOrEmpty(msg)) return;
+
+                DebugSystem.Write($"[Chat.AC35_12] Channel={channelId} [{p.CharName}]: {msg}");
+
+                if (p.IsMuted)
+                {
+                    p.SendSystemMessage($"[Server] You are currently muted until {p.MutedUntil.Value:yyyy-MM-dd HH:mm:ss} UTC.");
+                    return;
+                }
+
+                // If chat command, execute via AC02 handler
+                if (msg.StartsWith(":") || msg.StartsWith("/"))
+                {
+                    var ac02 = Network.ActionCodes.AC.GetAction(2) as AC02;
+                    if (ac02 != null)
+                    {
+                        SendPacket cmdPkt = new SendPacket();
+                        cmdPkt.Pack8(2);
+                        cmdPkt.Pack8(2);
+                        cmdPkt.PackStringN(msg);
+                        RecievePacket cmdRecv = new RecievePacket(cmdPkt.Buffer);
+                        ac02.ProcessPkt(p, cmdRecv);
+                        return;
+                    }
+                }
+
+                // Broadcast authentic 0x230C payload: [35, 12, channelId, senderId(4B), msg]
+                SendPacket broadcast = new SendPacket();
+                broadcast.Pack8(35); // 0x23
+                broadcast.Pack8(12); // 0x0C
+                broadcast.Pack8(channelId);
+                broadcast.Pack32(p.CharID);
+                broadcast.PackStringN(msg);
+
+                if (p.CurMap != null)
+                {
+                    p.CurMap.Broadcast(broadcast);
+                }
+                else
+                {
+                    p.Send(broadcast);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+}
 }

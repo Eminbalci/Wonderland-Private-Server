@@ -321,11 +321,13 @@ namespace Game.Code
             remainingExp = m_totalexp;
             while (remainingExp >= (uint)CalcMaxExp(rebirth, level))
             {
-                if (!Reborn && level + 1 > 199) break;
+                if (level + 1 > 199) break;
                 remainingExp -= (uint)CalcMaxExp(rebirth, level);
                 level++;
             }
-            return Reborn ? (byte)(level - 100) : (byte)level;
+            // Rebirth restarts at level 1 on the reborn EXP curve. The old
+            // "level - 100" offset underflowed to 157 right after rebirth.
+            return (byte)level;
         }
 
         /// <summary>

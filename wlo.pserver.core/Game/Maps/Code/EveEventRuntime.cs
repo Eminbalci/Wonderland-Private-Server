@@ -753,8 +753,9 @@ namespace Game.Maps
 
         private static bool UnsupportedRewardAction(EventSubSubEntry op)
         {
-            return op.DialogPtr == 10 ||
-                (op.DialogPtr == 11 && (op.dialog2 != 1 || op.dialog3 != 0 || DecodeActionValue(op) != 1 ||
+            // Opcode 10 is a side-effect marker (10/1 before sealed battles, 10/6 at
+            // mission end); it carries no reward, so it must not block a branch.
+            return (op.DialogPtr == 11 && (op.dialog2 != 1 || op.dialog3 != 0 || DecodeActionValue(op) != 1 ||
                     Game.SkillRelated.SkillManager.GetSkill(op.dialog1) == null)) ||
                 (op.DialogPtr == 13 && (op.dialog1 < 1 || op.dialog1 > 3 || op.dialog3 < 1 || op.dialog3 > 256)) ||
                 (op.DialogPtr == 14 && !IsWaterTimerAction(op)) || op.DialogPtr == 16 || op.DialogPtr == 17 ||

@@ -13,6 +13,7 @@ namespace Network.ActionCodes
         {
             r.SetPtr(6);
             int length = r.Buffer.Length - r.GetPtr();
+            DebugSystem.Write($"[AC30] {p.CharName} storage request 30:{r.B} payload=[{BitConverter.ToString(r.Buffer, 6, Math.Max(0, length))}]");
             if (r.B < 1 || r.B > 5) return;
             bool changed = false;
             lock (p.Inv.SyncRoot)
@@ -47,6 +48,7 @@ namespace Network.ActionCodes
                 p.Send(Tools.FromFormat("bb", 30, 7));
             }
             if (changed) p.SaveCharacterData();
+            else DebugSystem.Write($"[AC30] {p.CharName} storage request 30:{r.B} changed nothing (empty/locked source slot or no room).");
         }
 
         static bool Transfer(Player p, Inventory source, Inventory destination, byte from, byte to)

@@ -1616,21 +1616,17 @@ namespace Game.Battle
                             var targetAlly = friendlyFighters.FirstOrDefault(f => f.GridX == sa.TargetGridX && f.GridY == sa.TargetGridY)
                                           ?? friendlyFighters.FirstOrDefault(f => !f.IsDead) ?? actor;
 
-                            // Award skill proficiency EXP to player
-                            if (actor.PlayerRef != null && sa.SkillId > 0)
-                            {
-                                SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, sa.SkillId, 1);
-                            }
-                            else if (actor.PetRef != null)
-                            {
-                                SkillRelated.SkillManager.AddPetSkillExp(sa.Player, actor.PetRef, sa.SkillId, 1);
-                            }
+                            // Skill EXP is awarded after the effect so heals count what they restored.
+                            var supportKind = SkillRelated.SkillManager.SupportSkillKind.Buff;
+                            int supportRestored = 0;
+                            int supportHpBefore = targetAlly.CurHP;
 
                             BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, actor.GridX, actor.GridY, 0));
 
                             if (sk != null && sk.IsRevive && targetAlly.IsDead)
                             {
                                 int reviveHp = Math.Max(50, targetAlly.MaxHP / 3);
+                                supportKind = SkillRelated.SkillManager.SupportSkillKind.Revive;
                                 targetAlly.CurHP = reviveHp;
                                 if (targetAlly.PlayerRef?.Eqs != null) targetAlly.PlayerRef.Eqs.CurHP = reviveHp;
                                 if (targetAlly.PetRef != null) targetAlly.PetRef.HP = reviveHp;
@@ -1654,6 +1650,8 @@ namespace Game.Battle
                             else if (sk != null && sk.IsHeal)
                             {
                                 int healAmt = Math.Max(40, (int)(actor.Atk * 2.2) + (actor.Level * 15));
+                                supportKind = SkillRelated.SkillManager.SupportSkillKind.Heal;
+                                supportRestored = healAmt;
                                 targetAlly.CurHP = Math.Min(targetAlly.MaxHP, targetAlly.CurHP + healAmt);
                                 if (targetAlly.PlayerRef?.Eqs != null) targetAlly.PlayerRef.Eqs.CurHP = targetAlly.CurHP;
                                 if (targetAlly.PetRef != null) targetAlly.PetRef.HP = targetAlly.CurHP;
@@ -1741,6 +1739,17 @@ namespace Game.Battle
                                 pGen.Pack32(0);
                                 pGen.Pack8(1);
                                 BroadcastToBattle(battle, pGen);
+                            }
+
+                            uint supportExp = SkillRelated.SkillManager.CalculateSupportSkillExp(
+                                supportKind, supportRestored, supportHpBefore, targetAlly.MaxHP);
+                            if (actor.PlayerRef != null && sa.SkillId > 0)
+                            {
+                                SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, sa.SkillId, supportExp);
+                            }
+                            else if (actor.PetRef != null)
+                            {
+                                SkillRelated.SkillManager.AddPetSkillExp(sa.Player, actor.PetRef, sa.SkillId, supportExp);
                             }
 
                             await Task.Delay(GetAnimationDelayMs(sa.SkillId, sa.ActionType));
@@ -1967,13 +1976,17 @@ namespace Game.Battle
                                     }
 
                                     // Award skill proficiency EXP to player
+                                    // Skill EXP = per-use EXP + % of the target's max HP removed by this hit.
+                                    // pairDmg already includes this hit; CurHP drops after the pair.
+                                    uint skillExp = SkillRelated.SkillManager.CalculateSkillExpForHit(
+                                        finalDmg, targetFighter.CurHP - pairDmg + finalDmg, targetFighter.MaxHP);
                                     if (actor.PlayerRef != null && a.SkillId > 0)
                                     {
-                                        SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, a.SkillId, 1);
+                                        SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, a.SkillId, skillExp);
                                     }
                                     else if (actor.PetRef != null)
                                     {
-                                        SkillRelated.SkillManager.AddPetSkillExp(a.Player, actor.PetRef, a.SkillId, 1);
+                                        SkillRelated.SkillManager.AddPetSkillExp(a.Player, actor.PetRef, a.SkillId, skillExp);
                                     }
 
                                     pAttackAnim.PackArray(new byte[] { 0x11, 0x00 });
