@@ -121,6 +121,16 @@ namespace Game.SkillRelated
         public bool IsConfuse => Effect == 173 || AdditionalEffect == 1 || (Name != null && (Name.Contains("Mess") || Name.Contains("Chaos") || Name.Contains("Confusion") || Name.Contains("Enchantment")));
         public bool IsPoison => Effect == 171 || (Name != null && (Name.Contains("Poison") || Name.Contains("Pollen") || Name.Contains("Miasma")));
         public bool IsParalyze => Effect == 8 || AdditionalEffect == 5 || (Name != null && (Name.Contains("Cord") || Name.Contains("Curse") || Name.Contains("Trap") || Name.Contains("Coma")));
+
+        public bool IsPureStatusDebuff =>
+            Target == 0 && (
+                EffectLayer == (byte)global::Game.EffectLayer.Seals1 ||
+                EffectLayer == (byte)global::Game.EffectLayer.Seals2 ||
+                EffectLayer == (byte)global::Game.EffectLayer.Debuffs1 ||
+                (EffectLayer != (byte)global::Game.EffectLayer.Physical && EffectLayer != (byte)global::Game.EffectLayer.Magical &&
+                 (Effect == 1 || Effect == 3 || Effect == 4 || Effect == 6 || Effect == 7 || Effect == 8 ||
+                  Effect == 171 || Effect == 172 || Effect == 173 || Effect == 176 || Effect == 177 || Effect == 178 || Effect == 179))
+            );
     }
 
     public class PlayerSkill
@@ -678,9 +688,10 @@ namespace Game.SkillRelated
         /// persists changes to database, dispatches AC 5:11 / AC 8:1 packets,
         /// and unlocks evolved skill versions if Grade 10 is attained.
         /// </summary>
-        public static void AddPetSkillExp(Player owner, Player.PlayerPetData pet, uint skillId, uint expGain)
+        public static void AddPetSkillExp(Player owner, Player.PlayerPetData pet, uint skillId, uint expGain, bool applyServerRate = true)
         {
             if (owner == null || pet == null || expGain == 0) return;
+            if (applyServerRate) expGain = (uint)Server.ServerStatusManager.ScaleExperience(expGain);
             pet.EnsureSkills();
             var skill = pet.Skills.FirstOrDefault(s => s.SkillID == skillId);
             if (skill == null || skill.Grade == 0 || skill.Grade >= 10) return;
@@ -774,9 +785,11 @@ namespace Game.SkillRelated
             return (uint)percent;
         }
 
-        public static void AddSkillExp(Player player, uint skillId, uint expGain)
+        public static void AddSkillExp(Player player, uint skillId, uint expGain, bool applyServerRate = true)
         {
-            if (player == null || skillId == 0) return;
+            if (player == null || skillId == 0 || expGain == 0) return;
+
+            if (applyServerRate) expGain = (uint)Server.ServerStatusManager.ScaleExperience(expGain);
 
             var sk = player.PlayerSkills.FirstOrDefault(s => s.SkillID == skillId || GetClientSkillId(player, s.SkillID) == skillId);
             if (sk == null || sk.Grade == 0) return;

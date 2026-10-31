@@ -1300,6 +1300,9 @@ namespace Game.Battle
             }
 
             // Keep existing non-damage/status behavior outside this correction.
+            if (skill.IsPureStatusDebuff)
+                return 0;
+
             if (skill.EffectLayer != (byte)EffectLayer.Physical && skill.EffectLayer != (byte)EffectLayer.Magical)
                 return Math.Max(15, (int)(actor.Atk * 2.8) - target.Def / 2);
 
@@ -1409,7 +1412,7 @@ namespace Game.Battle
                 {
                     actionType = "buff";
                 }
-                else if (skill.IsFreeze || skill.IsSleep || skill.IsSeal || skill.IsConfuse || skill.IsPoison || skill.IsParalyze)
+                else if (skill.IsPureStatusDebuff)
                 {
                     actionType = "status";
                 }
@@ -1478,10 +1481,10 @@ namespace Game.Battle
                 var step = new List<PendingAction> { action };
                 // A combo may only join adjacent offensive actions. It must never pull
                 // a slower actor ahead of a capture, support action, or enemy turn.
-                if ((action.ActionType == "attack" || action.ActionType == "status") && i + 1 < ordered.Count)
+                if (action.ActionType == "attack" && i + 1 < ordered.Count)
                 {
                     var next = ordered[i + 1];
-                    if ((next.ActionType == "attack" || next.ActionType == "status") &&
+                    if (next.ActionType == "attack" &&
                         next.TargetGridX == action.TargetGridX && next.TargetGridY == action.TargetGridY)
                     {
                         step.Add(next);
@@ -1980,6 +1983,8 @@ namespace Game.Battle
                                     var hitTargets = AoeTargetResolver.ResolveTargets(targetFighter, pattern, livingEnemies);
                                     if (hitTargets.Count == 0) hitTargets.Add(targetFighter);
 
+                                    bool isPureDebuff = a.ActionType == "status" || (sk != null && sk.IsPureStatusDebuff);
+
                                     pAttackAnim.PackArray(new byte[] { 0x11, 0x00 });
                                     pAttackAnim.Pack8(actor.GridX); pAttackAnim.Pack8(actor.GridY);
                                     pAttackAnim.Pack16(a.SkillId > 0 ? a.SkillId : (ushort)10001);
@@ -1988,7 +1993,12 @@ namespace Game.Battle
 
                                     foreach (var target in hitTargets)
                                     {
-                                        int baseDmg = CalculateBaseDamage(actor, target, a.SkillId, QuestNpc.NextRandom(1, 6));
+                                        int finalDmg = 0;
+                                        bool isCritical = false;
+
+                                        if (!isPureDebuff)
+                                        {
+                                            int baseDmg = CalculateBaseDamage(actor, target, a.SkillId, QuestNpc.NextRandom(1, 6));
                                         baseDmg = Math.Max(1, (int)(baseDmg * GetElementalMultiplier(actor.Element, target.Element)));
 
                                         if (actor.HasStatus(FighterStatusType.HotBlooded))
@@ -1996,9 +2006,9 @@ namespace Game.Battle
                                             baseDmg = (int)(baseDmg * 2.0);
                                         }
 
-                                        int finalDmg = isCombo ? (int)(baseDmg * 1.25) : baseDmg;
+                                            finalDmg = isCombo ? (int)(baseDmg * 1.25) : baseDmg;
 
-                                        bool isCritical;
+
                                         finalDmg = CriticalHitManager.CalculateDamage(finalDmg, actor, a.ActionType, QuestNpc.NextRandom(0, 100), out isCritical);
 
                                         if (defendingActors.Contains((target.GridX << 8) | target.GridY) || target.HasStatus(FighterStatusType.Shielded))
@@ -2007,7 +2017,8 @@ namespace Game.Battle
                                         }
 
                                         if (!hitTargetsTotalDamage.ContainsKey(target)) hitTargetsTotalDamage[target] = 0;
-                                        hitTargetsTotalDamage[target] += finalDmg;
+                                            hitTargetsTotalDamage[target] += finalDmg;
+                                        }
 
                                         if (sk != null)
                                         {
@@ -2022,8 +2033,10 @@ namespace Game.Battle
 
                                         if (target == targetFighter)
                                         {
-                                            uint skillExp = SkillRelated.SkillManager.CalculateSkillExpForHit(
-                                                finalDmg, target.CurHP - hitTargetsTotalDamage[target] + finalDmg, target.MaxHP);
+                                            uint skillExp = isPureDebuff
+                                                ? SkillRelated.SkillManager.CalculateSupportSkillExp(SkillRelated.SkillManager.SupportSkillKind.Buff, 0, 0, 0)
+                                                : SkillRelated.SkillManager.CalculateSkillExpForHit(
+                                                    finalDmg, target.CurHP - (hitTargetsTotalDamage.ContainsKey(target) ? hitTargetsTotalDamage[target] : 0) + finalDmg, target.MaxHP);
                                             if (actor.PlayerRef != null && a.SkillId > 0)
                                             {
                                                 SkillRelated.SkillManager.AddSkillExp(actor.PlayerRef, a.SkillId, skillExp);
@@ -2038,9 +2051,18 @@ namespace Game.Battle
                                         pAttackAnim.Pack8(1);
                                         pAttackAnim.Pack8(defendingActors.Contains((target.GridX << 8) | target.GridY) ? (byte)1 : (byte)0);
                                         pAttackAnim.Pack8(1);
-                                        pAttackAnim.Pack8(0x19); // HP damage
+                                        if (isPureDebuff)
+                                        {
+                                            pAttackAnim.Pack8(0);
+                                            pAttackAnim.Pack32(0);
+                                            pAttackAnim.Pack8(1);
+                                        }
+                                        else
+                                        {
+                                            pAttackAnim.Pack8(0x19); // HP damage
                                         pAttackAnim.Pack32((uint)finalDmg);
-                                        pAttackAnim.Pack8(isCritical ? (byte)2 : (byte)1);
+                                            pAttackAnim.Pack8(isCritical ? (byte)2 : (byte)1);
+                                        }
                                     }
                                 }
 

@@ -346,6 +346,10 @@ Authentic packet-level framing with magic header `0x44F4`, XOR `0xAD` encryption
 
 * **AOE Skill Targeting & Multi-Target Dispatch Engine:** Full geometry resolution for skill patterns 1 through 8 (single, column, row, cross/T-shape, 5-target, 6-target, full team) across 2x4 combat grids with grade-based pattern scaling (Grade 1..10), simultaneous multi-target packet dispatch via AC 50:1, elemental/critical damage calculation, multi-target status effects, and HP/death state synchronization. Detailed in [54_aoe_skill_targeting_and_battle_dispatch_engine.md](file:///D:/GitHub/Wonderland-Private-Server/docs/54_aoe_skill_targeting_and_battle_dispatch_engine.md).
 
+* **Skill EXP Multiplier & Progression Scaling Engine:** Real-time integration of ServerStatusManager.ExpRate into character and companion pet skill progression (AddSkillExp, AddPetSkillExp), accelerating Grade 1..10 proficiency leveling proportionally with active server multipliers. Detailed in [55_skill_exp_multiplier_and_progression_scaling.md](file:///D:/GitHub/Wonderland-Private-Server/docs/55_skill_exp_multiplier_and_progression_scaling.md).
+
+* **Pure Debuff & Status Skill Damage Isolation Engine:** Strict separation between damaging offensive attacks and pure status crowd-control abilities (Freeze, Sleep, Tree Bind, Terrafication, Blockage, Cord, Mess, Poison, Coma, Curse) in `PvEBattleManager.cs` and `SkillManager.cs`. Pure debuffs inflict 0 direct HP damage, pack statType 0 and 0 damage in `AC 50:1`, award support EXP, preserve Sleep without premature wakeups, and maintain full status condition lifecycles. Detailed in [56_pure_debuff_and_status_skill_damage_isolation.md](file:///D:/GitHub/Wonderland-Private-Server/docs/56_pure_debuff_and_status_skill_damage_isolation.md).
+
 
 
 

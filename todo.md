@@ -1,8 +1,7 @@
-# AOE Skill Targeting Investigation and Fix
+# Implementation Plan: Pure Debuff and Status Skills Damage Prevention
 
-- [x] 1. Investigate skill data structure, skill definition/data loader, and AOE pattern definitions
-- [x] 2. Investigate PvEBattleManager and combat action processing for skill execution and targeting
-- [x] 3. Identify root cause of AOE skills targeting only a single target
-- [x] 4. Implement fix for AOE skill multi-target calculation and damage/effect dispatching
-- [x] 5. Verify build, tests, and behavior
-- [x] 6. Update global readme.md and create docs/54_aoe_skill_targeting_and_battle_dispatch_engine.md
+- [x] 1. Investigate `Skill.dat` and `SkillManager.cs` for skill classifications (offensive vs pure status/debuff)
+- [x] 2. Examine `PvEBattleManager.cs` Phase 4 damage calculation for skills with `actionType == "status"` or non-damaging debuff/crowd-control effects
+- [x] 3. Implement condition to prevent direct damage on pure debuff/status skills (e.g. Freeze, Sleep, Seal, Confuse, Poison, Paralyze) while maintaining status effect application and packing 0 damage / statType 0 into `AC 50:1`
+- [x] 4. Verify compilation and test damage/status packet emission for pure debuffs vs damaging offensive skills
+- [x] 5. Update root `README.md` and create technical documentation `docs/56_pure_debuff_and_status_skill_damage_isolation.md`
