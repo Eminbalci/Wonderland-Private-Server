@@ -152,6 +152,8 @@
     <Compile Include="Game\Maps\Code\QuestNpc.cs" />
     <Compile Include="Game\Maps\Code\EveEventInterpreter.cs" />
     <Compile Include="Game\Maps\Code\EveEventRuntime.cs" />
+    <Compile Include="Game\Maps\Code\MissionVariables.cs" />
+    <Compile Include="Game\PetRelated\CompanionRebirthManager.cs" />
     <Compile Include="Game\Maps\Code\EveGatheringRuntime.cs" />
     <Compile Include="Game\Maps\ChestDropManager.cs" />
     <Compile Include="Game\Maps\Code\TalkableObject.cs" />

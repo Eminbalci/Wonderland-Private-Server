@@ -861,6 +861,13 @@ namespace Game.Maps
                                         }
                                         return true;
 
+                                    // 27: Companion rebirth form (Altar map 12766). Client answers with AC44:1.
+                                    case 27:
+                                        player.Send(Tools.FromFormat("bb", 20, 8));
+                                        Game.PetRelated.CompanionRebirthManager.OpenForm(player);
+                                        DebugSystem.Write($"[EveEventInterpreter] Opened companion rebirth form for {player.CharName}");
+                                        return true;
+
                                     // 4: Props Keep / Storage Bank
                                     case 4:
                                         player.OpenPropsKeeper();
@@ -1051,7 +1058,14 @@ namespace Game.Maps
                         return true;
 
                     // Opcode 17: Instance Dungeon Wave & Floor Advancement Signals (934 Occurrences)
+                    // Opcode 17: mission variable[d1] += value (mission maps 30000-30041).
+                    // Branch condition type 19 reads these variables.
                     case 17:
+                        if (op.dialog2 == 1 && map != null)
+                        {
+                            int newValue = MissionVariables.Add(player, (uint)map.MapID, op.dialog1, unchecked((int)DecodeActionValue(op)));
+                            DebugSystem.Write($"[EveEventInterpreter] Mission var {op.dialog1} = {newValue} on map {map.MapID} for {player.CharName}");
+                        }
                         if (Game.Experimental.ExperimentalFeaturesManager.Instance.EnableInstanceDungeons)
                         {
                             return Game.Experimental.ExperimentalFeaturesManager.Instance.InstanceDungeons.OnWaveSignal(

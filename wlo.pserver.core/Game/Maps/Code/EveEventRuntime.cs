@@ -471,6 +471,23 @@ namespace Game.Maps
                             return CompareValue(Game.PlayerRelated.VehicleManager.IsSameVehicle(player.ActiveVehicleID, condition.unknownword3) ? 1 : 0, value, comparison);
                         return false;
                     }
+                    if (condition.unknownword1 == 4)
+                    {
+                        // Player element (1 Earth, 2 Water, 3 Fire, 4 Wind); client converter maps
+                        // EVE 2/4/x to native subject 7/9. Used by the Refining Room goddess (GS)
+                        // skills and Xufu's Cave to pick the skill for the player's element.
+                        int element = player.Eqs != null ? (int)player.Eqs.Element : 0;
+                        if (comparison == 6) return element != condition.unknownword2;
+                        return element == condition.unknownword2;
+                    }
+                    if (condition.unknownword1 == 5)
+                    {
+                        // Player rebirth job (1 Killer .. 6 Seer). Chinshi Huang's Tomb (12144)
+                        // uses 2/5/job with "== 0" to pick each job's rebirth skill.
+                        int job = (int)(byte)player.Job;
+                        if (comparison == 6) return job != condition.unknownword2;
+                        return job == condition.unknownword2;
+                    }
                     if (condition.unknownword1 == 2)
                     {
                         bool present = player.PlayerPets != null && player.PlayerPets.Values.Any(p =>
@@ -566,13 +583,21 @@ namespace Game.Maps
                     // EVE 13/1 -> native condition 12/1: player team size.
                     // The prison escape reserves a place for the story actor;
                     // its authored full-team reminder compares the same count to 4.
-                    if (map?.MapID != 11052 || ev?.clickID != 3 || condition.unknownword1 != 1 ||
-                        condition.unknownword2 != 0 || condition.unknownword3 != 0) return false;
+                    // Client converter FUN_0049c76c maps every EVE 13/1 to this team-size subject.
+                    if (condition.unknownword1 != 1 || condition.unknownword2 != 0 || condition.unknownword3 != 0) return false;
                     int teamSize = player.m_teammembers == null ? 1 :
                         player.m_teammembers.Where(member => member != null).Concat(new[] { player }).Distinct().Count();
                     return CompareValue(teamSize, value, comparison);
                 case 14:
                     return MatchesGatheringTimer(player, condition);
+                case 21:
+                    // Altar (12766) companion rebirth state: 1 eligible, 2 level too low,
+                    // 5 no fellow, 6 already reborn (3/4 are story gates we never report).
+                    return condition.unknownword1 == Game.PetRelated.CompanionRebirthManager.GetRebirthState(player);
+                case 19:
+                    // Mission variable set by opcode 17 (mission maps 30000-30041).
+                    return map != null && MissionVariables.MatchesCondition(player, (uint)map.MapID,
+                        condition.unknownword1, condition.unknownword2, comparison, value, CompareValue);
                 case 15:
                     return condition.unknownword1 == 1 && CompareValue(GetPlayerFreeSlots(player), value, comparison);
                 case 17:
@@ -758,7 +783,8 @@ namespace Game.Maps
             return (op.DialogPtr == 11 && (op.dialog2 != 1 || op.dialog3 != 0 || DecodeActionValue(op) != 1 ||
                     Game.SkillRelated.SkillManager.GetSkill(op.dialog1) == null)) ||
                 (op.DialogPtr == 13 && (op.dialog1 < 1 || op.dialog1 > 3 || op.dialog3 < 1 || op.dialog3 > 256)) ||
-                (op.DialogPtr == 14 && !IsWaterTimerAction(op)) || op.DialogPtr == 16 || op.DialogPtr == 17 ||
+                (op.DialogPtr == 14 && !IsWaterTimerAction(op)) || op.DialogPtr == 16 ||
+                (op.DialogPtr == 17 && op.dialog2 != 1) ||
                 (op.DialogPtr == 15 && (op.dialog1 != 1 || op.dialog2 != 1 || op.dialog3 != 0 ||
                     DecodeActionValue(op) == 0 || DecodeActionValue(op) > 9999)) ||
                 (op.DialogPtr == 1 && op.dialog1 == 1 && !IsFullRecoveryReward(op) && !IsWaterReward(op) && op.dialog2 != 1 && op.dialog2 != 2 && op.dialog2 != 5 && op.dialog2 != 7);
