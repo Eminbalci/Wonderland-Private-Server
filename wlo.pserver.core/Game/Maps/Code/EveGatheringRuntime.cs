@@ -12,23 +12,92 @@ namespace Game.Maps
 {
     public static partial class EveEventInterpreter
     {
-        // EVE pool 7 variants: sea water (1), fresh water (2). Other pools need
-        // their original item weights before they can be enabled.
+        // Gathering pools keyed by Eve op1/1/6 (pool type d3, variant value). Data/gathering_pools.json
+        // was rebuilt from wlodb.com collections (Wayback) and the Eve event names; equal weights.
+        private class GatheringPoolEntry
+        {
+            public int type { get; set; }
+            public int variant { get; set; }
+            public int[] items { get; set; }
+        }
+        private class GatheringPoolFile
+        {
+            public int[] timers { get; set; }
+            public GatheringPoolEntry[] pools { get; set; }
+        }
+
+        private static readonly object gatheringLock = new object();
+        private static Dictionary<long, ushort[]> gatheringPools;
+        private static HashSet<ushort> gatheringTimers;
+        private static readonly Random gatheringRandom = new Random();
+
+        private static long PoolKey(int type, uint variant) { return ((long)type << 32) | variant; }
+
+        private static void LoadGatheringData()
+        {
+            if (gatheringPools != null) return;
+            lock (gatheringLock)
+            {
+                if (gatheringPools != null) return;
+                var pools = new Dictionary<long, ushort[]>
+                {
+                    { PoolKey(7, 1), new ushort[] { 60001 } }, // sea water
+                    { PoolKey(7, 2), new ushort[] { 60002 } }  // fresh water
+                };
+                var timers = new HashSet<ushort> { 11009, 11016, 11021, 11035 };
+                try
+                {
+                    string path = PathHelper.GetDataFilePath("gathering_pools.json");
+                    if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path))
+                        DebugSystem.Write("[Gathering] gathering_pools.json not found; only water can be gathered.");
+                    else
+                    {
+                        var file = new System.Web.Script.Serialization.JavaScriptSerializer()
+                            .Deserialize<GatheringPoolFile>(System.IO.File.ReadAllText(path));
+                        foreach (int t in file?.timers ?? new int[0])
+                            if (t > 0 && t <= ushort.MaxValue) timers.Add((ushort)t);
+                        foreach (var pool in file?.pools ?? new GatheringPoolEntry[0])
+                        {
+                            if (pool?.items == null || pool.type <= 0 || pool.variant <= 0) continue;
+                            var ids = pool.items.Where(i => i > 0 && i <= ushort.MaxValue).Select(i => (ushort)i).ToArray();
+                            if (ids.Length > 0) pools[PoolKey(pool.type, (uint)pool.variant)] = ids;
+                        }
+                        DebugSystem.Write($"[Gathering] Loaded {pools.Count} gathering pools and {timers.Count} timers.");
+                    }
+                }
+                catch (Exception ex) { DebugSystem.Write("[Gathering] Failed to load gathering_pools.json: " + ex.Message); }
+                gatheringTimers = timers;
+                gatheringPools = pools; // publish last so readers never see a partial table
+            }
+        }
+
+        // Name kept for existing callers; now matches every configured gathering pool.
         private static bool IsWaterReward(EventSubSubEntry op)
         {
-            return op.DialogPtr == 1 && op.dialog1 == 1 && op.dialog2 == 6 && op.dialog3 == 7 &&
-                (DecodeActionValue(op) == 1 || DecodeActionValue(op) == 2);
+            if (op.DialogPtr != 1 || op.dialog1 != 1 || op.dialog2 != 6) return false;
+            LoadGatheringData();
+            return gatheringPools.ContainsKey(PoolKey(op.dialog3, DecodeActionValue(op)));
         }
 
         private static bool IsWaterTimer(ushort id)
         {
-            return id == 11009 || id == 11016 || id == 11021 || id == 11035;
+            LoadGatheringData();
+            return gatheringTimers.Contains(id);
         }
 
         private static bool IsWaterTimerAction(EventSubSubEntry op)
         {
             return op.DialogPtr == 14 && IsWaterTimer(op.dialog1) && op.dialog2 == 1 &&
                 op.dialog3 == 0 && DecodeActionValue(op) == 180;
+        }
+
+        private static ushort PickGatheringItem(EventSubSubEntry rewardOp)
+        {
+            LoadGatheringData();
+            ushort[] items;
+            if (!gatheringPools.TryGetValue(PoolKey(rewardOp.dialog3, DecodeActionValue(rewardOp)), out items) || items.Length == 0)
+                return 0;
+            lock (gatheringRandom) return items[gatheringRandom.Next(items.Length)];
         }
 
         private static DbConnection OpenGatheringDatabase()
@@ -91,18 +160,26 @@ namespace Game.Maps
         private static bool TryRunWaterGathering(Player player, GameMap map, EventsinMapEntries ev, EventSubEntry branch)
         {
             if (!branch.SubEntry.Any(o => IsWaterReward(o) || IsWaterTimerAction(o))) return false;
-            ushort timer = map.MapID == 60001 && ev.clickID == 88 ? (ushort)11009 :
-                map.MapID == 60003 && ev.clickID == 48 ? (ushort)11016 :
-                map.MapID == 12268 && ev.clickID == 2 ? (ushort)11021 :
-                map.MapID == 60005 && ev.clickID == 12 ? (ushort)11035 : (ushort)0;
-            ushort item = timer == 11009 || timer == 11016 ? (ushort)60001 : (ushort)60002;
+            // Shape: one or more pool rewards, the 180 s node timer, then an optional mark.
             var ops = branch.SubEntry;
-            bool shape = timer != 0 && (branch.subIndex == 2 && ops.Count == 2 || branch.subIndex == 5 && ops.Count == 3) &&
-                IsWaterReward(ops[0]) && DecodeActionValue(ops[0]) == (item == 60001 ? 1u : 2u) &&
-                IsWaterTimerAction(ops[1]) && ops[1].dialog1 == timer;
-            if (shape && ops.Count == 3)
-                shape = ops[2].DialogPtr == 5 && ops[2].dialog1 == timer && ops[2].dialog2 == 1 &&
-                    ops[2].dialog3 == 1 && DecodeActionValue(ops[2]) == 1;
+            int rewards = 0;
+            while (rewards < ops.Count && IsWaterReward(ops[rewards])) rewards++;
+            bool shape = rewards > 0 && rewards < ops.Count &&
+                IsWaterTimerAction(ops[rewards]) && (ops.Count == rewards + 1 || ops.Count == rewards + 2);
+            ushort timer = shape ? ops[rewards].dialog1 : (ushort)0;
+            var gathered = new Dictionary<ushort, int>();
+            for (int i = 0; shape && i < rewards; i++)
+            {
+                ushort picked = PickGatheringItem(ops[i]);
+                if (picked == 0) { shape = false; break; }
+                gathered[picked] = (gathered.TryGetValue(picked, out int n) ? n : 0) + 1;
+            }
+            if (shape && ops.Count == rewards + 2)
+            {
+                var mark = ops[rewards + 1];
+                shape = mark.DialogPtr == 5 && mark.dialog1 == timer && mark.dialog2 == 1 &&
+                    mark.dialog3 == 1 && DecodeActionValue(mark) == 1;
+            }
             player.ClearInteraction();
             player.Send(Tools.FromFormat("bbb", 6, 2, 1));
             bool granted = false;
@@ -111,9 +188,9 @@ namespace Game.Maps
                 lock (player.Inv.SyncRoot)
                 {
                     // Recheck the complete authored branch after obtaining the inventory lock.
-                    if (shape && GetPlayerFreeSlots(player) >= 1 && FindBranch(player, map, ev) == branch)
+                    if (shape && GetPlayerFreeSlots(player) >= gathered.Count && FindBranch(player, map, ev) == branch)
                     {
-                        granted = player.Inv.TryApplyQuestItems(new[] { new KeyValuePair<ushort, int>(item, 1) }, true,
+                        granted = player.Inv.TryApplyQuestItems(gathered.ToList(), true,
                             planned => PersistWaterGathering(player, timer, planned));
                         if (granted)
                         {

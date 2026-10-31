@@ -1,0 +1,280 @@
+{
+ "source": "Pools keyed by Eve op1/1/6 (pool type d3, variant value). Items from wlodb.com collections (Wayback 2008-2010) cross-checked with the Eve event names. Equal weights; original weights unknown.",
+ "timers": [
+  11008,
+  11009,
+  11010,
+  11011,
+  11012,
+  11013,
+  11014,
+  11015,
+  11016,
+  11017,
+  11018,
+  11019,
+  11020,
+  11021,
+  11022,
+  11023,
+  11024,
+  11025,
+  11032,
+  11033,
+  11034,
+  11035,
+  11036,
+  11037,
+  11038,
+  11039,
+  11040,
+  11041,
+  11042,
+  11043
+ ],
+ "pools": [
+  {
+   "type": 1,
+   "variant": 1,
+   "note": "雜棉麻藤蔓松 / wlodb North Island",
+   "items": [
+    40014,
+    40007,
+    40008,
+    40011,
+    40012,
+    40020
+   ]
+  },
+  {
+   "type": 1,
+   "variant": 2,
+   "note": "雜麻藤紙沙 / wlodb Japan, Mayan",
+   "items": [
+    40014,
+    40008,
+    40012,
+    40013
+   ]
+  },
+  {
+   "type": 1,
+   "variant": 3,
+   "note": "竹松門雜 / wlodb China",
+   "items": [
+    40016,
+    40020,
+    40014
+   ]
+  },
+  {
+   "type": 2,
+   "variant": 1,
+   "note": "柳安+普材材 / wlodb North Island, Japan",
+   "items": [
+    45005,
+    45007,
+    45001
+   ]
+  },
+  {
+   "type": 2,
+   "variant": 2,
+   "note": "普木材柳安橡 / wlodb China",
+   "items": [
+    45001,
+    45005,
+    45007,
+    45006
+   ]
+  },
+  {
+   "type": 2,
+   "variant": 3,
+   "note": "普檜 / wlodb Taiwan",
+   "items": [
+    45005,
+    45008,
+    45001
+   ]
+  },
+  {
+   "type": 2,
+   "variant": 4,
+   "note": "普橡",
+   "items": [
+    45001,
+    45006
+   ]
+  },
+  {
+   "type": 3,
+   "variant": 1,
+   "note": "普白灰黃紅乾黏土 / wlodb North Island 3542",
+   "items": [
+    44006,
+    44004,
+    44002,
+    44005,
+    44007,
+    44001
+   ]
+  },
+  {
+   "type": 3,
+   "variant": 2,
+   "note": "硫磺黏白黃乾",
+   "items": [
+    42043,
+    44001,
+    44004,
+    44005,
+    44007
+   ]
+  },
+  {
+   "type": 3,
+   "variant": 3,
+   "note": "石英黃黏乾 / wlodb North Island 2442",
+   "items": [
+    44005,
+    44007,
+    44001,
+    42058,
+    42064
+   ]
+  },
+  {
+   "type": 3,
+   "variant": 4,
+   "note": "黑灰乾黏普石 / wlodb North Island 2802",
+   "items": [
+    44003,
+    44006,
+    44007,
+    44005,
+    43001
+   ]
+  },
+  {
+   "type": 4,
+   "variant": 1,
+   "note": "普煤磺頁崗雲母 / wlodb North Island 1922, Revival Isle",
+   "items": [
+    43001,
+    43002,
+    43004,
+    42043,
+    43007,
+    42038
+   ]
+  },
+  {
+   "type": 5,
+   "variant": 1,
+   "note": "銅錫鉛鋁鐵礦 / wlodb North Island 3962",
+   "items": [
+    42008,
+    42024,
+    42028,
+    42033,
+    42014
+   ]
+  },
+  {
+   "type": 5,
+   "variant": 2,
+   "note": "赤鐵銅紅土錫鋁鉛 / wlodb South Island 4882",
+   "items": [
+    42020,
+    42008,
+    44002,
+    42024,
+    42033,
+    42028
+   ]
+  },
+  {
+   "type": 5,
+   "variant": 3,
+   "note": "銅鐵赤鋁英 / wlodb Osyla",
+   "items": [
+    42033,
+    42058,
+    42020,
+    42008,
+    42014
+   ]
+  },
+  {
+   "type": 5,
+   "variant": 4,
+   "note": "金鈦黑黏 / wlodb Taiwan",
+   "items": [
+    44003,
+    42001,
+    42057,
+    42053
+   ]
+  },
+  {
+   "type": 5,
+   "variant": 5,
+   "note": "銀白銀頁岩 / wlodb Mayan",
+   "items": [
+    42055,
+    43002,
+    42005
+   ]
+  },
+  {
+   "type": 6,
+   "variant": 1,
+   "note": "原油黑黏土",
+   "items": [
+    47001,
+    44003
+   ]
+  },
+  {
+   "type": 7,
+   "variant": 1,
+   "note": "海水",
+   "items": [
+    60001
+   ]
+  },
+  {
+   "type": 7,
+   "variant": 2,
+   "note": "淡水",
+   "items": [
+    60002
+   ]
+  },
+  {
+   "type": 8,
+   "variant": 1,
+   "note": "Ice House / wlodb Iceberg",
+   "items": [
+    42044,
+    42062,
+    42060,
+    42061,
+    42063
+   ]
+  },
+  {
+   "type": 8,
+   "variant": 3,
+   "note": "紫水晶紅黑黏土 / wlodb Japan 1002",
+   "items": [
+    44003,
+    44002,
+    42051,
+    42049,
+    42050
+   ]
+  }
+ ]
+}
