@@ -1,7 +1,7 @@
-# Implementation Plan: Automatic Non-Click Dialogue Architecture & Running Fix
+# Implementation Plan: Quest NPC Dynamic Transformation and Visibility Engine
 
-- [x] 1. Investigate non-click automatic dialogue systems in Wonderland Online (walk-on regions, story arrival, client proximity auto-click, overhead bubbles).
-- [x] 2. Audit `AC06.cs` and `EveEventRuntime.cs` for walk-on triggers (`TryExecuteRegion`, `Entry_Points`).
-- [x] 3. Fix missing running packet handler (`AC 6, Sub 2`) in `AC06.cs` so running players trigger walk-on region auto-dialogues and warps.
-- [x] 4. Verify solution builds with 0 warnings and 0 errors.
-- [x] 5. Create technical documentation in `docs/69_walk_on_region_running_subcode_and_auto_dialogue.md` and update `README.md`.
+- [x] 1. Root-cause analysis on Map 12600 NPC #3 (Uncle, TID 14729) & Quest #13188/13189 despawn failure.
+- [x] 2. Fix EVE bytecode condition evaluator in `EveEventRuntime.cs` (`unknownword2 == 2` quest lifecycle evaluation and player gender checks).
+- [x] 3. Rebuild entire solution `Wonderland Private Server.sln` cleanly (0 warnings, 0 errors).
+- [x] 4. Generate technical documentation `docs/66_quest_npc_transformation_and_stage_swap_engine.md`.
+- [x] 5. Update root `README.md`.

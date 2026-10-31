@@ -483,6 +483,15 @@ namespace Game.Maps
                             return CompareValue(Game.PlayerRelated.VehicleManager.IsSameVehicle(player.ActiveVehicleID, condition.unknownword3) ? 1 : 0, value, comparison);
                         return false;
                     }
+                    if (condition.unknownword1 == 3)
+                    {
+                        // EVE 2/3/x: Player gender / sex check (e.g. Map 12601 Event 8 branches 15 & 18).
+                        // w2 == 7 is Male; w2 == 8 is Female.
+                        bool isMale = player.Body == BodyStyle.Small_Male || player.Body == BodyStyle.Big_Male;
+                        if (condition.unknownword2 == 7) return isMale;
+                        if (condition.unknownword2 == 8) return !isMale;
+                        return false;
+                    }
                     if (condition.unknownword1 == 4)
                     {
                         // Player element (1 Earth, 2 Water, 3 Fire, 4 Wind); client converter maps
