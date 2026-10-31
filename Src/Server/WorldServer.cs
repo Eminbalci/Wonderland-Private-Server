@@ -516,6 +516,8 @@ namespace Server
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.SendRecordPointStatus();
             Game.PlayerRelated.TeleportScrollManager.SendAllPoints(src);
+            // Send this player's friend list and refresh online friends so they see him online.
+            Network.ActionCodes.AC14.NotifyFriendsStatus(src, true);
 
             src.Send(Tools.FromFormat("bbb", 5, 14, 2));
             src.Send(Tools.FromFormat("bbbl", 23, 140, 3, DateTime.Now.ToOADate()));

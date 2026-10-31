@@ -525,11 +525,6 @@ namespace Network.ActionCodes
             {
                 if (p == null || cGlobal.gGameDataBase == null) return;
 
-                if (isOnline)
-                {
-                    SendFriendList(p);
-                }
-
                 var friendsTable = cGlobal.gGameDataBase.GetDataTable(
                     $"SELECT CharID1, CharID2 FROM Friends WHERE CharID1 = {p.CharID} OR CharID2 = {p.CharID}");
 
@@ -546,29 +541,14 @@ namespace Network.ActionCodes
                 var onlinePlayers = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
                 if (onlinePlayers == null) return;
 
+                // The client keeps each friend's online flag in the AC14:5 entry (byte at +0x42);
+                // a fresh AC14:5 list is the only status update it understands. AC14:7 renames a
+                // friend and AC14:8 carries a full friend record, so neither may be sent here.
                 foreach (uint fid in friendIDs)
                 {
                     var friend = onlinePlayers.FirstOrDefault(pl => pl.CharID == fid);
                     if (friend != null && friend.CharID != p.CharID)
                     {
-                        if (isOnline)
-                        {
-                            // AC 14:7 Friend Online Notification
-                            SendPacket sInfo = new SendPacket();
-                            sInfo.PackArray(new byte[] { 14, 7 });
-                            sInfo.Pack32(p.CharID);
-                            sInfo.PackString(p.CharName ?? string.Empty);
-                            friend.Send(sInfo);
-                        }
-                        else
-                        {
-                            // AC 14:8 Friend Offline Notification
-                            SendPacket sOffline = new SendPacket();
-                            sOffline.PackArray(new byte[] { 14, 8 });
-                            sOffline.Pack32(p.CharID);
-                            friend.Send(sOffline);
-                        }
-
                         SendFriendList(friend);
                         DebugSystem.Write(DebugItemType.Error, $"[AC14] Refreshed friend list for {friend.CharName} due to {p.CharName} status change (Online: {isOnline})");
                     }
