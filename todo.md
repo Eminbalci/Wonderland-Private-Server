@@ -1,7 +1,8 @@
-# Implementation Plan: Pure Debuff and Status Skills Damage Prevention
+# Implementation Plan: AoE Multi-Target Per-Record Animation Synchronization
 
-- [x] 1. Investigate `Skill.dat` and `SkillManager.cs` for skill classifications (offensive vs pure status/debuff)
-- [x] 2. Examine `PvEBattleManager.cs` Phase 4 damage calculation for skills with `actionType == "status"` or non-damaging debuff/crowd-control effects
-- [x] 3. Implement condition to prevent direct damage on pure debuff/status skills (e.g. Freeze, Sleep, Seal, Confuse, Poison, Paralyze) while maintaining status effect application and packing 0 damage / statType 0 into `AC 50:1`
-- [x] 4. Verify compilation and test damage/status packet emission for pure debuffs vs damaging offensive skills
-- [x] 5. Update root `README.md` and create technical documentation `docs/56_pure_debuff_and_status_skill_damage_isolation.md`
+- [x] 1. Analyze `FUN_003abf3c` outer loop and `FUN_003ac7ac` target trigger semantics in `aLogin.exe`
+- [x] 2. Refactor Phase 4 `pAttackAnim` in `PvEBattleManager.cs` to emit authentic 19-byte records (`{ 0x11, 0x00, actorX, actorY, skillId, 0, 1, targetX, targetY, 1, def, 1, stat, dmg, hit }`) per hit target
+- [x] 3. Refactor Phase 2 `pSupport` in `PvEBattleManager.cs` to emit authentic 19-byte records per ally target with visual buff overlays
+- [x] 4. Build solution with `dotnet build "Wonderland Private Server.sln"` and verify 0 warnings, 0 errors
+- [x] 5. Verify multi-target record serialization and boundary alignments
+- [x] 6. Update root `README.md` and `docs/60_aoe_multi_target_damage_hit_animation_sync.md`

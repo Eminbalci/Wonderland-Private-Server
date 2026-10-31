@@ -123,12 +123,18 @@ namespace Game.Battle
             if (existing != null)
             {
                 existing.RemainingTurns = Math.Max(existing.RemainingTurns, turns);
-                existing.Value = val;
+                if (val > 0) existing.Value = val;
             }
             else
             {
                 ActiveStatuses.Add(new FighterStatus(type, turns, val));
             }
+        }
+
+        public int GetStatusValue(FighterStatusType type, int defaultVal = 0)
+        {
+            var st = ActiveStatuses.FirstOrDefault(s => s.StatusType == type && s.RemainingTurns > 0);
+            return (st != null && st.Value > 0) ? st.Value : defaultVal;
         }
         public bool CanAct => !HasStatus(FighterStatusType.Frozen) && !HasStatus(FighterStatusType.Sleep) && !HasStatus(FighterStatusType.Sealed) && !HasStatus(FighterStatusType.Paralyzed);
     }
@@ -1295,16 +1301,30 @@ namespace Game.Battle
             {
                 // Weapon animation IDs are client input; damage type comes from equipped gear.
                 bool staff = actor.WeaponType == global::DataFiles.eItemType.Wand_Staff;
-                return Math.Max(10, (staff ? actor.Matk : actor.Atk) * 2
+                int atkPower = staff ? actor.Matk : actor.Atk;
+                if (actor.HasStatus(FighterStatusType.HotBlooded))
+                {
+                    int mult = actor.GetStatusValue(FighterStatusType.HotBlooded, 2);
+                    atkPower *= mult;
+                }
+                return Math.Max(10, atkPower * 2
                     - (staff ? target.Mdef : target.Def) + basicRoll);
             }
 
             // Keep existing non-damage/status behavior outside this correction.
-            if (skill.IsPureStatusDebuff)
+            if (skill.IsPureStatusDebuff || skill.IsPureSupport || skill.Target != 0)
                 return 0;
 
             if (skill.EffectLayer != (byte)EffectLayer.Physical && skill.EffectLayer != (byte)EffectLayer.Magical)
-                return Math.Max(15, (int)(actor.Atk * 2.8) - target.Def / 2);
+            {
+                int rawAtk = actor.Atk;
+                if (actor.HasStatus(FighterStatusType.HotBlooded))
+                {
+                    int mult = actor.GetStatusValue(FighterStatusType.HotBlooded, 2);
+                    rawAtk *= mult;
+                }
+                return Math.Max(15, (int)(rawAtk * 2.8) - target.Def / 2);
+            }
 
             var learned = actor.PetRef != null
                 ? actor.PetRef.Skills.FirstOrDefault(s => s.SkillID == skillId)
@@ -1314,6 +1334,12 @@ namespace Game.Battle
             bool magical = skill.EffectLayer == (byte)EffectLayer.Magical;
             int offense = magical ? actor.Matk : actor.Atk;
             int defense = magical ? target.Mdef : target.Def;
+
+            if (actor.HasStatus(FighterStatusType.HotBlooded))
+            {
+                int mult = actor.GetStatusValue(FighterStatusType.HotBlooded, 2);
+                offense *= mult;
+            }
 
             // Private-server damage rule: skill-specific stat scaling plus learned-level
             // power and flat harm. This is not a verified official server formula.
@@ -1404,17 +1430,21 @@ namespace Game.Battle
             }
             else if (skill != null)
             {
-                if (skill.IsHeal || skill.IsRevive)
+                if (skill.IsRevive || skill.IsHeal)
                 {
                     actionType = "heal";
                 }
-                else if (skill.IsShield || skill.IsHotBlooded || skill.IsSpeedUp || skill.IsVanish)
+                else if (skill.IsBuff || skill.IsShield || skill.IsHotBlooded || skill.IsSpeedUp || skill.IsVanish || skill.IsStatusCure || skill.IsManaRecovery)
                 {
                     actionType = "buff";
                 }
                 else if (skill.IsPureStatusDebuff)
                 {
                     actionType = "status";
+                }
+                else if (skill.Target != 0)
+                {
+                    actionType = "buff";
                 }
             }
 
@@ -1551,25 +1581,63 @@ namespace Game.Battle
 
                     // ---- Phase 0: Poison Damage & Status Check at Start of Round ----
                     var allFighters = friendlyFighters.Concat(opposingFighters).Where(f => !f.IsDead).ToList();
+                    bool anyPoisonDied = false;
                     foreach (var f in allFighters)
                     {
                         if (f.HasStatus(FighterStatusType.Poisoned))
                         {
-                            int poisonDmg = Math.Max(5, (int)(f.MaxHP * 0.08));
+                            int poisonDmg = Math.Max(15, (int)(f.MaxHP * 0.10));
                             f.CurHP = Math.Max(0, f.CurHP - poisonDmg);
                             if (f.MonsterRef != null) f.MonsterRef.MonsterHP = f.CurHP;
                             if (f.PlayerRef?.Eqs != null) f.PlayerRef.Eqs.CurHP = f.CurHP;
                             if (f.PetRef != null) f.PetRef.HP = f.CurHP;
+
+                            BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, f.GridX, f.GridY, 0));
+
+                            SendPacket pPoison = new SendPacket();
+                            pPoison.PackArray(new byte[] { 50, 1 });
+                            pPoison.PackArray(new byte[] { 0x11, 0x00 });
+                            pPoison.Pack8(f.GridX); pPoison.Pack8(f.GridY);
+                            pPoison.Pack16(11002);
+                            pPoison.Pack8(0);
+                            pPoison.Pack8(1);
+                            pPoison.Pack8(f.GridX); pPoison.Pack8(f.GridY);
+                            pPoison.Pack8(1);
+                            pPoison.Pack8(0);
+                            pPoison.Pack8(1);
+                            pPoison.Pack8(0x19);
+                            pPoison.Pack32((uint)poisonDmg);
+                            pPoison.Pack8(1);
+                            BroadcastToBattle(battle, pPoison);
 
                             foreach (var p in battle.AllPlayers)
                             {
                                 SendStatSync(p, f.GridX, f.GridY, 0x19, (uint)f.CurHP);
                             }
 
+                            await Task.Delay(1000);
+
                             if (f.IsDead)
                             {
+                                anyPoisonDied = true;
                                 BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, f.GridX, f.GridY));
+                                if (f.PetRef != null)
+                                    PetRelated.PetAmityManager.OnPetDeath(battle.AllPlayers.FirstOrDefault(p => p.CharID == f.OwnerID), f.PetRef);
                             }
+                        }
+                    }
+
+                    if (anyPoisonDied)
+                    {
+                        if (opposingFighters.All(f => f.IsDead))
+                        {
+                            EndBattleVictory(battle);
+                            return;
+                        }
+                        if (friendlyFighters.All(f => f.IsDead))
+                        {
+                            EndBattleDefeat(battle);
+                            return;
                         }
                     }
 
@@ -1659,11 +1727,6 @@ namespace Game.Battle
 
                             SendPacket pSupport = new SendPacket();
                             pSupport.PackArray(new byte[] { 50, 1 });
-                            pSupport.PackArray(new byte[] { 0x11, 0x00 });
-                            pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
-                            pSupport.Pack16(sa.SkillId);
-                            pSupport.Pack8(0);
-                            pSupport.Pack8((byte)targetAllies.Count);
 
                             if (sk != null && sk.IsRevive)
                             {
@@ -1678,10 +1741,14 @@ namespace Game.Battle
                                         if (ally.PetRef != null) ally.PetRef.HP = reviveHp;
                                     }
 
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
                                     pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
-                                    pSupport.Pack8(0x19);
-                                    pSupport.Pack32((uint)reviveHp);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
                                     pSupport.Pack8(1);
                                 }
                                 BroadcastToBattle(battle, pSupport);
@@ -1704,10 +1771,14 @@ namespace Game.Battle
                                     if (ally.PlayerRef?.Eqs != null) ally.PlayerRef.Eqs.CurHP = ally.CurHP;
                                     if (ally.PetRef != null) ally.PetRef.HP = ally.CurHP;
 
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
                                     pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
-                                    pSupport.Pack8(0x19);
-                                    pSupport.Pack32((uint)healAmt);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
                                     pSupport.Pack8(1);
                                 }
                                 BroadcastToBattle(battle, pSupport);
@@ -1718,57 +1789,150 @@ namespace Game.Battle
                                         SendStatSync(p, ally.GridX, ally.GridY, 0x19, (uint)ally.CurHP);
                                 }
                             }
+                            else if (sk != null && sk.IsManaRecovery)
+                            {
+                                int spAmt = Math.Max(25, (int)(actor.Matk * 1.5) + (actor.Level * 10));
+                                foreach (var ally in targetAllies)
+                                {
+                                    ally.CurSP = Math.Min(ally.MaxSP, ally.CurSP + spAmt);
+                                    if (ally.PlayerRef?.Eqs != null) ally.PlayerRef.Eqs.CurSP = ally.CurSP;
+                                    if (ally.PetRef != null) ally.PetRef.SP = ally.CurSP;
+
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
+
+                                foreach (var ally in targetAllies)
+                                {
+                                    foreach (var p in battle.AllPlayers)
+                                        SendStatSync(p, ally.GridX, ally.GridY, 0x1a, (uint)ally.CurSP);
+                                }
+                            }
+                            else if (sk != null && sk.IsStatusCure)
+                            {
+                                foreach (var ally in targetAllies)
+                                {
+                                    if (sk.Name != null && sk.Name.Contains("Wake"))
+                                        ally.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Sleep);
+                                    else if (sk.Name != null && sk.Name.Contains("Ice-out"))
+                                        ally.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Frozen);
+                                    else if (sk.Name != null && sk.Name.Contains("Detox"))
+                                        ally.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Poisoned);
+                                    else if (sk.Name != null && sk.Name.Contains("Coma"))
+                                        ally.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Paralyzed);
+                                    else if (sk.Name != null && sk.Name.Contains("Unstun"))
+                                        ally.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Sealed || s.StatusType == FighterStatusType.Paralyzed);
+                                    else if (sk.Name != null && sk.Name.Contains("Free From"))
+                                        ally.ActiveStatuses.RemoveAll(s => s.StatusType == FighterStatusType.Confused);
+                                    else
+                                        ally.ActiveStatuses.Clear();
+
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
+                                    pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
+                                    pSupport.Pack8(0);
+                                    pSupport.Pack32(0);
+                                    pSupport.Pack8(1);
+                                }
+                                BroadcastToBattle(battle, pSupport);
+                            }
                             else if (sk != null && sk.IsShield)
                             {
-                                int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3;
+                                int baseTurns = sk.NumberOfTurns > 0 ? (int)sk.NumberOfTurns : 3;
+                                int turns = baseTurns + 1;
                                 foreach (var ally in targetAllies)
                                 {
                                     ally.AddStatus(FighterStatusType.Shielded, turns);
 
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
                                     pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
-                                    pSupport.Pack8(0);
+                                    pSupport.Pack8(0xE2); // Visual barrier state overlay
                                     pSupport.Pack32(0);
                                     pSupport.Pack8(1);
                                 }
                                 BroadcastToBattle(battle, pSupport);
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {primaryAlly.Name} gains [Shield Barrier]! (Damage taken -50% for {baseTurns} turns)"));
                             }
                             else if (sk != null && sk.IsHotBlooded)
                             {
-                                int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3;
+                                int baseTurns = sk.NumberOfTurns > 0 ? (int)sk.NumberOfTurns : 2;
+                                int turns = baseTurns + 1;
+                                int mult = (sk.Effect == 59 && sk.SkillId == 11072) ? 3 : 2;
                                 foreach (var ally in targetAllies)
                                 {
-                                    ally.AddStatus(FighterStatusType.HotBlooded, turns);
+                                    ally.AddStatus(FighterStatusType.HotBlooded, turns, mult);
 
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
                                     pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
-                                    pSupport.Pack8(0);
+                                    pSupport.Pack8(0xE1); // Visual Hot-Blooded flame state overlay
                                     pSupport.Pack32(0);
                                     pSupport.Pack8(1);
+
+                                    if (ally.PlayerRef != null)
+                                    {
+                                        SendPacket pAfflict = new SendPacket();
+                                        pAfflict.Pack8(114);
+                                        pAfflict.Pack8(1);
+                                        pAfflict.Pack32(ally.PlayerRef.CharID);
+                                        pAfflict.Pack8(7); // HotWheel / HotBlooded condition
+                                        pAfflict.Pack8((byte)baseTurns);
+                                        pAfflict.Pack16((ushort)mult);
+                                        ally.PlayerRef.Send(pAfflict);
+                                    }
                                 }
                                 BroadcastToBattle(battle, pSupport);
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {primaryAlly.Name} enters [Hot-Blooded] state! (Attack Power x{mult} for {baseTurns} turns)"));
                             }
                             else if (sk != null && sk.IsSpeedUp)
                             {
-                                int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 3;
+                                int baseTurns = sk.NumberOfTurns > 0 ? (int)sk.NumberOfTurns : 3;
+                                int turns = baseTurns + 1;
                                 foreach (var ally in targetAllies)
                                 {
                                     ally.AddStatus(FighterStatusType.SpeedUp, turns);
                                     ally.Spd += 30;
 
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
                                     pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
-                                    pSupport.Pack8(0);
+                                    pSupport.Pack8(0xE4); // Visual Speed Up aura state overlay
                                     pSupport.Pack32(0);
                                     pSupport.Pack8(1);
                                 }
                                 BroadcastToBattle(battle, pSupport);
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {primaryAlly.Name} enters [Speed Up] state! (+30 SPD for {baseTurns} turns)"));
                             }
                             else
                             {
                                 // General support
                                 foreach (var ally in targetAllies)
                                 {
+                                    pSupport.PackArray(new byte[] { 0x11, 0x00 });
+                                    pSupport.Pack8(actor.GridX); pSupport.Pack8(actor.GridY);
+                                    pSupport.Pack16(sa.SkillId);
+                                    pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(ally.GridX); pSupport.Pack8(ally.GridY);
                                     pSupport.Pack8(1); pSupport.Pack8(0); pSupport.Pack8(1);
                                     pSupport.Pack8(0);
@@ -1985,12 +2149,6 @@ namespace Game.Battle
 
                                     bool isPureDebuff = a.ActionType == "status" || (sk != null && sk.IsPureStatusDebuff);
 
-                                    pAttackAnim.PackArray(new byte[] { 0x11, 0x00 });
-                                    pAttackAnim.Pack8(actor.GridX); pAttackAnim.Pack8(actor.GridY);
-                                    pAttackAnim.Pack16(a.SkillId > 0 ? a.SkillId : (ushort)10001);
-                                    pAttackAnim.Pack8(0);
-                                    pAttackAnim.Pack8((byte)hitTargets.Count);
-
                                     foreach (var target in hitTargets)
                                     {
                                         int finalDmg = 0;
@@ -1999,35 +2157,36 @@ namespace Game.Battle
                                         if (!isPureDebuff)
                                         {
                                             int baseDmg = CalculateBaseDamage(actor, target, a.SkillId, QuestNpc.NextRandom(1, 6));
-                                        baseDmg = Math.Max(1, (int)(baseDmg * GetElementalMultiplier(actor.Element, target.Element)));
+                                            baseDmg = Math.Max(1, (int)(baseDmg * GetElementalMultiplier(actor.Element, target.Element)));
 
-                                        if (actor.HasStatus(FighterStatusType.HotBlooded))
-                                        {
-                                            baseDmg = (int)(baseDmg * 2.0);
-                                        }
+                                            if (actor.HasStatus(FighterStatusType.HotBlooded))
+                                            {
+                                                int mult = actor.GetStatusValue(FighterStatusType.HotBlooded, 2);
+                                                baseDmg = Math.Max(baseDmg, (int)(baseDmg * mult));
+                                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {actor.Name}'s strike is empowered by Hot-Blooded! ({mult}x Attack Power)"));
+                                            }
 
                                             finalDmg = isCombo ? (int)(baseDmg * 1.25) : baseDmg;
+                                            finalDmg = CriticalHitManager.CalculateDamage(finalDmg, actor, a.ActionType, QuestNpc.NextRandom(0, 100), out isCritical);
 
+                                            if (defendingActors.Contains((target.GridX << 8) | target.GridY) || target.HasStatus(FighterStatusType.Shielded))
+                                            {
+                                                finalDmg = Math.Max(1, finalDmg / 2);
+                                            }
 
-                                        finalDmg = CriticalHitManager.CalculateDamage(finalDmg, actor, a.ActionType, QuestNpc.NextRandom(0, 100), out isCritical);
-
-                                        if (defendingActors.Contains((target.GridX << 8) | target.GridY) || target.HasStatus(FighterStatusType.Shielded))
-                                        {
-                                            finalDmg = Math.Max(1, finalDmg / 2);
-                                        }
-
-                                        if (!hitTargetsTotalDamage.ContainsKey(target)) hitTargetsTotalDamage[target] = 0;
+                                            if (!hitTargetsTotalDamage.ContainsKey(target)) hitTargetsTotalDamage[target] = 0;
                                             hitTargetsTotalDamage[target] += finalDmg;
                                         }
 
                                         if (sk != null)
                                         {
-                                            int turns = sk.NumberOfTurns > 0 ? sk.NumberOfTurns : 2;
+                                            int baseTurns = sk.NumberOfTurns > 0 ? (int)sk.NumberOfTurns : 2;
+                                            int turns = baseTurns + 1;
                                             if (sk.IsFreeze) target.AddStatus(FighterStatusType.Frozen, turns);
                                             else if (sk.IsSleep) target.AddStatus(FighterStatusType.Sleep, turns);
                                             else if (sk.IsSeal) target.AddStatus(FighterStatusType.Sealed, turns);
                                             else if (sk.IsConfuse) target.AddStatus(FighterStatusType.Confused, turns);
-                                            else if (sk.IsPoison) target.AddStatus(FighterStatusType.Poisoned, turns + 1);
+                                            else if (sk.IsPoison) target.AddStatus(FighterStatusType.Poisoned, turns);
                                             else if (sk.IsParalyze) target.AddStatus(FighterStatusType.Paralyzed, turns);
                                         }
 
@@ -2047,20 +2206,34 @@ namespace Game.Battle
                                             }
                                         }
 
+                                        // Each hit target receives an authentic 19-byte record in AC 50:1 so FUN_003abf3c invokes FUN_003ac7ac on every targeted entity
+                                        pAttackAnim.PackArray(new byte[] { 0x11, 0x00 });
+                                        pAttackAnim.Pack8(actor.GridX); pAttackAnim.Pack8(actor.GridY);
+                                        pAttackAnim.Pack16(a.SkillId > 0 ? a.SkillId : (ushort)10001);
+                                        pAttackAnim.Pack8(0);
+                                        pAttackAnim.Pack8(1);
                                         pAttackAnim.Pack8(target.GridX); pAttackAnim.Pack8(target.GridY);
                                         pAttackAnim.Pack8(1);
                                         pAttackAnim.Pack8(defendingActors.Contains((target.GridX << 8) | target.GridY) ? (byte)1 : (byte)0);
                                         pAttackAnim.Pack8(1);
                                         if (isPureDebuff)
                                         {
-                                            pAttackAnim.Pack8(0);
+                                            byte debuffByte = 0;
+                                            if (sk != null)
+                                            {
+                                                if (sk.IsFreeze) debuffByte = 0xDF;
+                                                else if (sk.IsSeal) debuffByte = 0xDE;
+                                                else if (sk.IsSleep) debuffByte = 0xDD;
+                                                else if (sk.IsPoison) debuffByte = 0xE0;
+                                            }
+                                            pAttackAnim.Pack8(debuffByte);
                                             pAttackAnim.Pack32(0);
                                             pAttackAnim.Pack8(1);
                                         }
                                         else
                                         {
                                             pAttackAnim.Pack8(0x19); // HP damage
-                                        pAttackAnim.Pack32((uint)finalDmg);
+                                            pAttackAnim.Pack32((uint)finalDmg);
                                             pAttackAnim.Pack8(isCritical ? (byte)2 : (byte)1);
                                         }
                                     }
@@ -2120,6 +2293,8 @@ namespace Game.Battle
                                 if (!monster.CanAct)
                                 {
                                     DebugSystem.Write($"[PvEBattle] Monster {monster.Name} is incapacitated (Freeze/Sleep/Seal/Stun) and skips turn.");
+                                    BroadcastToBattle(battle, Tools.FromFormat("bbbbb", 50, 6, monster.GridX, monster.GridY, 0));
+                                    await Task.Delay(800);
                                     continue;
                                 }
 
@@ -2222,11 +2397,28 @@ namespace Game.Battle
                     // ---- Phase 6: End of Round Status Tick ----
                     foreach (var f in friendlyFighters.Concat(opposingFighters))
                     {
+                        var expired = new System.Collections.Generic.List<FighterStatusType>();
                         foreach (var st in f.ActiveStatuses)
                         {
                             st.RemainingTurns--;
+                            if (st.RemainingTurns <= 0)
+                            {
+                                expired.Add(st.StatusType);
+                            }
                         }
                         f.ActiveStatuses.RemoveAll(st => st.RemainingTurns <= 0);
+
+                        foreach (var exp in expired)
+                        {
+                            if (exp == FighterStatusType.HotBlooded)
+                            {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {f.Name}'s [Hot-Blooded] state has expired."));
+                            }
+                            else if (exp == FighterStatusType.Shielded)
+                            {
+                                BroadcastToBattle(battle, Tools.FromFormat("bbbs", 23, 57, 0, $"[Battle] {f.Name}'s [Shield] barrier has expired."));
+                            }
+                        }
                     }
 
                     // ---- Phase 7: Open next round for all living players ----

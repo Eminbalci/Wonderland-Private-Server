@@ -108,19 +108,59 @@ namespace Game.SkillRelated
             return pattern >= 2;
         }
 
-        public bool IsHeal => Target == 1 || Target == 3 || Target == 5 || (Name != null && (Name.Contains("Heal") || Name.Contains("Recover") || Name.Contains("Blessing") || Name.Contains("Cure") || Name.Contains("Rest")));
-        public bool IsRevive => Name != null && (Name.Contains("Reviv") || Name.Contains("Restoration"));
-        public bool IsShield => Effect == 62 || Effect == 103 || Effect == 107 || (Name != null && (Name.Contains("Shield") || Name.Contains("Barrier") || Name.Contains("Guard")));
-        public bool IsHotBlooded => Effect == 73 || (Name != null && (Name.Contains("Hot-blooded") || Name.Contains("War Cry") || Name.Contains("Fiery")));
-        public bool IsSpeedUp => Effect == 51 || (Name != null && Name.Contains("Speed"));
-        public bool IsVanish => Effect == 53 || (Name != null && Name.Contains("Vanish"));
+        public bool IsHeal =>
+            Target != 0 && (
+                EffectLayer == (byte)global::Game.EffectLayer.Healing1 ||
+                (Name != null && (Name.StartsWith("Heal") || Name.StartsWith("Cure") ||
+                                  (Name.Contains("Recovery") && !Name.Contains("Magic Recovery") && !Name.Contains("Normal")) ||
+                                  Name.Contains("Blessing")))
+            );
+        public bool IsRevive =>
+            Target != 0 && (
+                EffectLayer == (byte)global::Game.EffectLayer.Revival ||
+                (Name != null && (Name.Contains("Reviv") || Name.Contains("Restoration") || Name.Contains("Secular Feather")))
+            );
+        public bool IsManaRecovery =>
+            Target != 0 && (
+                EffectLayer == (byte)global::Game.EffectLayer.Mana ||
+                (Name != null && (Name.Contains("Magic Recovery") || Name.Contains("Water Mana")))
+            );
+        public bool IsStatusCure =>
+            Target != 0 && (
+                EffectLayer == (byte)global::Game.EffectLayer.Debuffs1 ||
+                (Name != null && (Name.Contains("Wake") || Name.Contains("Ice-out") || Name.Contains("Detox") ||
+                                  Name.Contains("Free From") || Name.Contains("Unstun") || Name.Contains("Antidote") ||
+                                  Name.Contains("Ammonia") || Name.Contains("Recover Normal")))
+            );
+        public bool IsShield =>
+            Target != 0 && (
+                Effect == 52 || Effect == 62 || Effect == 101 || Effect == 103 || Effect == 105 || Effect == 107 ||
+                (Name != null && (Name.Contains("Shield") || Name.Contains("Wall") || Name.Contains("Barrier") || Name.Contains("Guard") || Name.Contains("Knight's Spirit")))
+            );
+        public bool IsHotBlooded =>
+            Target != 0 && (
+                Effect == 59 || Effect == 60 || Effect == 73 ||
+                (Name != null && (Name.Contains("Hot-blooded") || Name.Contains("Fiery Attack") || Name.Contains("Hot Fire") ||
+                                  Name.Contains("War Cry") || Name.Contains("Strengthen") || Name.Contains("Fire Attack")))
+            );
+        public bool IsSpeedUp => Target != 0 && (Effect == 51 || (Name != null && Name.Contains("Speed")));
+        public bool IsVanish => Target != 0 && (Effect == 53 || (Name != null && Name.Contains("Vanish")));
+        public bool IsBuff =>
+            Target != 0 && (
+                IsShield || IsHotBlooded || IsSpeedUp || IsVanish ||
+                EffectLayer == (byte)global::Game.EffectLayer.Buffs1 ||
+                EffectLayer == 19 || EffectLayer == 20 ||
+                Effect == 61 || Effect == 63 || Effect == 64 || Effect == 65 ||
+                (Name != null && (Name.Contains("Buff") || Name.Contains("Mutter") || Name.Contains("Foretell") || Name.Contains("Gigantize") || Name.Contains("Battery")))
+            );
+        public bool IsPureSupport => Target != 0 && (IsHeal || IsRevive || IsManaRecovery || IsStatusCure || IsBuff);
 
-        public bool IsFreeze => Effect == 1 || Effect == 177 || AdditionalEffect == 3 || (Name != null && (Name.Contains("Freeze") || Name.Contains("Ice Seal") || Name.Contains("Curdle")));
-        public bool IsSleep => Effect == 6 || (Name != null && (Name.Contains("Sleep") || Name.Contains("Dream")));
-        public bool IsSeal => Effect == 4 || Effect == 178 || AdditionalEffect == 7 || (Name != null && (Name.Contains("Stone") || Name.Contains("Tree") || Name.Contains("Seal") || Name.Contains("Stun") || Name.Contains("Landification")));
-        public bool IsConfuse => Effect == 173 || AdditionalEffect == 1 || (Name != null && (Name.Contains("Mess") || Name.Contains("Chaos") || Name.Contains("Confusion") || Name.Contains("Enchantment")));
-        public bool IsPoison => Effect == 171 || (Name != null && (Name.Contains("Poison") || Name.Contains("Pollen") || Name.Contains("Miasma")));
-        public bool IsParalyze => Effect == 8 || AdditionalEffect == 5 || (Name != null && (Name.Contains("Cord") || Name.Contains("Curse") || Name.Contains("Trap") || Name.Contains("Coma")));
+        public bool IsFreeze => Target == 0 && (Effect == 1 || Effect == 177 || AdditionalEffect == 3 || (Name != null && (Name.Contains("Freeze") || Name.Contains("Ice Seal") || Name.Contains("Curdle"))));
+        public bool IsSleep => Target == 0 && (Effect == 6 || (Name != null && (Name.Contains("Sleep") || Name.Contains("Dream"))));
+        public bool IsSeal => Target == 0 && (Effect == 3 || Effect == 4 || Effect == 178 || AdditionalEffect == 7 || (Name != null && (Name.Contains("Stone Curse") || Name.Contains("Tree") || Name.Contains("Seal") || Name.Contains("Stun") || Name.Contains("Landification"))));
+        public bool IsConfuse => Target == 0 && (Effect == 173 || AdditionalEffect == 1 || (Name != null && (Name.Contains("Mess") || Name.Contains("Chaos") || Name.Contains("Confusion") || Name.Contains("Enchantment"))));
+        public bool IsPoison => Target == 0 && (Effect == 171 || (Name != null && (Name.Contains("Poison") || Name.Contains("Pollen") || Name.Contains("Miasma"))));
+        public bool IsParalyze => Target == 0 && (Effect == 8 || Effect == 7 || AdditionalEffect == 5 || (Name != null && (Name.Contains("Cord") || Name.Contains("Curse") || Name.Contains("Trap") || Name.Contains("Coma") || Name.Contains("Palsy") || Name.Contains("Paraly"))));
 
         public bool IsPureStatusDebuff =>
             Target == 0 && (
