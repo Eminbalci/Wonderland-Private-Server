@@ -235,13 +235,30 @@ namespace Network.ActionCodes {
                                     if (words.Length == 2) {
                                         string targetQuery = words[1];
                                         if (ushort.TryParse(targetQuery, out ushort singleMapId)) {
+                                            ushort dstX = 600;
+                                            ushort dstY = 600;
+                                            if (singleMapId == 12600) {
+                                                // Bangkok Main Street: Land near Bangkok Monk & Temple entrance
+                                                dstX = 2450;
+                                                dstY = 450;
+                                            }
                                             WarpData tmp = new WarpData {
                                                 DstMap = singleMapId,
-                                                DstX_Axis = 600,
-                                                DstY_Axis = 600
+                                                DstX_Axis = dstX,
+                                                DstY_Axis = dstY
                                             };
                                             p.CurMap?.Teleport(TeleportType.CmD, p, 0, tmp);
-                                            p.SendSystemMessage($"[GM] Teleported to Map {singleMapId} (600, 600).");
+                                            p.SendSystemMessage($"[GM] Teleported to Map {singleMapId} ({dstX}, {dstY}).");
+                                        } else if (targetQuery.Equals("bangkok", StringComparison.OrdinalIgnoreCase) ||
+                                                   targetQuery.Equals("bangkokmonk", StringComparison.OrdinalIgnoreCase) ||
+                                                   targetQuery.Equals("monk", StringComparison.OrdinalIgnoreCase)) {
+                                            WarpData tmp = new WarpData {
+                                                DstMap = 12600,
+                                                DstX_Axis = 2450,
+                                                DstY_Axis = 450
+                                            };
+                                            p.CurMap?.Teleport(TeleportType.CmD, p, 0, tmp);
+                                            p.SendSystemMessage("[GM] Teleported to Map 12600 (Bangkok Temple, Monk) (2450, 450).");
                                         } else {
                                             var target = Game.PlayerRelated.GmManager.FindOnlinePlayer(targetQuery);
                                             if (target != null) {

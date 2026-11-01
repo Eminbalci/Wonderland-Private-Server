@@ -450,6 +450,14 @@ namespace Game.Maps
                         return !hasQuest || quest.State != QuestState.InProgress;
                     }
                     if (condition.unknownword2 != 1) return false;
+                    // When checking an in-progress quest mark (w2 == 1):
+                    // An unstarted quest (!active) is not at any in-progress step (1..N).
+                    // Comparisons for in-progress step ranges (<= value, or < value where value > 1, or >= value, or > value)
+                    // require the quest to be active; otherwise 0 <= 9 (Map 12625) or 0 < 3 (Map 11013) erroneously matches unaccepted quests.
+                    if (!active && (comparison == 3 || (comparison == 1 && value > 1) || comparison == 2 || comparison == 4))
+                    {
+                        return false;
+                    }
                     return CompareValue(mark, value, comparison);
                 case 2:
                     if (condition.unknownword1 == 1)

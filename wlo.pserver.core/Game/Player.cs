@@ -883,8 +883,11 @@ namespace Game
                 ProximityEncounterArmed = true;
                 if (base.CurMap is GameMap)
                 {
-                    (base.CurMap as GameMap).onItemDropped_fromMap = m_inv.onItemDropped_fromMap;
-                    (base.CurMap as GameMap).onItemPickup_fromMap = m_inv.onItemPickedUp_fromMap;
+                    if (m_inv != null)
+                    {
+                        (base.CurMap as GameMap).onItemDropped_fromMap = m_inv.onItemDropped_fromMap;
+                        (base.CurMap as GameMap).onItemPickup_fromMap = m_inv.onItemPickedUp_fromMap;
+                    }
                 }
             }
         }

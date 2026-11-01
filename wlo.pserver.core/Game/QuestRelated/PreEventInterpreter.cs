@@ -533,14 +533,28 @@ namespace Game.QuestRelated
             uint templateId = npc?.TemplateID ?? DataBase.GameDataBase.GlobalInstance?.EveDat?
                 .GetMapData((ushort)player.MapID)?.Npclist?.FirstOrDefault(n => n.clickId == clickId)?.npcId ?? 0;
             int currentPropState;
-            p.Pack16(player.NativePropStates.TryGetValue(clickId, out currentPropState)
-                ? (ushort)currentPropState : Game.Maps.QuestNpc.GetIdleAnimationFrame(templateId));
+            ushort frame = player.NativePropStates.TryGetValue(clickId, out currentPropState)
+                ? (ushort)currentPropState : Game.Maps.QuestNpc.GetIdleAnimationFrame(templateId);
+            byte stance = 0;
+            ushort initAnim;
+            byte initFacing;
+            if (GetNpcInitialPose(player, (ushort)player.MapID, clickId, out initAnim, out initFacing))
+            {
+                frame = (ushort)((frame & 0xFF) | (initFacing << 8));
+                stance = (byte)initAnim;
+            }
+            p.Pack16(frame);
             p.Pack16(x);
             p.Pack16(y);
             p.Pack8(1); // 1 = Visible
             p.Pack32(0);
-            p.Pack8(0);
+            p.Pack8(stance);
             player.Send(p);
+
+            if (stance != 0)
+            {
+                player.Send(Tools.FromFormat("bbwbb", 22, 9, clickId, stance, (byte)(frame >> 8)));
+            }
 
             DebugSystem.Write($"[ActorVisibility] Sent SendActorShow (AC 22:4 spawn) for ClickID {clickId} at {x},{y} to {player.CharName}");
         }
@@ -564,10 +578,87 @@ namespace Game.QuestRelated
         /// <summary>
         /// Executes a single bytecode action block from eve.Emg PreEvents.
         /// </summary>
-        // Client AC22:9 -> 0x4464dc -> 0x430f90: actor, animation, facing.
+        /// <summary>
+        /// Retrieves the authentic initial pose animation and facing direction defined by Map PreEvents for an actor.
+        /// Returns true if an applicable PreEvent rule specifies an actor pose (actionType 4 or 7) or facing (actionType 10).
+        /// </summary>
+        public static bool GetNpcInitialPose(Player player, ushort mapId, ushort clickId, out ushort animation, out byte facing)
+        {
+            animation = 0;
+            facing = 0;
+            bool hasPose = false;
+
+            try
+            {
+                var eveDat = DataBase.GameDataBase.GlobalInstance?.EveDat;
+                var mapData = eveDat?.GetMapData(mapId);
+                if (mapData?.PreEvents == null) return false;
+
+                foreach (var preEvent in mapData.PreEvents)
+                {
+                    if (preEvent.subentry1 == null || preEvent.subentry1.Count == 0) continue;
+
+                    var rules = GetApplicableRules(player, mapId, preEvent);
+                    foreach (var rule in rules)
+                    {
+                        if (!rule.Conditions.All(cond => EvaluateConditionBlock(player, cond))) continue;
+                        if (rule.Actions != null)
+                        {
+                            foreach (var act in rule.Actions)
+                            {
+                                if (act.unknown != null && act.unknown.Count >= 10 && act.unknown[0] == 0x02)
+                                {
+                                    byte[] bytes = act.unknown.ToArray();
+                                    ushort targetClickId = BitConverter.ToUInt16(bytes, 1);
+                                    if (targetClickId != clickId) continue;
+
+                                    ushort actionType = BitConverter.ToUInt16(bytes, 3);
+                                    byte state1 = bytes[8];
+
+                                    if (actionType == 7)
+                                    {
+                                        animation = BitConverter.ToUInt16(bytes, 5);
+                                        facing = (bytes.Length > 13 && bytes[13] != 0) ? bytes[13] : state1;
+                                        hasPose = true;
+                                    }
+                                    else if (actionType == 10 || actionType == 4)
+                                    {
+                                        facing = (bytes.Length > 13 && bytes[13] != 0) ? bytes[13] : state1;
+                                        hasPose = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PreEventInterpreter] Error getting initial pose for map {mapId}, click {clickId}: {ex.Message}");
+            }
+
+            return hasPose;
+        }
+
+        // Authentic dual AC 22:4 table record (with stance in byte 13 and facing in byte 3) + AC 22:9 dispatch
         internal static bool SendActorPose(Player player, ushort clickId, ushort animation, byte facing)
         {
             if (animation > byte.MaxValue) return false;
+
+            GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
+            SendPacket p = new SendPacket();
+            p.Pack8(22);
+            p.Pack8(4);
+            p.Pack16(clickId);
+            ushort state = (ushort)(0x00FF | (facing << 8));
+            p.Pack16(state);
+            p.Pack16(x);
+            p.Pack16(y);
+            p.Pack8(1); // 1 = Visible
+            p.Pack32(0);
+            p.Pack8((byte)animation); // Byte 13: Stance animation
+            player.Send(p);
+
             player.Send(Tools.FromFormat("bbwbb", 22, 9, clickId, (byte)animation, facing));
             return true;
         }
@@ -599,9 +690,9 @@ namespace Game.QuestRelated
                     return;
                 }
 
-                if (actionType == 7 || actionType == 4)
+                if (actionType == 7)
                 {
-                    // EVE action 2/7 and 2/4 specify the actor animation in word 3,
+                    // EVE action 2/7 specifies the actor animation in word 3,
                     // with facing in byte 13 (or state1); it is an actor pose/animation, not a prop frame.
                     byte facing = (data.Length > 13 && data[13] != 0) ? data[13] : state1;
                     SendActorPose(player, clickId, BitConverter.ToUInt16(data, 5), facing);
@@ -619,10 +710,10 @@ namespace Game.QuestRelated
                     // Action specifies complete concealment / despawn frame (FF FF)
                     SendActorHide(player, clickId);
                 }
-                else if (actionType == 10)
+                else if (actionType == 10 || actionType == 4)
                 {
-                    // Action 2/10 is facing / direction control
-                    byte dir = data.Length > 13 ? data[13] : state1;
+                    // Action 2/10 and 2/4 set actor facing / direction without overriding idle stance
+                    byte dir = (data.Length > 13 && data[13] != 0) ? data[13] : state1;
                     player.Send(Tools.FromFormat("bbwb", 22, 1, clickId, dir));
                 }
                 else

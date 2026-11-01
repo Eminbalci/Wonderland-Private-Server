@@ -148,6 +148,18 @@ namespace Network.ActionCodes
                     state = idleFrame;
                 }
 
+                byte stance = 0;
+                if (!isHidden && state == idleFrame)
+                {
+                    ushort initAnim;
+                    byte initFacing;
+                    if (PreEventInterpreter.GetNpcInitialPose(player, mapId, npc.CickID, out initAnim, out initFacing))
+                    {
+                        state = (ushort)((idleFrame & 0xFF) | (initFacing << 8));
+                        stance = (byte)initAnim;
+                    }
+                }
+
                 byte entityType = isHidden ? (byte)2 : (byte)1;
                 uint duration = isHidden ? 0x03E7FC18u : 0u;
 
@@ -156,7 +168,7 @@ namespace Network.ActionCodes
                 p.Pack16(npc.Y);
                 p.Pack8(entityType);
                 p.Pack32(duration);
-                p.Pack8(0);
+                p.Pack8(stance);
             }
 
             return p;

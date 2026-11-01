@@ -1438,6 +1438,7 @@ namespace Game
 
                     ushort idleFrame = QuestNpc.GetIdleAnimationFrame(qn?.TemplateID ?? 0);
                     ushort state = idleFrame;
+                    byte stance = 0;
 
                     if (isHidden)
                     {
@@ -1483,6 +1484,13 @@ namespace Game
                     else
                     {
                         state = idleFrame;
+                        ushort initAnim;
+                        byte initFacing;
+                        if (Game.QuestRelated.PreEventInterpreter.GetNpcInitialPose(t, (ushort)this.MapID, npc.CickID, out initAnim, out initFacing))
+                        {
+                            state = (ushort)((idleFrame & 0xFF) | (initFacing << 8));
+                            stance = (byte)initAnim;
+                        }
                     }
 
                     byte entityType = isHidden ? (byte)2 : (byte)1;
@@ -1496,7 +1504,7 @@ namespace Game
                     npcListPkt.Pack16(npc.Y);
                     npcListPkt.Pack8(entityType);
                     npcListPkt.Pack32(duration);
-                    npcListPkt.Pack8(0);
+                    npcListPkt.Pack8(stance);
                 }
                 tmp.Add(npcListPkt);
             }
