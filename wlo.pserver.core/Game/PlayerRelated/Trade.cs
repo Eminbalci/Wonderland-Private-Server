@@ -87,12 +87,31 @@ namespace Game.PlayerRelated
                 _pendingTradeRequests[target.CharID] = requester.CharID;
             }
 
-            // Send Trade Request Prompt to Target
-            SendPacket pReq = new SendPacket();
-            pReq.Pack8(25);
-            pReq.Pack8(1);
-            pReq.Pack32(requester.CharID);
-            target.Send(pReq);
+            // The native client opens the window from an incoming AC25:1 and sends
+            // no explicit "accept" packet, so the session starts immediately and
+            // both sides receive the invitation echo plus the window.
+            var session = new TradeSession(requester, target);
+            lock (_lock)
+            {
+                _activeTrades[requester.CharID] = session;
+                _activeTrades[target.CharID] = session;
+            }
+
+            SendPacket pOpen1 = new SendPacket();
+            pOpen1.Pack8(25);
+            pOpen1.Pack8(1);
+            pOpen1.Pack32(target.CharID);
+            requester.Send(pOpen1);
+
+            SendPacket pOpen2 = new SendPacket();
+            pOpen2.Pack8(25);
+            pOpen2.Pack8(1);
+            pOpen2.Pack32(requester.CharID);
+            target.Send(pOpen2);
+
+            SendWindow(requester, target);
+            SendWindow(target, requester);
+            PushOffers(session);
 
             SendSystemMsg(requester, $"Trade request sent to {target.CharName}.");
         }
@@ -149,7 +168,135 @@ namespace Game.PlayerRelated
             pOpen2.Pack32(requester.CharID);
             target.Send(pOpen2);
 
+            SendWindow(requester, target);
+            SendWindow(target, requester);
+            PushOffers(session);
             DebugSystem.Write($"[TradeSystem] Trade session started between {requester.CharName} and {target.CharName}.");
+        }
+
+        // Native offer: gold plus one inventory slot per offered item.
+        public static void SetOfferFromSlots(Player player, uint gold, byte[] slots)
+        {
+            if (player == null) return;
+            TradeSession session = SessionOf(player);
+            if (session == null) return;
+
+            uint clamped = Math.Min(gold, (uint)player.Gold);
+            List<TradeOfferItem> items = new List<TradeOfferItem>();
+            foreach (byte slot in slots)
+            {
+                var item = player.Inv?[slot];
+                if (item == null || item.ItemID == 0) continue;
+                items.Add(new TradeOfferItem(slot, item.ItemID, Math.Min(item.Ammt, (byte)255)));
+                if (items.Count >= 20) break;
+            }
+
+            if (player == session.Player1)
+            {
+                session.Player1Gold = clamped;
+                session.Player1Items.Clear();
+                session.Player1Items.AddRange(items);
+                session.Player1Accepted = false;
+                session.Player2Accepted = false;
+            }
+            else
+            {
+                session.Player2Gold = clamped;
+                session.Player2Items.Clear();
+                session.Player2Items.AddRange(items);
+                session.Player1Accepted = false;
+                session.Player2Accepted = false;
+            }
+
+            SendWindow(session.Player1, session.Player2);
+            SendWindow(session.Player2, session.Player1);
+            PushOffers(session);
+        }
+
+        private static TradeSession SessionOf(Player player)
+        {
+            lock (_lock)
+            {
+                TradeSession session;
+                return _activeTrades.TryGetValue(player.CharID, out session) ? session : null;
+            }
+        }
+
+        private static void PushOffers(TradeSession session)
+        {
+            SendOffer(session.Player2, session.Player1Gold, session.Player1Items);
+            SendOffer(session.Player1, session.Player2Gold, session.Player2Items);
+        }
+
+        // AC25:3 carries the partner's offer: gold, one 30-byte record per item
+        // (id, quantity duplicated into bytes 2 and 11) and five trailing bytes.
+        private static readonly Dictionary<uint, string> _sentOffers = new Dictionary<uint, string>();
+
+        private static void SendOffer(Player target, uint gold, List<TradeOfferItem> items)
+        {
+            if (target == null) return;
+
+            var signature = new StringBuilder();
+            signature.Append(gold).Append(':');
+            foreach (var item in items) signature.Append(item.ItemID).Append('x').Append(item.Count).Append(',');
+            string sig = signature.ToString();
+            lock (_lock)
+            {
+                string previous;
+                if (_sentOffers.TryGetValue(target.CharID, out previous) && previous == sig) return;
+                _sentOffers[target.CharID] = sig;
+            }
+
+            SendPacket packet = new SendPacket();
+            packet.Pack8(25);
+            packet.Pack8(3);
+            packet.Pack32(gold);
+            foreach (var item in items)
+            {
+                byte[] record = new byte[30];
+                record[0] = (byte)(item.ItemID & 0xFF);
+                record[1] = (byte)(item.ItemID >> 8);
+                record[2] = item.Count;
+                record[11] = item.Count;
+                packet.PackArray(record);
+            }
+            packet.PackArray(new byte[5]);
+            target.Send(packet);
+        }
+
+        // AC25:12 opens the exchange window. The client reads a 25-byte header and
+        // fills the grid from AC25:3, so no rows are attached here.
+        public static void SendWindow(Player viewer, Player partner)
+        {
+            if (viewer == null || partner == null) return;
+            TradeSession session = SessionOf(viewer);
+
+            uint selfGold = (uint)viewer.Gold;
+            uint partnerGold = (uint)partner.Gold;
+            byte flag = 0;
+            if (session != null)
+            {
+                selfGold = session.Player1 == viewer ? session.Player1Gold : session.Player2Gold;
+                partnerGold = session.Player1 == viewer ? session.Player2Gold : session.Player1Gold;
+                var partnerItems = session.Player1 == viewer ? session.Player2Items : session.Player1Items;
+                if (partnerItems.Count > 0) flag = 1;
+            }
+
+            SendPacket packet = new SendPacket();
+            packet.Pack8(25);
+            packet.Pack8(12);
+            packet.Pack32(partner.CharID);
+            packet.Pack16((ushort)partner.CharID);
+            packet.Pack8(0);
+            packet.Pack32(selfGold);
+            packet.Pack32(partnerGold);
+            packet.Pack16(0);
+            packet.Pack16(0);
+            packet.Pack8(0);
+            packet.Pack8(0);
+            packet.Pack8(flag);
+            packet.Pack8(0);
+            viewer.Send(packet);
         }
 
         public static void CancelTrade(Player player)
@@ -375,7 +522,12 @@ namespace Game.PlayerRelated
                 p1.Inv.AddItem(it.ItemID, it.Count);
             }
 
-            // 6. Persist both characters (separate saves, not a shared transaction)
+            // 6. Refresh the balances and bags before persisting: TakeGold/AddGold
+            // only change server state, and the client keeps its own copy.
+            p1.SendGold();
+            p2.SendGold();
+
+            // 7. Persist both characters (separate saves, not a shared transaction)
             p1.SaveCharacterData();
             p2.SaveCharacterData();
 
