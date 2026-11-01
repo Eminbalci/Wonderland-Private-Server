@@ -21,6 +21,34 @@ namespace Game.PlayerRelated
     {
         public const byte RequiredLevel = 100;
 
+        // Job Palace (12625-12630) counts trials on mark 15090; at 12 Mahabrahman opens
+        // the rebirth form (opcode 7/10). Mark.dat pairs 15090 with completion mark 15091,
+        // which no EVE event sets: rebirth itself completes it. Later content checks
+        // 15091 == 1, e.g. map 12144 PreEvent shows its battle object only then.
+        public const ushort JobPalaceMark = 15090;
+        public const ushort JobPalaceDoneMark = 15091;
+
+        public static void EnsureJobPalaceCompletion(Player player, bool sendUpdate)
+        {
+            if (player == null || !player.Reborn) return;
+            if (player.Quests == null) player.Quests = new Dictionary<uint, Game.QuestRelated.PlayerQuest>();
+            if (player.Quests.ContainsKey(JobPalaceDoneMark)) return;
+
+            Game.QuestRelated.PlayerQuest trials;
+            byte step = player.Quests.TryGetValue(JobPalaceMark, out trials) && trials.Step > 0 ? (byte)trials.Step : (byte)1;
+            player.Quests[JobPalaceMark] = new Game.QuestRelated.PlayerQuest(JobPalaceMark, Game.QuestRelated.QuestState.Completed, step)
+            { CompletedAt = trials?.CompletedAt ?? DateTime.UtcNow };
+            player.Quests[JobPalaceDoneMark] = new Game.QuestRelated.PlayerQuest(JobPalaceDoneMark, Game.QuestRelated.QuestState.InProgress, 1);
+            Game.QuestRelated.QuestManager.SavePlayerQuest(player, JobPalaceMark);
+            Game.QuestRelated.QuestManager.SavePlayerQuest(player, JobPalaceDoneMark);
+            if (sendUpdate)
+            {
+                Game.QuestRelated.QuestManager.SendQuestUpdate(player, JobPalaceMark, Game.QuestRelated.QuestState.Completed, step);
+                Game.QuestRelated.QuestManager.SendQuestUpdate(player, JobPalaceDoneMark, Game.QuestRelated.QuestState.InProgress, 1);
+            }
+            DebugSystem.Write($"[RebornManager] Marked Job Palace complete (15090 done, 15091 set) for {player.CharName}");
+        }
+
         public static bool CanReborn(Player player)
         {
             if (player == null) return false;
@@ -98,6 +126,7 @@ namespace Game.PlayerRelated
             player.CurMap?.Broadcast(pVisual);
 
             player.SaveCharacterData();
+            EnsureJobPalaceCompletion(player, true);
 
             Notify(player, $"Congratulations! You are now a Reborn {job} (Lv {newLevel}). Please relog to refresh your character.");
             DebugSystem.Write($"[RebornManager] Player {player.CharName} reborn as {job} (Lv {newLevel}).");

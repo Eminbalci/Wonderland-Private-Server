@@ -843,6 +843,8 @@ namespace Game
                 NativeActorVisibility.Clear();
                 if (base.CurMap != value)
                 {
+                    // An event warp ends the session here; AC12 must then release the UI.
+                    if (NativeEventActive) RestoreUiAfterMapLoad = true;
                     ClearInteraction();
                     PendingRestMap = 0;
                     NpcSaleMode = null;
@@ -2071,6 +2073,10 @@ namespace Game
             Send(Tools.FromFormat("bb", 20, 8));
             Send(Tools.FromFormat("bb", 5, 4));
         }
+
+        // Set when a warp cuts off a native event. A mode-2 movie before the warp
+        // means the client never acks the warp step, so the map load must restore the UI.
+        public bool RestoreUiAfterMapLoad { get; set; }
 
         public void ClearInteraction()
         {

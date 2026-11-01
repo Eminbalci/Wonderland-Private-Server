@@ -116,6 +116,13 @@ namespace Game.Maps
             return mentionsActiveMark || changesActiveMark;
         }
 
+        // Opcode 1/3 scene transitions and opcode 7 map teleports load a new map,
+        // which is what releases a mode-2 movie hold.
+        private static bool IsMapLoadOp(EventSubSubEntry op)
+        {
+            return (op.DialogPtr == 1 && op.dialog1 == 3) || (op.DialogPtr == 7 && op.dialog1 >= 1000);
+        }
+
         public static bool HasLinkedEvent(ushort mapId, ushort clickId)
         {
             var data = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(mapId);
@@ -141,11 +148,14 @@ namespace Game.Maps
         {
             if (map == null || map is Game.Code.Tent || map.Type == MapType.Tent) return false;
             var data = DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID);
-            // The packet carries an entry ID, not a WarpLoc ID. Doors (2)
-            // also link to scripts, including conditional destinations.
+            // The packet carries an entry ID, not a WarpLoc ID. Doors (2) and
+            // map entry/exit areas (3) also link to scripts that name the right
+            // warp. Skipping kind 3 fell through to the WarpLoc table, whose ids
+            // collide (both Welling Village entrances landed on one point).
             var entry = data?.Entry_Points?.FirstOrDefault(e => e.clickID == entryId &&
-                (e.unknownbyte3 == 1 || e.unknownbyte3 == 2));
+                e.unknownbyte3 >= 1 && e.unknownbyte3 <= 3);
             if (entry == null) return false;
+            DebugSystem.Write($"[EveEventRuntime] Entry: map={map.MapID} entry={entryId} kind={entry.unknownbyte3} pos=({player.CurX},{player.CurY})");
             if (player.NativeEventActive) return true;
             // Maka's client reports entry2 before the final movement update:
             // observed (242,715), (222,715), (322,735) border its native rectangle.
@@ -1078,7 +1088,10 @@ namespace Game.Maps
                                 // Fairy Altar: skill-learning (event 2) and altar (event 3)
                                 // movies continue the dialogue; no map load follows them.
                                 (map.MapID == 12465 && (ev.clickID == 2 || ev.clickID == 3)) ||
-                                (map.MapID == 11075 && (ev.clickID == 1 || ev.clickID == 2))))
+                                (map.MapID == 11075 && (ev.clickID == 1 || ev.clickID == 2)) ||
+                                // Any movie with no map load after it in the branch: a mode-2
+                                // hold never releases (e.g. Four Saints victory, 13012 event 2).
+                                !branch.SubEntry.Skip(index).Any(IsMapLoadOp)))
                             {
                                 DebugSystem.Write($"[EveEventRuntime] -> Dispatched Movie CutsceneID={DecodeActionValue(op)} to {player.CharName}");
                                 player.Send(BuildEventFrame(5, 0, 0, 1, DecodeActionValue(op), 0, step, branch.subIndex));

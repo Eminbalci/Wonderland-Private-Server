@@ -466,6 +466,8 @@ namespace Server
 
             // Load player quests from database
             Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
+            // Characters reborn before this fix lack the Job Palace completion mark.
+            Game.PlayerRelated.RebornManager.EnsureJobPalaceCompletion(src, false);
             cGlobal.gCharacterDataBase.LoadMonsterBook(src);
             Game.PlayerRelated.NotebookManager.SendMonsterBook(src);
 

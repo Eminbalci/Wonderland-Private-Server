@@ -22,6 +22,9 @@ namespace Wonderland_Private_Server.ActionCodes
             switch (subCode)
             {
                 case 1: Recv1(r, p); break;
+                // Client send at decompiled line 308058: actor contact trigger (mode 2), same click-ID payload.
+                // Touch-only actors such as 12132 actor 4 (event 3 -> 12141) send this, not 20:1.
+                case 2: Recv1(r, p); break;
                 case 6: Recv6(r, p); break;
                 case 9: Recv9(r, p); break;
                 case 8: Recv8(r, p); break;

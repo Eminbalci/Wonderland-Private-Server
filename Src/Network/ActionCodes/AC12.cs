@@ -55,6 +55,20 @@ namespace Wonderland_Private_Server.ActionCodes
                     // client's scene-load gate only after that acknowledgement and tent item initialization.
                     p.Send(Tools.FromFormat("bb", 5, 4));
                     DebugSystem.Write($"[AC12] Map load completed for {p.CharName}: MapID={p.CurMap.MapID}, Warping=False");
+                    // An event warp (e.g. Fortune Teller 12110 -> 13009 after a mode-2 movie)
+                    // ended the session without the client acking the warp step, so the
+                    // dialogue lock and HUD were never released. Release them here.
+                    if (p.RestoreUiAfterMapLoad)
+                    {
+                        p.RestoreUiAfterMapLoad = false;
+                        if (!p.NativeEventActive)
+                        {
+                            p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                            p.Send(Tools.FromFormat("bb", 20, 8));
+                            DebugSystem.Write($"[AC12] Restored UI after event warp for {p.CharName}");
+                        }
+                    }
+
 
                     // Restore the validated vehicle only after native map loading finishes.
                     Game.PlayerRelated.VehicleManager.SyncVehicleOnMapEntry(p);
