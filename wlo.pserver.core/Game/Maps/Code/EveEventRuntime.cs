@@ -1075,6 +1075,9 @@ namespace Game.Maps
                                 // before music/warp. None may hold rendering for a map load.
                                 (map.MapID == 11149 && (ev.clickID == 1 || ev.clickID == 2 || ev.clickID == 5)) ||
                                 (map.MapID == 11185 && ev.clickID == 4) ||
+                                // Fairy Altar: skill-learning (event 2) and altar (event 3)
+                                // movies continue the dialogue; no map load follows them.
+                                (map.MapID == 12465 && (ev.clickID == 2 || ev.clickID == 3)) ||
                                 (map.MapID == 11075 && (ev.clickID == 1 || ev.clickID == 2))))
                             {
                                 DebugSystem.Write($"[EveEventRuntime] -> Dispatched Movie CutsceneID={DecodeActionValue(op)} to {player.CharName}");
