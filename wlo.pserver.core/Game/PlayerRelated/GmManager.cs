@@ -695,7 +695,6 @@ namespace Game.PlayerRelated
             player.Eqs.CurHP = player.Eqs.FullHP;
             player.Eqs.CurSP = player.Eqs.FullSP;
             player.Eqs.Send8_1(true);
-            player.Send_5_3();
 
             DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(player.CharID, player);
             player.SendSystemMessage($"[GM] Stats refunded! +{refund} points returned. Available Skill Points: {player.Eqs.SkillPoints}.");

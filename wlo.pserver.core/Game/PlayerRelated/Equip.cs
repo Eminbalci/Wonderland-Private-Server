@@ -281,29 +281,31 @@ namespace Game.Code
 
         public void SetLevel(byte targetLvl, bool grantPoints = true)
         {
+            targetLvl = Math.Max((byte)1, Math.Min((byte)199, targetLvl));
+            bool leveledUp = false;
             lock (m_Lock)
             {
                 byte oldLvl = Level;
+                leveledUp = targetLvl > oldLvl;
                 long exp = 0;
                 for (int l = 1; l < targetLvl; l++)
                 {
                     exp += (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], l);
                 }
                 m_totalexp = exp;
-                if (grantPoints && targetLvl > oldLvl)
+                if (grantPoints && leveledUp)
                 {
                     SkillPoints += (ushort)((targetLvl - oldLvl) * 3);
                 }
                 CurHP = FullHP;
                 CurSP = FullSP;
+
+                SendExp();
+                Send8_1(leveledUp);
             }
 
             if (this is Player player)
             {
-                SendExp();
-                player.Send_5_3();
-                Send8_1(grantPoints);
-                player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
                 player.SaveCharacterData();
             }
         }
@@ -1237,6 +1239,9 @@ namespace Game.Code
                 SendStat(0x21, Wis); // Row 4: WIS (0x1f92)
                 SendStat(0x1E, Agi); // Row 5: AGI (0x1f90)
 
+                // Level Stat 35 (0x23): Native client actor.Level (0x1f98)
+                SendStat(35, Level);
+
                 // Available Stat Points (POINT Stat 38) and Potential (Stat 37):
                 SendStat(38, SkillPoints);
                 SendStat(37, Potential);
@@ -1251,9 +1256,19 @@ namespace Game.Code
                 SendStat(0x1A, CurSP);
             }
 
-            if (this is Player player && player.hasParty)
+            if (this is Player player)
             {
-                player.BroadcastPartyUpdate();
+                if (levelup)
+                {
+                    var fxPkt = Tools.FromFormat("bbd", 5, 4, player.CharID);
+                    player.Send(fxPkt);
+                    player.CurMap?.Broadcast(fxPkt, "Ex", player.CharID);
+                }
+
+                if (player.hasParty)
+                {
+                    player.BroadcastPartyUpdate();
+                }
             }
         }
 
@@ -1263,7 +1278,8 @@ namespace Game.Code
             p.PackArray(new byte[] { 8, 1 });
             p.Pack8(36);
             p.Pack8(1);
-            p.Pack64((ulong)TotalExp);
+            long wireExp = Math.Min((long)TotalExp, 0x76F1D017L);
+            p.Pack64((ulong)wireExp);
             Send?.Invoke(p);
         }
 

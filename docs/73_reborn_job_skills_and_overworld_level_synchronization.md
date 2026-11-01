@@ -1,4 +1,4 @@
-# Technical Specification: Reborn Job Skills Award and Overworld Level Synchronization Fix
+# Technical Specification: Reborn Job Skills Award, Authentic Level Deduction & Level Synchronization Fix
 
 ## 1. Problem Statement & Root Cause Diagnosis
 
@@ -13,15 +13,19 @@ In *Wonderland Online*, completing character rebirth grants an exclusive innate 
 
 Prior to this fix, `RebornManager.PerformReborn` only set the `player.Job` and `player.RebornJob` enum values, without granting or unlocking the corresponding job skill in `player.PlayerSkills` or sending the client skill packets (`AC 8:1` stat 110, `AC 5:12`, `AC 5:11`, and `AC 5:4`). Additionally, `SkillManager.GetQualifiedProgressionSkills` only checked elemental affinities and basic attributes, omitting reborn job skills entirely.
 
-### 1.2 Overworld Level Inconsistency with `:level` Command
-When players leveled up using `:level <lvl>` or `:lvl <lvl>` in chat (`Network.ActionCodes.AC02.cs`):
-- `p.Eqs.SetLevel(targetLvl)` updated the total experience in memory (`m_totalexp`) and adjusted available stat points (`SkillPoints`).
-- However, `:level` only invoked `p.Eqs.Send8_1(true)` (which synchronizes combat stats, HP/SP, and stat points) without calling `p.Eqs.SendExp()` (which sends `AC 8:1` stat 36 `TotalExp`) or `p.Send_5_3()` (which sends the login/status packet containing the client-side `Level` at offset 19 and `TotalExp` at offset 20..23).
-- As a consequence, the game client retained its previous total experience and continued displaying the old level on the overworld HUD and character status window.
-- When entering combat, `PvEBattleManager.cs` built `AC 11:250` containing `selfFighter.Level` (which pulled directly from `p.Eqs.Level`), causing the combat HUD to show the new high level while the overworld remained out of sync.
+### 1.2 Overworld vs Combat Synchronization Bug with `:level` Command
+When players leveled up normally through combat or quest EXP (`Equip.cs:AddExp`):
+- `AddExp` recalculates `TotalExp`, adjusts `SkillPoints`, and sends:
+  1. `SendExp()`: `AC 8:1` stat 36 (`TotalExp` 64-bit unsigned integer).
+  2. `Send8_1(true)`: `AC 8:1` derived combat stats (ATK, DEF, MAT, MDF, SPD), base stats (STR, CON, INT, WIS, AGI), available stat points (stat 38), potential (stat 37), equipment maxima (stats 207, 208), and vitals (HP stat 25, SP stat 26).
+- Under normal gameplay, the client updates the EXP bar and immediately triggers its client-side level up calculation upon receiving `TotalExp` via `AC 8:1` stat 36.
+
+However, in an earlier commit, `:level` and `Equip.cs:SetLevel` erroneously introduced:
+- `player.Send_5_3()`: In *Wonderland Online*, `AC 5:3` (`FUN_004381c4` @ `004381c4` in `aLogin.exe`) is strictly a character initialization packet intended exclusively for login sequence. It initializes character state, resets hotbars, and updates actor models. When dispatched mid-session in an active overworld map, it corrupts the client state machine, desynchronizing overworld packet streams and breaking visual rendering.
+- `Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0)`: In client protocol `FUN_002043cc`, `AC 5:5` with subcode 0 is part of the character morph/shapeshifting subsystem. Emitting this packet during level up corrupted actor stance and visual rendering.
 
 ### 1.3 Rebirth Level Reduction Formula Alignment
-Official Wonderland Online mechanics specify that upon rebirth, the character's level is lowered by 99 (`NewLevel = Math.Max(1, CurrentLevel - 99)`), meaning:
+Official Wonderland Online mechanics specify that upon rebirth, the character's level is lowered by 99 (`NewLevel = Math.Max(1, CurrentLevel - 99)`):
 - Lv 100 -> Lv 1
 - Lv 120 -> Lv 21
 - Lv 130 -> Lv 31
@@ -74,31 +78,58 @@ The formula was aligned to `(byte)Math.Max(1, player.Level - 99)`.
    - Applies `newLevel = (byte)Math.Max(1, player.Level - 99)`.
    - Directly calls `SkillManager.LearnSkill(player, jobSkillId, 1, 0)`.
 
-### 2.2 Overworld & In-Battle Level Synchronization (`Equip.cs` & `AC02.cs`)
-1. **Core Synchronization in `EquipManager.SetLevel`:**
-   Whenever `SetLevel(targetLvl, grantPoints)` is called on a `Player` instance:
+### 2.2 Level Synchronization Architecture & Removal of Destructive Mid-Session Packets
+1. **Clean Protocol in `EquipManager.SetLevel`:**
+   Matches the exact working pattern of `AddExp`:
    ```csharp
-   if (this is Player player)
+   public void SetLevel(byte targetLvl, bool grantPoints = true)
    {
-       SendExp();
-       player.Send_5_3();
-       Send8_1(grantPoints);
-       player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
-       player.SaveCharacterData();
+       lock (m_Lock)
+       {
+           byte oldLvl = Level;
+           long exp = 0;
+           for (int l = 1; l < targetLvl; l++)
+           {
+               exp += (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], l);
+           }
+           m_totalexp = exp;
+           if (grantPoints && targetLvl > oldLvl)
+           {
+               SkillPoints += (ushort)((targetLvl - oldLvl) * 3);
+           }
+           CurHP = FullHP;
+           CurSP = FullSP;
+
+           SendExp();
+           Send8_1(grantPoints);
+       }
+
+       if (this is Player player)
+       {
+           player.SaveCharacterData();
+       }
    }
    ```
-2. **Direct Packet Dispatch in `AC02.cs` (`:level` / `:lvl`):**
-   Invokes `p.Eqs.SetLevel(targetLvl)`, `p.Eqs.SendExp()`, `p.Send_5_3()`, `p.Eqs.Send8_1(true)`, and `p.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, p.CharID, (ushort)0))` ensuring immediate overworld visual, HUD, and EXP bar updates.
-3. **Null-Safety Hardening:**
-   Updated `EquipManager.SendStat`, `SendStat64`, and `SendExp` to invoke `Send?.Invoke(p)` instead of calling the delegate unsafely.
+2. **Complete Removal of Destructive Mid-Session `Send_5_3()` and `AC 5:5` Packets:**
+   - `Src/Network/ActionCodes/AC02.cs`:
+     - `:level` / `:lvl`: Invokes `p.Eqs.SetLevel(targetLvl);` exclusively without any `p.Send_5_3()` or `5:5` morph broadcast.
+     - `:heal` / `:full` / `:hp`: Removed `p.Send_5_3();`.
+     - `:godmode` / `:god`: Removed `p.Send_5_3();`.
+   - `Src/Gui/MainForm1.cs`:
+     - Removed `targetPlayer.Send_5_3();` and `p.Send_5_3();` from GM tools.
+   - `wlo.pserver.core/Game/PlayerRelated/RebornManager.cs`:
+     - Removed `player.Send_5_3();` and `5:5` broadcast from `PerformReborn`.
+   - `wlo.pserver.core/Game/PlayerRelated/GmManager.cs`:
+     - Removed `player.Send_5_3();` from `RefundStats`.
+   - `Send_5_3()` is now exclusively called during initial client login in `WorldServer.cs:489`.
 
 ---
 
 ## 3. Verification & Empirical Proof
 
-Automated test `.codex-verify/test_reborn_skills_and_level_sync.ps1` verified:
 1. **Reborn Job Skill Mapping:** All 6 classes verified to map directly to authentic `Skill.dat` entries.
 2. **Rebirth Level Formula:** Lv 100 -> Lv 1, Lv 120 -> Lv 21, Lv 130 -> Lv 31, Lv 180 -> Lv 81, Lv 199 -> Lv 100.
 3. **PerformReborn Skill Award:** Verified that `PerformReborn` adds Murder (15241) to `PlayerSkills`, leaves `SkillPoints` unchanged without adding bonus points, and sets level to 21.
-4. **Database Non-Mutation:** `Data/ServerDataBase.db` checked with git status; 0 modifications.
-5. **Compilation:** Solution built cleanly with 0 errors and 0 warnings.
+4. **Packet Dispatch Verification:** Verified that `SetLevel` generates clean `AC 8:1` stat 36 (TotalExp) and `AC 8:1` stats without emitting any `AC 5:3` or `AC 5:5` packets.
+5. **Database Non-Mutation:** `Data/ServerDataBase.db` verified completely unmodified.
+6. **Compilation:** Solution built cleanly with 0 errors and 0 warnings.

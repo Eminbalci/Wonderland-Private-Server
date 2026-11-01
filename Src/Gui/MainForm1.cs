@@ -1054,7 +1054,6 @@ namespace Wonderland_Private_Server
                 if (targetPlayer.baseAgi > 10) { refund += (ushort)(targetPlayer.baseAgi - 10); targetPlayer.baseAgi = 10; }
 
                 targetPlayer.Eqs.SkillPoints += refund;
-                targetPlayer.Send_5_3();
                 targetPlayer.Eqs.Send8_1(true);
                 cGlobal.gCharacterDataBase?.WritePlayer(targetPlayer.CharID, targetPlayer);
 
@@ -2642,7 +2641,6 @@ namespace Wonderland_Private_Server
                     p.Eqs.CurHP = p.Eqs.FullHP;
                     p.Eqs.CurSP = p.Eqs.FullSP;
                     p.Eqs.Send8_1(false);
-                    p.Send_5_3();
                     var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle)
                                  ?? (p.ActivePetID > 0 ? p.PlayerPets?.Values?.FirstOrDefault(pet => pet.PetID == p.ActivePetID || pet.Slot == p.ActivePetID) : null)
                                  ?? p.PlayerPets?.Values?.FirstOrDefault();

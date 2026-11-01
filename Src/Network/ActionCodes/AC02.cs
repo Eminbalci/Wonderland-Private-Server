@@ -94,7 +94,6 @@ namespace Network.ActionCodes {
                                         p.Eqs.CurSP = p.Eqs.FullSP;
                                     }
                                     p.Eqs.Send8_1(false);
-                                    p.Send_5_3();
                                     p.SendSystemMessage($"[GM] HP/SP Restored! HP: {p.Eqs.CurHP}/{p.Eqs.FullHP}, SP: {p.Eqs.CurSP}/{p.Eqs.FullSP}");
                                 } catch { }
                             }
@@ -106,12 +105,8 @@ namespace Network.ActionCodes {
                         case ":lvl": {
                                 try {
                                     if (words.Length >= 2 && byte.TryParse(words[1], out byte newLvl)) {
-                                        byte targetLvl = Math.Max((byte)1, Math.Min((byte)200, newLvl));
+                                        byte targetLvl = Math.Max((byte)1, Math.Min((byte)199, newLvl));
                                         p.Eqs.SetLevel(targetLvl);
-                                        p.Eqs.SendExp();
-                                        p.Send_5_3();
-                                        p.Eqs.Send8_1(true);
-                                        p.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, p.CharID, (ushort)0));
                                         DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
                                         p.SendSystemMessage($"[GM] Level updated to {p.Eqs.Level}! Available Stat Points: {p.Eqs.SkillPoints}");
                                     }
@@ -569,7 +564,6 @@ namespace Network.ActionCodes {
                                     p.Eqs.CurHP = p.Eqs.FullHP;
                                     p.Eqs.CurSP = p.Eqs.FullSP;
                                     p.Eqs.Send8_1(true);
-                                    p.Send_5_3();
 
                                     var activePet = p.PlayerPets?.Values?.FirstOrDefault(pet => pet.IsBattle)
                                                  ?? (p.ActivePetID > 0 ? p.PlayerPets?.Values?.FirstOrDefault(pet => pet.PetID == p.ActivePetID || pet.Slot == p.ActivePetID) : null)

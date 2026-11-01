@@ -89,10 +89,8 @@ namespace Game.PlayerRelated
             }
 
             // Refresh the client's state with full login/status packets (AC 5:3, AC 8:1 stats, EXP).
-            player.Send_5_3();
             player.SendExp();
             player.Send8_1(false);
-            player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
             SendPacket pVisual = new SendPacket();
             pVisual.Pack8(23);
             pVisual.Pack8(122);
