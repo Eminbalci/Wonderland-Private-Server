@@ -185,15 +185,15 @@ namespace Network.ActionCodes
                 string[] userdata = null; // data of user
 
 
-                // Validate username and password length
-                if ((name.Length < 4) || (name.Length > 14))
+                // Validate username and password (shared rules with registration)
+                if (!DataBase.UserDataBase.ValidateUsername(name, out string nameError))
                 {
-                    DebugSystem.Write($"[AC63.Recv4] Invalid username length: {name.Length}");
+                    DebugSystem.Write($"[AC63.Recv4] Invalid username: {nameError} (len={name.Length})");
                     loginState = 1;
                 }
-                else if ((password.Length < 4) || (password.Length > 14))
+                else if (!DataBase.UserDataBase.ValidatePassword(password, out string passError))
                 {
-                    DebugSystem.Write($"[AC63.Recv4] Invalid password length: {password.Length}");
+                    DebugSystem.Write($"[AC63.Recv4] Invalid password: {passError} (len={password.Length})");
                     loginState = 1;
                 }
                 else if (loginState == 0)
