@@ -599,11 +599,12 @@ namespace Game.QuestRelated
                     return;
                 }
 
-                if (actionType == 7)
+                if (actionType == 7 || actionType == 4)
                 {
-                    // EVE action 2/7 specifies the actor animation in word 3,
-                    // with facing in the packed value; it is not a prop frame.
-                    SendActorPose(player, clickId, BitConverter.ToUInt16(data, 5), state1);
+                    // EVE action 2/7 and 2/4 specify the actor animation in word 3,
+                    // with facing in byte 13 (or state1); it is an actor pose/animation, not a prop frame.
+                    byte facing = (data.Length > 13 && data[13] != 0) ? data[13] : state1;
+                    SendActorPose(player, clickId, BitConverter.ToUInt16(data, 5), facing);
                 }
                 else if (actionType == 2)
                 {
@@ -618,6 +619,12 @@ namespace Game.QuestRelated
                     // Action specifies complete concealment / despawn frame (FF FF)
                     SendActorHide(player, clickId);
                 }
+                else if (actionType == 10)
+                {
+                    // Action 2/10 is facing / direction control
+                    byte dir = data.Length > 13 ? data[13] : state1;
+                    player.Send(Tools.FromFormat("bbwb", 22, 1, clickId, dir));
+                }
                 else
                 {
                     // AC22:4 also sets visibility. A frame refresh must not revive
@@ -625,12 +632,27 @@ namespace Game.QuestRelated
                     if (player.HiddenNpcClickIDs.Contains(clickId)) return;
                     // Standard actor state / animation frame update (AC 22:4)
                     GetNpcCoordinates(player, clickId, out ushort x, out ushort y);
+
+                    // Safeguard: Ensure animated character NPCs never receive frame 00 00 which blanks out their sprite
+                    var mapNpc = (player.CurMap as GameMap)?.NpcList?.OfType<Game.Maps.QuestNpc>()
+                        .FirstOrDefault(n => n.CickID == clickId);
+                    uint templateId = mapNpc?.TemplateID ?? DataBase.GameDataBase.GlobalInstance?.EveDat?
+                        .GetMapData((ushort)player.MapID)?.Npclist?.FirstOrDefault(n => n.clickId == clickId)?.npcId ?? 0;
+                    ushort idleFrame = Game.Maps.QuestNpc.GetIdleAnimationFrame(templateId);
+                    byte frame1 = state1;
+                    byte frame2 = state2;
+                    if (frame1 == 0 && frame2 == 0 && idleFrame != 0)
+                    {
+                        frame1 = (byte)(idleFrame & 0xFF);
+                        frame2 = (byte)(idleFrame >> 8);
+                    }
+
                     SendPacket p = new SendPacket();
                     p.Pack8(22);
                     p.Pack8(4);
                     p.Pack16(clickId);
-                    p.Pack8(state1);
-                    p.Pack8(state2);
+                    p.Pack8(frame1);
+                    p.Pack8(frame2);
                     p.Pack16(x);
                     p.Pack16(y);
                     p.Pack8(1);
@@ -726,29 +748,36 @@ namespace Game.QuestRelated
             var rules = new List<PreEventRule>();
             if (preEvent?.subentry1 == null || preEvent.subentry1.Count == 0) return rules;
 
-            PreEventRule currentRule = null;
-            foreach (var sub in preEvent.subentry1)
+            for (int i = 0; i < preEvent.subentry1.Count; i++)
             {
-                if (sub.unknown == null || sub.unknown.Count < 7) continue;
+                var sub = preEvent.subentry1[i];
+                if (sub.unknown == null || sub.unknown.Count < 13) continue;
 
                 bool hasActions = sub.subentry2 != null && sub.subentry2.Count > 0;
-                if (hasActions || currentRule == null)
+                if (!hasActions) continue;
+
+                var rule = new PreEventRule
                 {
-                    currentRule = new PreEventRule
+                    ParentClickId = preEvent.clickID,
+                    Actions = sub.subentry2
+                };
+
+                // In WLO EVE bytecode, unknownword6 (offset 11) high byte defines the number of conditions in this block.
+                // The conditions are located at [i .. i + condCount - 1].
+                byte[] raw = sub.unknown.ToArray();
+                ushort w6 = BitConverter.ToUInt16(raw, 11);
+                int condCount = Math.Max(1, w6 >> 8);
+
+                for (int j = 0; j < condCount && (i + j) < preEvent.subentry1.Count; j++)
+                {
+                    var condSub = preEvent.subentry1[i + j];
+                    if (condSub.unknown != null && condSub.unknown.Count >= 7)
                     {
-                        ParentClickId = preEvent.clickID
-                    };
-                    currentRule.Conditions.Add(sub.unknown.ToArray());
-                    if (hasActions)
-                    {
-                        currentRule.Actions = sub.subentry2;
+                        rule.Conditions.Add(condSub.unknown.ToArray());
                     }
-                    rules.Add(currentRule);
                 }
-                else
-                {
-                    currentRule.Conditions.Add(sub.unknown.ToArray());
-                }
+
+                rules.Add(rule);
             }
 
             return rules;

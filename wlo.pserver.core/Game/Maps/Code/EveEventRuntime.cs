@@ -445,7 +445,9 @@ namespace Game.Maps
                             int lifecycleState = !active ? 2 : (quest.State == QuestState.Completed ? 3 : 1);
                             return CompareValue(lifecycleState, value, comparison);
                         }
-                        return !active;
+                        // If comparison operator is 0, w2 == 2 checks that the quest mark is not active in notebook
+                        // (either not accepted yet or already completed/archived).
+                        return !hasQuest || quest.State != QuestState.InProgress;
                     }
                     if (condition.unknownword2 != 1) return false;
                     return CompareValue(mark, value, comparison);
