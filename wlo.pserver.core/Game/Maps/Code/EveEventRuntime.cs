@@ -310,7 +310,7 @@ namespace Game.Maps
             if (map?.MapID == 12002 && (ev.clickID == 8 || ev.clickID == 9) && QuestManager.IsXaolanInFate(player)) return null;
             // A completed answer branch falls through to later result conditions.
             // Restarting at the greeting can clear accumulated quiz marks first.
-            int first = exclude != null && (exclude.unknownbyte1 == 7 || map?.MapID == 11157 ||
+            int first = exclude != null && (exclude.unknownbyte1 == 7 || map?.MapID == 11157 || map?.MapID == 12464 ||
                 (map?.MapID == 11013 && ev.clickID == 11) || (map?.MapID == 12211 && ev.clickID == 1) ||
                 (map?.MapID == 11149 && ev.clickID == 2))
                 ? ev.SubEntry.IndexOf(exclude) + 1 : 0;
@@ -1152,7 +1152,9 @@ namespace Game.Maps
                     // Mirror choices update several actors, then later condition
                     // groups recalculate rays, latch the door, and play the success CG.
                     // Move forward only; never restart the choice or an earlier rule.
-                    if (map.MapID == 11157 && (ev.clickID == 1 || ev.clickID == 2 || ev.clickID == 5 || ev.clickID == 6))
+                    // Waterfall Grotto (12464) uses the same layout with mirror events 1/2/3/5.
+                    if ((map.MapID == 11157 && (ev.clickID == 1 || ev.clickID == 2 || ev.clickID == 5 || ev.clickID == 6)) ||
+                        (map.MapID == 12464 && (ev.clickID == 1 || ev.clickID == 2 || ev.clickID == 3 || ev.clickID == 5)))
                     {
                         var next = FindBranch(player, map, ev, exclude: branch);
                         if (next != null) { StartSession(player, map, clickId, ev, next, false); return; }

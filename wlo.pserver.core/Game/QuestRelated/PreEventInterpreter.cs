@@ -391,7 +391,9 @@ namespace Game.QuestRelated
                 // A staged actor can have its own click events; duplicate-name heuristics
                 // cannot determine whether it belongs to the current quest phase.
                 bool visible = npcDef == null || (npcDef.unknownbyte1 & 1) != 0;
-                bool preEventControlled = false;
+                // Set only by rules gated on quest/flag state. Unconditional rules
+                // (condition type 1) are just the scene's entry layout.
+                bool conditionalPreEventControl = false;
 
                 if (mapData?.PreEvents != null)
                 {
@@ -400,6 +402,7 @@ namespace Game.QuestRelated
                         foreach (var rule in GetApplicableRules(player, mapId, preEvent))
                         {
                             if (!rule.Conditions.All(cond => EvaluateConditionBlock(player, cond))) continue;
+                            bool conditional = rule.Conditions.Any(cond => cond.Length > 0 && cond[0] != 1);
                             if (rule.Actions != null)
                             {
                                 foreach (var action in rule.Actions)
@@ -409,8 +412,9 @@ namespace Game.QuestRelated
                                     var bytes = data.ToArray();
                                     if (BitConverter.ToUInt16(bytes, 1) != clickId) continue;
                                     ushort actionType = BitConverter.ToUInt16(bytes, 3);
-                                    if (actionType == 2) { visible = false; preEventControlled = true; }
-                                    else if (actionType == 3) { visible = true; preEventControlled = true; }
+                                    if (actionType != 2 && actionType != 3) continue;
+                                    visible = actionType == 3;
+                                    if (conditional) conditionalPreEventControl = true;
                                 }
                             }
                             // PreEvent rules are cumulative. Apply every matching rule in
@@ -419,8 +423,10 @@ namespace Game.QuestRelated
                     }
                 }
 
-                // If no matching PreEvent rule authoritatively controlled this actor, check runtime cache
-                if (!preEventControlled && player.CurMap?.MapID == mapId &&
+                // A show/hide done by an event during this map visit (e.g. turning a
+                // Waterfall Grotto mirror swaps actor 6 for 7) wins over the entry
+                // layout. The cache is cleared on map change, so re-entry resets it.
+                if (!conditionalPreEventControl && player.CurMap?.MapID == mapId &&
                     player.NativeActorVisibility.TryGetValue(clickId, out bool runtimeVis))
                 {
                     visible = runtimeVis;
