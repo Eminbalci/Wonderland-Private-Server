@@ -71,16 +71,27 @@ namespace Game.PlayerRelated
             }
 
             // Job drives the Reborn flag (Reborn => Job != none), so set it before
-            // SetLevel so level 1 is computed on the reborn EXP curve.
+            // SetLevel so new level is computed on the reborn EXP curve.
+            // Authentic level deduction: Level is reduced by 99 from current level (minimum 1).
+            // Example: Lv 100 -> Lv 1, Lv 120 -> Lv 21, Lv 130 -> Lv 31, Lv 199 -> Lv 100.
+            byte newLevel = (byte)Math.Max(1, player.Level - 99);
             player.Job = (Game.RebornJob)(byte)job;
             player.RebornJob = (byte)job;
-            player.SetLevel(1);
+            player.SetLevel(newLevel, grantPoints: false);
             player.FillHP();
             player.FillSP();
 
-            // Refresh the client's EXP/HP/SP and the appearance (reborn flag).
-            player.SendStat64(36, player.TotalExp);
-            player.Send8_1(true);
+            // Grant authentic Reborn Job Skill corresponding to chosen class
+            ushort jobSkillId = SkillRelated.SkillManager.GetJobSkillId((Game.RebornJob)(byte)job);
+            if (jobSkillId > 0)
+            {
+                SkillRelated.SkillManager.LearnSkill(player, jobSkillId, 1, 0);
+            }
+
+            // Refresh the client's state with full login/status packets (AC 5:3, AC 8:1 stats, EXP).
+            player.Send_5_3();
+            player.SendExp();
+            player.Send8_1(false);
             player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
             SendPacket pVisual = new SendPacket();
             pVisual.Pack8(23);
@@ -90,8 +101,8 @@ namespace Game.PlayerRelated
 
             player.SaveCharacterData();
 
-            Notify(player, $"Congratulations! You are now a Reborn {job} (Lv 1). Please relog to refresh your character.");
-            DebugSystem.Write($"[RebornManager] Player {player.CharName} reborn as {job}.");
+            Notify(player, $"Congratulations! You are now a Reborn {job} (Lv {newLevel}). Please relog to refresh your character.");
+            DebugSystem.Write($"[RebornManager] Player {player.CharName} reborn as {job} (Lv {newLevel}).");
             return true;
         }
 
@@ -122,6 +133,14 @@ namespace Game.PlayerRelated
             }
             player.Job = (Game.RebornJob)(byte)job;
             player.RebornJob = (byte)job;
+
+            // Grant authentic Reborn Job Skill for the new class
+            ushort newJobSkillId = SkillRelated.SkillManager.GetJobSkillId((Game.RebornJob)(byte)job);
+            if (newJobSkillId > 0)
+            {
+                SkillRelated.SkillManager.LearnSkill(player, newJobSkillId, 1, 0);
+            }
+
             player.Send8_1(false);
             player.SaveCharacterData();
             Notify(player, $"Your job is now {job}. Please relog to refresh your character.");

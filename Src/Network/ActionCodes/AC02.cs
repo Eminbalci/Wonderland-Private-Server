@@ -108,7 +108,10 @@ namespace Network.ActionCodes {
                                     if (words.Length >= 2 && byte.TryParse(words[1], out byte newLvl)) {
                                         byte targetLvl = Math.Max((byte)1, Math.Min((byte)200, newLvl));
                                         p.Eqs.SetLevel(targetLvl);
+                                        p.Eqs.SendExp();
+                                        p.Send_5_3();
                                         p.Eqs.Send8_1(true);
+                                        p.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, p.CharID, (ushort)0));
                                         DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(p.CharID, p);
                                         p.SendSystemMessage($"[GM] Level updated to {p.Eqs.Level}! Available Stat Points: {p.Eqs.SkillPoints}");
                                     }

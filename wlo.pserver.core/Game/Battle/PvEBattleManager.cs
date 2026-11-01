@@ -114,6 +114,8 @@ namespace Game.Battle
         public int Mdef { get; set; } = 10;
         public global::DataFiles.eItemType WeaponType { get; set; } = global::DataFiles.eItemType.none;
         public int Spd { get; set; } = 10;
+        public byte Reborn { get; set; } = 0;
+        public byte Job { get; set; } = 0;
 
         public byte GridX { get; set; }
         public byte GridY { get; set; }
@@ -1056,6 +1058,8 @@ namespace Game.Battle
                     Matk = p.Eqs?.FullMatk ?? 20,
                     Mdef = p.Eqs?.FullMdef ?? 10,
                     Spd = p.Eqs?.FullSpd ?? 10,
+                    Reborn = (byte)(p.Reborn ? 1 : 0),
+                    Job = (byte)p.Job,
                     GridX = AttackerPlayerGridSlots[i][0],
                     GridY = AttackerPlayerGridSlots[i][1]
                 });
@@ -1088,6 +1092,8 @@ namespace Game.Battle
                         Matk = Math.Max(0, pet.CalculatedMatk + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MAT) ?? 0)),
                         Mdef = Math.Max(0, pet.CalculatedMdef + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MDF) ?? 0)),
                         Spd = Math.Max(0, pet.CalculatedSpd + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.SPD) ?? 0)),
+                        Reborn = (byte)(pet.Reborn ? 1 : 0),
+                        Job = pet.Job,
                         GridX = AttackerPetGridSlots[i][0],
                         GridY = AttackerPetGridSlots[i][1]
                     });
@@ -1122,6 +1128,8 @@ namespace Game.Battle
                         Matk = p.Eqs?.FullMatk ?? 20,
                         Mdef = p.Eqs?.FullMdef ?? 10,
                         Spd = p.Eqs?.FullSpd ?? 10,
+                        Reborn = (byte)(p.Reborn ? 1 : 0),
+                        Job = (byte)p.Job,
                         GridX = DefenderPlayerGridSlots[i][0],
                         GridY = DefenderPlayerGridSlots[i][1]
                     });
@@ -1153,6 +1161,8 @@ namespace Game.Battle
                             Matk = Math.Max(0, pet.CalculatedMatk + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MAT) ?? 0)),
                             Mdef = Math.Max(0, pet.CalculatedMdef + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MDF) ?? 0)),
                             Spd = Math.Max(0, pet.CalculatedSpd + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.SPD) ?? 0)),
+                            Reborn = (byte)(pet.Reborn ? 1 : 0),
+                            Job = pet.Job,
                             GridX = DefenderPetGridSlots[i][0],
                             GridY = DefenderPetGridSlots[i][1]
                         });
@@ -1255,8 +1265,8 @@ namespace Game.Battle
                 p250.Pack16((ushort)Math.Min(0xFFFF, selfFighter.CurSP));
                 p250.Pack8(selfFighter.Level);
                 p250.Pack8(selfFighter.Element);
-                p250.Pack8(0); // reborn
-                p250.Pack8(0); // job
+                p250.Pack8(selfFighter.Reborn); // reborn
+                p250.Pack8(selfFighter.Job); // job
                 p250.Pack16(0); // trailing pad
                 p.Send(p250);
 
@@ -1289,8 +1299,8 @@ namespace Game.Battle
                     pAlly.Pack16((ushort)Math.Min(0xFFFF, pf.CurSP));
                     pAlly.Pack8(pf.Level);
                     pAlly.Pack8(pf.Element);
-                    pAlly.Pack8(0); // reborn
-                    pAlly.Pack8(0); // job
+                    pAlly.Pack8(pf.Reborn); // reborn
+                    pAlly.Pack8(pf.Job); // job
                     pAlly.Pack16(0); // trailing pad
                     p.Send(pAlly);
                 }
@@ -1315,8 +1325,8 @@ namespace Game.Battle
                     pPet.Pack16((ushort)Math.Min(0xFFFF, pet.CurSP));
                     pPet.Pack8(pet.Level);
                     pPet.Pack8(petElem); // element
-                    pPet.Pack8(0); // reborn
-                    pPet.Pack8(0); // job
+                    pPet.Pack8(pet.Reborn); // reborn
+                    pPet.Pack8(pet.Job); // job
                     pPet.Pack16(0); // Native AC 11:5 consumes fixed 31-byte fighter records.
                     p.Send(pPet);
 
@@ -1340,8 +1350,8 @@ namespace Game.Battle
                     pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.CurSP));
                     pEnemy.Pack8(ef.Level);
                     pEnemy.Pack8(ef.Element);
-                    pEnemy.Pack8(0); // reborn
-                    pEnemy.Pack8(0); // job
+                    pEnemy.Pack8(ef.Reborn); // reborn
+                    pEnemy.Pack8(ef.Job); // job
                     pEnemy.Pack16(0); // trailing pad
                     p.Send(pEnemy);
                 }

@@ -279,7 +279,7 @@ namespace Game.Code
             }
         }
 
-        public void SetLevel(byte targetLvl)
+        public void SetLevel(byte targetLvl, bool grantPoints = true)
         {
             lock (m_Lock)
             {
@@ -290,12 +290,21 @@ namespace Game.Code
                     exp += (uint)CalcMaxExp(BitConverter.GetBytes(Reborn)[0], l);
                 }
                 m_totalexp = exp;
-                if (targetLvl > oldLvl)
+                if (grantPoints && targetLvl > oldLvl)
                 {
                     SkillPoints += (ushort)((targetLvl - oldLvl) * 3);
                 }
                 CurHP = FullHP;
                 CurSP = FullSP;
+            }
+
+            if (this is Player player)
+            {
+                SendExp();
+                player.Send_5_3();
+                Send8_1(grantPoints);
+                player.CurMap?.Broadcast(Tools.FromFormat("bbdw", 5, 5, player.CharID, (ushort)0));
+                player.SaveCharacterData();
             }
         }
 
@@ -1193,12 +1202,12 @@ namespace Game.Code
 
         public void SendStat(byte statId, int val)
         {
-            Send(Tools.FromFormat("bbbbdd", 8, 1, statId, 1, val, 0));
+            Send?.Invoke(Tools.FromFormat("bbbbdd", 8, 1, statId, 1, val, 0));
         }
 
         public void SendStat64(byte statId, long val)
         {
-            Send(Tools.FromFormat("bbbbl", 8, 1, statId, 1, val));
+            Send?.Invoke(Tools.FromFormat("bbbbl", 8, 1, statId, 1, val));
         }
 
         public void Send8_1(bool levelup = false) // sends full updated stats to client
@@ -1248,14 +1257,14 @@ namespace Game.Code
             }
         }
 
-        void SendExp()
+        public void SendExp()
         {
             SendPacket p = new SendPacket();
             p.PackArray(new byte[] { 8, 1 });
             p.Pack8(36);
             p.Pack8(1);
             p.Pack64((ulong)TotalExp);
-            Send(p);
+            Send?.Invoke(p);
         }
 
         public void SetBeginnerOutfit()
