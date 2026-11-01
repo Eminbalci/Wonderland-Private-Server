@@ -29,11 +29,11 @@ namespace Network.ActionCodes
                 case 1: // Trade Invitation Request
                     HandleTradeRequest(c, p);
                     break;
-                case 2: // Accept / Decline Invitation
+                case 2: // Native offer: gold plus one inventory slot per item
                     HandleTradeResponse(c, p);
                     break;
-                case 3: // Add / Update Item in Trade Window
-                    HandleTradeItem(c, p);
+                case 3: // Single flag: 1 confirm, 2 cancel
+                    HandleTradeFlag(c, p);
                     break;
                 case 4: // Set Gold in Trade Window
                     HandleTradeGold(c, p);
@@ -77,15 +77,35 @@ namespace Network.ActionCodes
         {
             try
             {
-                byte code = p.Unpack8();
-                if (code == 1)
+                // The payload starts after the four-byte frame header, the code and
+                // the subcode. One byte answers an invitation; four or more carry
+                // the offered gold followed by one byte per inventory slot.
+                int length = p.Count;
+                if (length == 7)
                 {
-                    TradeSystem.AcceptTradeRequest(c);
+                    if (p[6] == 1) TradeSystem.AcceptTradeRequest(c);
+                    else TradeSystem.CancelTrade(c);
+                    return;
                 }
-                else
-                {
-                    TradeSystem.CancelTrade(c);
-                }
+                if (length < 10) return;
+                uint gold = (uint)(p[6] | p[7] << 8 | p[8] << 16 | p[9] << 24);
+                byte[] slots = new byte[length - 10];
+                for (int i = 0; i < slots.Length; i++) slots[i] = p[10 + i];
+                TradeSystem.SetOfferFromSlots(c, gold, slots);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+            }
+        }
+
+        private void HandleTradeFlag(Player c, RecievePacket p)
+        {
+            try
+            {
+                if (p.Count != 7) return;
+                if (p[6] == 1) TradeSystem.ConfirmTrade(c);
+                else if (p[6] == 2) TradeSystem.CancelTrade(c);
             }
             catch (Exception ex)
             {
