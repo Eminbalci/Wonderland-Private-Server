@@ -31,6 +31,60 @@ namespace DataBase
         public string Char_Delete_Code_Ref = "char_delete_code";
         public VerifyPassType PassVerification;
 
+        // Single source of truth for login and registration rules.
+        // Previously registration accepted 3-character names while login required
+        // at least 4, so such an account was created but could never log in.
+        public const int MinUsernameLength = 4;
+        public const int MaxUsernameLength = 14;
+        public const int MinPasswordLength = 4;
+        public const int MaxPasswordLength = 14;
+
+        public static bool ValidateUsername(string username, out string error)
+        {
+            error = "";
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                error = "Username is required";
+                return false;
+            }
+
+            string name = username.Trim();
+            if (name.Length < MinUsernameLength || name.Length > MaxUsernameLength)
+            {
+                error = $"Username must be {MinUsernameLength}-{MaxUsernameLength} characters";
+                return false;
+            }
+
+            foreach (char c in name)
+            {
+                if (!(char.IsLetterOrDigit(c) || c == '_'))
+                {
+                    error = "Username may contain only letters, digits and underscore";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public static bool ValidatePassword(string password, out string error)
+        {
+            error = "";
+            if (string.IsNullOrEmpty(password))
+            {
+                error = "Password is required";
+                return false;
+            }
+
+            if (password.Length < MinPasswordLength || password.Length > MaxPasswordLength)
+            {
+                error = $"Password must be {MinPasswordLength}-{MaxPasswordLength} characters";
+                return false;
+            }
+
+            return true;
+        }
+
         List<User> GOnlineUsers = new List<User>();
 
         public UserDataBase()
@@ -352,6 +406,14 @@ namespace DataBase
         public bool RegisterUser(string username, string password, string email, out string errorMessage)
         {
             errorMessage = "";
+
+            // Apply the same rules as login, otherwise the account is created but unusable.
+            if (!ValidateUsername(username, out errorMessage))
+                return false;
+            if (!ValidatePassword(password, out errorMessage))
+                return false;
+
+            username = username.Trim();
 
             try
             {

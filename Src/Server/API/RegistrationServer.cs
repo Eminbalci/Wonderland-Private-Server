@@ -299,14 +299,14 @@ namespace Server.API
                     email = ExtractJsonValue(body, "email");
                 }
 
-                // Validate input
-                if (string.IsNullOrWhiteSpace(username) || username.Length < 3)
+                // Validate input (same rules as login)
+                if (!DataBase.UserDataBase.ValidateUsername(username, out string nameError))
                 {
-                    return "{\"success\":false,\"message\":\"Username must be at least 3 characters\"}";
+                    return $"{{\"success\":false,\"message\":\"{nameError}\"}}";
                 }
-                if (string.IsNullOrWhiteSpace(password) || password.Length < 4)
+                if (!DataBase.UserDataBase.ValidatePassword(password, out string passError))
                 {
-                    return "{\"success\":false,\"message\":\"Password must be at least 4 characters\"}";
+                    return $"{{\"success\":false,\"message\":\"{passError}\"}}";
                 }
                 if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
                 {
