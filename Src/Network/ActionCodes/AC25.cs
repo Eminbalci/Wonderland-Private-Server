@@ -19,6 +19,9 @@ namespace Network.ActionCodes
             if (c == null || p == null) return;
 
             byte subAction = p.B ?? 1;
+            // B reads byte 5 without moving the cursor, and RecievePacket leaves it at 4
+            // (the action code). Skip code and subcode so sub-handlers read the payload.
+            p.SetPtr(6);
             DebugSystem.Write($"[AC25] Player {c.CharName} sent Trade SubAction={subAction}");
 
             switch (subAction)
