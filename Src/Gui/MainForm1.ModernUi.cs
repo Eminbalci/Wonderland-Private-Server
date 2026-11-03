@@ -15,12 +15,19 @@ namespace Wonderland_Private_Server
         {
             public string Label { get; }
             public Func<TabPage> ResolveTab { get; }
+            /// <summary>Page inside the Experimental host to select, if any.</summary>
+            public TabPage InnerPage { get; }
+            private readonly Func<bool> isVisible;
 
-            public NavItem(string label, Func<TabPage> resolveTab)
+            public NavItem(string label, Func<TabPage> resolveTab, TabPage innerPage = null, Func<bool> isVisible = null)
             {
                 Label = label;
                 ResolveTab = resolveTab;
+                InnerPage = innerPage;
+                this.isVisible = isVisible;
             }
+
+            public bool IsVisible => isVisible == null || isVisible();
         }
 
         private class NavCategory
@@ -50,7 +57,7 @@ namespace Wonderland_Private_Server
         private List<NavCategory> modernCategories;
         private NavCategory modernActiveCategory;
         private readonly Dictionary<NavCategory, Button> modernCategoryButtons = new Dictionary<NavCategory, Button>();
-        private readonly Dictionary<TabPage, Button> modernSubTabButtons = new Dictionary<TabPage, Button>();
+        private readonly Dictionary<NavItem, Button> modernSubTabButtons = new Dictionary<NavItem, Button>();
         private Button modernActiveSubTabButton;
         private bool modernLogAutoScroll = true;
         private int modernLogSearchIndex = 0;
@@ -84,6 +91,7 @@ namespace Wonderland_Private_Server
                 // Build modern executive header and two-tier categorized navigation
                 BuildHeaderPanel();
                 BuildCategoryNavigation();
+                HookFeatureToggles();
                 BuildLogUtilityBar();
                 EnhanceCheatTabControls();
 
@@ -111,7 +119,10 @@ namespace Wonderland_Private_Server
                 if (this.modernSubTabBar != null) this.modernSubTabBar.BringToFront();
                 if (this.tabControl3 != null) this.tabControl3.BringToFront();
 
-                // Apply global modern theme across all controls
+                // Apply global modern theme across all controls (hand-built chrome keeps its own look)
+                ModernTheme.Exclude(this.modernHeaderPanel);
+                ModernTheme.Exclude(this.modernCategoryBar);
+                ModernTheme.Exclude(this.modernSubTabBar);
                 ApplyModernTheme(this);
 
                 // Two-way synchronization: when tabControl3.SelectedTab changes, update category & sub-tab highlights
@@ -193,23 +204,23 @@ namespace Wonderland_Private_Server
             // Status Badge
             modernLblStatusPill = new Label
             {
-                Text = "ONLINE",
+                Text = "\u25CF  ONLINE",
                 Font = ModernTheme.FontBoldSmall,
                 ForeColor = Color.FromArgb(52, 211, 153), // Emerald-400
                 BackColor = Color.FromArgb(6, 78, 59), // Emerald-900
                 Location = new Point(205, 12),
                 AutoSize = false,
-                Size = new Size(68, 24),
+                Size = new Size(84, 24),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
             // Metrics Label
             modernLblMetrics = new Label
             {
-                Text = "Players: 0 | Uptime: 00:00:00 | RAM: 0 MB | Ports: 6414, 6415, 6416",
+                Text = "Players 0   \u00B7   Uptime 00:00:00   \u00B7   RAM 0 MB   \u00B7   Ports 6414 / 6415 / 6416",
                 Font = ModernTheme.FontSmall,
                 ForeColor = ModernTheme.Slate300,
-                Location = new Point(285, 16),
+                Location = new Point(302, 16),
                 AutoSize = true
             };
 
@@ -222,24 +233,16 @@ namespace Wonderland_Private_Server
             };
 
             // Quick Search Box
-            Label lblSearch = new Label
-            {
-                Text = "Jump:",
-                Font = ModernTheme.FontBoldSmall,
-                ForeColor = ModernTheme.Slate400,
-                Location = new Point(2, 14),
-                AutoSize = true
-            };
-
             modernTxtQuickSearch = new TextBox
             {
-                Location = new Point(45, 12),
-                Width = 125,
+                Location = new Point(8, 12),
+                Width = 162,
                 Font = ModernTheme.FontDefault,
                 BackColor = ModernTheme.Slate800,
                 ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle
             };
+            ModernTheme.SetPlaceholder(modernTxtQuickSearch, "Jump to tab...  (Ctrl+K)");
             modernTxtQuickSearch.KeyDown += (s, e) =>
             {
                 if (e.KeyCode == Keys.Enter)
@@ -262,6 +265,8 @@ namespace Wonderland_Private_Server
                 FlatStyle = FlatStyle.Flat
             };
             btnLaunchClient.FlatAppearance.BorderSize = 0;
+            btnLaunchClient.FlatAppearance.MouseOverBackColor = ModernTheme.Emerald700;
+            btnLaunchClient.Cursor = Cursors.Hand;
             btnLaunchClient.Click += (s, e) => RunClientProgram();
 
             // Save All Button
@@ -276,6 +281,8 @@ namespace Wonderland_Private_Server
                 FlatStyle = FlatStyle.Flat
             };
             btnSaveHeader.FlatAppearance.BorderSize = 0;
+            btnSaveHeader.FlatAppearance.MouseOverBackColor = ModernTheme.Blue700;
+            btnSaveHeader.Cursor = Cursors.Hand;
             btnSaveHeader.Click += (s, e) => btnSaveAllNow_Click(s, e);
 
             // Safe Shutdown Button
@@ -290,9 +297,10 @@ namespace Wonderland_Private_Server
                 FlatStyle = FlatStyle.Flat
             };
             modernBtnShutdownHeader.FlatAppearance.BorderSize = 0;
+            modernBtnShutdownHeader.FlatAppearance.MouseOverBackColor = ModernTheme.Rose700;
+            modernBtnShutdownHeader.Cursor = Cursors.Hand;
             modernBtnShutdownHeader.Click += (s, e) => btnSafeShutdown_Click(s, e);
 
-            rightActionsPanel.Controls.Add(lblSearch);
             rightActionsPanel.Controls.Add(modernTxtQuickSearch);
             rightActionsPanel.Controls.Add(btnLaunchClient);
             rightActionsPanel.Controls.Add(btnSaveHeader);
@@ -311,9 +319,9 @@ namespace Wonderland_Private_Server
             modernCategoryBar = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 38,
+                Height = 40,
                 BackColor = ModernTheme.Slate800,
-                Padding = new Padding(8, 4, 8, 4)
+                Padding = new Padding(10, 5, 10, 5)
             };
 
             modernCatFlow = new FlowLayoutPanel
@@ -330,9 +338,16 @@ namespace Wonderland_Private_Server
             modernSubTabBar = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 36,
-                BackColor = ModernTheme.Slate100,
-                Padding = new Padding(8, 3, 8, 3)
+                Height = 40,
+                BackColor = Color.White,
+                Padding = new Padding(10, 5, 10, 5)
+            };
+            modernSubTabBar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(ModernTheme.BorderColor))
+                {
+                    e.Graphics.DrawLine(pen, 0, modernSubTabBar.Height - 1, modernSubTabBar.Width, modernSubTabBar.Height - 1);
+                }
             };
 
             modernSubTabFlow = new FlowLayoutPanel
@@ -353,55 +368,60 @@ namespace Wonderland_Private_Server
         {
             modernCategories = new List<NavCategory>
             {
-                new NavCategory("Server & Operations", new List<NavItem>
+                new NavCategory("Server", new List<NavItem>
                 {
-                    new NavItem("Status & Realtime Logs", () => this.tabPage7),
-                    new NavItem("Online Sessions", () => FindTabBySubstring("Online Sessions")),
-                    new NavItem("Database Config", () => FindTabBySubstring("Database Config")),
-                    new NavItem("Server Settings", () => this.tabPageSettings),
-                    new NavItem("Security & Bans", () => FindTabBySubstring("Security"))
+                    new NavItem("Dashboard & Logs", () => this.tabPage7),
+                    new NavItem("Online Sessions", () => FindTabByTitle("Online Sessions")),
+                    new NavItem("Security & Bans", () => FindTabByTitle("Security & Bans")),
+                    new NavItem("Database", () => FindTabByTitle("Database Config"))
                 }),
-                new NavCategory("Accounts & Players", new List<NavItem>
+                new NavCategory("Players", new List<NavItem>
                 {
                     new NavItem("Characters", () => this.tabPageCharacters),
-                    new NavItem("User Accounts", () => this.tabPageUsers),
-                    new NavItem("Inventory Viewer", () => this.tabPageInventory),
-                    new NavItem("Base Stats & Attributes", () => this.tabPageStats),
-                    new NavItem("Friends Roster", () => this.tabPageFriends),
-                    new NavItem("Guild Management", () => FindTabBySubstring("Guild")),
-                    new NavItem("Mail Dispatcher", () => FindTabBySubstring("Mail")),
-                    new NavItem("Marriage Registry", () => FindTabBySubstring("Marriage"))
+                    new NavItem("Accounts", () => this.tabPageUsers),
+                    new NavItem("Inventory", () => this.tabPageInventory),
+                    new NavItem("Stats", () => this.tabPageStats),
+                    new NavItem("Player Settings", () => this.tabPageSettings)
                 }),
-                new NavCategory("Combat & GM Tools", new List<NavItem>
+                new NavCategory("Social", new List<NavItem>
                 {
-                    new NavItem("Quick GM Cheats", () => this.tabPage1),
-                    new NavItem("Developer & GM Studio", () => FindTabBySubstring("GM Management", "Developer")),
-                    new NavItem("Live Battle Monitor", () => FindTabBySubstring("Battle"))
+                    new NavItem("Friends", () => this.tabPageFriends),
+                    new NavItem("Guilds", () => FindTabByTitle("Guilds")),
+                    new NavItem("Marriages", () => FindTabByTitle("Marriages")),
+                    new NavItem("In-Game Mail", () => FindTabByTitle("In-Game Mail"))
                 }),
-                new NavCategory("World & NPC Studio", new List<NavItem>
+                new NavCategory("GM Tools", new List<NavItem>
                 {
-                    new NavItem("NPC Studio & Scenes", () => FindTabBySubstring("Map NPCs", "Studio")),
-                    new NavItem("NPC Binary Resolver", () => FindTabBySubstring("NPC Name Resolver", "Binary")),
-                    new NavItem("Dialogue & Talk Resolver", () => FindTabBySubstring("Talk ID Resolver", "Talk")),
-                    new NavItem("Portals & Destinations", () => this.tabPagePortals)
+                    new NavItem("GM Studio", () => FindTabByTitle("GM Studio")),
+                    new NavItem("Quick Cheats", () => this.tabPage1),
+                    new NavItem("Live Battles", () => FindTabByTitle("Live Battles"))
                 }),
-                new NavCategory("Economy & Rewards", new List<NavItem>
+                new NavCategory("World", new List<NavItem>
                 {
-                    new NavItem("Monster Drops Editor", () => FindTabBySubstring("Monster Drops")),
-                    new NavItem("Chest Drops Editor", () => this.tabPageChestDrops),
-                    new NavItem("Item Mall Catalog", () => FindTabBySubstring("Item Mall")),
-                    new NavItem("Starter Items Pack", () => FindTabBySubstring("Starter Items"))
+                    new NavItem("Map NPCs & Events", () => FindTabByTitle("Map NPCs & Events")),
+                    new NavItem("Portals", () => this.tabPagePortals),
+                    new NavItem("NPC Names", () => FindTabByTitle("NPC Name Resolver")),
+                    new NavItem("Dialogue IDs", () => FindTabByTitle("Talk ID Resolver"))
                 }),
-                new NavCategory("Experimental Lab", new List<NavItem>
+                new NavCategory("Economy", new List<NavItem>
                 {
-                    new NavItem("Experimental Hub", () => FindTabBySubstring("Experimental")),
-                    new NavItem("Dungeon Trials (AC 85)", () => FindTabBySubstring("Experimental")),
-                    new NavItem("Ranked PvP Arena (AC 183)", () => FindTabBySubstring("Experimental")),
-                    new NavItem("Guild Siege Wars (AC 184)", () => FindTabBySubstring("Experimental")),
-                    new NavItem("Carnival Arcade (AC 57)", () => FindTabBySubstring("Experimental")),
-                    new NavItem("Festival Races (AC 226)", () => FindTabBySubstring("Experimental"))
+                    new NavItem("Item Mall", () => FindTabByTitle("Item Mall")),
+                    new NavItem("Monster Drops", () => FindTabByTitle("Monster Drops")),
+                    new NavItem("Chest Drops", () => this.tabPageChestDrops),
+                    new NavItem("Starter Items", () => FindTabByTitle("Starter Items"))
                 })
             };
+
+            // Experimental engines: one nav button per module, grouped into their own categories.
+            // A module whose master toggle is off is hidden until it is switched back on.
+            foreach (string group in new[] { "Events", "Lifestyle", "Lab" })
+            {
+                var items = expModules
+                    .Where(m => m.Group == group)
+                    .Select(m => new NavItem(m.Label, () => this.tabPageExperimental, m.Page, () => m.IsEnabled))
+                    .ToList();
+                if (items.Count > 0) modernCategories.Add(new NavCategory(group, items));
+            }
 
             // Catch any unmapped tabs in tabControl3 so no functionality is ever omitted
             var mappedTabs = new HashSet<TabPage>();
@@ -425,6 +445,8 @@ namespace Wonderland_Private_Server
             }
         }
 
+        private bool IsCategoryVisible(NavCategory cat) => cat.Items.Any(i => i.IsVisible && i.ResolveTab() != null);
+
         private void RenderCategoryButtons()
         {
             modernCatFlow.SuspendLayout();
@@ -433,6 +455,8 @@ namespace Wonderland_Private_Server
 
             foreach (var cat in modernCategories)
             {
+                if (!IsCategoryVisible(cat)) continue;
+
                 Button btn = new Button
                 {
                     Text = cat.Name,
@@ -442,9 +466,10 @@ namespace Wonderland_Private_Server
                     ForeColor = Color.FromArgb(148, 163, 184), // Slate-400
                     BackColor = Color.Transparent,
                     FlatStyle = FlatStyle.Flat,
-                    Margin = new Padding(0, 0, 6, 0),
+                    Margin = new Padding(0, 0, 4, 0),
                     Padding = new Padding(10, 0, 10, 0),
                     Cursor = Cursors.Hand,
+                    UseMnemonic = false,
                     Tag = cat
                 };
                 btn.FlatAppearance.BorderSize = 0;
@@ -482,15 +507,14 @@ namespace Wonderland_Private_Server
             modernSubTabFlow.SuspendLayout();
             modernSubTabFlow.Controls.Clear();
             modernSubTabButtons.Clear();
+            modernActiveSubTabButton = null;
 
-            TabPage firstTab = null;
+            NavItem firstItem = null;
 
             foreach (var item in cat.Items)
             {
-                TabPage tab = item.ResolveTab();
-                if (tab == null) continue;
-
-                if (firstTab == null) firstTab = tab;
+                if (!item.IsVisible || item.ResolveTab() == null) continue;
+                if (firstItem == null) firstItem = item;
 
                 Button subBtn = new Button
                 {
@@ -498,70 +522,104 @@ namespace Wonderland_Private_Server
                     Height = 28,
                     AutoSize = true,
                     Font = ModernTheme.FontSmall,
-                    ForeColor = ModernTheme.Slate700,
-                    BackColor = ModernTheme.Slate200,
+                    ForeColor = ModernTheme.Slate600,
+                    BackColor = Color.White,
                     FlatStyle = FlatStyle.Flat,
-                    Margin = new Padding(0, 1, 6, 1),
+                    Margin = new Padding(0, 1, 4, 1),
                     Padding = new Padding(8, 0, 8, 0),
                     Cursor = Cursors.Hand,
-                    Tag = tab
+                    UseMnemonic = false,
+                    Tag = item
                 };
                 subBtn.FlatAppearance.BorderSize = 0;
-                subBtn.FlatAppearance.MouseOverBackColor = ModernTheme.Slate300;
+                subBtn.FlatAppearance.MouseOverBackColor = ModernTheme.Slate100;
 
-                subBtn.Click += (s, e) =>
-                {
-                    SwitchToTab(tab, subBtn);
-                };
+                NavItem captured = item;
+                subBtn.Click += (s, e) => SwitchToItem(captured);
 
                 modernSubTabFlow.Controls.Add(subBtn);
-                modernSubTabButtons[tab] = subBtn;
+                modernSubTabButtons[item] = subBtn;
             }
 
             modernSubTabFlow.ResumeLayout(true);
 
-            // Select active tab if already within this category, or default to first tab
-            if (this.tabControl3 != null && this.tabControl3.SelectedTab != null && modernSubTabButtons.ContainsKey(this.tabControl3.SelectedTab))
-            {
-                HighlightSubTabButton(modernSubTabButtons[this.tabControl3.SelectedTab]);
-            }
-            else if (firstTab != null && modernSubTabButtons.TryGetValue(firstTab, out Button firstBtn))
-            {
-                SwitchToTab(firstTab, firstBtn);
-            }
+            // Keep the current page if it belongs to this category, otherwise open the first one
+            NavItem current = FindItemForCurrentPage(cat);
+            if (current != null) HighlightSubTabButton(modernSubTabButtons[current]);
+            else if (firstItem != null) SwitchToItem(firstItem);
         }
 
-        private void SwitchToTab(TabPage tab, Button subBtn)
+        /// <summary>The visible item of <paramref name="cat"/> that matches what is on screen now.</summary>
+        private NavItem FindItemForCurrentPage(NavCategory cat)
         {
+            TabPage selected = this.tabControl3?.SelectedTab;
+            if (selected == null) return null;
+            TabPage inner = selected == this.tabPageExperimental ? expTabHost?.SelectedTab : null;
+
+            return cat.Items.FirstOrDefault(i =>
+                modernSubTabButtons.ContainsKey(i) &&
+                i.ResolveTab() == selected &&
+                (i.InnerPage == null || i.InnerPage == inner));
+        }
+
+        private void SwitchToItem(NavItem item)
+        {
+            if (item == null) return;
+            TabPage tab = item.ResolveTab();
             if (tab == null || this.tabControl3 == null) return;
 
             modernIsInternalTabSwitch = true;
             try
             {
                 this.tabControl3.SelectedTab = tab;
+                if (item.InnerPage != null && expTabHost != null)
+                {
+                    expTabHost.SelectedTab = item.InnerPage;
+                    if (expHeaderTitle != null) expHeaderTitle.Text = item.Label.ToUpperInvariant();
+                    if (expHeaderSubtitle != null) expHeaderSubtitle.Text = "Experimental  ·  " + item.InnerPage.Text;
+                }
             }
             finally
             {
                 modernIsInternalTabSwitch = false;
             }
 
-            HighlightSubTabButton(subBtn);
+            if (modernSubTabButtons.TryGetValue(item, out Button btn)) HighlightSubTabButton(btn);
 
-            if (tab == this.tabPageInventory)
+            AutoLoadTab(tab);
+        }
+
+        // Legacy grids that stay empty until "Refresh" is pressed get filled on their first visit.
+        private readonly HashSet<TabPage> modernAutoLoadedTabs = new HashSet<TabPage>();
+
+        private void AutoLoadTab(TabPage tab)
+        {
+            try
             {
-                LoadCharacterFilters();
-                if (cmbCharacterFilter.SelectedIndex >= 0)
+                if (tab == this.tabPageInventory)
                 {
-                    btnRefreshInventory_Click(null, null);
+                    LoadCharacterFilters();
+                    if (cmbCharacterFilter.SelectedIndex >= 0) btnRefreshInventory_Click(null, null);
+                    return;
                 }
+                if (tab == this.tabPageStats)
+                {
+                    LoadCharacterFilters();
+                    if (cmbCharacterFilterStats.SelectedIndex >= 0) btnRefreshStats_Click(null, null);
+                    return;
+                }
+
+                if (!modernAutoLoadedTabs.Add(tab)) return;
+                if (tab == this.tabPageCharacters) btnRefreshCharacters_Click(null, null);
+                else if (tab == this.tabPageUsers) btnRefreshUsers_Click(null, null);
+                else if (tab == this.tabPageSettings) btnRefreshSettings_Click(null, null);
+                else if (tab == this.tabPageFriends) btnRefreshFriends_Click(null, null);
+                else if (tab == this.tabPagePortals) btnRefreshPortals_Click(null, null);
+                else if (tab == this.tabPageChestDrops) btnRefreshChestDrops_Click(null, null);
             }
-            else if (tab == this.tabPageStats)
+            catch (Exception ex)
             {
-                LoadCharacterFilters();
-                if (cmbCharacterFilterStats.SelectedIndex >= 0)
-                {
-                    btnRefreshStats_Click(null, null);
-                }
+                DebugSystem.Write(DebugItemType.Error, "[ModernUI] Auto-load failed: " + ex.Message);
             }
         }
 
@@ -569,17 +627,19 @@ namespace Wonderland_Private_Server
         {
             if (modernActiveSubTabButton != null && modernActiveSubTabButton != subBtn)
             {
-                modernActiveSubTabButton.BackColor = ModernTheme.Slate200;
-                modernActiveSubTabButton.ForeColor = ModernTheme.Slate700;
+                modernActiveSubTabButton.BackColor = Color.White;
+                modernActiveSubTabButton.ForeColor = ModernTheme.Slate600;
                 modernActiveSubTabButton.Font = ModernTheme.FontSmall;
+                modernActiveSubTabButton.FlatAppearance.MouseOverBackColor = ModernTheme.Slate100;
             }
 
             modernActiveSubTabButton = subBtn;
             if (modernActiveSubTabButton != null)
             {
-                modernActiveSubTabButton.BackColor = ModernTheme.Blue600;
-                modernActiveSubTabButton.ForeColor = Color.White;
+                modernActiveSubTabButton.BackColor = ModernTheme.Blue50;
+                modernActiveSubTabButton.ForeColor = ModernTheme.Blue700;
                 modernActiveSubTabButton.Font = ModernTheme.FontBoldSmall;
+                modernActiveSubTabButton.FlatAppearance.MouseOverBackColor = ModernTheme.Blue100;
             }
         }
 
@@ -589,22 +649,60 @@ namespace Wonderland_Private_Server
 
             foreach (var cat in modernCategories)
             {
-                foreach (var item in cat.Items)
+                if (cat.Items.Any(i => i.IsVisible && i.ResolveTab() == targetTab))
                 {
-                    if (item.ResolveTab() == targetTab)
-                    {
-                        if (modernActiveCategory != cat)
-                        {
-                            SelectCategory(cat);
-                        }
-                        if (modernSubTabButtons.TryGetValue(targetTab, out Button btn))
-                        {
-                            HighlightSubTabButton(btn);
-                        }
-                        return;
-                    }
+                    if (modernActiveCategory != cat || !modernCategoryButtons.ContainsKey(cat)) SelectCategory(cat);
+                    NavItem current = FindItemForCurrentPage(cat);
+                    if (current != null) HighlightSubTabButton(modernSubTabButtons[current]);
+                    return;
                 }
             }
+        }
+
+        /// <summary>
+        /// Re-applies feature visibility: hides nav entries and header badges of disabled
+        /// experimental engines, and moves away from a page that just became hidden.
+        /// </summary>
+        private void RefreshNavVisibility()
+        {
+            if (modernCategories == null) return;
+
+            NavCategory keep = modernActiveCategory;
+            RenderCategoryButtons();
+
+            if (keep == null || !IsCategoryVisible(keep))
+            {
+                keep = modernCategories.FirstOrDefault(IsCategoryVisible);
+            }
+            SelectCategory(keep);
+
+            UpdateExperimentalBadges();
+        }
+
+        private void UpdateExperimentalBadges()
+        {
+            void show(Label badge, CheckBox toggle)
+            {
+                if (badge != null) badge.Visible = toggle == null || toggle.Checked;
+            }
+            show(ext_lblExpMetricDungeons, chkEnableDungeons);
+            show(ext_lblExpMetricArena, chkEnablePvPArena);
+            show(ext_lblExpMetricSiege, chkEnableGuildSiege);
+            show(ext_lblExpMetricMinigames, chkEnableArcadeMinigames);
+            show(ext_lblExpMetricBazaar, chkEnableBazaar);
+            show(ext_lblExpMetricWeather, chkEnableWeather);
+            show(ext_lblExpMetricBank, chkEnableAtmBanking);
+            show(ext_lblExpMetricLottery, chkEnableLotteryGacha);
+        }
+
+        private void HookFeatureToggles()
+        {
+            foreach (var module in expModules)
+            {
+                CheckBox toggle = module.Toggle;
+                if (toggle != null) toggle.CheckedChanged += (s, e) => RefreshNavVisibility();
+            }
+            UpdateExperimentalBadges();
         }
 
         private void ExecuteQuickSearchJump(string query)
@@ -615,35 +713,27 @@ namespace Wonderland_Private_Server
             {
                 foreach (var item in cat.Items)
                 {
+                    if (!item.IsVisible || item.ResolveTab() == null) continue;
                     if (item.Label.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        TabPage tab = item.ResolveTab();
-                        if (tab != null)
-                        {
-                            SelectCategory(cat);
-                            if (modernSubTabButtons.TryGetValue(tab, out Button subBtn))
-                            {
-                                SwitchToTab(tab, subBtn);
-                            }
-                            return;
-                        }
+                        SelectCategory(cat);
+                        SwitchToItem(item);
+                        return;
                     }
                 }
             }
         }
 
-        private TabPage FindTabBySubstring(params string[] searchTerms)
+        /// <summary>Finds a tab by its exact title, ignoring leading icons/spaces and case.</summary>
+        private TabPage FindTabByTitle(string title)
         {
             if (this.tabControl3 == null) return null;
             foreach (TabPage tab in this.tabControl3.TabPages)
             {
-                string text = tab.Text ?? string.Empty;
-                foreach (string term in searchTerms)
+                string text = new string((tab.Text ?? string.Empty).SkipWhile(ch => !char.IsLetterOrDigit(ch)).ToArray()).Trim();
+                if (string.Equals(text, title, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (text.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        return tab;
-                    }
+                    return tab;
                 }
             }
             return null;
@@ -677,13 +767,13 @@ namespace Wonderland_Private_Server
                 {
                     if (isRunning)
                     {
-                        modernLblStatusPill.Text = "ONLINE";
+                        modernLblStatusPill.Text = "\u25CF  ONLINE";
                         modernLblStatusPill.BackColor = Color.FromArgb(6, 78, 59); // Emerald-900
                         modernLblStatusPill.ForeColor = Color.FromArgb(52, 211, 153); // Emerald-400
                     }
                     else
                     {
-                        modernLblStatusPill.Text = "OFFLINE";
+                        modernLblStatusPill.Text = "\u25CF  OFFLINE";
                         modernLblStatusPill.BackColor = Color.FromArgb(127, 29, 29); // Red-900
                         modernLblStatusPill.ForeColor = Color.FromArgb(252, 165, 165); // Red-300
                     }
@@ -692,7 +782,7 @@ namespace Wonderland_Private_Server
                 if (modernLblMetrics != null)
                 {
                     string uptimeStr = $"{(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
-                    modernLblMetrics.Text = $"Players: {playerCount} | Uptime: {uptimeStr} | RAM: {memoryMb} MB | Ports: 6414, 6415, 6416";
+                    modernLblMetrics.Text = $"Players {playerCount}   \u00B7   Uptime {uptimeStr}   \u00B7   RAM {memoryMb} MB   \u00B7   Ports 6414 / 6415 / 6416";
                 }
             }
             catch { }
@@ -718,8 +808,16 @@ namespace Wonderland_Private_Server
                     Location = new Point(6, 204),
                     Size = new Size(this.tabPage7.Width - 12, 32),
                     Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                    BackColor = ModernTheme.Slate100,
+                    BackColor = ModernTheme.CardBackground,
                     Padding = new Padding(4, 2, 4, 2)
+                };
+
+                logToolPanel.Paint += (s, e) =>
+                {
+                    using (var pen = new Pen(ModernTheme.BorderColor))
+                    {
+                        e.Graphics.DrawRectangle(pen, 0, 0, logToolPanel.Width - 1, logToolPanel.Height - 1);
+                    }
                 };
 
                 Label lblConsole = new Label
@@ -827,8 +925,10 @@ namespace Wonderland_Private_Server
                 {
                     Location = new Point(615, 5),
                     Width = 110,
-                    Font = new Font("Segoe UI", 8.5f)
+                    Font = new Font("Segoe UI", 8.5f),
+                    BorderStyle = BorderStyle.FixedSingle
                 };
+                ModernTheme.SetPlaceholder(txtSearch, "Find in log...");
 
                 Button btnFind = new Button
                 {

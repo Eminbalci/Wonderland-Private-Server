@@ -13,6 +13,30 @@ namespace Wonderland_Private_Server
     public partial class Form1
     {
         private TabPage tabPageExperimental;
+        private TabControl expTabHost;
+        private Label expHeaderTitle;
+        private Label expHeaderSubtitle;
+        private readonly List<ExperimentalModule> expModules = new List<ExperimentalModule>();
+
+        private class ExperimentalModule
+        {
+            public string Group { get; }
+            public string Label { get; }
+            public TabPage Page { get; }
+            private readonly Func<CheckBox> toggle;
+
+            public ExperimentalModule(string group, string label, TabPage page, Func<CheckBox> toggle)
+            {
+                Group = group;
+                Label = label;
+                Page = page;
+                this.toggle = toggle;
+            }
+
+            /// <summary>The feature's master toggle (null for always-on pages).</summary>
+            public CheckBox Toggle => toggle?.Invoke();
+            public bool IsEnabled => Toggle == null || Toggle.Checked;
+        }
         private Label ext_lblExpMetricDungeons;
         private Label ext_lblExpMetricArena;
         private Label ext_lblExpMetricSiege;
@@ -118,7 +142,7 @@ namespace Wonderland_Private_Server
 
                 Label lblSubtitle = new Label
                 {
-                    Text = "Cockpit for 23 Advanced Engines: AC 85, 183, 184, 57, 226, 82, 76, 40, 41, 90, 44, 24, 53, 88, 84/86, 26, 62, 114/115 & Eve Opcodes 16/17",
+                    Text = "Live metrics for enabled experimental engines",
                     Font = ModernTheme.FontSmall,
                     ForeColor = ModernTheme.Slate400,
                     Location = new Point(14, 34),
@@ -130,7 +154,7 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Right,
                     FlowDirection = FlowDirection.LeftToRight,
-                    Width = 980,
+                    Width = 860,
                     BackColor = Color.Transparent,
                     Padding = new Padding(0, 12, 0, 0)
                 };
@@ -171,40 +195,56 @@ namespace Wonderland_Private_Server
                 headerPanel.Controls.Add(lblSubtitle);
                 headerPanel.Controls.Add(metricsFlow);
 
-                // 2. Multi-Module TabControl Host
+                // 2. Multi-Module host. Its own tab strip is hidden: the main navigation
+                //    bar lists each module (grouped) and selects the page directly.
                 TabControl expTabControl = new TabControl
                 {
                     Dock = DockStyle.Fill,
-                    Font = ModernTheme.FontDefault
+                    Font = ModernTheme.FontDefault,
+                    Appearance = TabAppearance.FlatButtons,
+                    ItemSize = new Size(0, 1),
+                    SizeMode = TabSizeMode.Fixed
                 };
+                expTabHost = expTabControl;
+                expHeaderTitle = lblTitle;
+                expHeaderTitle.UseMnemonic = false; // titles like "Weather & Lighting"
+                expHeaderSubtitle = lblSubtitle;
+                expHeaderSubtitle.UseMnemonic = false;
+                expModules.Clear();
 
-                // Sub-Tabs Wave 1
-                expTabControl.TabPages.Add(BuildTogglesSubTab());
-                expTabControl.TabPages.Add(BuildDungeonsSubTab());
-                expTabControl.TabPages.Add(BuildArenaSubTab());
-                expTabControl.TabPages.Add(BuildSiegeSubTab());
-                expTabControl.TabPages.Add(BuildArcadeSubTab());
-                expTabControl.TabPages.Add(BuildRacesSubTab());
+                void AddModule(string group, string label, TabPage page, Func<CheckBox> toggle)
+                {
+                    expTabControl.TabPages.Add(page);
+                    expModules.Add(new ExperimentalModule(group, label, page, toggle));
+                }
 
-                // Sub-Tabs Wave 2
-                expTabControl.TabPages.Add(BuildBulletinSubTab());
-                expTabControl.TabPages.Add(BuildCharitySubTab());
-                expTabControl.TabPages.Add(BuildForgeSubTab());
-                expTabControl.TabPages.Add(BuildGobangSubTab());
-                expTabControl.TabPages.Add(BuildFishingSubTab());
-                expTabControl.TabPages.Add(BuildHotSpringSubTab());
-                expTabControl.TabPages.Add(BuildPinVaultSubTab());
-                expTabControl.TabPages.Add(BuildBazaarSubTab());
-                expTabControl.TabPages.Add(BuildWeatherSubTab());
-                expTabControl.TabPages.Add(BuildVehiclesSubTab());
+                // Lab: configuration and server-wide systems
+                AddModule("Lab", "Feature Toggles", BuildTogglesSubTab(), null);
+                AddModule("Lab", "Bulletin Board", BuildBulletinSubTab(), () => chkEnableBulletin);
+                AddModule("Lab", "Church Charity", BuildCharitySubTab(), () => chkEnableCharity);
+                AddModule("Lab", "Equipment Forge", BuildForgeSubTab(), () => chkEnableForge);
+                AddModule("Lab", "Prestige Titles", BuildTitlesSubTab(), () => chkEnablePlayerTitles);
+                AddModule("Lab", "Weather & Lighting", BuildWeatherSubTab(), () => chkEnableWeather);
+                AddModule("Lab", "Combat Status", BuildCombatStatusSubTab(), () => chkEnableCombatStatus);
 
-                // Sub-Tabs Wave 3
-                expTabControl.TabPages.Add(BuildBankingSubTab());
-                expTabControl.TabPages.Add(BuildTitlesSubTab());
-                expTabControl.TabPages.Add(BuildExcavationSubTab());
-                expTabControl.TabPages.Add(BuildLotterySubTab());
-                expTabControl.TabPages.Add(BuildMaidSubTab());
-                expTabControl.TabPages.Add(BuildCombatStatusSubTab());
+                // Events: competitive and timed activities
+                AddModule("Events", "Dungeons", BuildDungeonsSubTab(), () => chkEnableDungeons);
+                AddModule("Events", "PvP Arena", BuildArenaSubTab(), () => chkEnablePvPArena);
+                AddModule("Events", "Guild Siege", BuildSiegeSubTab(), () => chkEnableGuildSiege);
+                AddModule("Events", "Carnival Arcade", BuildArcadeSubTab(), () => chkEnableArcadeMinigames);
+                AddModule("Events", "Festival Races", BuildRacesSubTab(), () => chkEnableFestivalRaces);
+                AddModule("Events", "Gobang Chess", BuildGobangSubTab(), () => chkEnableGobang);
+                AddModule("Events", "Lottery", BuildLotterySubTab(), () => chkEnableLotteryGacha);
+
+                // Lifestyle: everyday player economy and housing
+                AddModule("Lifestyle", "Fishing", BuildFishingSubTab(), () => chkEnableFishing);
+                AddModule("Lifestyle", "Mining", BuildExcavationSubTab(), () => chkEnableTreasureExcavation);
+                AddModule("Lifestyle", "Hot Spring", BuildHotSpringSubTab(), () => chkEnableHotSpring);
+                AddModule("Lifestyle", "Bazaar", BuildBazaarSubTab(), () => chkEnableBazaar);
+                AddModule("Lifestyle", "ATM Banking", BuildBankingSubTab(), () => chkEnableAtmBanking);
+                AddModule("Lifestyle", "PIN Vault", BuildPinVaultSubTab(), () => chkEnablePinVault);
+                AddModule("Lifestyle", "Housekeeper", BuildMaidSubTab(), () => chkEnableTentMaidButler);
+                AddModule("Lifestyle", "Vehicles", BuildVehiclesSubTab(), () => chkEnableVehicles);
 
                 tabPageExperimental.Controls.Add(expTabControl);
                 tabPageExperimental.Controls.Add(headerPanel);
@@ -563,6 +603,7 @@ namespace Wonderland_Private_Server
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
+                Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                 SplitterDistance = 350
             };
 
@@ -1487,6 +1528,7 @@ namespace Wonderland_Private_Server
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
+                Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                 SplitterDistance = 560,
                 BackColor = ModernTheme.Slate200
             };
@@ -2425,6 +2467,7 @@ namespace Wonderland_Private_Server
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Horizontal,
+                Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                 SplitterDistance = 260
             };
 

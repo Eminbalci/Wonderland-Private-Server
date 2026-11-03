@@ -4015,6 +4015,7 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                     SplitterDistance = 640,
                     SplitterWidth = 6
                 };
@@ -4500,6 +4501,7 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                     SplitterDistance = 350,
                     SplitterWidth = 6
                 };
@@ -5437,6 +5439,7 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                     SplitterWidth = 6,
                     SplitterDistance = 560
                 };
@@ -5909,6 +5912,7 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                     SplitterWidth = 6,
                     SplitterDistance = 460
                 };
@@ -6677,6 +6681,7 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    Size = new System.Drawing.Size(1250, 640), // real size before SplitterDistance; Dock.Fill rescales
                     SplitterDistance = 620,
                     Padding = new Padding(0, 6, 0, 0)
                 };

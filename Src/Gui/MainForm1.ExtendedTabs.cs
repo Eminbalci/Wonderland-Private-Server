@@ -489,6 +489,8 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    // Start wide enough for the min sizes; Dock.Fill resizes it afterwards.
+                    Size = new Size(1200, 700),
                     SplitterDistance = 520,
                     Panel1MinSize = 300,
                     Panel2MinSize = 300
@@ -765,6 +767,8 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    // Start wide enough for the min sizes; Dock.Fill resizes it afterwards.
+                    Size = new Size(1200, 700),
                     SplitterDistance = 380,
                     Panel1MinSize = 340,
                     Panel2MinSize = 340
@@ -1145,6 +1149,8 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    // Start wide enough for the min sizes; Dock.Fill resizes it afterwards.
+                    Size = new Size(1200, 700),
                     SplitterDistance = 500,
                     Panel1MinSize = 320,
                     Panel2MinSize = 320
@@ -1556,6 +1562,8 @@ namespace Wonderland_Private_Server
                 {
                     Dock = DockStyle.Fill,
                     Orientation = Orientation.Vertical,
+                    // Start wide enough for the min sizes; Dock.Fill resizes it afterwards.
+                    Size = new Size(1200, 700),
                     SplitterDistance = 600,
                     Panel1MinSize = 350,
                     Panel2MinSize = 320
