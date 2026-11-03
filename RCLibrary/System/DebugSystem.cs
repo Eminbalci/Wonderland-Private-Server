@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,11 +31,31 @@ public static class DebugSystem
 
 	private const int MaxlogfileCnt = 10;
 
+	/// <summary>Lines kept in the on-screen console; older lines are trimmed from the top.</summary>
+	public static int MaxConsoleLines = 5000;
+
+	/// <summary>When false the console keeps its scroll position while new lines arrive.</summary>
+	public static bool AutoScroll = true;
+
+	/// <summary>Raised for every written line (any thread). Used by the dashboard error counter.</summary>
+	public static event Action<DebugItemType, string> LineWritten;
+
 	private static readonly object m_Lock = new object();
 
-	private static ConcurrentStack<string> logout = new ConcurrentStack<string>();
+	// FIFO queues keep lines in the order they were written.
+	private static ConcurrentQueue<string> logout = new ConcurrentQueue<string>();
 
-	private static ConcurrentStack<string> msg_towrite = new ConcurrentStack<string>();
+	private static ConcurrentQueue<string> msg_towrite = new ConcurrentQueue<string>();
+
+	private struct ConsoleLine
+	{
+		public string Text;
+		public Color Color;
+	}
+
+	private static readonly ConcurrentQueue<ConsoleLine> consoleQueue = new ConcurrentQueue<ConsoleLine>();
+
+	private static System.Windows.Forms.Timer consoleTimer;
 
 	public static int VerboseLvl = 0;
 
@@ -71,24 +92,24 @@ public static class DebugSystem
 	public static void Initialize(ref TextBox src, bool output_to_file = false)
 	{
 		txtbox = src;
-		Run = true;
-		Outputlog = output_to_file;
-		logfold = AppDomain.CurrentDomain.BaseDirectory;
-		logfile = Path.Combine("Logs", $"wlophoenixlogFile_{DateTime.Now:yyyyMMdd}.txt");
-		VerboseLvl = 0;
-		if (Outputlog)
-		{
-			EnsureLogDirectory();
-			loggerTask = Task.Factory.StartNew(delegate
-			{
-				Wrk();
-			});
-		}
+		StartCommon(output_to_file);
+		StartConsoleTimer(src);
 	}
 
 	public static void Initialize(ref RichTextBox src, bool output_to_file = false)
 	{
 		rtfbox = src;
+		StartCommon(output_to_file);
+		StartConsoleTimer(src);
+	}
+
+	public static void Initialize(bool output_to_file = false)
+	{
+		StartCommon(output_to_file);
+	}
+
+	private static void StartCommon(bool output_to_file)
+	{
 		Run = true;
 		Outputlog = output_to_file;
 		logfold = AppDomain.CurrentDomain.BaseDirectory;
@@ -104,21 +125,24 @@ public static class DebugSystem
 		}
 	}
 
-	public static void Initialize(bool output_to_file = false)
+	/// <summary>The console is fed by a UI timer so network threads never wait on the UI.</summary>
+	private static void StartConsoleTimer(Control host)
 	{
-		Run = true;
-		Outputlog = output_to_file;
-		logfold = AppDomain.CurrentDomain.BaseDirectory;
-		logfile = Path.Combine("Logs", $"wlophoenixlogFile_{DateTime.Now:yyyyMMdd}.txt");
-		VerboseLvl = 0;
-		if (Outputlog)
+		void create()
 		{
-			EnsureLogDirectory();
-			loggerTask = Task.Factory.StartNew(delegate
-			{
-				Wrk();
-			});
+			if (consoleTimer != null) return;
+			consoleTimer = new System.Windows.Forms.Timer { Interval = 150 };
+			consoleTimer.Tick += (s, e) => FlushConsole();
+			consoleTimer.Start();
 		}
+
+		try
+		{
+			if (host == null || host.IsDisposed) return;
+			if (host.InvokeRequired) host.BeginInvoke((MethodInvoker)create);
+			else create();
+		}
+		catch { }
 	}
 
 	public static void Flush()
@@ -128,16 +152,13 @@ public static class DebugSystem
 			string fullPath = LogFilePath;
 			EnsureLogDirectory(fullPath);
 			using StreamWriter streamWriter = new StreamWriter(fullPath, append: true);
-			string[] array = new string[msg_towrite.Count + 10];
-			int count = msg_towrite.TryPopRange(array);
-			if (count > 0)
+			bool any = false;
+			while (msg_towrite.TryDequeue(out string item))
 			{
-				foreach (string item in array.Where(c => c != null))
-				{
-					streamWriter.WriteLine(item);
-				}
-				streamWriter.Flush();
+				streamWriter.WriteLine(item);
+				any = true;
 			}
+			if (any) streamWriter.Flush();
 		}
 		catch { }
 	}
@@ -151,6 +172,13 @@ public static class DebugSystem
 			try { loggerTask.Wait(3000); } catch { }
 		}
 		Flush();
+		try
+		{
+			consoleTimer?.Stop();
+			consoleTimer?.Dispose();
+		}
+		catch { }
+		consoleTimer = null;
 		rtfbox = null;
 		txtbox = null;
 	}
@@ -219,274 +247,253 @@ public static class DebugSystem
 		return $"{timestamp} {message}";
 	}
 
+	/// <summary>Console colour per log type, readable on the dark console background.</summary>
+	private static Color ColorFor(DebugItemType type, string msg)
+	{
+		switch (type)
+		{
+		case DebugItemType.Error:
+			return Color.FromArgb(252, 165, 165); // red-300
+		case DebugItemType.ExpectedError:
+			return Color.FromArgb(253, 186, 116); // orange-300
+		case DebugItemType.Network_Light:
+		case DebugItemType.Network_Heavy:
+			return Color.FromArgb(134, 239, 172); // green-300
+		case DebugItemType.Debug:
+			return Color.FromArgb(148, 163, 184); // slate-400
+		}
+		if (msg != null && (msg.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || msg.IndexOf("exception", StringComparison.OrdinalIgnoreCase) >= 0))
+		{
+			return Color.FromArgb(252, 165, 165);
+		}
+		if (msg != null && msg.IndexOf("warn", StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			return Color.FromArgb(253, 224, 71); // yellow-300
+		}
+		return Color.FromArgb(226, 232, 240); // slate-200
+	}
+
 	public static void Write(string data, DebugItemType type = DebugItemType.Info_Light, bool newline = true)
 	{
 		DateTime now = DateTime.Now;
-		DebugItem debugItem = new DebugItem("Write", "DebugSystem.cs", 159);
-		debugItem.Type = type;
-		debugItem.When = now;
-		debugItem.Msg = data != null ? data.ToString() : "";
-		string formattedMsg = FormatWithTimestamp(debugItem.When, debugItem.Msg);
-
-		if (debugItem.VerboseReq <= VerboseLvl)
-		{
-			if (rtfbox != null && !rtfbox.IsDisposed)
-			{
-				if (!rtfbox.InvokeRequired)
-				{
-					lock (m_Lock)
-					{
-						rtfbox.SelectionStart = rtfbox.TextLength;
-						rtfbox.SelectionLength = 0;
-						rtfbox.SelectionColor = debugItem.Col;
-						rtfbox.AppendText(formattedMsg);
-						if (newline) rtfbox.AppendText("\r\n");
-						rtfbox.SelectionColor = rtfbox.ForeColor;
-						rtfbox.SelectionStart = rtfbox.TextLength;
-						rtfbox.SelectionLength = 0;
-						rtfbox.ScrollToCaret();
-					}
-				}
-				else
-				{
-					rtfbox.BeginInvoke((MethodInvoker)delegate
-					{
-						if (rtfbox != null && !rtfbox.IsDisposed)
-						{
-							lock (m_Lock)
-							{
-								rtfbox.SelectionStart = rtfbox.TextLength;
-								rtfbox.SelectionLength = 0;
-								rtfbox.SelectionColor = debugItem.Col;
-								rtfbox.AppendText(formattedMsg);
-								if (newline) rtfbox.AppendText("\r\n");
-								rtfbox.SelectionColor = rtfbox.ForeColor;
-								rtfbox.SelectionStart = rtfbox.TextLength;
-								rtfbox.SelectionLength = 0;
-								rtfbox.ScrollToCaret();
-							}
-						}
-					});
-				}
-			}
-			else if (txtbox != null && !txtbox.IsDisposed)
-			{
-				if (!txtbox.InvokeRequired)
-				{
-					lock (m_Lock)
-					{
-						txtbox.SelectionStart = txtbox.TextLength;
-						txtbox.SelectionLength = 0;
-						txtbox.AppendText(formattedMsg);
-						if (newline) txtbox.AppendText("\r\n");
-						txtbox.SelectionStart = txtbox.TextLength;
-						txtbox.SelectionLength = 0;
-						txtbox.ScrollToCaret();
-					}
-				}
-				else
-				{
-					txtbox.BeginInvoke((MethodInvoker)delegate
-					{
-						if (txtbox != null && !txtbox.IsDisposed)
-						{
-							lock (m_Lock)
-							{
-								txtbox.SelectionStart = txtbox.TextLength;
-								txtbox.SelectionLength = 0;
-								txtbox.AppendText(formattedMsg);
-								if (newline) txtbox.AppendText("\r\n");
-								txtbox.SelectionStart = txtbox.TextLength;
-								txtbox.SelectionLength = 0;
-								txtbox.ScrollToCaret();
-							}
-						}
-					});
-				}
-			}
-			else
-			{
-				logout.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
-			}
-		}
-
-		try { Console.WriteLine(formattedMsg); } catch { }
-
-		if (Outputlog)
-		{
-			msg_towrite.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
-		}
+		string msg = data ?? "";
+		int verboseReq = new DebugItem { Type = type }.VerboseReq;
+		Emit(now, type, msg, FormatWithTimestamp(now, msg), ColorFor(type, msg), newline, verboseReq <= VerboseLvl);
 	}
 
 	public static void Write(ExceptionData data, DebugItemType type = DebugItemType.Info_Light, bool newline = true)
 	{
-		DateTime now = DateTime.Now;
-		DebugItem debugItem = new DebugItem("Write", "DebugSystem.cs", 213);
-		debugItem.Type = type;
-		debugItem.When = now;
-		debugItem.Col = Color.Red;
-		debugItem.Error = data;
-		if ((byte)data.Severity <= 0)
+		if (data == null || (byte)data.Severity <= 0)
 		{
 			return;
 		}
+		DateTime now = DateTime.Now;
+		string msg = new DebugItem(data).Msg ?? "";
+		Emit(now, DebugItemType.Error, msg, FormatWithTimestamp(now, $"[ERROR] {msg}"), ColorFor(DebugItemType.Error, msg), newline, true);
+	}
 
-		string formattedMsg = FormatWithTimestamp(debugItem.When, $"[ERROR] {debugItem.Msg}");
-
-		if (rtfbox != null && !rtfbox.IsDisposed)
+	private static void Emit(DateTime when, DebugItemType type, string msg, string formatted, Color color, bool newline, bool showInConsole)
+	{
+		if (showInConsole)
 		{
-			if (!rtfbox.InvokeRequired)
+			if ((rtfbox != null && !rtfbox.IsDisposed) || (txtbox != null && !txtbox.IsDisposed))
 			{
-				lock (m_Lock)
-				{
-					rtfbox.SelectionStart = rtfbox.TextLength;
-					rtfbox.SelectionLength = 0;
-					rtfbox.SelectionColor = debugItem.Col;
-					rtfbox.AppendText(formattedMsg);
-					if (newline) rtfbox.AppendText("\r\n");
-					rtfbox.SelectionColor = rtfbox.ForeColor;
-					rtfbox.SelectionStart = rtfbox.TextLength;
-					rtfbox.SelectionLength = 0;
-					rtfbox.ScrollToCaret();
-				}
+				consoleQueue.Enqueue(new ConsoleLine { Text = newline ? formatted + "\r\n" : formatted, Color = color });
 			}
 			else
 			{
-				rtfbox.BeginInvoke((MethodInvoker)delegate
-				{
-					if (rtfbox != null && !rtfbox.IsDisposed)
-					{
-						lock (m_Lock)
-						{
-							rtfbox.SelectionStart = rtfbox.TextLength;
-							rtfbox.SelectionLength = 0;
-							rtfbox.SelectionColor = debugItem.Col;
-							rtfbox.AppendText(formattedMsg);
-							if (newline) rtfbox.AppendText("\r\n");
-							rtfbox.SelectionColor = rtfbox.ForeColor;
-							rtfbox.SelectionStart = rtfbox.TextLength;
-							rtfbox.SelectionLength = 0;
-							rtfbox.ScrollToCaret();
-						}
-					}
-				});
+				logout.Enqueue($"[{when:yyyy-MM-dd HH:mm:ss}] | {type} | {msg}\r\n");
 			}
-		}
-		else if (txtbox != null && !txtbox.IsDisposed)
-		{
-			if (!txtbox.InvokeRequired)
-			{
-				lock (m_Lock)
-				{
-					txtbox.SelectionStart = txtbox.TextLength;
-					txtbox.SelectionLength = 0;
-					txtbox.AppendText(formattedMsg);
-					if (newline) txtbox.AppendText("\r\n");
-					txtbox.SelectionStart = txtbox.TextLength;
-					txtbox.SelectionLength = 0;
-					txtbox.ScrollToCaret();
-				}
-			}
-			else
-			{
-				txtbox.BeginInvoke((MethodInvoker)delegate
-				{
-					if (txtbox != null && !txtbox.IsDisposed)
-					{
-						lock (m_Lock)
-						{
-							txtbox.SelectionStart = txtbox.TextLength;
-							txtbox.SelectionLength = 0;
-							txtbox.AppendText(formattedMsg);
-							if (newline) txtbox.AppendText("\r\n");
-							txtbox.SelectionStart = txtbox.TextLength;
-							txtbox.SelectionLength = 0;
-							txtbox.ScrollToCaret();
-						}
-					}
-				});
-			}
-		}
-		else
-		{
-			logout.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
 		}
 
-		try { Console.WriteLine(formattedMsg); } catch { }
+		try { Console.WriteLine(formatted); } catch { }
 
 		if (Outputlog)
 		{
-			msg_towrite.Push($"[{debugItem.When:yyyy-MM-dd HH:mm:ss}] | {debugItem.Type} | {debugItem.Msg}\r\n");
+			msg_towrite.Enqueue($"[{when:yyyy-MM-dd HH:mm:ss}] | {type} | {msg}");
+		}
+
+		try { LineWritten?.Invoke(type, msg); } catch { }
+	}
+
+	#region Console flushing (UI thread)
+
+	[DllImport("user32.dll")]
+	private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+	private const int WM_SETREDRAW = 0x000B;
+	private const int EM_GETFIRSTVISIBLELINE = 0x00CE;
+	private const int EM_LINESCROLL = 0x00B6;
+
+	private static void FlushConsole()
+	{
+		if (consoleQueue.IsEmpty) return;
+
+		// Drain everything queued since the last tick; drop the oldest if a flood exceeds the console size.
+		var batch = new List<ConsoleLine>();
+		while (consoleQueue.TryDequeue(out ConsoleLine line)) batch.Add(line);
+		if (batch.Count > MaxConsoleLines) batch.RemoveRange(0, batch.Count - MaxConsoleLines);
+
+		try
+		{
+			if (rtfbox != null && !rtfbox.IsDisposed) FlushToRichTextBox(rtfbox, batch);
+			else if (txtbox != null && !txtbox.IsDisposed) FlushToTextBox(txtbox, batch);
+		}
+		catch { }
+	}
+
+	private static void FlushToRichTextBox(RichTextBox box, List<ConsoleLine> batch)
+	{
+		lock (m_Lock)
+		{
+			IntPtr h = box.Handle;
+			int firstVisible = (int)SendMessage(h, EM_GETFIRSTVISIBLELINE, IntPtr.Zero, IntPtr.Zero);
+			int selStart = box.SelectionStart, selLength = box.SelectionLength;
+			bool readOnly = box.ReadOnly;
+
+			SendMessage(h, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+			try
+			{
+				box.ReadOnly = false;
+
+				// Append runs of same-coloured lines in one go.
+				int i = 0;
+				while (i < batch.Count)
+				{
+					Color c = batch[i].Color;
+					var sb = new StringBuilder();
+					while (i < batch.Count && batch[i].Color == c) sb.Append(batch[i++].Text);
+					box.SelectionStart = box.TextLength;
+					box.SelectionLength = 0;
+					box.SelectionColor = c;
+					box.SelectedText = sb.ToString();
+				}
+
+				// Trim old lines from the top.
+				int removedLines = 0, removedChars = 0;
+				int lineCount = box.GetLineFromCharIndex(box.TextLength) + 1;
+				if (lineCount > MaxConsoleLines + 500)
+				{
+					removedLines = lineCount - MaxConsoleLines;
+					removedChars = box.GetFirstCharIndexFromLine(removedLines);
+					if (removedChars > 0)
+					{
+						box.Select(0, removedChars);
+						box.SelectedText = "";
+					}
+				}
+
+				if (AutoScroll)
+				{
+					box.SelectionStart = box.TextLength;
+					box.SelectionLength = 0;
+				}
+				else
+				{
+					// Keep the reader's selection and scroll position.
+					int newStart = Math.Max(0, selStart - removedChars);
+					box.Select(newStart, Math.Max(0, Math.Min(selLength, box.TextLength - newStart)));
+					int target = Math.Max(0, firstVisible - removedLines);
+					int now = (int)SendMessage(h, EM_GETFIRSTVISIBLELINE, IntPtr.Zero, IntPtr.Zero);
+					SendMessage(h, EM_LINESCROLL, IntPtr.Zero, (IntPtr)(target - now));
+				}
+			}
+			finally
+			{
+				box.ReadOnly = readOnly;
+				SendMessage(h, WM_SETREDRAW, (IntPtr)1, IntPtr.Zero);
+				box.Invalidate();
+			}
+
+			if (AutoScroll) box.ScrollToCaret();
 		}
 	}
 
+	private static void FlushToTextBox(TextBox box, List<ConsoleLine> batch)
+	{
+		lock (m_Lock)
+		{
+			var sb = new StringBuilder();
+			foreach (var line in batch) sb.Append(line.Text);
+			box.AppendText(sb.ToString());
+			if (box.Lines.Length > MaxConsoleLines + 500)
+			{
+				box.Lines = box.Lines.Skip(box.Lines.Length - MaxConsoleLines).ToArray();
+			}
+			if (AutoScroll)
+			{
+				box.SelectionStart = box.TextLength;
+				box.ScrollToCaret();
+			}
+		}
+	}
+
+	#endregion
+
 	public static string PullLogItem()
 	{
-		string[] array = new string[100];
-		if (logout.TryPopRange(array, 0, 100) > 0)
+		var sb = new StringBuilder();
+		int n = 0;
+		while (n < 100 && logout.TryDequeue(out string item))
 		{
-			if (array.Count((string c) => c != null) < 6)
-			{
-				return string.Concat(array.Where((string c) => c != null));
-			}
-			StringBuilder stringBuilder = new StringBuilder();
-			foreach (string item in array.Where((string c) => c != null))
-			{
-				stringBuilder.Append(item);
-			}
-			return stringBuilder.ToString();
+			sb.Append(item);
+			n++;
 		}
-		return null;
+		return n > 0 ? sb.ToString() : null;
+	}
+
+	/// <summary>Keeps at most <see cref="MaxlogfileCnt"/> log files in the log folder (oldest deleted first).</summary>
+	private static void PruneOldLogFiles(string logDir)
+	{
+		try
+		{
+			var files = new DirectoryInfo(logDir).EnumerateFiles("wlophoenixlogFile*.txt")
+				.OrderByDescending(f => f.LastWriteTime)
+				.ToList();
+			foreach (var old in files.Skip(MaxlogfileCnt))
+			{
+				try { old.Delete(); } catch { }
+			}
+		}
+		catch { }
 	}
 
 	private static void Wrk()
 	{
+		DateTime lastPrune = DateTime.MinValue;
 		do
 		{
 			try
 			{
-				string[] array = new string[250];
-				if (msg_towrite.TryPopRange(array) > 0)
+				if (!msg_towrite.IsEmpty)
 				{
-					StringBuilder stringBuilder = new StringBuilder();
-					DirectoryInfo directoryInfo = new DirectoryInfo(logfold);
-					int num = directoryInfo.EnumerateFiles("*.txt").Count((FileInfo c) => c.Name.StartsWith("wlophoenixlogFile"));
-					if (num >= 10)
+					string path = LogFilePath;
+					string dir = Path.GetDirectoryName(path);
+
+					if (DateTime.Now - lastPrune > TimeSpan.FromMinutes(10))
 					{
-						List<FileInfo> list = (from c in directoryInfo.EnumerateFiles("*.txt")
-							where c.Name.StartsWith("wlophoenixlogFile")
-							orderby c.LastWriteTime
-							select c).ToList();
-						if (File.Exists(list[0].FullName))
-						{
-							File.Delete(list[0].FullName);
-						}
+						PruneOldLogFiles(dir);
+						lastPrune = DateTime.Now;
 					}
-					int num2 = 1;
-					while (File.Exists(Path.Combine(logfold, logfile)))
+
+					// Roll over a full file to name_N.txt
+					var info = new FileInfo(path);
+					if (info.Exists && info.Length >= logfileMaxsize)
 					{
-						FileInfo fileInfo = new FileInfo(Path.Combine(logfold, logfile));
-						if (fileInfo.Length >= 5500000)
-						{
-							try
-							{
-								File.Copy(fileInfo.FullName, Path.Combine(logfold, logfile.Replace(".", num2 + ".")));
-								File.Delete(fileInfo.FullName);
-							}
-							catch
-							{
-								num2++;
-								continue;
-							}
-							fileInfo = null;
-						}
-						break;
+						string baseName = Path.GetFileNameWithoutExtension(path);
+						int n = 1;
+						string rolled;
+						do { rolled = Path.Combine(dir, $"{baseName}_{n++}.txt"); } while (File.Exists(rolled));
+						try { File.Move(path, rolled); } catch { }
 					}
-					using StreamWriter streamWriter = new StreamWriter(LogFilePath, append: true);
+
+					using StreamWriter streamWriter = new StreamWriter(path, append: true);
 					streamWriter.AutoFlush = false;
-					foreach (string item in array.Where((string c) => c != null))
+					int written = 0;
+					while (written < 2000 && msg_towrite.TryDequeue(out string item))
 					{
 						streamWriter.WriteLine(item);
+						written++;
 					}
 					streamWriter.Flush();
 				}
@@ -496,6 +503,6 @@ public static class DebugSystem
 			}
 			Thread.Sleep((!Run) ? 1 : 150);
 		}
-		while (Run || msg_towrite.Count > 0);
+		while (Run || !msg_towrite.IsEmpty);
 	}
 }

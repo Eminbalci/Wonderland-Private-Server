@@ -16,13 +16,13 @@ namespace Network.ActionCodes {
         void Recv1(Player p, RecievePacket r) {
             try {
                 string str = r.UnpackStringN();
-                DebugSystem.Write($"[Chat.Global] {p.CharName}: {str}");
+                DebugSystem.Write($"[Chat.Global] {p.CharName}: {str}"); Server.Services.ActivityLog.RecordChat(p, "Global", str);
             } catch { }
         }
         void Recv2(Player p, RecievePacket r) {
             try {
                 string str = r.UnpackStringN();
-                DebugSystem.Write($"[Chat] {p.CharName}: {str}");
+                DebugSystem.Write($"[Chat] {p.CharName}: {str}"); Server.Services.ActivityLog.RecordChat(p, "Local", str);
 
                 if (p.IsMuted) {
                     p.SendSystemMessage($"[Server] You are currently muted until {p.MutedUntil.Value:yyyy-MM-dd HH:mm:ss} UTC.");

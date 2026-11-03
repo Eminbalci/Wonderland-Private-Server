@@ -167,6 +167,9 @@
     <Compile Include="Src\Gui\MainForm1.ExperimentalTab.cs">
       <DependentUpon>MainForm1.cs</DependentUpon>
     </Compile>
+    <Compile Include="Src\Gui\MainForm1.ServerTools.cs">
+      <DependentUpon>MainForm1.cs</DependentUpon>
+    </Compile>
     <Compile Include="Src\Gui\ModernTheme.cs" />
     <Compile Include="Src\Gui\CharacterDataEditorForm.cs">
       <SubType>Form</SubType>
@@ -293,6 +296,10 @@
     <Compile Include="Src\Server\Config\DB\DataBase.cs" />
     <Compile Include="Src\Server\Config\Game\PetConfigs.cs" />
     <Compile Include="Src\Server\Config\Settings.cs" />
+    <Compile Include="Src\Server\Services\ActivityLog.cs" />
+    <Compile Include="Src\Server\Services\AnnouncementScheduler.cs" />
+    <Compile Include="Src\Server\Services\DatabaseBackupService.cs" />
+    <Compile Include="Src\Server\Services\ServerMetrics.cs" />
     <Compile Include="Src\Server\Config\Update.cs" />
     <Compile Include="Src\Server\GM\BigLetterLogo.cs" />
     <Compile Include="Src\Server\LoginServer.cs" />

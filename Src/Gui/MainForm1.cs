@@ -44,6 +44,7 @@ namespace Wonderland_Private_Server
             SetupDatabaseConfigTab();
             SetupServerStatusControl();
             SetupExperimentalTab();
+            SetupServerToolsTabs();
 
             // Initialize Modern User-Friendly UI Layer
             InitializeModernUi();
@@ -564,6 +565,12 @@ namespace Wonderland_Private_Server
             cGlobal.gRegistrationServer.Start();
             DebugSystem.Write("[Init] - Registration page available at: http://localhost:8080/");
 
+            // Background services: metrics, activity log, database backups, scheduled announcements
+            Server.Services.ServerMetrics.Initialize();
+            Server.Services.ActivityLog.Initialize();
+            Server.Services.DatabaseBackupService.Start();
+            Server.Services.AnnouncementScheduler.Start();
+
             //cGlobal.WLO_World.Initialize();
             Thread.Sleep(2);
             //cGlobal.TcpListener.Initialize();
@@ -675,6 +682,22 @@ namespace Wonderland_Private_Server
                 catch (Exception ex)
                 {
                     DebugSystem.Write($"[SafeShutdown] Error saving settings: {ex.Message}");
+                }
+
+                // 3b. Stop background services, close open sessions and take a final backup
+                try
+                {
+                    Server.Services.AnnouncementScheduler.Stop();
+                    Server.Services.DatabaseBackupService.Stop();
+                    Server.Services.ActivityLog.CloseAll();
+                    if (cGlobal.SrvSettings == null || cGlobal.SrvSettings.BackupEnabled)
+                    {
+                        Server.Services.DatabaseBackupService.BackupNow("shutdown", out _);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[SafeShutdown] Error stopping background services: {ex.Message}");
                 }
 
                 // 4. Disconnect all players

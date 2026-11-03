@@ -567,15 +567,18 @@ namespace Server
         void AutoSaveLoop()
         {
             int saveCounter = 0;
+            DateTime lastSlowWarning = DateTime.MinValue;
             do
             {
                 try
                 {
                     // Save all online players every second
                     var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
+                    Services.ServerMetrics.ObserveOnlinePlayers(onlinePlayers?.Count ?? 0);
                     if (onlinePlayers != null && onlinePlayers.Count > 0)
                     {
                         saveCounter++;
+                        var saveWatch = global::System.Diagnostics.Stopwatch.StartNew();
                         foreach (var player in onlinePlayers)
                         {
                             try
@@ -592,6 +595,14 @@ namespace Server
                             }
                         }
 
+                        saveWatch.Stop();
+                        Services.ServerMetrics.RecordAutoSave(onlinePlayers.Count, saveWatch.Elapsed.TotalMilliseconds);
+                        if (saveWatch.ElapsedMilliseconds > 1000 && (DateTime.Now - lastSlowWarning).TotalSeconds >= 60)
+                        {
+                            lastSlowWarning = DateTime.Now;
+                            DebugSystem.Write($"[AutoSave] Warning: saving {onlinePlayers.Count} players took {saveWatch.ElapsedMilliseconds} ms.");
+                        }
+
                         // Log every 60 seconds (once per minute)
                         if (saveCounter % 60 == 0)
                         {
@@ -604,7 +615,9 @@ namespace Server
                     DebugSystem.Write($"[AutoSave] Critical error in auto-save loop: {ex.Message}");
                 }
 
-                Thread.Sleep(1000); // 1 second
+                // Interval comes from settings (default 1 s); sleep in short steps so shutdown stays quick.
+                int intervalMs = Math.Max(1, cGlobal.SrvSettings?.AutoSaveIntervalSeconds ?? 1) * 1000;
+                for (int waited = 0; waited < intervalMs && !killFlag; waited += 250) Thread.Sleep(250);
             }
             while (!killFlag);
 

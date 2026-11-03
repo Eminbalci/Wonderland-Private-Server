@@ -33,6 +33,21 @@ namespace Server.Config
         public bool EnableLoginEventPrompts = false;
         public bool EnablePacketDebugLogging = true;
 
+        // Automatic database backups (SQLite only)
+        public bool BackupEnabled = true;
+        public int BackupIntervalMinutes = 30;
+        public int BackupKeepCount = 10;
+
+        // Online player auto-save interval (1 s = original behaviour)
+        public int AutoSaveIntervalSeconds = 1;
+
+        // Scheduled announcements, sent in rotation
+        public bool AnnouncementsEnabled = false;
+        public int AnnouncementIntervalMinutes = 15;
+        /// <summary>0 = notification box (head banner), 1 = world chat.</summary>
+        public int AnnouncementTarget = 0;
+        public List<string> Announcements = new List<string>();
+
         public List<string> GetAllWelcomeMessages()
         {
             var list = new List<string>();

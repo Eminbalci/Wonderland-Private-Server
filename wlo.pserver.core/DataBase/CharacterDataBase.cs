@@ -2053,9 +2053,17 @@ namespace DataBase
             return ExecuteNonQuery($"{insert} INTO character_monster_book (charID,npcID) VALUES ({characterId},{npcId})") >= 0;
         }
 
+        /// <summary>Raised after a character enters the online list (activity log, metrics).</summary>
+        public static event Action<Player> CharacterJoined;
+        /// <summary>Raised after a character leaves the online list and was saved.</summary>
+        public static event Action<Player> CharacterLeft;
+
         public void OnCharacterJoin(Player src)
         {
-            Characters_Online.TryAdd((int)src.CharID, src);
+            if (Characters_Online.TryAdd((int)src.CharID, src))
+            {
+                try { CharacterJoined?.Invoke(src); } catch { }
+            }
         }
 
         public List<Player> GetOnlinePlayers()
@@ -2183,6 +2191,8 @@ namespace DataBase
             {
                 //Begin Saving Character Data
                 WritePlayer(src.CharID, src);
+
+                try { CharacterLeft?.Invoke(src); } catch { }
 
 
 

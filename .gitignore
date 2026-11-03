@@ -79,6 +79,9 @@ bin/Debug/Logs/
 *.db.temp
 ServerDataBase.db.temp
 bin/**/ServerDataBase.db
+# Automatic database backups (DatabaseBackupService)
+Data/Backups/
+**/Data/Backups/
 
 # ==============================================================================
 # Client Archives & Development Scripts

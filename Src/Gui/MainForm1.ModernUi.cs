@@ -60,6 +60,7 @@ namespace Wonderland_Private_Server
         private readonly Dictionary<NavItem, Button> modernSubTabButtons = new Dictionary<NavItem, Button>();
         private Button modernActiveSubTabButton;
         private bool modernLogAutoScroll = true;
+        private Button modernBtnAutoScroll;
         private int modernLogSearchIndex = 0;
         private bool modernIsInternalTabSwitch = false;
 
@@ -117,6 +118,9 @@ namespace Wonderland_Private_Server
                 if (this.modernHeaderPanel != null) this.modernHeaderPanel.BringToFront();
                 if (this.modernCategoryBar != null) this.modernCategoryBar.BringToFront();
                 if (this.modernSubTabBar != null) this.modernSubTabBar.BringToFront();
+                BuildServerStatusBar();
+                this.Controls.Add(st_statusBar);
+                st_statusBar.BringToFront();
                 if (this.tabControl3 != null) this.tabControl3.BringToFront();
 
                 // Apply global modern theme across all controls (hand-built chrome keeps its own look)
@@ -373,7 +377,10 @@ namespace Wonderland_Private_Server
                     new NavItem("Dashboard & Logs", () => this.tabPage7),
                     new NavItem("Online Sessions", () => FindTabByTitle("Online Sessions")),
                     new NavItem("Security & Bans", () => FindTabByTitle("Security & Bans")),
-                    new NavItem("Database", () => FindTabByTitle("Database Config"))
+                    new NavItem("Activity", () => tabActivity),
+                    new NavItem("Announcements", () => tabAnnouncements),
+                    new NavItem("Database", () => FindTabByTitle("Database Config")),
+                    new NavItem("Backups", () => tabBackups)
                 }),
                 new NavCategory("Players", new List<NavItem>
                 {
@@ -609,6 +616,8 @@ namespace Wonderland_Private_Server
                     return;
                 }
 
+                RefreshServerToolPage(tab);
+
                 if (!modernAutoLoadedTabs.Add(tab)) return;
                 if (tab == this.tabPageCharacters) btnRefreshCharacters_Click(null, null);
                 else if (tab == this.tabPageUsers) btnRefreshUsers_Click(null, null);
@@ -739,6 +748,17 @@ namespace Wonderland_Private_Server
             return null;
         }
 
+        /// <summary>Turns console auto-scroll on/off and keeps the toggle button in sync.</summary>
+        private void SetLogAutoScroll(bool on)
+        {
+            modernLogAutoScroll = on;
+            DebugSystem.AutoScroll = on;
+            if (modernBtnAutoScroll == null) return;
+            modernBtnAutoScroll.Text = on ? "Auto-Scroll: ON" : "Auto-Scroll: OFF";
+            modernBtnAutoScroll.BackColor = on ? ModernTheme.Emerald50 : ModernTheme.Rose50;
+            modernBtnAutoScroll.ForeColor = on ? ModernTheme.Emerald700 : ModernTheme.Rose700;
+        }
+
         private void UpdateModernMetrics()
         {
             try
@@ -784,6 +804,8 @@ namespace Wonderland_Private_Server
                     string uptimeStr = $"{(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
                     modernLblMetrics.Text = $"Players {playerCount}   \u00B7   Uptime {uptimeStr}   \u00B7   RAM {memoryMb} MB   \u00B7   Ports 6414 / 6415 / 6416";
                 }
+
+                UpdateServerStatusBar();
             }
             catch { }
         }
@@ -862,7 +884,7 @@ namespace Wonderland_Private_Server
                     catch { }
                 };
 
-                Button btnAutoScrollToggle = new Button
+                modernBtnAutoScroll = new Button
                 {
                     Text = "Auto-Scroll: ON",
                     Location = new Point(365, 3),
@@ -872,22 +894,7 @@ namespace Wonderland_Private_Server
                     ForeColor = ModernTheme.Emerald700,
                     FlatStyle = FlatStyle.Flat
                 };
-                btnAutoScrollToggle.Click += (s, e) =>
-                {
-                    modernLogAutoScroll = !modernLogAutoScroll;
-                    if (modernLogAutoScroll)
-                    {
-                        btnAutoScrollToggle.Text = "Auto-Scroll: ON";
-                        btnAutoScrollToggle.BackColor = ModernTheme.Emerald50;
-                        btnAutoScrollToggle.ForeColor = ModernTheme.Emerald700;
-                    }
-                    else
-                    {
-                        btnAutoScrollToggle.Text = "Auto-Scroll: OFF";
-                        btnAutoScrollToggle.BackColor = ModernTheme.Rose50;
-                        btnAutoScrollToggle.ForeColor = ModernTheme.Rose700;
-                    }
-                };
+                modernBtnAutoScroll.Click += (s, e) => SetLogAutoScroll(!modernLogAutoScroll);
 
                 Button btnPacketDebugToggle = new Button
                 {
@@ -1002,7 +1009,7 @@ namespace Wonderland_Private_Server
                 logToolPanel.Controls.Add(lblConsole);
                 logToolPanel.Controls.Add(btnClear);
                 logToolPanel.Controls.Add(btnCopy);
-                logToolPanel.Controls.Add(btnAutoScrollToggle);
+                logToolPanel.Controls.Add(modernBtnAutoScroll);
                 logToolPanel.Controls.Add(btnPacketDebugToggle);
                 logToolPanel.Controls.Add(txtSearch);
                 logToolPanel.Controls.Add(btnFind);
