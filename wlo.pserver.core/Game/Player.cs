@@ -89,6 +89,7 @@ namespace Game
         public int StepsSinceLastBattle { get; set; } = 0;
         public int NextBattleSteps { get; set; } = 25;
         public bool ProximityEncounterArmed { get; set; } = true;
+        public bool Arrived { get; set; } = true;
         public DateTime LastTeleportTime { get; set; } = DateTime.MinValue;
         public DateTime LastMapEnterTime { get; set; } = DateTime.UtcNow;
         public DateTime LastBattleEndTime { get; set; } = DateTime.MinValue;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +23,8 @@ namespace Game
         void Broadcast(SendPacket pkt);
         void Broadcast(SendPacket pkt, string parameter, params object[] To);
         bool Teleport(TeleportType teletype, Player sender, ushort portalID = 0, WarpData warp = null);
+        bool DoorPortal(ushort clickID, out ushort portal);
+        bool WarpEntry(ushort click, out ushort dstMap, out ushort dstX, out ushort dstY);
         bool ProcessInteraction(byte clickID, Player player);
         void RemovePlayer(Player p);
         Game.DataFiles.MapData mapData { get; }
@@ -604,6 +606,7 @@ namespace Game
             DebugSystem.Write(DebugItemType.Info_Heavy, "{0} warping into {1}", src.CharName, MapName);
 
             src.Flags.Remove(PlayerFlag.InMap);
+            src.Arrived = true;
             if (this.Type == MapType.Tent || this is Tent)
             {
                 src.Flags.Add(PlayerFlag.InTent);
@@ -898,6 +901,41 @@ namespace Game
             get { return (this.Type == MapType.Tent || this is Tent) ? null : DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData(Convert.ToUInt16(this.MapID)); }
         }
 
+        public bool WarpEntry(ushort click, out ushort dstMap, out ushort dstX, out ushort dstY)
+        {
+            dstMap = 0; dstX = 0; dstY = 0;
+            var currentWarpLoc = mapData?.WarpLoc;
+            if (currentWarpLoc != null)
+            {
+                foreach (var warp in currentWarpLoc)
+                {
+                    if (warp.clickID == click && warp.mapID > 0)
+                    {
+                        dstMap = warp.mapID;
+                        dstX = (ushort)warp.x;
+                        dstY = (ushort)warp.y;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public bool DoorPortal(ushort clickID, out ushort portal)
+        {
+            portal = 0;
+            if (mapData?.Npclist != null)
+            {
+                var n = mapData.Npclist.FirstOrDefault(npc => npc.clickId == clickID);
+                if (n != null && (n.Name ?? "").ToLower().Contains("door") && n.unknownbytearray2 != null && n.unknownbytearray2.Count > 0)
+                {
+                    portal = n.unknownbytearray2[0];
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public bool LookupPortal(ushort portalID, int px, int py, out ushort dstMap, out ushort dstX, out ushort dstY)
         {
             dstMap = 0; dstX = 0; dstY = 0;
@@ -924,6 +962,15 @@ namespace Game
                 dstMap = 10000;
                 dstX = 1892;
                 dstY = 1655;
+                return true;
+            }
+
+            // Carnie (Map 11094) fallback to Starter Beach (wloweb parity)
+            if (MapID == 11094)
+            {
+                dstMap = 11016;
+                dstX = 1181;
+                dstY = 243;
                 return true;
             }
 
@@ -1102,25 +1149,11 @@ namespace Game
             if (teletype == TeleportType.Regular)
             {
                 bool isTent = Type == MapType.Tent || this is Tent || sender.Flags.HasFlag(PlayerFlag.InTent);
-                if (!isTent)
+                if (!isTent && sender.Arrived)
                 {
-                double elapsedMs = (DateTime.UtcNow - sender.LastTeleportTime).TotalMilliseconds;
-                if (elapsedMs < 2500)
-                {
-                    DebugSystem.Write($"[Teleport] Portal cooldown active ({elapsedMs:F0}ms / 2500ms) for {sender.CharName}. Request ignored.");
+                    DebugSystem.Write($"[Teleport] Player {sender.CharName} arrived flag active. Ignoring immediate portal re-trigger.");
                     sender.Send(Tools.FromFormat("bb", 20, 8));
                     return false;
-                }
-                if (elapsedMs < 4000 && sender.LastSpawnX > 0 && sender.LastSpawnY > 0)
-                {
-                    double spawnDist = Math.Sqrt(Math.Pow((int)sender.CurX - (int)sender.LastSpawnX, 2) + Math.Pow((int)sender.CurY - (int)sender.LastSpawnY, 2));
-                    if (spawnDist < 120)
-                    {
-                        DebugSystem.Write($"[Teleport] Spawn proximity guard active for {sender.CharName} (dist={spawnDist:F1}px from spawn {sender.LastSpawnX},{sender.LastSpawnY}). Request ignored.");
-                        sender.Send(Tools.FromFormat("bb", 20, 8));
-                        return false;
-                    }
-                }
                 }
                 DebugSystem.Write($"[Teleport] Req: {teletype}, PortalID: {portalID}, Leader: {sender.PartyLeader}, Members: {sender.m_teammembers?.Count ?? 0}");
             }
@@ -1571,6 +1604,7 @@ namespace Game
             t.LastSpawnX = t.CurX;
             t.LastSpawnY = t.CurY;
             t.LastTeleportTime = DateTime.UtcNow;
+            t.Arrived = true;
             // AC12:1 transitions Warping to InMap after native loading finishes.
             t.Send(new SendPacket(tmp.End()));
 

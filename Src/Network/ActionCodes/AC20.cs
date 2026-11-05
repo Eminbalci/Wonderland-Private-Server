@@ -36,34 +36,26 @@ namespace Wonderland_Private_Server.ActionCodes
         }
         void Recv8(Player p, RecievePacket r)
         {
-            if (p == null || p.CurMap == null || p.NativeEventActive) return;
+            if (p == null || p.CurMap == null || p.NativeEventActive || Game.Battle.PvEBattleManager.IsInBattle(p)) return;
 
-            // Portal debounce and spawn proximity guard (bypassed for tent interior)
             bool isTent = p.CurMap is Game.Code.Tent || p.CurMap?.Type == MapType.Tent || p.Flags.HasFlag(PlayerFlag.InTent);
 
+            // Starter beach quest raft check (wloweb parity)
+            if (p.CurMap.MapID == 11016 && p.ActiveVehicleID == 48016)
+            {
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
+            }
+
+            // Walk-in regions take precedence over portal step (wloweb parity: AC20.Recv8 tryRegion)
             if (!isTent && p.CurMap is GameMap regionMap && EveEventInterpreter.TryExecuteRegion(p, regionMap)) return;
 
-            if (!isTent)
+            // Do not bounce a player back through the area/portal it arrived in until moved (wloweb parity: c.arrived)
+            if (!isTent && p.Arrived)
             {
-                double elapsedMs = (DateTime.UtcNow - p.LastTeleportTime).TotalMilliseconds;
-                if (elapsedMs < 2500)
-                {
-                    DebugSystem.Write($"[AC20.Recv8] Portal cooldown active ({elapsedMs:F0}ms / 2500ms) for {p.CharName}. Ignoring request.");
-                    p.Send(Tools.FromFormat("bb", 20, 8));
-                    return;
-                }
-
-                // If player just entered map and is within 120 pixels of their spawn location, ignore re-triggering return portal
-                if (elapsedMs < 4000 && p.LastSpawnX > 0 && p.LastSpawnY > 0)
-                {
-                    double spawnDist = Math.Sqrt(Math.Pow((int)p.CurX - (int)p.LastSpawnX, 2) + Math.Pow((int)p.CurY - (int)p.LastSpawnY, 2));
-                    if (spawnDist < 120)
-                    {
-                        DebugSystem.Write($"[AC20.Recv8] Spawn proximity guard active for {p.CharName} (dist={spawnDist:F1}px from spawn {p.LastSpawnX},{p.LastSpawnY}). Ignoring immediate return portal.");
-                        p.Send(Tools.FromFormat("bb", 20, 8));
-                        return;
-                    }
-                }
+                DebugSystem.Write($"[AC20.Recv8] Player {p.CharName} arrived flag active. Ignoring immediate portal re-trigger.");
+                p.Send(Tools.FromFormat("bb", 20, 8));
+                return;
             }
 
             int rem = r.Buffer.Length - r.GetPtr();
@@ -217,19 +209,14 @@ namespace Wonderland_Private_Server.ActionCodes
                 return;
             }
 
-            // Door / Portal trigger fallback ONLY if object name or type is explicitly a door
-            if (p.CurMap.mapData != null && p.CurMap.mapData.Npclist != null)
+            // Door / Portal trigger fallback ONLY if object name or type is explicitly a door (wloweb DoorPortal parity)
+            if (p.CurMap.DoorPortal(clickID, out ushort linkedPortal))
             {
-                var clickedNpc = p.CurMap.mapData.Npclist.FirstOrDefault(n => n.clickId == clickID);
-                if (clickedNpc != null && (clickedNpc.Name ?? "").ToLower().Contains("door") && clickedNpc.unknownbytearray2 != null && clickedNpc.unknownbytearray2.Count > 0)
+                DebugSystem.Write($"[AC20.Recv1] Object {clickID} is an explicit door linking to portal {linkedPortal} on Map {p.CurMap.MapID}");
+                if (p.CurMap.Teleport(TeleportType.Regular, p, linkedPortal))
                 {
-                    ushort linkedPortal = clickedNpc.unknownbytearray2[0];
-                    DebugSystem.Write($"[AC20.Recv1] Object {clickID} is an explicit door linking to portal {linkedPortal} on Map {p.CurMap.MapID}");
-                    if (p.CurMap.Teleport(TeleportType.Regular, p, linkedPortal))
-                    {
-                        p.SaveCharacterData();
-                        return;
-                    }
+                    p.SaveCharacterData();
+                    return;
                 }
             }
 

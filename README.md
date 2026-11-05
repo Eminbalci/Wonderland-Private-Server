@@ -2070,6 +2070,8 @@ The repository includes a comprehensive 43-document master specification suite d
 
 76. [**76 - Reborn Level 199 Progression, Client Stat 35 Synchronization & AC 5:4 Visual Feedback**](file:///D:/GitHub/Wonderland-Private-Server/docs/74_reborn_level_199_progression_and_stat35_synchronization.md): Resolved overworld level display and reborn progression up to Level 199. Delphi reversing of aLogin.exe identified that Opcode 8:1 Stat 35 (0x23) directly writes actor.Level into client memory at [actor + 0x1f98], fires event 0x43120d, sets UI dirty flag 0x159 = 1, and recalculates derived limits for status window and character nameplates. Added SendStat(35, Level) to EquipManager.Send8_1 so all level changes instantly synchronize outside battle. Triggered authentic client LevelUP floating animation and sound (Sound\Wav0153.wav) via AC 5:4 ([5, 4, CharID]) to the local player and broadcast to CurMap on level-up. Clamped wire EXP in SendExp() to 0x76F1D017L (1,995,558,935) to prevent client signed 32-bit integer overflow at Level 191+ while preserving 64-bit server progression up to 199. Capped :level command cleanly at Level 199. Verified with 100% automated test coverage without touching SQLite database.
 
+77. [**77 - wloweb Map Warp Parity and Arrived State Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/76_wloweb_map_warp_parity_and_arrived_state_lifecycle.md): Established 1:1 map warp and portal resolution parity with `wloweb` (`Wonderland-Gonline`). Replaced artificial 2500ms wall-clock cooldowns and 120px spawn proximity guards with the authentic discrete `Player.Arrived` state machine. `Arrived` is initialized to `true` upon entering any map or spawning via `Warp_In`, suppressing immediate portal bounce re-trigger (`AC 20:8` sends unfreeze `[20, 8]`). Once a player moves (`AC 06:1` waypoint accepted with `movedDistance > 0`), `Arrived` transitions to `false`, enabling portal and area steps. Added `IMap.DoorPortal` to link door NPCs directly to their destination portals and `IMap.WarpEntry` for scene transitions in EVE Opcode 1 (`transitionType`). Synchronized Carnie (11094) exit fallback (`11016, 1181, 243`), Astrologer Laura exit (`10000, 1892, 1655`), and prelude freeze/reset packet sequence. Verified with automated regression tests.
+
 
 
 
@@ -2215,6 +2217,7 @@ The complete reverse engineering of the monolithic client binaries (`aLogin.exe`
 Wonderland Online is a registered trademark of Chinese Gamer International Corp. / IGG Inc. This project is an independent clean-room reverse-engineering and educational research emulator intended solely for archival, research, and private development purposes. All original assets and trademarks belong to their respective copyright holders.
 
 ## 9. Recent Engineering Specifications
+- [wloweb Map Warp Parity and Arrived State Lifecycle](file:///D:/GitHub/Wonderland-Private-Server/docs/76_wloweb_map_warp_parity_and_arrived_state_lifecycle.md)
 - [Quest NPC Dynamic Transformation and Visibility Engine](file:///D:/GitHub/Wonderland-Private-Server/docs/66_quest_npc_transformation_and_stage_swap_engine.md)
 
 

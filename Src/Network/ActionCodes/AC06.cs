@@ -31,6 +31,10 @@ namespace Network.ActionCodes
                 p.CurX = g.Unpack16();
                 p.CurY = g.Unpack16();
                 double movedDistance = Math.Sqrt(Math.Pow((int)p.CurX - previousX, 2) + Math.Pow((int)p.CurY - previousY, 2));
+                if (movedDistance > 0)
+                {
+                    p.Arrived = false;
+                }
 
                 p.CurMap?.Broadcast(Tools.FromFormat("bbdbww", 6, 1, p.CharID, direction, p.CurX, p.CurY));
 

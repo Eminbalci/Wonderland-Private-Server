@@ -388,10 +388,14 @@ namespace Game.Maps
                             }
                             else
                             {
-                                var warpEntry = (map.mapData ?? DataBase.GameDataBase.GlobalInstance?.EveDat?.GetMapData((ushort)map.MapID))?.WarpLoc?.FirstOrDefault(w => w.clickID == transitionType);
-                                if (warpEntry != null && warpEntry.mapID > 0)
+                                if (map.MapID == 11094 && player.CarnieReturnMap != null && player.CarnieReturnMap.DstMap > 0)
                                 {
-                                    var warp = new WarpData { DstMap = warpEntry.mapID, DstX_Axis = (ushort)warpEntry.x, DstY_Axis = (ushort)warpEntry.y };
+                                    player.CurMap?.Teleport(TeleportType.CmD, player, 0, player.CarnieReturnMap);
+                                    return true;
+                                }
+                                if (map.WarpEntry((ushort)transitionType, out ushort dstMap, out ushort dstX, out ushort dstY))
+                                {
+                                    var warp = new WarpData { DstMap = dstMap, DstX_Axis = dstX, DstY_Axis = dstY };
                                     player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
                                     return true;
                                 }
