@@ -1218,7 +1218,7 @@ namespace Game.Battle
             }
 
             var leader = battle.LeaderPlayer;
-            ushort bgId = (leader?.CurMap != null && leader.CurMap.MapID < 10000) ? (ushort)leader.CurMap.MapID : (ushort)1;
+            byte bgId = BattleBackdropManager.Resolve(leader);
 
             // Initialize combat state for each participating player
             foreach (var p in battle.AllPlayers)
@@ -1251,7 +1251,9 @@ namespace Game.Battle
 
                 SendPacket p250 = new SendPacket();
                 p250.PackArray(new byte[] { 11, 250 });
-                p250.Pack16(bgId);
+                // AC11:250: backdrop byte followed by independent formation metadata.
+                p250.Pack8(bgId);
+                p250.Pack8(BattleBackdropManager.CompatibilityFormationMetadata);
                 p250.Pack8((byte)selfFighter.Side);
                 p250.Pack8(2); // ftype = 2 (player)
                 p250.Pack32(selfFighter.ID);
