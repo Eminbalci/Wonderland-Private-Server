@@ -1066,8 +1066,9 @@ namespace Game.Maps
                                     talkId = (uint)op.dialog3 | ((uint)op.dialog4 << 16);
                                 }
                                 DebugSystem.Write($"[EveEventRuntime] -> Dispatched Speech TalkID=0x{talkId:X} ({talkId}) (isPlayer={playerSpeech}, speakerActor={(playerSpeech ? 0 : op.dialog1)}) to {player.CharName}");
+                                byte talkMode = (byte)(!playerSpeech && (IsNonRotatingActor(map, (ushort)op.dialog1) || IsNonRotatingActor(map, clickId)) ? 2 : 1);
                                 player.Send(BuildEventFrame(1, (byte)(playerSpeech ? 7 : 3), (ushort)(playerSpeech ? 0 : op.dialog1),
-                                    1, 0, talkId, step, branch.subIndex));
+                                    talkMode, 0, talkId, step, branch.subIndex));
                             }
                             // Mode 2 holds the client renderer until a map load (native
                             // main loop +0x566). Holding the first of these two movies

@@ -504,6 +504,7 @@ namespace Game.Maps
 
                             byte portrait = (byte)(op.dialog1 > 0 ? op.dialog1 : 3);
                             byte speakerClickId = (byte)(portrait == 7 ? 0 : clickId);
+                            byte talkMode = (byte)(IsNonRotatingActor(map, clickId) ? 2 : 1);
                             SendPacket dPkt = new SendPacket();
                             dPkt.Pack8(20);
                             dPkt.Pack8(1);
@@ -513,7 +514,7 @@ namespace Game.Maps
                             dPkt.Pack8(portrait);
                             dPkt.Pack8(speakerClickId);
                             dPkt.Pack8(0);
-                            dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
+                            dPkt.Pack8(talkMode); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
                             dPkt.Pack8(0);
                             dPkt.Pack8((byte)(talkId24 & 0xFF));
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
@@ -681,6 +682,7 @@ namespace Game.Maps
                                 }
                             }
 
+                            byte talkMode = (byte)(IsNonRotatingActor(map, (ushort)speakerClickId) || IsNonRotatingActor(map, clickId) ? 2 : 1);
                             SendPacket dPkt = new SendPacket();
                             dPkt.Pack8(20);
                             dPkt.Pack8(1);
@@ -690,7 +692,7 @@ namespace Game.Maps
                             dPkt.Pack8(portrait);
                             dPkt.Pack8(speakerClickId);
                             dPkt.Pack8(0);
-                            dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
+                            dPkt.Pack8(talkMode); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0);
                             dPkt.Pack8(0);
                             dPkt.Pack8((byte)(talkId24 & 0xFF));
                             dPkt.Pack8((byte)((talkId24 >> 8) & 0xFF));
@@ -1089,7 +1091,7 @@ namespace Game.Maps
             return false;
         }
 
-        public static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3, byte subIndex = 1)
+        public static SendPacket BuildDialoguePacket(byte speakerClickId, uint talkId, byte stepNum, byte portrait = 3, byte subIndex = 1, byte talkMode = 1)
         {
             SendPacket dPkt = new SendPacket();
             dPkt.Pack8(20);                                   // AC
@@ -1100,12 +1102,79 @@ namespace Game.Maps
             dPkt.Pack8(portrait);                             // portrait (3=NPC, 7=Player)
             dPkt.Pack8((byte)(portrait == 7 ? 0 : speakerClickId)); // npc click id (0 for player portrait)
             dPkt.Pack8(0);                                    // padding
-            dPkt.Pack8(1); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // flags
+            dPkt.Pack8(talkMode); dPkt.Pack8(0); dPkt.Pack8(0); dPkt.Pack8(0); // flags (1=turn toward player, 2=preserve facing)
             dPkt.Pack8(0);                                    // padding
             dPkt.Pack8((byte)(talkId & 0xFF));                // TalkID LSB
             dPkt.Pack8((byte)((talkId >> 8) & 0xFF));         // TalkID MID
             dPkt.Pack8((byte)((talkId >> 16) & 0xFF));        // TalkID MSB
             return dPkt;
+        }
+
+        /// <summary>
+        /// Determines whether an interactive map actor should preserve its authored facing
+        /// direction (talkMode=2) upon dialogue/interaction instead of rotating to face the player.
+        /// Applies to Guideposts (19020..19024), signs, monuments, statues, props, casks, and chests.
+        /// </summary>
+        public static bool IsNonRotatingActor(GameMap map, ushort clickId)
+        {
+            if (map == null || clickId == 0) return false;
+
+            ushort templateId = 0;
+            string name = null;
+
+            var qNpc = map.NpcList?.FirstOrDefault(n => n.CickID == clickId) as QuestNpc;
+            if (qNpc != null)
+            {
+                templateId = (ushort)qNpc.TemplateID;
+                name = qNpc.Name;
+            }
+            else
+            {
+                var mapNpc = map.mapData?.Npclist?.FirstOrDefault(n => n.clickId == clickId);
+                if (mapNpc != null)
+                {
+                    templateId = (ushort)mapNpc.npcId;
+                    name = mapNpc.Name;
+                }
+            }
+
+            if (templateId > 0)
+            {
+                // Authentic Guidepost templates (19020..19024)
+                if (templateId >= 19020 && templateId <= 19024) return true;
+                // Authentic props, scrolls, statues, gathering nodes, chests, barrels
+                if (templateId == 19025 || templateId == 19034 || templateId == 19035 ||
+                    templateId == 16006 || templateId == 19037 || templateId == 19038 || templateId == 19039)
+                    return true;
+
+                if (string.IsNullOrEmpty(name) || name.StartsWith("Template", StringComparison.OrdinalIgnoreCase) || name.Equals("Npc", StringComparison.OrdinalIgnoreCase))
+                {
+                    name = Game.DataFiles.SceneDataManager.GetNpcName(templateId);
+                }
+
+                var stats = Game.DataFiles.SceneDataManager.GetNpcBaseStats(templateId);
+                if (stats != null)
+                {
+                    // Npc.dat Type 6 = Prop, 8 = Inanimate/Guidepost, 9 = Object, 10 = Object
+                    if (stats.Type == 6 || stats.Type == 8 || stats.Type == 9 || stats.Type == 10)
+                        return true;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                string lower = name.Trim().ToLowerInvariant();
+                if (lower.Contains("guidepost") || lower.Contains("signpost") || lower.Contains("tabela") ||
+                    lower.Contains("levha") || lower.Contains("road sign") || lower.Contains("notice board") ||
+                    lower.Equals("sign") || lower.StartsWith("sign ") || lower.EndsWith(" sign") ||
+                    lower.Contains("monument") || lower.Contains("statue") || lower.Contains("cask") ||
+                    lower.Contains("chest") || lower.Contains("barrel") || lower.Contains("board"))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private struct MonkeyDialogueStep

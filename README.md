@@ -2072,6 +2072,8 @@ The repository includes a comprehensive 43-document master specification suite d
 
 77. [**77 - wloweb Map Warp Parity and Arrived State Lifecycle**](file:///D:/GitHub/Wonderland-Private-Server/docs/76_wloweb_map_warp_parity_and_arrived_state_lifecycle.md): Established 1:1 map warp and portal resolution parity with `wloweb` (`Wonderland-Gonline`). Replaced artificial 2500ms wall-clock cooldowns and 120px spawn proximity guards with the authentic discrete `Player.Arrived` state machine. `Arrived` is initialized to `true` upon entering any map or spawning via `Warp_In`, suppressing immediate portal bounce re-trigger (`AC 20:8` sends unfreeze `[20, 8]`). Once a player moves (`AC 06:1` waypoint accepted with `movedDistance > 0`), `Arrived` transitions to `false`, enabling portal and area steps. Added `IMap.DoorPortal` to link door NPCs directly to their destination portals and `IMap.WarpEntry` for scene transitions in EVE Opcode 1 (`transitionType`). Synchronized Carnie (11094) exit fallback (`11016, 1181, 243`), Astrologer Laura exit (`10000, 1892, 1655`), and prelude freeze/reset packet sequence. Verified with automated regression tests.
 
+78. [**78 - Guidepost and Inanimate Actor Rotation Prevention (TalkMode Parity)**](file:///D:/GitHub/Wonderland-Private-Server/docs/77_guidepost_and_inanimate_actor_rotation_prevention.md): Resolved guideposts, road signs, monuments, and inanimate prop actors rotating to face the player when clicked. Analyzed authentic WLO dialogue packet protocol (AC 20:1): Mode 1 (`npcTalkTurn`) commands the client to rotate the speaking actor toward the player, while Mode 2 preserves the authored orientation. Implemented `EveEventInterpreter.IsNonRotatingActor` covering Guidepost templates (19020..19024), props, scrolls, statues, chests, and Npc.dat Type 6, 8, 9, 10 entities. Updated Opcode 1, Opcode 2, and `BuildEventFrame` to dispatch `talkMode = 2` for non-rotating actors. Updated WebAssembly client (`npcs.go` `FaceConversation`) and verified with test suites.
+
 
 
 
@@ -2218,6 +2220,7 @@ Wonderland Online is a registered trademark of Chinese Gamer International Corp.
 
 ## 9. Recent Engineering Specifications
 - [wloweb Map Warp Parity and Arrived State Lifecycle](file:///D:/GitHub/Wonderland-Private-Server/docs/76_wloweb_map_warp_parity_and_arrived_state_lifecycle.md)
+- [Guidepost and Inanimate Actor Rotation Prevention](file:///D:/GitHub/Wonderland-Private-Server/docs/77_guidepost_and_inanimate_actor_rotation_prevention.md)
 - [Quest NPC Dynamic Transformation and Visibility Engine](file:///D:/GitHub/Wonderland-Private-Server/docs/66_quest_npc_transformation_and_stage_swap_engine.md)
 
 
