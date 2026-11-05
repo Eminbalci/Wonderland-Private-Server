@@ -1,229 +1,363 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 using Game;
 using Game.Maps;
-using System.Collections.Concurrent;
-using RCLibrary.Core.Networking;
 using Network;
-
+using Plugin;
+using RCLibrary.Core.Networking;
 
 namespace Server
 {
-    public class WloWorldNode
+    /// <summary>
+    /// Thread-safe game world cluster node managing local/external player collections
+    /// and integrating directly with MapManager.Instance.
+    /// </summary>
+    public class WloWorldNode : WorldServerHost
     {
-        Thread m_thrd;
-        bool Killnow;
+        private Thread m_thrd;
+        private volatile bool m_killNow;
 
-        //WloSocketListener m_listerner;
+        private readonly ConcurrentDictionary<uint, Player> m_localPlayers = new ConcurrentDictionary<uint, Player>();
+        private readonly ConcurrentDictionary<uint, Player> m_externalPlayers = new ConcurrentDictionary<uint, Player>();
 
-        List<Player> m_localPlayerlist, m_externalPlayerlist;
-
-        ConcurrentStack<Player> ConnectedQueue, DisconnectedQueue;
-
-        List<Game.GameMap> Maplist = new List<Game.GameMap>();
-
+        private readonly ConcurrentQueue<Player> m_connectedQueue = new ConcurrentQueue<Player>();
+        private readonly ConcurrentQueue<Player> m_disconnectedQueue = new ConcurrentQueue<Player>();
 
         public WloWorldNode()
         {
-            //  m_listerner = new WloSocketListener(6414);
-            m_localPlayerlist = new List<Player>();
-            m_externalPlayerlist = new List<Player>();
-            ConnectedQueue = new ConcurrentStack<Player>();
-            DisconnectedQueue = new ConcurrentStack<Player>();
         }
 
         #region Events
-        //void c_onNewClient(object sender, WloClient e)
-        //{
-        //    ConnectedQueue.Push(new Player(ref e));
-        //}
-        void onDisconnectedClient(Player src)
-        {
-            DisconnectedQueue.Push(src);
-            onPlayerDced?.Invoke(src);
-        }
+        public event Action<Player[]> onNewPlayer;
+        public event Action<Player> onPlayerDced;
 
-        public event Action<Player[]> onNewPlayer;//for Form
-        public event Action<Player> onPlayerDced;//for Form
+        private void onDisconnectedClient(Player src)
+        {
+            if (src == null) return;
+            m_disconnectedQueue.Enqueue(src);
+            try
+            {
+                onPlayerDced?.Invoke(src);
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WloWorldNode] Error in onPlayerDced invocation: {ex.Message}");
+            }
+        }
         #endregion
 
+        #region Properties
+        /// <summary>
+        /// Indicates if the node thread is active and running.
+        /// </summary>
+        public bool isRunning => m_thrd != null && m_thrd.IsAlive;
+
+        /// <summary>
+        /// Read-only snapshot of locally connected players.
+        /// </summary>
+        public IReadOnlyDictionary<uint, Player> LocalPlayers => m_localPlayers;
+
+        /// <summary>
+        /// Read-only snapshot of externally connected players.
+        /// </summary>
+        public IReadOnlyDictionary<uint, Player> ExternalPlayers => m_externalPlayers;
+
+        /// <summary>
+        /// Total connected players across local and external pools.
+        /// </summary>
+        public int Clients_Connected => m_localPlayers.Count + m_externalPlayers.Count;
+
+        /// <summary>
+        /// Total players currently active in-game.
+        /// </summary>
+        public int Clients_inGame => m_localPlayers.Values.Count(c => c != null && c.Flags != null && c.Flags.HasFlag(PlayerFlag.InMap)) +
+                                     m_externalPlayers.Values.Count(c => c != null && c.Flags != null && c.Flags.HasFlag(PlayerFlag.InMap));
+        #endregion
+
+        #region Lifecycle
+        /// <summary>
+        /// Starts the background map and client synchronization loop.
+        /// </summary>
         public void Open()
         {
-            ConnectedQueue = new ConcurrentStack<Player>();
-            DisconnectedQueue = new ConcurrentStack<Player>();
-            DebugSystem.Write("Starting Wlo Game World");
-            DebugSystem.Write("Created by IloveWlo Dev Team");
-            //GameEvents = new EventSystem();
-            //GameEvents.Start();
+            m_killNow = false;
+            DebugSystem.Write("[WloWorldNode] Starting Wlo Game World Node...");
 
-            m_thrd = new Thread(new ThreadStart(MainMapLoop));
-            m_thrd.IsBackground = true;
+            m_thrd = new Thread(new ThreadStart(MainMapLoop))
+            {
+                IsBackground = true,
+                Name = "WloWorldNode Map Loop"
+            };
             m_thrd.Init();
 
-            DebugSystem.Write("Starting TCP Listener");
-            //m_listerner.onNewClient += c_onNewClient;
-            //m_listerner.Initialize();
+            DebugSystem.Write("[WloWorldNode] World Node started successfully.");
         }
 
+        /// <summary>
+        /// Gracefully stops the node, disconnecting all local players with bounded timeout.
+        /// </summary>
         public void Close(bool force = false)
         {
-            DebugSystem.Write("Stopping Listener");
-            //m_listerner.Kill();
-            DebugSystem.Write("Disconnecting Players");
-            m_localPlayerlist.AsParallel().ForAll(c => c.Disconnect());
-            DebugSystem.Write("Waiting for Players to properly disconnect");
-            while (m_localPlayerlist.Count > 0)
-                Thread.Sleep(1);
-            DebugSystem.Write("Clearing External Players");
-            m_externalPlayerlist.Clear();
+            DebugSystem.Write("[WloWorldNode] Stopping World Node...");
+            m_killNow = true;
 
-            //GameEvents.Stop();
-            Killnow = true;
-        }
-
-        /// <summary>
-        /// If the Server is Currently Running
-        /// </summary>
-        public bool isRunning { get { return (m_thrd != null && m_thrd.IsAlive); } }
-        /// <summary>
-        /// If the Server is Listening for new connections
-        /// </summary>
-        //public bool isListening { get { return m_listerner.IsRunning(); } }
-
-
-        void MainLoop()
-        {
-
-
-            do
+            DebugSystem.Write("[WloWorldNode] Disconnecting local players...");
+            Parallel.ForEach(m_localPlayers.Values, p =>
             {
-                //    int a = 20;
-
-                //    while (ConnectedQueue.Count > 0 && (--a) > 0)
-                //        ConnectedPlayers.Add(ConnectedQueue.Dequeue());
-
-                //    foreach (var curplayer in ConnectedPlayers)
-                //        if (curplayer.IdleTimer() > new TimeSpan(0, 5, 0))
-                //        {
-                //            DebugSystem.Write(System.Drawing.Color.FromArgb(255, 128, 255), String.Format("Client {0} timed out at Login.", curplayer.SockAddress()));
-                //            curplayer.Disconnect();
-                //            DisconnectedQueue.Enqueue(curplayer);
-                //        }
-                //        else if (curplayer.isDisconnected())
-                //        {
-                //            DebugSystem.Write(System.Drawing.Color.FromArgb(255, 128, 255), String.Format("Client {0} has Disconnected.", curplayer.SockAddress()));
-                //            curplayer.Disconnect();
-                //            DisconnectedQueue.Enqueue(curplayer);
-                //        }
-
-                Thread.Sleep(5);
-            }
-            while (!Killnow);
-        }
-
-        void MainMapLoop()
-        {
-
-            ParallelOptions options = new ParallelOptions();
-
-            do
-            {
-                Player[] pitems = new Game.Player[50];
-
-                if (DisconnectedQueue.TryPopRange(pitems, 0, 50) > 0)
-                {
-                    Parallel.ForEach(pitems.Where(c => c != null).ToList(), src =>
-                    {
-                        m_localPlayerlist.Remove(src);
-                        DebugSystem.Write(String.Format("Client {0} has Disconnected.", src.SockAddress()));
-                    });
-                }
-
-                if (ConnectedQueue.TryPopRange(pitems, 0, 50) > 0)
-                {
-                    try
-                    {
-                        pitems.Where(c => c != null).AsParallel().ForAll(p => p.OnDisconnect = onDisconnectedClient);
-                        m_localPlayerlist.AddRange(pitems.Where(c => c != null).ToArray());
-                        onNewPlayer(pitems.Where(c => c != null).ToArray());
-                    }
-                    catch (Exception f) { DebugSystem.Write(new ExceptionData(f)); }
-
-                }
-
                 try
                 {
-                    options.MaxDegreeOfParallelism = 1 + (Maplist.Count / 2);
-                    Parallel.ForEach(Maplist, options, curMap => { curMap.Process(); });
+                    p?.Disconnect();
                 }
-                catch (AggregateException e)
-                {
-                    foreach (Exception f in e.InnerExceptions)
-                        DebugSystem.Write(new ExceptionData(f));
-                }
-                Thread.Sleep(1);
-            }
-            while (!Killnow);
+                catch { }
+            });
 
-            Parallel.ForEach(Maplist, curMap => curMap.Dispose());
+            // Bounded wait up to 3 seconds to prevent thread starvation or deadlocks
+            int waitBudgetMs = 3000;
+            while (!m_localPlayers.IsEmpty && waitBudgetMs > 0)
+            {
+                Thread.Sleep(50);
+                waitBudgetMs -= 50;
+            }
+
+            m_localPlayers.Clear();
+            m_externalPlayers.Clear();
+
+            if (m_thrd != null && m_thrd.IsAlive)
+            {
+                try
+                {
+                    m_thrd.Join(1000);
+                }
+                catch { }
+                m_thrd = null;
+            }
+
+            DebugSystem.Write("[WloWorldNode] World Node stopped.");
+        }
+        #endregion
+
+        #region Processing Loop
+        private void MainMapLoop()
+        {
+            while (!m_killNow)
+            {
+                try
+                {
+                    // 1. Process disconnected queue
+                    var dcedPlayers = new List<Player>();
+                    while (m_disconnectedQueue.TryDequeue(out var dced) && dced != null)
+                    {
+                        dcedPlayers.Add(dced);
+                    }
+
+                    if (dcedPlayers.Count > 0)
+                    {
+                        foreach (var src in dcedPlayers)
+                        {
+                            uint key = src.CharID != 0 ? src.CharID : src.UserID;
+                            if (key != 0)
+                            {
+                                m_localPlayers.TryRemove(key, out _);
+                            }
+                            DebugSystem.Write($"[WloWorldNode] Client {src.SockAddress()} has Disconnected.");
+                        }
+                    }
+
+                    // 2. Process connected queue
+                    var newPlayers = new List<Player>();
+                    while (m_connectedQueue.TryDequeue(out var conn) && conn != null)
+                    {
+                        newPlayers.Add(conn);
+                    }
+
+                    if (newPlayers.Count > 0)
+                    {
+                        foreach (var p in newPlayers)
+                        {
+                            p.OnDisconnect = onDisconnectedClient;
+                            uint key = p.CharID != 0 ? p.CharID : (p.UserID != 0 ? p.UserID : (uint)p.GetHashCode());
+                            m_localPlayers.AddOrUpdate(key, p, (k, old) => p);
+                        }
+
+                        try
+                        {
+                            onNewPlayer?.Invoke(newPlayers.ToArray());
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write($"[WloWorldNode] Error in onNewPlayer invocation: {ex.Message}");
+                        }
+                    }
+
+                    // 3. Process active maps directly via MapManager.Instance
+                    var activeMaps = MapManager.Instance?.ActiveMaps;
+                    if (activeMaps != null)
+                    {
+                        var maps = activeMaps.ToList();
+                        Parallel.ForEach(maps, curMap =>
+                        {
+                            try
+                            {
+                                curMap?.Process();
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[WloWorldNode] Error processing map {curMap?.MapID}: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WloWorldNode] Error in MainMapLoop: {ex.Message}");
+                }
+
+                Thread.Sleep(50);
+            }
+        }
+        #endregion
+
+        #region Player Operations & WorldServerHost
+        /// <summary>
+        /// Queues a new client connection for processing on this node.
+        /// </summary>
+        public void QueueNewPlayer(Player player)
+        {
+            if (player == null) return;
+            m_connectedQueue.Enqueue(player);
         }
 
-        /// <summary>
-        /// Broadcasts a packet to all who are in a Map
-        /// </summary>
-        /// <param CharacterName="pkt"></param>
+        public Player GetPlayer(uint charId)
+        {
+            if (charId == 0) return null;
+
+            if (m_localPlayers.TryGetValue(charId, out var local) && local != null)
+            {
+                return local;
+            }
+
+            var p = m_localPlayers.Values.FirstOrDefault(x => x != null && (x.CharID == charId || x.UserID == charId));
+            if (p != null) return p;
+
+            if (m_externalPlayers.TryGetValue(charId, out var external) && external != null)
+            {
+                return external;
+            }
+
+            return m_externalPlayers.Values.FirstOrDefault(x => x != null && (x.CharID == charId || x.UserID == charId));
+        }
+
+        public bool isOnline(uint charId)
+        {
+            var p = GetPlayer(charId);
+            return p != null && !p.isDisconnected();
+        }
+
+        public void DisconnectPlayer(uint charId)
+        {
+            var p = GetPlayer(charId);
+            if (p != null)
+            {
+                p.Disconnect();
+                p.CurMap?.RemovePlayer(p);
+                m_localPlayers.TryRemove(charId, out _);
+                m_externalPlayers.TryRemove(charId, out _);
+            }
+        }
+
+        public IEnumerable<Player> GetAllPlayers()
+        {
+            return m_localPlayers.Values
+                .Concat(m_externalPlayers.Values)
+                .Where(p => p != null && !p.isDisconnected())
+                .Distinct()
+                .ToList();
+        }
+
         public void Broadcast(SendPacket pkt)
         {
-            Broadcast(pkt, "ALL");
+            if (pkt == null) return;
+            var activeMaps = MapManager.Instance?.ActiveMaps;
+            if (activeMaps != null)
+            {
+                foreach (var m in activeMaps)
+                {
+                    m?.Broadcast(pkt);
+                }
+            }
         }
-        /// <summary>
-        /// Broadcasts a SendPacket to certain people who are in a Map
-        /// </summary>
-        /// <param name="pkt"></param>
-        /// <param name="To">"Multiple target IDs as string to send to specific people"</param>
+
+        public void Broadcast(SendPacket pkt, uint? directTo = null, bool exclude = false)
+        {
+            if (pkt == null) return;
+
+            if (directTo.HasValue && !exclude)
+            {
+                var target = GetPlayer(directTo.Value);
+                if (target != null)
+                {
+                    target.Send(pkt);
+                    return;
+                }
+            }
+
+            var activeMaps = MapManager.Instance?.ActiveMaps;
+            if (activeMaps != null)
+            {
+                foreach (var m in activeMaps)
+                {
+                    if (directTo.HasValue)
+                    {
+                        if (exclude)
+                            m?.Broadcast(pkt, "Ex", directTo.Value);
+                        else
+                            m?.Broadcast(pkt, "ID", directTo.Value);
+                    }
+                    else
+                    {
+                        m?.Broadcast(pkt);
+                    }
+                }
+            }
+        }
+
         public void Broadcast(SendPacket pkt, string parameter, params object[] To)
         {
-            Maplist.AsParallel().ForAll(c => c.Broadcast(pkt, parameter, To));
+            if (pkt == null) return;
+            var activeMaps = MapManager.Instance?.ActiveMaps;
+            if (activeMaps != null)
+            {
+                foreach (var m in activeMaps)
+                {
+                    m?.Broadcast(pkt, parameter, To);
+                }
+            }
         }
 
         public void BroadcastTo(SendPacket pkt, uint directTo = 0)
         {
-            // If directTo is specified, try to find the player and send only to them.
-            // If directTo is 0 (or not found?), maybe broadcast to all?
-            // Based on usage conventions:
+            if (pkt == null) return;
             if (directTo > 0)
             {
-                // Find player in local list
-                var p = m_localPlayerlist.FirstOrDefault(pl => pl.UserID == directTo);
+                var p = GetPlayer(directTo);
                 if (p != null)
                 {
                     p.Send(pkt);
+                    return;
                 }
-                else
+
+                var activeMaps = MapManager.Instance?.ActiveMaps;
+                if (activeMaps != null)
                 {
-                    // Search in maps? Or external players?
-                    // For now, if not in local list, we might assume they are not on this node or we broadcast to maps to find them.
-                    // But typically BroadcastTo implies sending to a specific target if known.
-                    // Let's iterate maps to find player?
-                    // Maplist.AsParallel().ForAll(m => m.Broadcast(pkt, "ID", directTo.ToString())); 
-                    // Wait, Map.Broadcast usually takes "ID" and string.
-                    // Let's implement robust finding.
-
-                    foreach (var m in Maplist)
+                    foreach (var m in activeMaps)
                     {
-                        // Assuming Map has a way to send to specific player or we search players in map.
-                        // Map.Broadcast signature: (SendPacket pkt, string parameter, params object[] To)
-                        // Maps usually have a list of players.
-                        // Let's use Map.Broadcast if it supports "TargetID".
+                        m?.Broadcast(pkt, "ID", directTo.ToString());
                     }
-                    // For simplicity / consistency with `cGlobal.WLO_World.BroadcastTo` usage in `Instance.cs`:
-                    // It seems to expect global broadcast or specific target.
-
-                    Broadcast(pkt, "ID", directTo.ToString());
                 }
             }
             else
@@ -232,39 +366,38 @@ namespace Server
             }
         }
 
-        /// <summary>
-        /// Searches for a Player and invokes the corresponding action
-        /// </summary>
-        /// <param name="src"></param>
-        /// <param name="work"></param>
-        /// <returns>true if succeeded or false if it failed</returns>
         public bool DoAction(uint src, Action<Player> work)
         {
-            //try
-            //{
-            //    if (cGlobal.gGameDataBase.isOnline((int)src))
-            //    {
-            //        work.Invoke(m_localPlayerlist.Single(c => c.CharID == src));
-            //        return true;
-            //    }
-            //}
-            //catch (Exception r) { DebugSystem.Write(new ExceptionData(r)); }
+            if (work == null) return false;
+            var p = GetPlayer(src);
+            if (p != null)
+            {
+                try
+                {
+                    work(p);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write(new ExceptionData(ex));
+                }
+            }
             return false;
         }
 
-        public async void onTelePort(TeleportType teletype, byte portalID, Game.Maps.WarpData map, Player target)
+        public void onTelePort(TeleportType teletype, byte portalID, Game.Maps.WarpData map, Player target)
         {
-
-            if (Maplist.Count(c => c.MapID == map.DstMap) == 0)
+            if (target == null || map == null) return;
+            Game.GameMap targetMap = Game.Maps.MapManager.Instance?.GetMap(map.DstMap);
+            if (targetMap != null)
             {
-                //Create Map
-                Game.GameMap tmp = Game.Maps.MapManager.Instance.GetMap(map.DstMap);
-                //cGlobal.gGameDataBase.SetupMap(ref tmp);
-                Maplist.Add(tmp);
+                targetMap.Teleport(teletype, target, portalID, map);
             }
-
-
-            Maplist.Single(c => c.MapID == map.DstMap).Teleport(teletype, target, portalID, map);
+            else
+            {
+                DebugSystem.Write($"[WloWorldNode] Map {map.DstMap} not found for teleport.");
+            }
         }
+        #endregion
     }
 }

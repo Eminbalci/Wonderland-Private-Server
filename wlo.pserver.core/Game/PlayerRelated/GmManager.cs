@@ -953,6 +953,230 @@ namespace Game.PlayerRelated
             infoReport = sb.ToString();
             return true;
         }
+
+        #region Ban & Security Management
+        public static bool IsIpBanned(string ip)
+        {
+            if (string.IsNullOrWhiteSpace(ip)) return false;
+            ip = ip.Trim();
+            if (ip.Contains(":")) ip = ip.Split(':')[0].Trim();
+            string safeIp = ip.Replace("'", "''");
+
+            try
+            {
+                var dt = RCLibrary.Core.DataBase.Query($"SELECT 1 FROM banned_ips WHERE ip = '{safeIp}' LIMIT 1;");
+                if (dt != null && dt.Rows.Count > 0) return true;
+
+                var dtLike = RCLibrary.Core.DataBase.Query($"SELECT 1 FROM banned_ips WHERE ip LIKE '{safeIp}:%' LIMIT 1;");
+                if (dtLike != null && dtLike.Rows.Count > 0) return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GmManager.IsIpBanned] Error: {ex.Message}");
+            }
+            return false;
+        }
+
+        public static bool IsAccountBanned(string username, uint userId = 0)
+        {
+            if (string.IsNullOrWhiteSpace(username) && userId == 0) return false;
+
+            string safeUser = (username ?? "").Trim().Replace("'", "''");
+
+            try
+            {
+                // Check users table for banned column
+                if (!string.IsNullOrEmpty(safeUser))
+                {
+                    var dtUser = RCLibrary.Core.DataBase.Query($"SELECT userID, banned FROM users WHERE username = '{safeUser}' LIMIT 1;");
+                    if (dtUser != null && dtUser.Rows.Count > 0)
+                    {
+                        var row = dtUser.Rows[0];
+                        if (row.Table.Columns.Contains("banned") && row["banned"] != DBNull.Value)
+                        {
+                            if (Convert.ToInt32(row["banned"]) == 1) return true;
+                        }
+                        if (userId == 0 && row.Table.Columns.Contains("userID") && row["userID"] != DBNull.Value)
+                        {
+                            userId = Convert.ToUInt32(row["userID"]);
+                        }
+                    }
+                }
+                else if (userId > 0)
+                {
+                    var dtUser = RCLibrary.Core.DataBase.Query($"SELECT banned FROM users WHERE userID = '{userId}' LIMIT 1;");
+                    if (dtUser != null && dtUser.Rows.Count > 0)
+                    {
+                        var row = dtUser.Rows[0];
+                        if (row.Table.Columns.Contains("banned") && row["banned"] != DBNull.Value)
+                        {
+                            if (Convert.ToInt32(row["banned"]) == 1) return true;
+                        }
+                    }
+                }
+
+                // Check banned_users table
+                string query;
+                if (!string.IsNullOrEmpty(safeUser) && userId > 0)
+                {
+                    query = $"SELECT 1 FROM banned_users WHERE username = '{safeUser}' OR userID = '{userId}' LIMIT 1;";
+                }
+                else if (!string.IsNullOrEmpty(safeUser))
+                {
+                    query = $"SELECT 1 FROM banned_users WHERE username = '{safeUser}' LIMIT 1;";
+                }
+                else
+                {
+                    query = $"SELECT 1 FROM banned_users WHERE userID = '{userId}' LIMIT 1;";
+                }
+
+                var dtBanned = RCLibrary.Core.DataBase.Query(query);
+                if (dtBanned != null && dtBanned.Rows.Count > 0) return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[GmManager.IsAccountBanned] Error: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        public static bool BanAccount(string username, string reason, out string statusMsg)
+        {
+            statusMsg = string.Empty;
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                statusMsg = "Invalid username.";
+                return false;
+            }
+
+            string cleanUser = username.Trim();
+            string safeUser = cleanUser.Replace("'", "''");
+
+            // Look up userId from users or active players
+            uint userId = 0;
+            var target = FindOnlinePlayer(cleanUser);
+            if (target != null && target.UserAcc != null)
+            {
+                userId = target.UserAcc.UserID;
+                cleanUser = target.UserAcc.UserName;
+                safeUser = cleanUser.Replace("'", "''");
+            }
+            else
+            {
+                try
+                {
+                    var dt = RCLibrary.Core.DataBase.Query($"SELECT userID FROM users WHERE username = '{safeUser}' LIMIT 1;");
+                    if (dt != null && dt.Rows.Count > 0 && dt.Rows[0]["userID"] != DBNull.Value)
+                    {
+                        userId = Convert.ToUInt32(dt.Rows[0]["userID"]);
+                    }
+                }
+                catch { }
+            }
+
+            // Duplicate ban check!
+            if (IsAccountBanned(cleanUser, userId))
+            {
+                statusMsg = $"Account '{cleanUser}' is already banned!";
+                DebugSystem.Write($"[GmManager.BanAccount] Rejected duplicate ban for '{cleanUser}'.");
+                return false;
+            }
+
+            string banReason = string.IsNullOrWhiteSpace(reason) ? "Rule violation" : reason.Trim();
+            string safeReason = banReason.Replace("'", "''");
+            string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+            try
+            {
+                RCLibrary.Core.DataBase.Execute($"INSERT OR REPLACE INTO banned_users (userID, username, reason, banned_at, banned_by) VALUES ('{userId}', '{safeUser}', '{safeReason}', '{now}', 'Admin');");
+                try
+                {
+                    string updateCond = userId > 0 ? $"WHERE userID = '{userId}' OR username = '{safeUser}'" : $"WHERE username = '{safeUser}'";
+                    RCLibrary.Core.DataBase.Execute($"UPDATE users SET banned = 1 {updateCond};");
+                }
+                catch { }
+
+                // Disconnect any matching online players
+                var online = GetAllOnlinePlayers();
+                if (online != null)
+                {
+                    foreach (var p in online.Where(pl => (pl.UserAcc != null && pl.UserAcc.UserName.Equals(cleanUser, StringComparison.OrdinalIgnoreCase)) ||
+                                                         (userId > 0 && pl.UserID == userId) ||
+                                                         (pl.CharName != null && pl.CharName.Equals(cleanUser, StringComparison.OrdinalIgnoreCase))))
+                    {
+                        try
+                        {
+                            p.Send(Tools.FromFormat("bb", 1, 7)); // Native Account Banned packet
+                            p.Disconnect();
+                        }
+                        catch { }
+                    }
+                }
+
+                statusMsg = $"Account '{cleanUser}' (ID: {userId}) has been banned for: {banReason}";
+                DebugSystem.Write($"[GmManager.BanAccount] {statusMsg}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                statusMsg = $"Error banning account '{cleanUser}': {ex.Message}";
+                DebugSystem.Write($"[GmManager.BanAccount] {statusMsg}");
+                return false;
+            }
+        }
+
+        public static bool UnbanAccount(string username, out string statusMsg)
+        {
+            statusMsg = string.Empty;
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                statusMsg = "Invalid username.";
+                return false;
+            }
+
+            string cleanUser = username.Trim();
+            string safeUser = cleanUser.Replace("'", "''");
+
+            uint userId = 0;
+            try
+            {
+                var dt = RCLibrary.Core.DataBase.Query($"SELECT userID FROM users WHERE username = '{safeUser}' LIMIT 1;");
+                if (dt != null && dt.Rows.Count > 0 && dt.Rows[0]["userID"] != DBNull.Value)
+                {
+                    userId = Convert.ToUInt32(dt.Rows[0]["userID"]);
+                }
+            }
+            catch { }
+
+            if (!IsAccountBanned(cleanUser, userId))
+            {
+                statusMsg = $"Account '{cleanUser}' is not banned.";
+                return false;
+            }
+
+            try
+            {
+                string whereCond = userId > 0 ? $"WHERE userID = '{userId}' OR username = '{safeUser}'" : $"WHERE username = '{safeUser}'";
+                RCLibrary.Core.DataBase.Execute($"DELETE FROM banned_users {whereCond};");
+                try
+                {
+                    RCLibrary.Core.DataBase.Execute($"UPDATE users SET banned = 0 {whereCond};");
+                }
+                catch { }
+
+                statusMsg = $"Account '{cleanUser}' has been unbanned.";
+                DebugSystem.Write($"[GmManager.UnbanAccount] {statusMsg}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                statusMsg = $"Error unbanning account '{cleanUser}': {ex.Message}";
+                DebugSystem.Write($"[GmManager.UnbanAccount] {statusMsg}");
+                return false;
+            }
+        }
+        #endregion
         #endregion
     }
 }

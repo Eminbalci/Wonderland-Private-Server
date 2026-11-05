@@ -464,6 +464,47 @@ namespace Network.ActionCodes {
                             break;
                         #endregion
 
+                        #region Ban & Unban Account Commands
+                        case ":ban":
+                        case "/ban": {
+                                try {
+                                    if (words.Length >= 2) {
+                                        string targetName = words[1];
+                                        string reason = words.Length >= 3 ? str.Substring(words[0].Length + words[1].Length + 2).Trim() : "Banned by GM";
+                                        if (Game.PlayerRelated.GmManager.BanAccount(targetName, reason, out string statusMsg)) {
+                                            p.SendSystemMessage($"[GM] {statusMsg}");
+                                        } else {
+                                            p.SendSystemMessage($"[GM] Ban rejected: {statusMsg}");
+                                        }
+                                    } else {
+                                        p.SendSystemMessage("[GM] Usage: :ban <usernameOrCharacterName> [reason]");
+                                    }
+                                } catch (Exception ex) {
+                                    p.SendSystemMessage($"[GM] Error: {ex.Message}");
+                                }
+                            }
+                            break;
+
+                        case ":unban":
+                        case "/unban": {
+                                try {
+                                    if (words.Length >= 2) {
+                                        string targetName = words[1];
+                                        if (Game.PlayerRelated.GmManager.UnbanAccount(targetName, out string statusMsg)) {
+                                            p.SendSystemMessage($"[GM] {statusMsg}");
+                                        } else {
+                                            p.SendSystemMessage($"[GM] Unban rejected: {statusMsg}");
+                                        }
+                                    } else {
+                                        p.SendSystemMessage("[GM] Usage: :unban <username>");
+                                    }
+                                } catch (Exception ex) {
+                                    p.SendSystemMessage($"[GM] Error: {ex.Message}");
+                                }
+                            }
+                            break;
+                        #endregion
+
                         #region Summon / Bring Player Command
                         case ":summon":
                         case "/summon":
@@ -1050,7 +1091,7 @@ namespace Network.ActionCodes {
                         case "/cmd": {
                                 if (Game.PlayerRelated.GmManager.IsGm(p)) {
                                     p.SendSystemMessage("[Admin/Server] :broadcast <msg> | :reload [all|quests|mall|drops] | :droprate <rate> | :online | :shutdown [s]");
-                                    p.SendSystemMessage("[Admin/Player] :tp <char> | :summon <char> | :kick <char> | :kickall | :jail <char> [m] | :unjail <char> | :mute <char> [m] | :unmute <char> | :info <char>");
+                                    p.SendSystemMessage("[Admin/Player] :tp <char> | :summon <char> | :kick <char> | :kickall | :ban <char/user> [reason] | :unban <user> | :jail <char> [m] | :unjail <char> | :mute <char> [m] | :unmute <char> | :info <char>");
                                     p.SendSystemMessage("[Player Cheat] :maxstat | :heal | :god | :invis | :level <1-200> | :points <n> | :restat | :gold <n> | :im <n> | :exp <n> | :allskills [gr] | :clearskills | :repair | :stat <s c i w a> | :item <id> [cnt] | :buy <id> [cnt] | :tent | :clearinv");
                                     p.SendSystemMessage("[Companion] :pet <id> [name] | :petlvl <lvl> | :petexp <n> | :amity [1-100] | :rebirth");
                                     p.SendSystemMessage("[Combat & Move] :winbattle | :battle <npcId> | :town <name> | :warp <map> [x] [y] | :summonall | :carnie | :unride");

@@ -405,10 +405,10 @@ namespace Wonderland_Private_Server
                 }),
                 new NavCategory("World", new List<NavItem>
                 {
-                    new NavItem("Map NPCs & Events", () => FindTabByTitle("Map NPCs & Events")),
+                    new NavItem("Live Map & NPCs", () => this.tabMapNpcStudio ?? FindTabByTitle("Map NPCs & Events")),
                     new NavItem("Portals", () => this.tabPagePortals),
-                    new NavItem("NPC Names", () => FindTabByTitle("NPC Name Resolver")),
-                    new NavItem("Dialogue IDs", () => FindTabByTitle("Talk ID Resolver"))
+                    new NavItem("NPC Names", () => this.tabNpcResolver ?? FindTabByTitle("NPC Name Resolver")),
+                    new NavItem("Dialogue IDs", () => this.tabTalkResolver ?? FindTabByTitle("Talk ID Resolver"))
                 }),
                 new NavCategory("Economy", new List<NavItem>
                 {

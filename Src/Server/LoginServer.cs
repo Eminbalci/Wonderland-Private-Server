@@ -76,6 +76,15 @@ namespace Server
                         m_bKeepAlive = bKeepAlive;
                         client = new SocketClient(m_Socket.Accept());
                         client.SetBlock(false);
+
+                        string rawIp = client.IPAddr?.ToString() ?? client.SockAddress();
+                        if (IsIpBanned(rawIp))
+                        {
+                            DebugSystem.Write($"[LoginServer] Rejected connection from banned IP: {rawIp}");
+                            client.Disconnect();
+                            continue;
+                        }
+
                         bool found = false;
                         DebugSystem.Write(string.Format("New client [{0}] connected from Port " + 6414 + ".", client.SockAddress()));
 
@@ -202,6 +211,39 @@ namespace Server
             foreach (var c in ClientList)
                 foreach (var p in c.Values)
                     if (p.UserAcc.UserID == userID) p.Disconnect();
+        }
+
+        public bool IsIpBanned(string ip)
+        {
+            if (string.IsNullOrWhiteSpace(ip)) return false;
+            ip = ip.Trim();
+            if (ip.Contains(":")) ip = ip.Split(':')[0].Trim();
+            string safeIp = ip.Replace("'", "''");
+
+            try
+            {
+                var dt = cGlobal.gUserDataBase?.GetDataTable($"SELECT 1 FROM banned_ips WHERE ip = '{safeIp}' LIMIT 1;");
+                if (dt != null && dt.Rows.Count > 0) return true;
+
+                var dtLike = cGlobal.gUserDataBase?.GetDataTable($"SELECT 1 FROM banned_ips WHERE ip LIKE '{safeIp}:%' LIMIT 1;");
+                if (dtLike != null && dtLike.Rows.Count > 0) return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[LoginServer] Error checking banned IP in gUserDataBase: {ex.Message}");
+            }
+
+            try
+            {
+                if (cGlobal.gGameDataBase != null)
+                {
+                    var dtGame = cGlobal.gGameDataBase.GetDataTable($"SELECT 1 FROM banned_ips WHERE ip = '{safeIp}' LIMIT 1;");
+                    if (dtGame != null && dtGame.Rows.Count > 0) return true;
+                }
+            }
+            catch { }
+
+            return false;
         }
     }
 }

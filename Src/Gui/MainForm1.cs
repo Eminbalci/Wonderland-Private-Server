@@ -5917,7 +5917,7 @@ namespace Wonderland_Private_Server
                 {
                     Text = " Reload",
                     Location = new System.Drawing.Point(920, 8),
-                    Size = new System.Drawing.Size(80, 25),
+                    Size = new System.Drawing.Size(75, 25),
                     BackColor = System.Drawing.Color.LightCyan,
                     Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
                 };
@@ -5927,8 +5927,52 @@ namespace Wonderland_Private_Server
                     LoadNpcsForMap(_currentSelectedMapId);
                 };
 
+                Button btnWarpHere = new Button
+                {
+                    Text = " Warp Player Here",
+                    Location = new System.Drawing.Point(1000, 8),
+                    Size = new System.Drawing.Size(135, 25),
+                    BackColor = System.Drawing.Color.LightSkyBlue,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnWarpHere.Click += (s, e) =>
+                {
+                    var target = GetSelectedGmPlayer() ?? (cmbLivePlayerForNpc?.SelectedItem as Player);
+                    if (target == null)
+                    {
+                        MessageBox.Show("Please select an online player first (from Live Player dropdown or GM Studio).", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    target.TeleportPlayer(_currentSelectedMapId.ToString());
+                    MessageBox.Show($"Warped player '{target.CharName}' to Map #{_currentSelectedMapId}.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadNpcsForMap(_currentSelectedMapId);
+                };
+
+                Button btnClearGround = new Button
+                {
+                    Text = " Clear Drops",
+                    Location = new System.Drawing.Point(1140, 8),
+                    Size = new System.Drawing.Size(95, 25),
+                    BackColor = System.Drawing.Color.MistyRose,
+                    Font = new System.Drawing.Font("Segoe UI", 8.5f, System.Drawing.FontStyle.Bold)
+                };
+                btnClearGround.Click += (s, e) =>
+                {
+                    var activeMap = Game.Maps.MapManager.Instance?.GetMap(_currentSelectedMapId);
+                    if (activeMap != null)
+                    {
+                        activeMap.GroundItemList?.Clear();
+                        MessageBox.Show($"Cleared ground drops on Map #{_currentSelectedMapId}.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        LoadNpcsForMap(_currentSelectedMapId);
+                    }
+                    else
+                    {
+                        MessageBox.Show($"Map #{_currentSelectedMapId} has no active instances in memory.", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                };
+
                 pnlTopMap.Controls.AddRange(new Control[] {
-                    lblSelectMap, cmbMapSelect, lblDirect, numMapSelect, lblFilterMap, txtMapFilter, lblMapStatsBadge, btnReloadMaps
+                    lblSelectMap, cmbMapSelect, lblDirect, numMapSelect, lblFilterMap, txtMapFilter, lblMapStatsBadge, btnReloadMaps, btnWarpHere, btnClearGround
                 });
 
                 // Main SplitContainer: Left Panel = NPCs on Map | Right Panel = Event Sequence Flow
@@ -6158,12 +6202,88 @@ namespace Wonderland_Private_Server
             try
             {
                 dtMapNpcs = new System.Data.DataTable();
+                dtMapNpcs.Columns.Add("Type", typeof(string));
                 dtMapNpcs.Columns.Add("Click ID", typeof(ushort));
                 dtMapNpcs.Columns.Add("NPC Name", typeof(string));
                 dtMapNpcs.Columns.Add("Template ID", typeof(ushort));
                 dtMapNpcs.Columns.Add("Position", typeof(string));
                 dtMapNpcs.Columns.Add("Events / Script", typeof(string));
 
+                int playersCount = 0;
+                int stallsCount = 0;
+                int portalCount = 0;
+                int dynamicNpcCount = 0;
+
+                // 1. Live Players on Map
+                var liveMap = Game.Maps.MapManager.Instance?.GetMap(mapId);
+                if (liveMap != null && liveMap.PlayersList != null)
+                {
+                    lock (liveMap.PlayersList)
+                    {
+                        foreach (var pl in liveMap.PlayersList)
+                        {
+                            if (pl == null) continue;
+                            playersCount++;
+                            dtMapNpcs.Rows.Add("[Player]", (ushort)pl.CharID, pl.CharName, (ushort)pl.Body, $"({pl.CurX}, {pl.CurY})", $"Online Lv.{pl.Level} | HP:{pl.HP}/{pl.MaxHP} | SP:{pl.SP}/{pl.MaxSP}");
+                        }
+                    }
+                }
+
+                // 2. Active Player Stalls / Bazaars on Map
+                var stallEngine = cGlobal.Experimental?.PlayerStallBazaar;
+                if (stallEngine != null)
+                {
+                    foreach (var stall in stallEngine.GetStalls())
+                    {
+                        if (stall.MapId == mapId)
+                        {
+                            stallsCount++;
+                            dtMapNpcs.Rows.Add("[Bazaar Stall]", (ushort)stall.VendorCharId, $"{stall.VendorName} [{stall.StallName}]", (ushort)0, $"({stall.X}, {stall.Y})", $"Active Shop ({stall.Items?.Count ?? 0} items for sale)");
+                        }
+                    }
+                }
+
+                // 3. Portals on Map
+                var portalsTable = cGlobal.gPortalDataBase?.GetPortalsForMap(mapId);
+                if (portalsTable != null)
+                {
+                    var destTable = cGlobal.gPortalDataBase?.GetDestinationsForMap(mapId);
+                    foreach (System.Data.DataRow prow in portalsTable.Rows)
+                    {
+                        portalCount++;
+                        byte pid = Convert.ToByte(prow["portalID"]);
+                        byte did = Convert.ToByte(prow["destID"]);
+                        string destInfo = $"Destination #{did}";
+                        if (destTable != null)
+                        {
+                            foreach (System.Data.DataRow drow in destTable.Rows)
+                            {
+                                if (Convert.ToByte(drow["destID"]) == did)
+                                {
+                                    ushort targetMap = Convert.ToUInt16(drow["dstMap"]);
+                                    ushort tx = Convert.ToUInt16(drow["dstX"]);
+                                    ushort ty = Convert.ToUInt16(drow["dstY"]);
+                                    destInfo = $"-> Map #{targetMap} ({GetMapDisplayName(targetMap)}) at ({tx}, {ty})";
+                                    break;
+                                }
+                            }
+                        }
+                        dtMapNpcs.Rows.Add("[Portal]", (ushort)pid, $"Portal #{pid}", (ushort)did, "-", destInfo);
+                    }
+                }
+
+                // 4. Dynamic NPCs on Map
+                if (liveMap != null && liveMap.NpcList != null)
+                {
+                    foreach (var dNpc in liveMap.NpcList)
+                    {
+                        if (dNpc == null) continue;
+                        dynamicNpcCount++;
+                        dtMapNpcs.Rows.Add("[Dynamic NPC]", dNpc.CickID, $"Dynamic #{dNpc.CickID}", (ushort)0, $"({dNpc.X}, {dNpc.Y})", "Active Spawner Entity");
+                    }
+                }
+
+                // 5. Static NPCs from EveDat
                 var eve = cGlobal.gGameDataBase?.EveDat;
                 var mapData = eve?.GetMapData(mapId);
 
@@ -6185,7 +6305,7 @@ namespace Wonderland_Private_Server
                             ? $" {evCount} Event Trigger{(evCount > 1 ? "s" : "")}"
                             : "Static NPC / Prop";
 
-                        dtMapNpcs.Rows.Add(npc.clickId, nName, npc.npcId, $"({npc.x}, {npc.y})", scriptText);
+                        dtMapNpcs.Rows.Add("[Quest NPC]", npc.clickId, nName, npc.npcId, $"({npc.x}, {npc.y})", scriptText);
                     }
                 }
 
@@ -6197,12 +6317,12 @@ namespace Wonderland_Private_Server
                 int totalEvents = mapData?.Events != null ? mapData.Events.Count : 0;
                 if (lblMapStatsBadge != null)
                 {
-                    lblMapStatsBadge.Text = $"Map #{mapId} ({GetMapDisplayName(mapId)}): {dtMapNpcs.Rows.Count} NPCs | {totalEvents} Event Entries";
+                    lblMapStatsBadge.Text = $"Map #{mapId} ({GetMapDisplayName(mapId)}): {playersCount} Online | {dtMapNpcs.Rows.Count} Entities | {portalCount} Portals | {stallsCount} Stalls | {totalEvents} Scripts";
                 }
 
                 if (lblNpcCountBadge != null)
                 {
-                    lblNpcCountBadge.Text = $"{dtMapNpcs.Rows.Count} NPCs";
+                    lblNpcCountBadge.Text = $"{dtMapNpcs.Rows.Count} Entities";
                 }
 
                 if (dgvMapNpcs != null && dgvMapNpcs.Rows.Count > 0)
@@ -6213,7 +6333,7 @@ namespace Wonderland_Private_Server
                 else
                 {
                     if (rtbEventSequenceFlow != null) rtbEventSequenceFlow.Clear();
-                    if (lblSelectedNpcHeader != null) lblSelectedNpcHeader.Text = " Selected NPC: (No NPCs on this map)";
+                    if (lblSelectedNpcHeader != null) lblSelectedNpcHeader.Text = " Selected Entity: (No entities on this map)";
                 }
             }
             catch (Exception ex)
@@ -6237,17 +6357,17 @@ namespace Wonderland_Private_Server
                     string safe = s.Replace("'", "''");
                     if (ushort.TryParse(s, out ushort numVal))
                     {
-                        dtMapNpcs.DefaultView.RowFilter = $"[Click ID] = {numVal} OR [Template ID] = {numVal} OR [NPC Name] LIKE '%{safe}%'";
+                        dtMapNpcs.DefaultView.RowFilter = $"[Click ID] = {numVal} OR [Template ID] = {numVal} OR [NPC Name] LIKE '%{safe}%' OR [Type] LIKE '%{safe}%'";
                     }
                     else
                     {
-                        dtMapNpcs.DefaultView.RowFilter = $"[NPC Name] LIKE '%{safe}%' OR [Events / Script] LIKE '%{safe}%'";
+                        dtMapNpcs.DefaultView.RowFilter = $"[Type] LIKE '%{safe}%' OR [NPC Name] LIKE '%{safe}%' OR [Events / Script] LIKE '%{safe}%'";
                     }
                 }
 
                 if (lblNpcCountBadge != null)
                 {
-                    lblNpcCountBadge.Text = $"Showing {dtMapNpcs.DefaultView.Count} of {dtMapNpcs.Rows.Count} NPCs";
+                    lblNpcCountBadge.Text = $"Showing {dtMapNpcs.DefaultView.Count} of {dtMapNpcs.Rows.Count} Entities";
                 }
             }
             catch { }
@@ -6262,21 +6382,110 @@ namespace Wonderland_Private_Server
 
                 if (row.Cells["Click ID"].Value == null) return;
 
+                string entityType = row.Cells["Type"]?.Value?.ToString() ?? "[Quest NPC]";
                 ushort clickId = Convert.ToUInt16(row.Cells["Click ID"].Value);
-                string npcName = row.Cells["NPC Name"].Value?.ToString() ?? $"NPC #{clickId}";
+                string npcName = row.Cells["NPC Name"].Value?.ToString() ?? $"Entity #{clickId}";
                 ushort templateId = Convert.ToUInt16(row.Cells["Template ID"].Value ?? 0);
 
                 if (lblSelectedNpcHeader != null)
                 {
-                    lblSelectedNpcHeader.Text = $" Selected: {npcName} (Click ID: {clickId}, TID: {templateId}) on Map #{_currentSelectedMapId}";
+                    lblSelectedNpcHeader.Text = $" Selected: {entityType} '{npcName}' (ID: {clickId}, TID: {templateId}) on Map #{_currentSelectedMapId}";
                 }
 
                 if (rtbEventSequenceFlow != null)
                 {
-                    rtbEventSequenceFlow.Text = FormatNpcEventSequenceFlow(_currentSelectedMapId, clickId, npcName, templateId);
+                    rtbEventSequenceFlow.Text = FormatWorldEntityDetails(_currentSelectedMapId, entityType, clickId, npcName, templateId);
                 }
             }
             catch { }
+        }
+
+        private string FormatWorldEntityDetails(ushort mapId, string entityType, ushort clickId, string name, ushort templateId)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("===============================================================================");
+            sb.AppendLine($" MAP #{mapId} ({GetMapDisplayName(mapId)}) -> {entityType} {name} (ID: {clickId})");
+            sb.AppendLine("===============================================================================\r\n");
+
+            if (entityType == "[Player]")
+            {
+                Player pl = cGlobal.gWorld?.GetPlayer(clickId);
+                if (pl == null)
+                {
+                    var activeMap = Game.Maps.MapManager.Instance?.GetMap(mapId);
+                    pl = activeMap?.PlayersList?.FirstOrDefault(p => p.CharID == clickId);
+                }
+
+                if (pl != null)
+                {
+                    sb.AppendLine($" Character Name : {pl.CharName}");
+                    sb.AppendLine($" Character ID   : {pl.CharID}");
+                    sb.AppendLine($" User Account   : {pl.UserAcc?.UserName ?? "N/A"} (User ID: {pl.UserAcc?.UserID ?? 0})");
+                    sb.AppendLine($" Level & Reborn : Level {pl.Level} (Reborn: {(pl.RebornJob > 0 ? "Yes, Job " + pl.RebornJob : "No")})");
+                    sb.AppendLine($" Vitals (HP/SP) : HP {pl.HP}/{pl.MaxHP} | SP {pl.SP}/{pl.MaxSP}");
+                    sb.AppendLine($" Attributes     : STR {pl.baseStr} | CON {pl.baseCon} | INT {pl.baseInt} | WIS {pl.baseWis} | AGI {pl.baseAgi}");
+                    sb.AppendLine($" Unspent Points : SkillPoints = {pl.SkillPoints}");
+                    sb.AppendLine($" World Position : X = {pl.CurX}, Y = {pl.CurY}");
+                    sb.AppendLine($" Settings Flags : AllowPK={pl.AllowPK}, RejectTeam={pl.RejectTeam}, TradeLock={pl.TradeLock}");
+                    sb.AppendLine($" Guild & Gold   : GuildID={pl.GuildID} | Gold={pl.Gold} | Bank={pl.BankGold}");
+                }
+                else
+                {
+                    sb.AppendLine(" Player details are currently not in active memory.");
+                }
+                return sb.ToString();
+            }
+
+            if (entityType == "[Bazaar Stall]")
+            {
+                var stallEngine = cGlobal.Experimental?.PlayerStallBazaar;
+                var stall = stallEngine?.GetStalls()?.FirstOrDefault(s => s.VendorCharId == clickId);
+                if (stall != null)
+                {
+                    sb.AppendLine($" Shop Title  : {stall.StallName}");
+                    sb.AppendLine($" Stall Owner : {stall.VendorName} (CharID: {stall.VendorCharId})");
+                    sb.AppendLine($" Coordinates : ({stall.X}, {stall.Y})");
+                    sb.AppendLine($" Items for Sale ({stall.Items?.Count ?? 0} total):");
+                    if (stall.Items != null)
+                    {
+                        foreach (var it in stall.Items)
+                        {
+                            sb.AppendLine($"   - Slot #{it.SlotIndex}: Item #{it.ItemId} ({it.ItemName}) x{it.Quantity} | Price: {it.PriceGold}g");
+                        }
+                    }
+                }
+                else
+                {
+                    sb.AppendLine(" Stall information not found.");
+                }
+                return sb.ToString();
+            }
+
+            if (entityType == "[Portal]")
+            {
+                sb.AppendLine($" Source Map ID   : {mapId} ({GetMapDisplayName(mapId)})");
+                sb.AppendLine($" Portal Click ID : {clickId}");
+                sb.AppendLine($" Destination ID  : {templateId}");
+                var destTable = cGlobal.gPortalDataBase?.GetDestinationsForMap(mapId);
+                if (destTable != null)
+                {
+                    foreach (System.Data.DataRow drow in destTable.Rows)
+                    {
+                        if (Convert.ToByte(drow["destID"]) == (byte)templateId)
+                        {
+                            ushort targetMap = Convert.ToUInt16(drow["dstMap"]);
+                            ushort tx = Convert.ToUInt16(drow["dstX"]);
+                            ushort ty = Convert.ToUInt16(drow["dstY"]);
+                            sb.AppendLine($" TARGET MAP     : Map #{targetMap} ({GetMapDisplayName(targetMap)})");
+                            sb.AppendLine($" TARGET SPAWN   : ({tx}, {ty})");
+                            break;
+                        }
+                    }
+                }
+                return sb.ToString();
+            }
+
+            return FormatNpcEventSequenceFlow(mapId, clickId, name, templateId);
         }
 
         private string FormatNpcEventSequenceFlow(ushort mapId, ushort clickId, string npcName, ushort templateId)

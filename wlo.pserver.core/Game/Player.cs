@@ -558,6 +558,7 @@ namespace Game
         public TimeSpan TimeIdle { get { return m_socket.Elapsed(); } }
         public bool isDisconnected() { return m_socket.isDisconnected(); }
         public String SockAddress() { return m_socket.SockAddress(); }
+        public System.Net.IPAddress IPAddr => m_socket?.IPAddr;
         public String LocalPort() { return m_socket.LocalPort(); }
         #endregion
 
@@ -598,7 +599,7 @@ namespace Game
             }
         }
         //public bool BlockSave { get; set; }
-        //public bool inGame { get; set; }
+        public bool inGame { get; set; }
         //public PlayerState State
         //{
         //    get

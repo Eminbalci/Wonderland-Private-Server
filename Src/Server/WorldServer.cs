@@ -17,138 +17,86 @@ using RCLibrary.Core.Networking;
 namespace Server
 {
     /// <summary>
-    /// Handles the Recv and SendPacket Proccesing of all clients
+    /// Handles world server lifecycle, player login processing, map synchronization,
+    /// periodic autosaves, and network broadcast operations.
     /// </summary>
     public class WorldServer : MapSystem, WorldServerHost, MapHost
     {
-        Thread Mainthrd, Eventthrd, AutoSaveThread, MapTickThread;
-        bool killFlag;
-        readonly ManualResetEvent mylock;
-        //readonly Semaphore ProcessLock,SendLock;
-        //public event onWorldEvent WorldEvent;
-        //event wOnlineCheck OnlineCheck;
-        //event wDCPlayerEvent DCPlayer;
+        private Thread Mainthrd, Eventthrd, AutoSaveThread, MapTickThread;
+        private volatile bool killFlag;
+        private readonly ManualResetEvent mylock;
 
         /// <summary>
-        /// List of Players
+        /// Thread-safe queue of incoming players pending world login processing.
         /// </summary>
-        Queue<Player> QueuedPlayerLogin;
-
+        private readonly ConcurrentQueue<Player> QueuedPlayerLogin;
 
         /// <summary>
-        /// Maps loaded into the world
+        /// Underlying concurrent map dictionary synchronized with MapManager.Instance.ActiveMaps.
         /// </summary>
-        new ConcurrentDictionary<ushort, GameMap> MapList;
+        private readonly ConcurrentDictionary<ushort, GameMap> _mapList;
 
-        // System.Diagnostics.Stopwatch exptimer = new System.Diagnostics.Stopwatch();
         /// <summary>
-        /// Clients that are in the Process of Logging into the Server
+        /// Current state of the world server.
         /// </summary>
-        //public int Clients_Connected { get { int a = 0; ConnectedPlayers.Values.ToList().ForEach(c => a += c.Values.Count); return a; } }
-        ///// <summary>
-        ///// Clients playing in the Server
-        ///// </summary>
-        //public int Clients_inGame { get { int a = 0; ConnectedPlayers.Values.ToList().ForEach(c => a += c.Values.Count(n => n.inGame)); return a; } }
+        public WorldServerState State { get; private set; } = WorldServerState.Stopped;
+
+        /// <summary>
+        /// Maps loaded into the world, synchronized with MapManager.Instance.ActiveMaps.
+        /// </summary>
+        public new ConcurrentDictionary<ushort, GameMap> MapList
+        {
+            get
+            {
+                SyncMapList();
+                return _mapList;
+            }
+        }
 
         public WorldServer(PluginManager src) : base(src)
         {
             mylock = new ManualResetEvent(false);
-            QueuedPlayerLogin = new Queue<Player>();
-            MapList = new ConcurrentDictionary<ushort, GameMap>();
+            QueuedPlayerLogin = new ConcurrentQueue<Player>();
+            _mapList = new ConcurrentDictionary<ushort, GameMap>();
+            base.MapList = _mapList;
+
             new MapManager(); // Initialize Singleton
-            Game.PlayerRelated.Friendlist.IsPlayerOnlineHandler = (charId) => cGlobal.gCharacterDataBase?.GetOnlinePlayers()?.Any(pl => pl.CharID == charId) == true;
+
+            Game.PlayerRelated.Friendlist.IsPlayerOnlineHandler = (charId) => isOnline(charId);
         }
 
+        #region Login Processing
+        /// <summary>
+        /// Queues a newly authenticated player for login initialization into the world.
+        /// </summary>
         public void OnLogin(Player client)
         {
+            if (client == null) return;
             QueuedPlayerLogin.Enqueue(client);
+            mylock.Set();
         }
 
         public void QueueAssistToolClient(Socket client)
         {
-            //var p = new AssistTool(ref client);
-            //if (ConnectedPlayers.ContainsKey(p.ClientIP))
-            //{
-            //    if (ConnectedPlayers[p.ClientIP].Tool == null)
-            //        ConnectedPlayers[p.ClientIP].Tool = p;
-            //    else
-            //        p.Disconnect();
-            //}
-            //else
-            //{
-            //    Client tmp = new Client();
-            //    tmp.Tool = p;
-            //    ConnectedPlayers.TryAdd(p.ClientIP, tmp);     
-            //    mylock.Set();          
-            //}
-
+            // Reserved for future assistant tooling integrations
         }
 
-        public void Initialize()
+        private void MainLoop()
         {
-            killFlag = false;
-            Mainthrd = new Thread(new ThreadStart(MainLoop));
-            Mainthrd.Name = "World Manager Main Thread";
-            Mainthrd.Init();
-            Eventthrd = new Thread(new ThreadStart(Eventwrk));
-            Eventthrd.Name = "World Manager Event Thread";
-            Eventthrd.Init();
-            AutoSaveThread = new Thread(new ThreadStart(AutoSaveLoop));
-            AutoSaveThread.Name = "Auto-Save Thread";
-            AutoSaveThread.Init();
-            DebugSystem.Write("[WorldServer] Auto-save thread started (saves every 1 second)");
-            MapTickThread = new Thread(new ThreadStart(MapTickLoop));
-            MapTickThread.Name = "Map & NPC Tick Thread";
-            MapTickThread.Init();
-            DebugSystem.Write("[WorldServer] Map & NPC Tick Thread started (500ms cycle)");
-
-            // Initialize tent manufacturing / crafting timer system
-            Network.ActionCodes.AC64.Init();
-
-            // Restore persistent custom stalls from database (SQLite / MySQL)
-            try
-            {
-                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.InitializeDatabase();
-            }
-            catch (Exception ex)
-            {
-                DebugSystem.Write($"[WorldServer] Error initializing custom stalls: {ex.Message}");
-            }
-        }
-
-        public void Kill()
-        {
-            killFlag = true;
-            mylock.Set();
-            while (Mainthrd != null && Mainthrd.IsAlive) { Thread.Sleep(1); }
-            Mainthrd = null;
-            while (Eventthrd != null && Eventthrd.IsAlive) { Thread.Sleep(1); }
-            Eventthrd = null;
-            while (AutoSaveThread != null && AutoSaveThread.IsAlive) { Thread.Sleep(1); }
-            AutoSaveThread = null;
-            while (MapTickThread != null && MapTickThread.IsAlive) { Thread.Sleep(1); }
-            MapTickThread = null;
-        }
-
-        void MainLoop()
-        {
-            Queue<Player> DeadClients = new Queue<Player>();
-
             do
             {
                 #region Queued Clients
-
-
-                if (QueuedPlayerLogin.Count > 0)
+                while (QueuedPlayerLogin.TryDequeue(out Player src))
                 {
-                    Player src = QueuedPlayerLogin.Dequeue();
+                    if (src == null) continue;
+
                     DebugSystem.Write($"[WorldServer] Dequeued player: {src.UserAcc?.UserName ?? "Unknown"}. Disconnected? {src.isDisconnected()}");
 
                     if (!src.isDisconnected())
                     {
                         try
                         {
-                            DebugSystem.Write($"[WorldServer] Processing login queue for client...");
+                            DebugSystem.Write("[WorldServer] Processing login queue for client...");
                             CommenceLogin(src);
                         }
                         catch (Exception ex)
@@ -158,285 +106,27 @@ namespace Server
                     }
                     else
                     {
-                        DebugSystem.Write($"[WorldServer] Player dropped because isDisconnected() is TRUE.");
+                        DebugSystem.Write("[WorldServer] Player dropped because isDisconnected() is TRUE.");
                     }
                 }
                 #endregion
-                Thread.Sleep(2);
-            }
-            while (!killFlag);
 
-            //Parallel.ForEach<Player>(Players, new Action<Player>(c =>
-            //        {
-            //            c.Disconnect();
-            //            onPlayerDisconnected(ref c);
-            //        }));
-
-
-
-        }
-
-
-
-        #region Threads
-        //void Mainwrk()// processes connected clients
-        //{
-        //    exptimer.Start();
-        //    do
-        //    {
-        //        #region Connected Clients
-        //        foreach (var c in Players)
-        //        {
-        //            try
-        //            {
-        //                Player j;
-        //                if (!c.inGame && c.Elapsed > new TimeSpan(0, (c.inGame) ? 35 : 5, 0))
-        //                {
-        //                    Players.TryRemove(c.ID, out j);
-
-        //                    DebugSystem.Write(String.Format("Client {0} timed out at Login.", j.ClientIP + ":" + j.ClientPort));
-        //                    SendPacket sp = new SendPacket(true);// PSENDPACKET PackSend = new SENDPACKET;
-        //                    sp.Pack(new byte[] { 1, 7 });//PackSend->Header(63,2);
-        //                    j.Send(sp);
-        //                    j.BlockSave = true;
-        //                    j.Disconnect();
-        //                    continue;
-        //                }
-        //                else if (!c.isAlive)
-        //                {
-        //                    Players.TryRemove(c.ID, out j);
-        //                    onPlayerDisconnected(ref j);
-        //                }
-        //            }
-        //            catch (Exception ex) { DebugSystem.Write(ex); }
-        //        }
-        //        #endregion
-
-
-        //        Thread.Sleep(120);
-
-        //        try
-        //        {
-        //            if (exptimer.Elapsed >= new TimeSpan(0, 1, 20))
-        //            {
-        //                foreach (var m in MapList.Values.ToList())
-        //                    try
-        //                    {
-        //                        foreach (var p in m.Players.Values.ToList())
-        //                            p.CurExp += (int)((p.Level * new Random().Next(1, 700)) * 2.2);
-        //                    }
-        //                    catch { }
-        //                exptimer.Restart();
-        //            }
-        //        }
-        //        catch { }
-        //    }
-        //    while (!killFlag);
-
-        //    foreach (var p in Players.Values)
-        //    {
-        //        p.Disconnect();
-        //        //onPlayerDisconnected(p);
-        //    }
-
-        //    MapList.Clear();
-        //}
-        void MapTickLoop()
-        {
-            while (!killFlag)
-            {
-                try
-                {
-                    if (MapManager.Instance != null)
-                    {
-                        var maps = MapManager.Instance.ActiveMaps.ToList();
-                        foreach (var map in maps)
-                        {
-                            try
-                            {
-                                map.Process();
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugSystem.Write($"[WorldServer] Error processing map {map.MapID}: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    DebugSystem.Write($"[WorldServer] Error in MapTickLoop: {ex.Message}");
-                }
-
-                Thread.Sleep(500);
-            }
-        }
-
-        void Mapwrk()// processes tick
-        {
-            do
-            {
-
-                //foreach (var map in MapList.Values.ToList())
-                //    map.UpdateMap();
-                Thread.Sleep(2);
+                Thread.Sleep((int)WorldTickRate.Realtime);
             }
             while (!killFlag);
         }
-        void Eventwrk()// processes connected clients
-        {
-            do
-            {
-                Thread.Sleep(120);
-            }
-            while (!killFlag);
-        }
-        #endregion
-
-        //public Player GetPlayer(uint ID)
-        //{
-
-        //    foreach (var t in Players.Values)
-        //            if (t.ID == ID)
-        //                return t;
-
-        //    return null; 
-        //}
-        /// <summary>
-        /// Checks by dataBaseID if Online
-        /// </summary>
-        /// <param CharacterName="ID"></param>
-        /// <returns></returns>
-        public bool isOnline(uint Databaseid)
-        {
-            //foreach (var t in Players)
-            //        if (t.DataBaseID == Databaseid && t.State != PlayerState.Connected_LoginWindow)
-            //            return true;
-
-            return false;
-        }
-        /// <summary>
-        /// Disconnects a player
-        /// </summary>
-        /// <param CharacterName="id"></param>
-        public void DisconnectPlayer(uint Databaseid)
-        {
-            //foreach (var r in Players)
-            //        if (r.DataBaseID == Databaseid) { r.Disconnect(); return; }
-        }
 
         /// <summary>
-        /// Used via GM command
+        /// Finalizes character loading, sends initial sync packets, delivers starter packs/outfits,
+        /// and teleports player to their designated world map.
         /// </summary>
-        /// <param CharacterName="portalID"></param>
-        /// <param CharacterName="map"></param>
-        /// <param CharacterName="target"></param>
-        /// <param CharacterName="arg"></param>
-        //public void Teleport(byte portalID, WarpData map, Player target, string arg)
-        //{
-        //    var mapid = target.CurrentMap.MapID;
-        //    Player r = target;
-        //    if (MapList.ContainsKey(map.DstMap))
-        //        try
-        //        {
-        //            target.CurrentMap.onWarp_Out(portalID, ref target, map);
-        //            MapList[map.DstMap].onWarp_In(portalID, ref r, map);
-        //            switch (arg)
-        //            {
-        //                case "MAPGM":
-        //                    {
-        //                        foreach (var y in Clients.Values.Where(c => c.CurrentMap.MapID == mapid && c.GM))
-        //                        {
-        //                            Player u = y;
-        //                            MapList[mapid].onWarp_Out(portalID, ref u, map);
-        //                            MapList[map.DstMap].onWarp_In(portalID, ref u, map);
-        //                        }
-        //                    } break;
-        //            }
-        //        }
-        //        catch (Exception d) { DLogger.ErrorLog(d); }
-        //    else
-        //    {
-        //        try
-        //        {
-        //            foreach (var y in (from c in Assembly.GetExecutingAssembly().GetTypes()
-        //                               where c.IsClass && c.IsSubclassOf(typeof(MapPlugin))
-        //                               select c))
-        //            {
-        //                var m = (Activator.CreateInstance(y) as MapPlugin);
-        //                if (m.MapID == map.DstMap)
-        //                {
-        //                    target.CurrentMap.onWarp_Out(portalID, ref target, map);
-        //                    m.onWarp_In(portalID, ref r, map);
-        //                    switch (arg)
-        //                    {
-        //                        case "MAPGM":
-        //                            {
-        //                                foreach (var p in Clients.Values.Where(c => c.CurrentMap.MapID == mapid && c.GM))
-        //                                {
-        //                                    Player u = p;
-        //                                    MapList[mapid].onWarp_Out(portalID, ref u, map);
-        //                                    m.onWarp_In(portalID, ref u, map);
-        //                                }
-        //                            } break;
-        //                    }
-        //                    MapList.TryAdd(m.MapID, m);
-        //                }
-        //            }
-        //        }
-        //        catch (Exception e) { DLogger.ErrorLog(e); }
-        //    }
-        //}
-
-        public new GameMap GetMap(ushort ID)
-        {
-            GameMap tmp = null;
-
-            if (MapList.Values.Count(c => c.MapID == ID) == 0)
-            {
-                if ((tmp = base.GetMap(ID)) != null)
-                {
-                    //cGlobal.gGameDataBase.SetupMap(ref tmp);
-                    if (MapList.TryAdd((ushort)tmp.MapID, tmp))
-                        DebugSystem.Write(DebugItemType.Info_Heavy, "Loaded Map {0}", tmp.MapID);
-                    return tmp;
-                }
-                else
-                    return null;
-            }
-            else
-                return MapList.Values.Single(c => c.MapID == ID);
-        }
-
-        public void Broadcast(SendPacket pkt)
-        {
-            foreach (var m in MapList.Values)
-                m.Broadcast(pkt);
-        }
-
-        public void Broadcast(SendPacket pkt, uint? directTo = null, bool exclude = false)
-        {
-            foreach (var m in MapList.Values)
-            {
-                if (directTo.HasValue)
-                {
-                    if (exclude)
-                        m.Broadcast(pkt, "Ex", directTo.Value);
-                    else
-                        m.Broadcast(pkt, "ID", directTo.Value);
-                }
-                else
-                {
-                    m.Broadcast(pkt);
-                }
-            }
-        }
-
         public void CommenceLogin(Player src)
         {
+            if (src == null) return;
+
             DebugSystem.Write("[WorldServer] CommenceLogin started.");
 
-            cGlobal.gCharacterDataBase.OnCharacterJoin(src);
+            cGlobal.gCharacterDataBase?.OnCharacterJoin(src);
             src.Disconnected += cGlobal.gCharacterDataBase.OnCharacterLeave;
             src.Disconnected += (s) => Network.ActionCodes.AC14.NotifyFriendsStatus(s, false);
             src.Disconnected += (s) => Game.PlayerRelated.GuildManager.HandlePlayerLogout(s);
@@ -455,7 +145,7 @@ namespace Server
 
             //------Player Base Info------------------
             DebugSystem.Write("[WorldServer] Loading Final Data...");
-            cGlobal.gGameDataBase.LoadFinalData(src);
+            cGlobal.gGameDataBase?.LoadFinalData(src);
             src.SendCharacterData();
             src.Send(Tools.FromFormat("bbdw", 5, 5, src.CharID, (ushort)0)); // Ensure any shapeshift morph is cleared on login
             Network.ActionCodes.AC14.NotifyFriendsStatus(src, true);
@@ -468,7 +158,7 @@ namespace Server
             Game.QuestRelated.QuestManager.LoadPlayerQuests(src);
             // Characters reborn before this fix lack the Job Palace completion mark.
             Game.PlayerRelated.RebornManager.EnsureJobPalaceCompletion(src, false);
-            cGlobal.gCharacterDataBase.LoadMonsterBook(src);
+            cGlobal.gCharacterDataBase?.LoadMonsterBook(src);
             Game.PlayerRelated.NotebookManager.SendMonsterBook(src);
 
             // Starter item pack fallback delivery for level 1 players without starter items
@@ -476,7 +166,7 @@ namespace Server
             {
                 DebugSystem.Write($"[WorldServer] Level 1 player {src.CharName} is missing starter items. Delivering starter item pack fallback...");
                 Game.PlayerRelated.StarterPackManager.DeliverToPlayer(src, sendData: false);
-                try { cGlobal.gCharacterDataBase.WritePlayer(src.CharID, src); } catch { }
+                try { cGlobal.gCharacterDataBase?.WritePlayer(src.CharID, src); } catch { }
             }
 
             // Starter beginner outfit fallback for level 1 characters without any equipment worn
@@ -484,7 +174,7 @@ namespace Server
             {
                 DebugSystem.Write($"[WorldServer] Level 1 player {src.CharName} has no equipment worn. Re-equipping beginner outfit...");
                 src.SetBeginnerOutfit();
-                try { cGlobal.gCharacterDataBase.WritePlayer(src.CharID, src); } catch { }
+                try { cGlobal.gCharacterDataBase?.WritePlayer(src.CharID, src); } catch { }
             }
 
             // 1. AC 5:3 Base Stats and Learned Skills (must precede map teleport)
@@ -503,7 +193,7 @@ namespace Server
             src.Send(Tools.FromFormat("bb", 5, 4));
 
             //---------Map Teleport---------------------------------------------------
-            GameMap target = MapManager.Instance.GetMap(src.LoginMap);
+            GameMap target = MapManager.Instance?.GetMap(src.LoginMap) ?? GetMap(src.LoginMap);
             if (target == null)
             {
                 var ex = new Exception("Map " + src.LoginMap + " not found for player " + src.CharName);
@@ -556,15 +246,136 @@ namespace Server
             Game.PlayerRelated.ItemMallManager.SendInitialMallSync(src);
 
             src.Flags.Add(PlayerFlag.InMap);
+        }
+        #endregion
 
-            // Map-level player presence and visual synchronization is handled cleanly by Map.Warp_In with authentic AC 3 packet
-            // cGlobal.gCharacterDataBase.SendOnlineCharacters(src);
-            // cGlobal.gCharacterDataBase.BroadcastNewPlayer(src);
+        #region Lifecycle
+        public void Initialize()
+        {
+            killFlag = false;
+            State = WorldServerState.Starting;
+
+            Mainthrd = new Thread(new ThreadStart(MainLoop))
+            {
+                Name = "World Manager Main Thread",
+                IsBackground = true
+            };
+            Mainthrd.Init();
+
+            Eventthrd = new Thread(new ThreadStart(Eventwrk))
+            {
+                Name = "World Manager Event Thread",
+                IsBackground = true
+            };
+            Eventthrd.Init();
+
+            AutoSaveThread = new Thread(new ThreadStart(AutoSaveLoop))
+            {
+                Name = "Auto-Save Thread",
+                IsBackground = true
+            };
+            AutoSaveThread.Init();
+            DebugSystem.Write("[WorldServer] Auto-save thread started (saves every 1 second)");
+
+            MapTickThread = new Thread(new ThreadStart(MapTickLoop))
+            {
+                Name = "Map & NPC Tick Thread",
+                IsBackground = true
+            };
+            MapTickThread.Init();
+            DebugSystem.Write("[WorldServer] Map & NPC Tick Thread started (500ms cycle)");
+
+            // Initialize tent manufacturing / crafting timer system
+            Network.ActionCodes.AC64.Init();
+
+            // Restore persistent custom stalls from database (SQLite / MySQL)
+            try
+            {
+                Game.Experimental.ExperimentalFeaturesManager.Instance.PlayerStallBazaar?.InitializeDatabase();
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error initializing custom stalls: {ex.Message}");
+            }
+
+            State = WorldServerState.Running;
         }
 
+        public void Kill()
+        {
+            State = WorldServerState.Stopping;
+            killFlag = true;
+            mylock.Set();
 
+            if (Mainthrd != null && Mainthrd.IsAlive) { Mainthrd.Join(1000); Mainthrd = null; }
+            if (Eventthrd != null && Eventthrd.IsAlive) { Eventthrd.Join(1000); Eventthrd = null; }
+            if (AutoSaveThread != null && AutoSaveThread.IsAlive) { AutoSaveThread.Join(1000); AutoSaveThread = null; }
+            if (MapTickThread != null && MapTickThread.IsAlive) { MapTickThread.Join(1000); MapTickThread = null; }
 
-        void AutoSaveLoop()
+            State = WorldServerState.Stopped;
+        }
+        #endregion
+
+        #region Background Threads
+        private void MapTickLoop()
+        {
+            while (!killFlag)
+            {
+                try
+                {
+                    SyncMapList();
+
+                    var maps = MapManager.Instance?.ActiveMaps?.ToList() ?? _mapList.Values.ToList();
+                    foreach (var map in maps)
+                    {
+                        if (map == null) continue;
+                        try
+                        {
+                            map.Process();
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugSystem.Write($"[WorldServer] Error processing map {map.MapID}: {ex.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WorldServer] Error in MapTickLoop: {ex.Message}");
+                }
+
+                Thread.Sleep((int)WorldTickRate.MapTick);
+            }
+        }
+
+        private void Eventwrk()
+        {
+            do
+            {
+                try
+                {
+                    // Inspect online players to gracefully clean up disconnected clients
+                    var players = GetAllPlayers();
+                    foreach (var p in players)
+                    {
+                        if (p == null) continue;
+                        if (p.isDisconnected())
+                        {
+                            DisconnectPlayer(p.CharID);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WorldServer] Error in Eventwrk: {ex.Message}");
+                }
+
+                Thread.Sleep((int)WorldTickRate.EventTick);
+            }
+            while (!killFlag);
+        }
+
+        private void AutoSaveLoop()
         {
             int saveCounter = 0;
             DateTime lastSlowWarning = DateTime.MinValue;
@@ -572,18 +383,18 @@ namespace Server
             {
                 try
                 {
-                    // Save all online players every second
-                    var onlinePlayers = cGlobal.gCharacterDataBase.GetOnlinePlayers();
-                    Services.ServerMetrics.ObserveOnlinePlayers(onlinePlayers?.Count ?? 0);
-                    if (onlinePlayers != null && onlinePlayers.Count > 0)
+                    var onlinePlayers = GetAllPlayers().ToList();
+                    Services.ServerMetrics.ObserveOnlinePlayers(onlinePlayers.Count);
+                    if (onlinePlayers.Count > 0)
                     {
                         saveCounter++;
                         var saveWatch = global::System.Diagnostics.Stopwatch.StartNew();
                         foreach (var player in onlinePlayers)
                         {
+                            if (player == null || player.isDisconnected()) continue;
                             try
                             {
-                                cGlobal.gCharacterDataBase.WritePlayer(player.CharID, player);
+                                cGlobal.gCharacterDataBase?.WritePlayer(player.CharID, player);
                                 if (player.UserAccount != null && player.UserAccount.DataBaseID != 0)
                                 {
                                     cGlobal.gUserDataBase?.SetIMPoints(player.UserAccount.DataBaseID, player.UserAccount.IM);
@@ -603,7 +414,6 @@ namespace Server
                             DebugSystem.Write($"[AutoSave] Warning: saving {onlinePlayers.Count} players took {saveWatch.ElapsedMilliseconds} ms.");
                         }
 
-                        // Log every 60 seconds (once per minute)
                         if (saveCounter % 60 == 0)
                         {
                             DebugSystem.Write($"[AutoSave] Saved {onlinePlayers.Count} online players (total saves: {saveCounter})");
@@ -615,18 +425,255 @@ namespace Server
                     DebugSystem.Write($"[AutoSave] Critical error in auto-save loop: {ex.Message}");
                 }
 
-                // Interval comes from settings (default 1 s); sleep in short steps so shutdown stays quick.
                 int intervalMs = Math.Max(1, cGlobal.SrvSettings?.AutoSaveIntervalSeconds ?? 1) * 1000;
-                for (int waited = 0; waited < intervalMs && !killFlag; waited += 250) Thread.Sleep(250);
+                for (int waited = 0; waited < intervalMs && !killFlag; waited += (int)WorldTickRate.AutoSaveStep)
+                {
+                    Thread.Sleep((int)WorldTickRate.AutoSaveStep);
+                }
             }
             while (!killFlag);
 
             DebugSystem.Write("[AutoSave] Auto-save thread stopped");
         }
+        #endregion
 
+        #region Map & Player Synchronization
+        /// <summary>
+        /// Synchronizes the local map collection with all active maps currently loaded in MapManager.
+        /// </summary>
+        public void SyncMapList()
+        {
+            if (MapManager.Instance == null) return;
+            try
+            {
+                var active = MapManager.Instance.ActiveMaps;
+                if (active != null)
+                {
+                    foreach (var map in active)
+                    {
+                        if (map != null)
+                        {
+                            _mapList.AddOrUpdate((ushort)map.MapID, map, (k, old) => map);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error syncing MapList: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Returns all active maps across MapManager.Instance and MapList.
+        /// </summary>
+        public IEnumerable<GameMap> GetActiveMaps()
+        {
+            SyncMapList();
+            if (MapManager.Instance != null)
+            {
+                return MapManager.Instance.ActiveMaps;
+            }
+            return _mapList.Values.ToList();
+        }
+
+        public new GameMap GetMap(ushort ID)
+        {
+            if (MapManager.Instance != null)
+            {
+                var map = MapManager.Instance.GetMap(ID);
+                if (map != null)
+                {
+                    _mapList.AddOrUpdate(ID, map, (k, old) => map);
+                    return map;
+                }
+            }
+
+            if (_mapList.TryGetValue(ID, out var cachedMap) && cachedMap != null)
+            {
+                return cachedMap;
+            }
+
+            GameMap tmp = base.GetMap(ID);
+            if (tmp != null)
+            {
+                _mapList.AddOrUpdate((ushort)tmp.MapID, tmp, (k, old) => tmp);
+                DebugSystem.Write(DebugItemType.Info_Heavy, "Loaded Map {0}", tmp.MapID);
+                return tmp;
+            }
+
+            return null;
+        }
+        #endregion
+
+        #region WorldServerHost Implementation
+        /// <summary>
+        /// Retrieves an online player by character ID or user ID.
+        /// </summary>
+        public Player GetPlayer(uint charId)
+        {
+            if (charId == 0) return null;
+
+            try
+            {
+                var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                var p = online?.FirstOrDefault(x => x != null && (x.CharID == charId || x.UserID == charId));
+                if (p != null) return p;
+
+                var maps = GetActiveMaps();
+                foreach (var m in maps)
+                {
+                    if (m?.PlayersList == null) continue;
+                    var mp = m.PlayersList.FirstOrDefault(x => x != null && (x.CharID == charId || x.UserID == charId));
+                    if (mp != null) return mp;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error in GetPlayer({charId}): {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Checks whether a player is online and connected.
+        /// </summary>
+        public bool isOnline(uint charId)
+        {
+            if (charId == 0) return false;
+            var p = GetPlayer(charId);
+            return p != null && !p.isDisconnected();
+        }
+
+        /// <summary>
+        /// Disconnects a player and safely unregisters them from the map and character database.
+        /// </summary>
+        public void DisconnectPlayer(uint charId)
+        {
+            if (charId == 0) return;
+            try
+            {
+                var p = GetPlayer(charId);
+                if (p != null)
+                {
+                    DebugSystem.Write($"[WorldServer] Disconnecting player {p.CharName} ({charId})...");
+                    p.Disconnect();
+                    p.CurMap?.RemovePlayer(p);
+                    cGlobal.gCharacterDataBase?.OnCharacterLeave(p);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error in DisconnectPlayer({charId}): {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Returns an enumerable snapshot of all online players currently in the world.
+        /// </summary>
+        public IEnumerable<Player> GetAllPlayers()
+        {
+            var result = new Dictionary<uint, Player>();
+            try
+            {
+                var dbPlayers = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
+                if (dbPlayers != null)
+                {
+                    foreach (var p in dbPlayers)
+                    {
+                        if (p != null && p.CharID > 0)
+                            result[p.CharID] = p;
+                    }
+                }
+
+                var maps = GetActiveMaps();
+                foreach (var m in maps)
+                {
+                    var mPlayers = m?.PlayersList;
+                    if (mPlayers != null)
+                    {
+                        foreach (var p in mPlayers)
+                        {
+                            if (p != null && p.CharID > 0 && !result.ContainsKey(p.CharID))
+                                result[p.CharID] = p;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[WorldServer] Error in GetAllPlayers: {ex.Message}");
+            }
+
+            return result.Values.ToList();
+        }
+
+        /// <summary>
+        /// Broadcasts a network packet to all players on all active maps.
+        /// </summary>
+        public void Broadcast(SendPacket pkt)
+        {
+            if (pkt == null) return;
+            var activeMaps = GetActiveMaps();
+            foreach (var m in activeMaps)
+            {
+                try
+                {
+                    m?.Broadcast(pkt);
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WorldServer] Error broadcasting packet: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Broadcasts a network packet with optional single-target routing or exclusion.
+        /// </summary>
+        public void Broadcast(SendPacket pkt, uint? directTo = null, bool exclude = false)
+        {
+            if (pkt == null) return;
+
+            if (directTo.HasValue && !exclude)
+            {
+                var target = GetPlayer(directTo.Value);
+                if (target != null)
+                {
+                    target.Send(pkt);
+                    return;
+                }
+            }
+
+            var activeMaps = GetActiveMaps();
+            foreach (var m in activeMaps)
+            {
+                try
+                {
+                    if (directTo.HasValue)
+                    {
+                        if (exclude)
+                            m?.Broadcast(pkt, "Ex", directTo.Value);
+                        else
+                            m?.Broadcast(pkt, "ID", directTo.Value);
+                    }
+                    else
+                    {
+                        m?.Broadcast(pkt);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugSystem.Write($"[WorldServer] Error broadcasting packet: {ex.Message}");
+                }
+            }
+        }
+        #endregion
+
+        #region Static Helpers
         public static void SendChatMessage(Player p, byte chatType, string message)
         {
-            // GM announcements are disabled; notification boxes have a separate path.
             if (chatType == 4 || p == null || string.IsNullOrEmpty(message)) return;
             SendPacket pkt = new SendPacket();
             pkt.Pack8(2); // ActionCode 2 (Chat)
@@ -669,5 +716,6 @@ namespace Server
                 DebugSystem.Write($"[WorldServer] Error dispatching MOTD: {ex.Message}");
             }
         }
+        #endregion
     }
 }

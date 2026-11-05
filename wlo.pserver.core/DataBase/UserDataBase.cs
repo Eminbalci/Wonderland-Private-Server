@@ -87,9 +87,11 @@ namespace DataBase
 
         List<User> GOnlineUsers = new List<User>();
 
+        public static UserDataBase GlobalInstance { get; set; }
+
         public UserDataBase()
         {
-
+            GlobalInstance = this;
         }
 
         public void VerifySetup()
@@ -188,6 +190,8 @@ namespace DataBase
             #endregion
             AddColumnIfNotExists(TableName, "banned", "INTEGER DEFAULT 0");
             AddColumnIfNotExists(TableName, "im_bonus", "INTEGER DEFAULT 0");
+            ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_ips (ip TEXT PRIMARY KEY, reason TEXT, banned_at TEXT, banned_by TEXT);");
+            ExecuteNonQuery("CREATE TABLE IF NOT EXISTS banned_users (userID INT PRIMARY KEY, username TEXT, reason TEXT, banned_at TEXT, banned_by TEXT);");
             #endregion
         }
 

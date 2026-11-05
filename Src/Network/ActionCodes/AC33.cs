@@ -28,11 +28,17 @@ namespace Network.ActionCodes
             r.SetPtr(6);
             switch (r.B)
             {
-                case 1: // Toggle setting
-                    HandleToggle(p, r);
+                case 1: // Button 0 in form_module (PK Toggle) or legacy setting toggle
+                    HandleSubCode1(p, r);
                     break;
-                case 2: // Get current settings
-                    SendCurrentSettings(p);
+                case 2: // Button 1 in form_module (Join/Fight Toggle) or Get settings
+                    HandleSubCode2(p, r);
+                    break;
+                case 3: // Channel setting
+                    HandleChannelSetting(p, r);
+                    break;
+                case 4: // Trade toggle
+                    HandleTradeToggle(p, r);
                     break;
                 case 5: // Team Follow / Walk Along setting (21 05 01)
                     HandleTeamFollow(p, r);
@@ -41,6 +47,75 @@ namespace Network.ActionCodes
                     DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 Unknown SubAction: {r.B}");
                     break;
             }
+        }
+
+        void HandleSubCode1(Player p, RecievePacket r)
+        {
+            // Client FUN_003c4138 param_2==0 sends [0x21, 1, 0] with 0 extra arguments for PK button.
+            // If additional payload is present, inspect settingType.
+            if (r.Buffer != null && r.Buffer.Length > 6)
+            {
+                byte settingType = r.Unpack8();
+                switch (settingType)
+                {
+                    case 1:
+                        TogglePk(p);
+                        break;
+                    case 2:
+                        ToggleJoin(p);
+                        break;
+                    case 3:
+                        if (r.Buffer.Length > 7)
+                        {
+                            byte channel = r.Unpack8();
+                            p.Settings.ChannelCode = (ChannelCodeType)channel;
+                            PersistSettings(p);
+                        }
+                        break;
+                    case 4:
+                        ToggleTrade(p);
+                        break;
+                    default:
+                        // Default fallback for Subcode 1: Toggle PK
+                        TogglePk(p);
+                        break;
+                }
+            }
+            else
+            {
+                // Direct PK button click
+                TogglePk(p);
+            }
+        }
+
+        void HandleSubCode2(Player p, RecievePacket r)
+        {
+            // Client FUN_003c4138 param_2==1 sends [0x21, 2, 0] with 0 extra arguments for Join/Fight button.
+            // If payload contains query flags, send settings; otherwise toggle Join.
+            if (r.Buffer != null && r.Buffer.Length > 6)
+            {
+                SendCurrentSettings(p);
+            }
+            else
+            {
+                ToggleJoin(p);
+            }
+        }
+
+        void HandleChannelSetting(Player p, RecievePacket r)
+        {
+            if (r.Buffer != null && r.Buffer.Length > 6)
+            {
+                byte channel = r.Unpack8();
+                p.Settings.ChannelCode = (ChannelCodeType)channel;
+                PersistSettings(p);
+                SendCurrentSettings(p);
+            }
+        }
+
+        void HandleTradeToggle(Player p, RecievePacket r)
+        {
+            ToggleTrade(p);
         }
 
         void HandleTeamFollow(Player p, RecievePacket r)
@@ -61,36 +136,42 @@ namespace Network.ActionCodes
             p.Send(pkt);
         }
 
-        void HandleToggle(Player p, RecievePacket r)
+        void TogglePk(Player p)
         {
-            byte settingType = r.Unpack8();
-            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 Toggle. Type: {settingType}");
+            p.Settings.PKABLE = !p.Settings.PKABLE;
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 PKABLE toggled to: {p.Settings.PKABLE} for {p.CharName}");
+            PersistSettings(p);
+            BroadcastSettingChange(p, 1, p.Settings.PKABLE);
+        }
 
-            switch (settingType)
+        void ToggleJoin(Player p)
+        {
+            p.Settings.JOINABLE = !p.Settings.JOINABLE;
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 JOINABLE toggled to: {p.Settings.JOINABLE} for {p.CharName}");
+            PersistSettings(p);
+            BroadcastSettingChange(p, 2, p.Settings.JOINABLE);
+        }
+
+        void ToggleTrade(Player p)
+        {
+            p.Settings.TRADABLE = !p.Settings.TRADABLE;
+            DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 TRADABLE toggled to: {p.Settings.TRADABLE} for {p.CharName}");
+            PersistSettings(p);
+            BroadcastSettingChange(p, 4, p.Settings.TRADABLE);
+        }
+
+        void PersistSettings(Player p)
+        {
+            try
             {
-                case 1: // PK Toggle
-                    p.Settings.PKABLE = !p.Settings.PKABLE;
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 PKABLE toggled to: {p.Settings.PKABLE}");
-                    BroadcastSettingChange(p, 1, p.Settings.PKABLE);
-                    break;
-                case 2: // Join/Fight Toggle
-                    p.Settings.JOINABLE = !p.Settings.JOINABLE;
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 JOINABLE toggled to: {p.Settings.JOINABLE}");
-                    BroadcastSettingChange(p, 2, p.Settings.JOINABLE);
-                    break;
-                case 3: // Chat channel
-                    byte channel = r.Unpack8();
-                    p.Settings.ChannelCode = (ChannelCodeType)channel;
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 Channel set to: {p.Settings.ChannelCode}");
-                    break;
-                case 4: // Trade Toggle
-                    p.Settings.TRADABLE = !p.Settings.TRADABLE;
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 TRADABLE toggled to: {p.Settings.TRADABLE}");
-                    BroadcastSettingChange(p, 4, p.Settings.TRADABLE);
-                    break;
-                default:
-                    DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC33 Unknown setting type: {settingType}");
-                    break;
+                if (cGlobal.gCharacterDataBase != null && p.CharID > 0)
+                {
+                    cGlobal.gCharacterDataBase.SaveSettings(p.CharID, p.Settings.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(DebugItemType.Error, $"[AC33] Failed to persist settings: {ex.Message}");
             }
         }
 
@@ -103,12 +184,15 @@ namespace Network.ActionCodes
             pkt.Pack8((byte)(value ? 1 : 2)); // 1 = on, 2 = off
             p.Send(pkt);
 
+            // Also synchronize full settings state with client
+            SendCurrentSettings(p);
+
             // Optionally broadcast to other players in map
             GameMap map = p.CurMap as GameMap;
             if (map != null)
             {
                 // Other players might need to know about PK status change
-                // TODO: Broadcast if needed
+                // Broadcast if needed
             }
         }
 

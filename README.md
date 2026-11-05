@@ -2078,7 +2078,11 @@ The repository includes a comprehensive 43-document master specification suite d
 
 80. [**80 - Player Stall Bazaar Persistence & Deletion Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/79_player_stall_bazaar_persistence_and_deletion_synchronization.md): Resolved persistent bazaar stall deletion failures where deleted overworld player stalls were resurrected upon server restarts. Resolved dual-database path desynchronization between `Phoenix.Core.DataBase` and `RCLibrary.Core.PathHelper` by adding `baseDir\Data\ServerDataBase.db` to database resolution candidates. Implemented `ExecuteOnAllDatabases` to atomically execute saves, deletes, and table purges across all candidate SQLite databases. Upgraded `RemoveCustomStall` to delete database records even if stalls were absent from active in-memory collections, and prevented duplicate column schema migration error spam. Verified with automated end-to-end tests.
 
-81. [**81 - MaxStat Chat Command & Attribute Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/80_maxstat_chat_command_and_stat_synchronization.md): Implemented the `:maxstat` chat command allowing players and administrators to immediately set all primary character attributes (STR, CON, INT, WIS, AGI) to the maximum cap of 602 while clearing unspent stat points (`SkillPoints = 0`). Handled avatar inherent stat offsets so final attributes equal 602 exactly, refreshed current HP/SP vitals, synchronized client UI via full stat broadcast (`AC 8:1`), and immediately persisted updated records to character SQLite storage.
+81. [**81 - MaxStat Chat Command & Attribute Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/80_maxstat_chat_command_and_stat_synchronization.md): Implemented the `:maxstat` chat command allowing players and administrators to immediately set all primary character attributes (STR, CON, INT, WIS, AGI) to the maximum cap of 602 while clearing unspent stat points (`SkillPoints = 0`). Handled avatar inherent stat offsets so final attributes equal 602 exactly, refreshed current HP/SP vitals, synchronized client UI via full stat broadcast (`AC 8:1`), and immediately persisted updated records to character SQLite storage.
+
+82. [**82 - World Subsystem Modernization**](file:///D:/GitHub/Wonderland-Private-Server/docs/83_world_subsystem_modernization.md): Modernized the World Subsystem across `WorldServer`, `WloWorldNode`, `WorldAccess`, and `WorldEnums`. Synchronized internal map dictionaries with `MapManager.Instance.ActiveMaps`, replaced legacy unsynchronized collections with thread-safe `ConcurrentDictionary<uint, Player>` and `ConcurrentQueue<Player>`, fully implemented robust null-safe `WorldServerHost` operations (`GetPlayer`, `isOnline`, `DisconnectPlayer`, `Broadcast`, `GetAllPlayers`), and ensured clean non-blocking lifecycle management with bounded shutdown timeouts.
+
+83. [**83 - Dungeon Instance Creation & Chamber Isolation**](file:///D:/GitHub/Wonderland-Private-Server/docs/82_dungeon_instance_creation_and_chamber_isolation.md): Resolved duplicate mission instanced dungeon creation failure where clients popped up "Max instance amount" or failed to warp players. Fixed AC 85 packet reading pointers (`SetPtr(6)`), aligned wire protocol to send SubCode 0 (Success) with `FUN_0019da10` roster layout, implemented dynamic chamber map isolation (`MapManager.CreateInstanceMap` and `GameMap.TeleportToInstance`) to eliminate multi-party chamber collisions, and properly warped team members into the isolated dungeon maps upon instance launch.
 
 
 
@@ -2224,7 +2228,11 @@ The complete reverse engineering of the monolithic client binaries (`aLogin.exe`
 
 Wonderland Online is a registered trademark of Chinese Gamer International Corp. / IGG Inc. This project is an independent clean-room reverse-engineering and educational research emulator intended solely for archival, research, and private development purposes. All original assets and trademarks belong to their respective copyright holders.
 
-## 9. Recent Engineering Specifications
+## 9. Recent Engineering Specifications
+- [Server GUI World Studio & Client PK/Join Toggle Synchronization](file:///D:/GitHub/Wonderland-Private-Server/docs/84_server_gui_world_studio_and_pk_button_toggle.md)
+- [Ban Enforcement & Duplicate Ban Prevention](file:///D:/GitHub/Wonderland-Private-Server/docs/81_ban_enforcement_and_duplicate_prevention.md)
+- [Dungeon Instance Creation & Chamber Isolation](file:///D:/GitHub/Wonderland-Private-Server/docs/82_dungeon_instance_creation_and_chamber_isolation.md)
+- [World Subsystem Modernization](file:///D:/GitHub/Wonderland-Private-Server/docs/83_world_subsystem_modernization.md)
 - [MaxStat Chat Command & Attribute Synchronization](file:///D:/GitHub/Wonderland-Private-Server/docs/80_maxstat_chat_command_and_stat_synchronization.md)
 
 - [Player Stall Bazaar Persistence & Deletion Synchronization](file:///D:/GitHub/Wonderland-Private-Server/docs/79_player_stall_bazaar_persistence_and_deletion_synchronization.md)

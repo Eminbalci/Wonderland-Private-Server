@@ -303,7 +303,7 @@ namespace Wonderland_Private_Server
                 btnBanIp.Click += (s, e) =>
                 {
                     if (ext_selectedOnlinePlayer == null) return;
-                    string ip = ext_selectedOnlinePlayer.SockAddress();
+                    string ip = ext_selectedOnlinePlayer.IPAddr?.ToString() ?? (ext_selectedOnlinePlayer.SockAddress()?.Split(':')[0] ?? "");
                     string reason = ShowInputDialog($"Ban IP '{ip}' for '{ext_selectedOnlinePlayer.CharName}'. Reason:", "Ban IP", "Malicious activity");
                     if (reason != null)
                     {
@@ -1367,19 +1367,36 @@ namespace Wonderland_Private_Server
 
         private void BanIpInternal(string ip, string reason)
         {
-            if (string.IsNullOrEmpty(ip)) return;
+            if (string.IsNullOrWhiteSpace(ip)) return;
             try
             {
                 EnsureSecurityTablesExist();
+                ip = ip.Trim();
+                if (ip.Contains(":")) ip = ip.Split(':')[0].Trim();
+                string safeIp = ip.Replace("'", "''");
+
+                // Check if already banned!
+                var dtCheck = cGlobal.gUserDataBase?.GetDataTable($"SELECT 1 FROM banned_ips WHERE ip = '{safeIp}' LIMIT 1;");
+                if (dtCheck != null && dtCheck.Rows.Count > 0)
+                {
+                    MessageBox.Show($"IP '{ip}' is already banned!", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                cGlobal.gUserDataBase?.ExecuteNonQuery($"INSERT OR REPLACE INTO banned_ips (ip, reason, banned_at, banned_by) VALUES ('{ip.Replace("'", "''")}', '{reason.Replace("'", "''")}', '{now}', 'Admin');");
+                cGlobal.gUserDataBase?.ExecuteNonQuery($"INSERT OR REPLACE INTO banned_ips (ip, reason, banned_at, banned_by) VALUES ('{safeIp}', '{reason.Replace("'", "''")}', '{now}', 'Admin');");
                 // Disconnect any online players matching this IP
                 var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
                 if (online != null)
                 {
-                    foreach (var p in online.Where(pl => pl.SockAddress() == ip))
+                    foreach (var p in online.Where(pl => (pl.IPAddr != null && pl.IPAddr.ToString() == ip) || pl.SockAddress() == ip || pl.SockAddress()?.StartsWith(ip + ":") == true))
                     {
-                        p.Disconnect();
+                        try
+                        {
+                            p.Send(Tools.FromFormat("bb", 1, 7));
+                            p.Disconnect();
+                        }
+                        catch { }
                     }
                 }
                 MessageBox.Show($"IP '{ip}' has been banned.", "IP Banned", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1392,10 +1409,13 @@ namespace Wonderland_Private_Server
 
         private void UnbanIpInternal(string ip)
         {
-            if (string.IsNullOrEmpty(ip)) return;
+            if (string.IsNullOrWhiteSpace(ip)) return;
             try
             {
-                cGlobal.gUserDataBase?.ExecuteNonQuery($"DELETE FROM banned_ips WHERE ip = '{ip.Replace("'", "''")}';");
+                ip = ip.Trim();
+                if (ip.Contains(":")) ip = ip.Split(':')[0].Trim();
+                string safeIp = ip.Replace("'", "''");
+                cGlobal.gUserDataBase?.ExecuteNonQuery($"DELETE FROM banned_ips WHERE ip = '{safeIp}';");
                 MessageBox.Show($"IP '{ip}' unbanned.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -1409,20 +1429,58 @@ namespace Wonderland_Private_Server
             try
             {
                 EnsureSecurityTablesExist();
-                if (userId == 0 && !string.IsNullOrEmpty(username))
+                if (string.IsNullOrWhiteSpace(username) && userId == 0) return;
+
+                string cleanUser = (username ?? "").Trim();
+                string safeUser = cleanUser.Replace("'", "''");
+
+                if (userId == 0 && !string.IsNullOrEmpty(cleanUser))
                 {
-                    var dt = cGlobal.gUserDataBase?.GetDataTable($"SELECT userID FROM users WHERE username = '{username.Replace("'", "''")}'");
-                    if (dt != null && dt.Rows.Count > 0)
+                    var dt = cGlobal.gUserDataBase?.GetDataTable($"SELECT userID FROM users WHERE username = '{safeUser}' LIMIT 1;");
+                    if (dt != null && dt.Rows.Count > 0 && dt.Rows[0]["userID"] != DBNull.Value)
                     {
                         userId = Convert.ToUInt32(dt.Rows[0]["userID"]);
                     }
                 }
 
+                // Check if account is ALREADY banned:
+                // Check in banned_users:
+                string checkQuery = userId > 0 && !string.IsNullOrEmpty(safeUser)
+                    ? $"SELECT 1 FROM banned_users WHERE userID = '{userId}' OR username = '{safeUser}' LIMIT 1;"
+                    : (userId > 0
+                        ? $"SELECT 1 FROM banned_users WHERE userID = '{userId}' LIMIT 1;"
+                        : $"SELECT 1 FROM banned_users WHERE username = '{safeUser}' LIMIT 1;");
+
+                var dtBanned = cGlobal.gUserDataBase?.GetDataTable(checkQuery);
+                if (dtBanned != null && dtBanned.Rows.Count > 0)
+                {
+                    MessageBox.Show($"Account '{cleanUser}' is already banned!", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Check users.banned == 1
+                string userCheckQuery = userId > 0 && !string.IsNullOrEmpty(safeUser)
+                    ? $"SELECT banned FROM users WHERE userID = '{userId}' OR username = '{safeUser}' LIMIT 1;"
+                    : (userId > 0
+                        ? $"SELECT banned FROM users WHERE userID = '{userId}' LIMIT 1;"
+                        : $"SELECT banned FROM users WHERE username = '{safeUser}' LIMIT 1;");
+
+                var dtUser = cGlobal.gUserDataBase?.GetDataTable(userCheckQuery);
+                if (dtUser != null && dtUser.Rows.Count > 0)
+                {
+                    var row = dtUser.Rows[0];
+                    if (row.Table.Columns.Contains("banned") && row["banned"] != DBNull.Value && Convert.ToInt32(row["banned"]) == 1)
+                    {
+                        MessageBox.Show($"Account '{cleanUser}' is already banned!", "Notice", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+
                 string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                cGlobal.gUserDataBase?.ExecuteNonQuery($"INSERT OR REPLACE INTO banned_users (userID, username, reason, banned_at, banned_by) VALUES ('{userId}', '{username.Replace("'", "''")}', '{reason.Replace("'", "''")}', '{now}', 'Admin');");
+                cGlobal.gUserDataBase?.ExecuteNonQuery($"INSERT OR REPLACE INTO banned_users (userID, username, reason, banned_at, banned_by) VALUES ('{userId}', '{safeUser}', '{reason.Replace("'", "''")}', '{now}', 'Admin');");
                 try
                 {
-                    cGlobal.gUserDataBase?.ExecuteNonQuery($"UPDATE users SET banned = 1 WHERE userID = '{userId}' OR username = '{username.Replace("'", "''")}';");
+                    cGlobal.gUserDataBase?.ExecuteNonQuery($"UPDATE users SET banned = 1 WHERE userID = '{userId}' OR username = '{safeUser}';");
                 }
                 catch { }
 
@@ -1430,12 +1488,17 @@ namespace Wonderland_Private_Server
                 var online = cGlobal.gCharacterDataBase?.GetOnlinePlayers();
                 if (online != null)
                 {
-                    foreach (var p in online.Where(pl => pl.UserID == userId || (pl.UserAcc != null && pl.UserAcc.UserName.Equals(username, StringComparison.OrdinalIgnoreCase))))
+                    foreach (var p in online.Where(pl => (userId > 0 && pl.UserID == userId) || (pl.UserAcc != null && pl.UserAcc.UserName.Equals(cleanUser, StringComparison.OrdinalIgnoreCase))))
                     {
-                        p.Disconnect();
+                        try
+                        {
+                            p.Send(Tools.FromFormat("bb", 1, 7));
+                            p.Disconnect();
+                        }
+                        catch { }
                     }
                 }
-                MessageBox.Show($"Account '{username}' (ID: {userId}) has been banned.", "Account Banned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"Account '{cleanUser}' (ID: {userId}) has been banned.", "Account Banned", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {

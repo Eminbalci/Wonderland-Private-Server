@@ -185,13 +185,28 @@ namespace Network.ActionCodes
                 string[] userdata = null; // data of user
 
 
+                // Check if client IP is banned
+                string clientIp = p.IPAddr?.ToString() ?? p.SockAddress()?.Split(':')[0] ?? "";
+                if (!string.IsNullOrEmpty(clientIp) && (cGlobal.gLoginServer?.IsIpBanned(clientIp) == true || Game.PlayerRelated.GmManager.IsIpBanned(clientIp)))
+                {
+                    DebugSystem.Write($"[AC63.Recv4] Connection rejected: IP '{clientIp}' is banned.");
+                    loginState = 5;
+                }
+
+                // Check if username is banned
+                if (loginState == 0 && Game.PlayerRelated.GmManager.IsAccountBanned(name))
+                {
+                    DebugSystem.Write($"[AC63.Recv4] Login rejected: Account '{name}' is banned.");
+                    loginState = 5;
+                }
+
                 // Validate username and password (shared rules with registration)
-                if (!DataBase.UserDataBase.ValidateUsername(name, out string nameError))
+                if (loginState == 0 && !DataBase.UserDataBase.ValidateUsername(name, out string nameError))
                 {
                     DebugSystem.Write($"[AC63.Recv4] Invalid username: {nameError} (len={name.Length})");
                     loginState = 1;
                 }
-                else if (!DataBase.UserDataBase.ValidatePassword(password, out string passError))
+                else if (loginState == 0 && !DataBase.UserDataBase.ValidatePassword(password, out string passError))
                 {
                     DebugSystem.Write($"[AC63.Recv4] Invalid password: {passError} (len={password.Length})");
                     loginState = 1;
@@ -207,7 +222,12 @@ namespace Network.ActionCodes
                         DebugSystem.Write($"[AC63.Recv4] GetUserData SUCCESS! dbid={dbid}");
                         if ((p.UserAcc.DataBaseID = dbid) != 0)
                         {
-                            if (cGlobal.gLoginServer.IsOnline(p.UserAcc.UserID))
+                            if (Game.PlayerRelated.GmManager.IsAccountBanned(name, dbid))
+                            {
+                                DebugSystem.Write($"[AC63.Recv4] Login rejected: Account '{name}' (UserID: {dbid}) is banned.");
+                                loginState = 5;
+                            }
+                            else if (cGlobal.gLoginServer.IsOnline(p.UserAcc.UserID))
                             {
                                 DebugSystem.Write($"[AC63.Recv4] User already online! UserID={p.UserAcc.UserID}");
                                 loginState = 2;
@@ -391,10 +411,16 @@ namespace Network.ActionCodes
                         break;
                     case 5:
                         {
-                            SendPacket sp = new SendPacket();// PSENDPACKET PackSend = new SENDPACKET;
-                            //PackSend->Clear();
+                            DebugSystem.Write($"[AC63] Sending Account Banned packet (1, 7) to '{p.UserAcc?.UserName ?? name}' and disconnecting.");
                             p.Send(Tools.FromFormat("bb", 1, 7));
-                            p.Send(sp);
+                            try
+                            {
+                                p.Disconnect();
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugSystem.Write($"[AC63] Error disconnecting banned player: {ex.Message}");
+                            }
                         }
                         break;
                     case 6:

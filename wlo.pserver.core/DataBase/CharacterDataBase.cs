@@ -1030,6 +1030,21 @@ namespace DataBase
             return ExecuteNonQuery($"REPLACE INTO character_record_points (charID,mapID,posX,posY) VALUES ({charID},{point.DstMap},{point.DstX_Axis},{point.DstY_Axis})") > 0;
         }
 
+        public bool SaveSettings(uint charID, string settings)
+        {
+            if (charID == 0 || string.IsNullOrEmpty(settings)) return false;
+            try
+            {
+                string safeSettings = settings.Replace("'", "''");
+                return ExecuteNonQuery($"UPDATE charactersExtData SET Settings = '{safeSettings}' WHERE charID = '{charID}';") > 0;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[CharacterDataBase] Error saving settings for charID {charID}: {ex.Message}");
+                return false;
+            }
+        }
+
         public void LoadRecordPoint(Player player)
         {
             if (player == null || player.CharID == 0) return;

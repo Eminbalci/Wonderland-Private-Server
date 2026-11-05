@@ -23,6 +23,7 @@ namespace Game
         void Broadcast(SendPacket pkt);
         void Broadcast(SendPacket pkt, string parameter, params object[] To);
         bool Teleport(TeleportType teletype, Player sender, ushort portalID = 0, WarpData warp = null);
+        bool TeleportToInstance(GameMap targetInstanceMap, Player sender, WarpData warp);
         bool DoorPortal(ushort clickID, out ushort portal);
         bool WarpEntry(ushort click, out ushort dstMap, out ushort dstX, out ushort dstY);
         bool ProcessInteraction(byte clickID, Player player);
@@ -1438,6 +1439,52 @@ namespace Game
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Warps a player into an isolated dynamic instance map (e.g. Instance Dungeon chamber).
+        /// Preserves chamber isolation without touching the global map cache.
+        /// </summary>
+        public bool TeleportToInstance(GameMap targetInstanceMap, Player sender, WarpData warp)
+        {
+            if (sender == null || targetInstanceMap == null) return false;
+
+            try
+            {
+                // Freeze packet for transition
+                sender.Send(Tools.FromFormat("bb", 20, 7));
+
+                SendPacket tmp = new SendPacket();
+                tmp.Pack8((byte)23);
+                tmp.Pack8((byte)32);
+                tmp.Pack32(sender.CharID);
+                sender.Send(tmp);
+
+                tmp = new SendPacket();
+                tmp.Pack8((byte)23);
+                tmp.Pack8((byte)112);
+                tmp.Pack32(sender.CharID);
+                sender.Send(tmp);
+
+                tmp = new SendPacket();
+                tmp.Pack8((byte)23);
+                tmp.Pack8((byte)132);
+                tmp.Pack32(sender.CharID);
+                sender.Send(tmp);
+
+                sender.Flags.Add(PlayerFlag.Warping);
+
+                Warp_Out(0, sender, warp, false);
+                targetInstanceMap.Warp_In(TeleportType.CmD, sender, warp, 0);
+
+                DebugSystem.Write($"[TeleportToInstance] Player {sender.CharName} successfully entered instance map {targetInstanceMap.MapID} (Instance: {targetInstanceMap.GetHashCode()})");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+                return false;
+            }
         }
 
         protected virtual void SendMapInfo(Player t, bool login = false)
