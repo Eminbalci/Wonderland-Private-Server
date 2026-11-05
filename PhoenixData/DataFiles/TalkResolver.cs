@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -104,16 +104,33 @@ namespace DataFiles
             string rawText = null;
             int recordIdx = -1;
 
-            // EVE operands are Talk.dat IDs, not record positions. Resolve the
-            // decrypted header before considering an explicit byte offset.
+            // 1. Direct decrypted Talk ID lookup
             if (dat.TryGetById(lookupId, out rawText))
             {
                 recordIdx = dat.GetOffset(lookupId) / 292;
                 return BuildResult(result, rawText, recordIdx, "HeaderTalkId", playerName);
             }
 
-            // Keep the legacy explicit-offset API, but never guess a different
-            // dialogue from a missing 16-bit ID or a chapter/record offset.
+            // 2. Category offset lookup (e.g. Talk ID 18 -> 10018)
+            if (lookupId < 10000 && dat.TryGetById(10000 + lookupId, out rawText))
+            {
+                recordIdx = dat.GetOffset(10000 + lookupId) / 292;
+                return BuildResult(result, rawText, recordIdx, "CategoryIdOffset", playerName);
+            }
+
+            // 3. 0-based Record Index lookup (e.g. Record 18)
+            if (dat.TryGetByRecordIndex(lookupId, out rawText))
+            {
+                return BuildResult(result, rawText, (int)lookupId, "RecordIndex", playerName);
+            }
+
+            // 4. 1-based Record Index lookup (e.g. ID 18 -> Record 17)
+            if (lookupId > 0 && dat.TryGetByRecordIndex(lookupId - 1, out rawText))
+            {
+                return BuildResult(result, rawText, (int)(lookupId - 1), "OneBasedRecordIndex", playerName);
+            }
+
+            // 5. Direct Byte Offset lookup (e.g. 0x063ED2)
             if (rawTalkId > ushort.MaxValue && dat.TryGetByOffset(rawTalkId, out rawText))
             {
                 return BuildResult(result, rawText, -1, "DirectByteOffset", playerName);

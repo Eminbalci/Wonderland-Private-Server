@@ -34,6 +34,10 @@ namespace Game.Maps
 
         private static bool RejectDisabledNativeEvent(Player player, GameMap map, EventsinMapEntries ev)
         {
+            // Allow native events inside active instance chambers (Maps 30000+) when experimental instance engine is enabled
+            if (map != null && map.MapID >= 30000 && Game.Experimental.ExperimentalFeaturesManager.Instance.EnableInstanceDungeons)
+                return false;
+
             if (!IsNativeEventDisabled(map.MapID, ev.clickID)) return false;
             player.CancelInteraction();
             player.SendHeadBanner("This quest is disabled: required game data is unavailable.");

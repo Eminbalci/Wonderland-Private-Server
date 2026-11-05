@@ -57,34 +57,38 @@ namespace Network.ActionCodes
                 var engine = ExperimentalFeaturesManager.Instance.InstanceDungeons;
                 if (engine == null) return;
 
+                ushort mapId = 30001;
+                byte maxMembers = 4;
+
                 if (r.Buffer.Length >= 8)
                 {
-                    ushort mapId = (ushort)r.Unpack16();
-                    byte maxMembers = r.Buffer.Length >= 9 ? r.Unpack8() : (byte)4;
-
-                    var existingRoom = engine.GetPlayerRoom(p.CharID);
-                    if (existingRoom != null && existingRoom.LeaderCharId == p.CharID && !existingRoom.IsInProgress)
-                    {
-                        // Room already created by this leader; launch the instance
-                        engine.StartInstance(p);
-                    }
-                    else
-                    {
-                        // Create brand new dungeon room
-                        engine.CreateRoom(p, $"{p.CharName}'s Trial", mapId, maxMembers);
-                    }
+                    ushort parsed = (ushort)r.Unpack16();
+                    if (parsed > 0) mapId = parsed;
+                    if (r.Buffer.Length >= 9) maxMembers = r.Unpack8();
                 }
-                else
+
+                var existingRoom = engine.GetPlayerRoom(p.CharID);
+                if (existingRoom == null)
                 {
-                    // Empty payload: Check if player is leader of an existing room launching the instance
-                    var existingRoom = engine.GetPlayerRoom(p.CharID);
-                    if (existingRoom != null && existingRoom.LeaderCharId == p.CharID && !existingRoom.IsInProgress)
+                    // Create brand new dungeon room and allocate chamber
+                    existingRoom = engine.CreateRoom(p, $"{p.CharName}'s Trial", mapId, maxMembers);
+                }
+
+                if (existingRoom != null)
+                {
+                    if (existingRoom.LeaderCharId == p.CharID && !existingRoom.IsInProgress)
                     {
+                        // Launch the instance session into isolated chamber
                         engine.StartInstance(p);
+                    }
+                    else if (existingRoom.IsInProgress)
+                    {
+                        // Room already active; re-warp player directly into chamber
+                        engine.WarpPlayerToChamber(existingRoom, p);
                     }
                     else
                     {
-                        engine.SendRoomList(p);
+                        engine.SendRosterUpdate(existingRoom, p);
                     }
                 }
             }

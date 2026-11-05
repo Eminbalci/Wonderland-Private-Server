@@ -1477,6 +1477,9 @@ namespace Game
                 Warp_Out(0, sender, warp, false);
                 targetInstanceMap.Warp_In(TeleportType.CmD, sender, warp, 0);
 
+                // Unfreeze mobility upon chamber arrival
+                sender.Send(Tools.FromFormat("bb", 20, 8));
+
                 DebugSystem.Write($"[TeleportToInstance] Player {sender.CharName} successfully entered instance map {targetInstanceMap.MapID} (Instance: {targetInstanceMap.GetHashCode()})");
                 return true;
             }

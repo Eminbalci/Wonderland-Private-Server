@@ -151,6 +151,18 @@ namespace Game.Experimental
                 ushort targetMap = mapId >= 30000 ? mapId : (ushort)30001; // Default to 20-Round Challenge Map 30001
                 var room = new InstanceRoom(roomId, roomName, targetMap, leader, maxMembers, 20);
 
+                // Auto-include existing party members if leader is accompanied
+                if (leader.hasParty && leader.m_teammembers != null)
+                {
+                    foreach (var mem in leader.m_teammembers)
+                    {
+                        if (mem != null && mem.CharID != leader.CharID && !room.Members.Any(m => m.CharId == mem.CharID))
+                        {
+                            room.Members.Add(new InstanceMember(mem));
+                        }
+                    }
+                }
+
                 // Allocate an isolated GameMap chamber instance for this party
                 room.InstanceMap = MapManager.Instance?.CreateInstanceMap(targetMap);
                 if (room.InstanceMap != null)
@@ -159,7 +171,7 @@ namespace Game.Experimental
                 }
 
                 m_rooms[roomId] = room;
-                DebugSystem.Write($"[InstanceDungeonEngine] Created Room #{roomId} '{roomName}' for {leader.CharName} on Map {targetMap} (Isolated Map Instance: {room.InstanceMap?.GetHashCode()})");
+                DebugSystem.Write($"[InstanceDungeonEngine] Created Room #{roomId} '{roomName}' for {leader.CharName} on Map {targetMap} (Isolated Map Instance: {room.InstanceMap?.GetHashCode()}, Members: {room.Members.Count})");
 
                 // Send SubCode 0 (Success & Member Roster) expected by Delphi FUN_0019da10 / FUN_001a10c4
                 SendRosterUpdate(room, leader);
@@ -357,51 +369,64 @@ namespace Game.Experimental
 
                 DebugSystem.Write($"[InstanceDungeonEngine] Starting Dungeon Room #{room.RoomId} on Map {room.MapId} with {room.Members.Count} members. Warping party into isolated chamber...");
 
-                ushort spawnX = room.SpawnX > 0 ? room.SpawnX : (ushort)1000;
-                ushort spawnY = room.SpawnY > 0 ? room.SpawnY : (ushort)1000;
-                WarpData dungeonWarp = new WarpData { DstMap = room.MapId, DstX_Axis = spawnX, DstY_Axis = spawnY };
-
                 // Warp every room member into the isolated chamber
                 foreach (var mem in room.Members.ToList())
                 {
                     Player memPlayer = mem.PlayerInstance ?? FindPlayer(mem.CharId);
                     if (memPlayer != null)
                     {
-                        // Capture pre-warp location for clean return
-                        if (memPlayer.CurMap != null && memPlayer.CurMap != room.InstanceMap)
-                        {
-                            memPlayer.PrevMap = new WarpData
-                            {
-                                DstMap = (ushort)memPlayer.CurMap.MapID,
-                                DstX_Axis = memPlayer.CurX,
-                                DstY_Axis = memPlayer.CurY
-                            };
-                        }
-
-                        // Warp into isolated chamber instance
-                        if (memPlayer.CurMap is GameMap currentGm && room.InstanceMap != null)
-                        {
-                            currentGm.TeleportToInstance(room.InstanceMap, memPlayer, dungeonWarp);
-                        }
-                        else
-                        {
-                            memPlayer.CurMap?.Teleport(TeleportType.CmD, memPlayer, 0, dungeonWarp);
-                        }
-
-                        // Send status packet (AC 85:5)
-                        SendPacket startPkt = new SendPacket();
-                        startPkt.Pack8(85);
-                        startPkt.Pack8(5); // Instance status / active sync
-                        startPkt.Pack32(room.RoomId);
-                        startPkt.Pack16(room.MapId);
-                        startPkt.Pack8((byte)room.CurrentWave);
-                        memPlayer.Send(startPkt);
-
-                        DebugSystem.Write($"[InstanceDungeonEngine] Warped member {memPlayer.CharName} (CharID={mem.CharId}) into instance chamber {room.MapId}");
+                        WarpPlayerToChamber(room, memPlayer);
                     }
                 }
                 return true;
             }
+        }
+
+        /// <summary>
+        /// Warps a player into an active isolated instance chamber and synchronizes the client HUD.
+        /// </summary>
+        public void WarpPlayerToChamber(InstanceRoom room, Player player)
+        {
+            if (room == null || player == null) return;
+
+            ushort spawnX = room.SpawnX > 0 ? room.SpawnX : (ushort)2869;
+            ushort spawnY = room.SpawnY > 0 ? room.SpawnY : (ushort)1472;
+            WarpData dungeonWarp = new WarpData { DstMap = room.MapId, DstX_Axis = spawnX, DstY_Axis = spawnY };
+
+            // Capture pre-warp location for clean return
+            if (player.CurMap != null && player.CurMap != room.InstanceMap)
+            {
+                player.PrevMap = new WarpData
+                {
+                    DstMap = (ushort)player.CurMap.MapID,
+                    DstX_Axis = player.CurX,
+                    DstY_Axis = player.CurY
+                };
+            }
+
+            // Warp into isolated chamber instance
+            if (player.CurMap is GameMap currentGm && room.InstanceMap != null)
+            {
+                currentGm.TeleportToInstance(room.InstanceMap, player, dungeonWarp);
+            }
+            else
+            {
+                player.CurMap?.Teleport(TeleportType.CmD, player, 0, dungeonWarp);
+            }
+
+            player.Send(Tools.FromFormat("bb", 20, 8)); // mobility unfreeze
+
+            // Send status packet (AC 85:5) strictly aligned with Delphi FUN_001a1d9c wire schema
+            SendPacket startPkt = new SendPacket();
+            startPkt.Pack8(85);
+            startPkt.Pack8(5); // SubCode 5 (byte 1)
+            startPkt.Pack8((byte)room.CurrentWave); // CurrentWave (byte 2)
+            startPkt.Pack8(0); // padding (byte 3)
+            startPkt.Pack32(room.RoomId); // RoomID (bytes 4..7)
+            startPkt.Pack16(room.MapId);  // MapID (bytes 8..9)
+            player.Send(startPkt);
+
+            DebugSystem.Write($"[InstanceDungeonEngine] Warped player {player.CharName} (CharID={player.CharID}) into instance chamber {room.MapId}");
         }
 
         /// <summary>
