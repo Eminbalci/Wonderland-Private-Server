@@ -224,6 +224,7 @@ namespace RCLibrary.Core
             string[] candidates = new string[]
             {
                 Path.Combine(baseDir, defaultFileName),
+                Path.Combine(baseDir, "Data", defaultFileName),
                 Path.Combine(dataDir, defaultFileName),
                 Path.Combine(baseDir, "..", "..", defaultFileName),
                 Path.Combine(baseDir, "..", "..", "Data", defaultFileName),
