@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -1188,17 +1188,30 @@ namespace Game.Code
                 }
 
                 // Moving to destination slot with 2D bounds check
-                if (CanFitItem(source.ItemID, to, ignoreRootSlot: from))
+                byte moveAmmt = (byte)Math.Min((int)ammt, (int)source.Ammt);
+                byte ignoreRoot = (moveAmmt == source.Ammt) ? from : (byte)0;
+
+                if (CanFitItem(source.ItemID, to, ignoreRootSlot: ignoreRoot))
                 {
-                    byte moved = source.Ammt;
-                    UnlockSlaveSlots(from);
-                    target.CopyFrom(source);
-                    target.Parent = 0;
-                    target.Ammt = moved;
-                    LockSlaveSlots(to, target.ItemID);
-                    source.Clear();
-                    owner?.Send(Tools.FromFormat("bbbbb", 23, 10, from, moved, to));
-                    DebugSystem.Write($"[Inventory.MoveItem] Moved item #{target.ItemID} ({w}x{h}) from slot {from} to slot {to} for {owner?.CharName ?? "Unknown"}");
+                    if (moveAmmt == source.Ammt)
+                    {
+                        UnlockSlaveSlots(from);
+                        target.CopyFrom(source);
+                        target.Parent = 0;
+                        target.Ammt = moveAmmt;
+                        LockSlaveSlots(to, target.ItemID);
+                        source.Clear();
+                    }
+                    else
+                    {
+                        target.CopyFrom(source);
+                        target.Parent = 0;
+                        target.Ammt = moveAmmt;
+                        LockSlaveSlots(to, target.ItemID);
+                        source.Ammt -= moveAmmt;
+                    }
+                    owner?.Send(Tools.FromFormat("bbbbb", 23, 10, from, moveAmmt, to));
+                    DebugSystem.Write($"[Inventory.MoveItem] Moved {moveAmmt}x item #{target.ItemID} ({w}x{h}) from slot {from} to slot {to} (remaining in src: {source.Ammt}) for {owner?.CharName ?? "Unknown"}");
                 }
                 else
                 {

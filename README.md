@@ -1,4 +1,4 @@
-# Wonderland Online Private Server & Emulation Framework
+﻿# Wonderland Online Private Server & Emulation Framework
 
 
 
@@ -2219,6 +2219,7 @@ The complete reverse engineering of the monolithic client binaries (`aLogin.exe`
 Wonderland Online is a registered trademark of Chinese Gamer International Corp. / IGG Inc. This project is an independent clean-room reverse-engineering and educational research emulator intended solely for archival, research, and private development purposes. All original assets and trademarks belong to their respective copyright holders.
 
 ## 9. Recent Engineering Specifications
+- [Inventory Stack Splitting & Slot Movement Parity](file:///D:/GitHub/Wonderland-Private-Server/docs/78_inventory_stack_splitting_and_slot_movement_parity.md)
 - [wloweb Map Warp Parity and Arrived State Lifecycle](file:///D:/GitHub/Wonderland-Private-Server/docs/76_wloweb_map_warp_parity_and_arrived_state_lifecycle.md)
 - [Guidepost and Inanimate Actor Rotation Prevention](file:///D:/GitHub/Wonderland-Private-Server/docs/77_guidepost_and_inanimate_actor_rotation_prevention.md)
 - [Quest NPC Dynamic Transformation and Visibility Engine](file:///D:/GitHub/Wonderland-Private-Server/docs/66_quest_npc_transformation_and_stage_swap_engine.md)
