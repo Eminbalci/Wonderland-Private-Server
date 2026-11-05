@@ -93,7 +93,7 @@ namespace Game.Battle
         {
             if (player1 == null || player2 == null) return;
 
-            ushort bgId = (player1.CurMap != null && player1.CurMap.MapID < 10000) ? (ushort)player1.CurMap.MapID : (ushort)1;
+            byte bgId = BattleBackdropManager.Resolve(player1);
 
             // Send Battle Initialization Packets (AC 11:3 & AC 27 Battle Start)
             SendPacket pStart1 = new SendPacket();

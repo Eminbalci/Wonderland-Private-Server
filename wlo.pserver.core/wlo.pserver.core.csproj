@@ -104,6 +104,8 @@
     <Compile Include="DataBase\CharacterDataBase.cs" />
     <Compile Include="DataBase\GameDataBase.cs" />
     <Compile Include="DataFiles\EveLoader.cs" />
+    <Compile Include="DataFiles\GroundBackdropCatalog.cs" />
+    <Compile Include="Game\Battle\BattleBackdropManager.cs" />
     <Compile Include="DataFiles\EveExt.cs" />
     <Compile Include="DataFiles\SceneLoader.cs" />
     <Compile Include="DataBase\Migration\characterDB_Mig.cs" />

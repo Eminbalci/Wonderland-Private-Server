@@ -548,6 +548,7 @@ namespace Wonderland_Private_Server
             //cGlobal.gNpcManager.LoadNpc("Data\\Npc.dat");
             string eveEmgPath = RCLibrary.Core.PathHelper.GetDataFilePath("eve.Emg");
             cGlobal.gGameDataBase.EveDat.LoadFile(eveEmgPath);
+            Game.Battle.BattleBackdropManager.Initialize();
             //cGlobal.gCompoundDat.Load("Data\\Compound.dat");
             //cGlobal.gCompoundDat.Load("Data\\Compound2.dat", false);
 
