@@ -40,7 +40,9 @@ namespace Network.ActionCodes {
                                                commandHeader == ":cmd" || commandHeader == "/cmd" ||
                                                commandHeader == ":unride" || commandHeader == "/unride" ||
                                                commandHeader == ":dismount" || commandHeader == "/dismount" ||
-                                               commandHeader == ":carnie" || commandHeader == "/carnie";
+                                               commandHeader == ":carnie" || commandHeader == "/carnie" ||
+                                               commandHeader == ":maxstat" || commandHeader == "/maxstat" ||
+                                               commandHeader == ":maxstats" || commandHeader == "/maxstats";
 
                         if (!isGm && !isPublicCommand) {
                             p.SendSystemMessage("[Server] You do not have GM privileges to use administrative commands.");
@@ -190,6 +192,27 @@ namespace Network.ActionCodes {
                                         p.SendSystemMessage("[GM] Usage: :stat <str> <con> <int> <wis> <agi>");
                                     }
                                 } catch { }
+                            }
+                            break;
+                        #endregion
+
+                        #region Max Stat Command
+                        case ":maxstat":
+                        case "/maxstat":
+                        case ":maxstats":
+                        case "/maxstats": {
+                                try {
+                                    var target = p;
+                                    if (words.Length >= 2 && Game.PlayerRelated.GmManager.IsGm(p)) {
+                                        var found = Game.PlayerRelated.GmManager.FindOnlinePlayer(words[1]);
+                                        if (found != null) target = found;
+                                    }
+                                    if (Game.PlayerRelated.GmManager.MaxStatPlayer(target, out string statusMsg)) {
+                                        if (target != p) p.SendSystemMessage($"[GM] {statusMsg}");
+                                    }
+                                } catch (Exception ex) {
+                                    p.SendSystemMessage($"[Server] Error: {ex.Message}");
+                                }
                             }
                             break;
                         #endregion
@@ -1028,11 +1051,11 @@ namespace Network.ActionCodes {
                                 if (Game.PlayerRelated.GmManager.IsGm(p)) {
                                     p.SendSystemMessage("[Admin/Server] :broadcast <msg> | :reload [all|quests|mall|drops] | :droprate <rate> | :online | :shutdown [s]");
                                     p.SendSystemMessage("[Admin/Player] :tp <char> | :summon <char> | :kick <char> | :kickall | :jail <char> [m] | :unjail <char> | :mute <char> [m] | :unmute <char> | :info <char>");
-                                    p.SendSystemMessage("[Player Cheat] :heal | :god | :invis | :level <1-200> | :points <n> | :restat | :gold <n> | :im <n> | :exp <n> | :allskills [gr] | :clearskills | :repair | :stat <s c i w a> | :item <id> [cnt] | :buy <id> [cnt] | :tent | :clearinv");
+                                    p.SendSystemMessage("[Player Cheat] :maxstat | :heal | :god | :invis | :level <1-200> | :points <n> | :restat | :gold <n> | :im <n> | :exp <n> | :allskills [gr] | :clearskills | :repair | :stat <s c i w a> | :item <id> [cnt] | :buy <id> [cnt] | :tent | :clearinv");
                                     p.SendSystemMessage("[Companion] :pet <id> [name] | :petlvl <lvl> | :petexp <n> | :amity [1-100] | :rebirth");
                                     p.SendSystemMessage("[Combat & Move] :winbattle | :battle <npcId> | :town <name> | :warp <map> [x] [y] | :summonall | :carnie | :unride");
                                 } else {
-                                    p.SendSystemMessage("[Player Commands] :unride (dismount vehicle/pet) | :carnie (travel to Carnie) | :help (show commands)");
+                                    p.SendSystemMessage("[Player Commands] :maxstat (set all stats to 602, points to 0) | :unride (dismount vehicle/pet) | :carnie (travel to Carnie) | :help (show commands)");
                                 }
                             }
                             break;

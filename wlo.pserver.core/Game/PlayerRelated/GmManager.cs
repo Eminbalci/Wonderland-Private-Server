@@ -702,6 +702,39 @@ namespace Game.PlayerRelated
             return true;
         }
 
+        public static bool MaxStatPlayer(Player player, out string statusMsg)
+        {
+            statusMsg = string.Empty;
+            if (player == null || player.Eqs == null)
+            {
+                statusMsg = "Player or equipment is null.";
+                return false;
+            }
+
+            try
+            {
+                player.Eqs.baseStr = (ushort)Math.Max(0, 602 - player.Eqs.BonusStr);
+                player.Eqs.baseCon = (ushort)Math.Max(0, 602 - player.Eqs.BonusCon);
+                player.Eqs.baseInt = (ushort)Math.Max(0, 602 - player.Eqs.BonusInt);
+                player.Eqs.baseWis = (ushort)Math.Max(0, 602 - player.Eqs.BonusWis);
+                player.Eqs.baseAgi = (ushort)Math.Max(0, 602 - player.Eqs.BonusAgi);
+                player.Eqs.SkillPoints = 0;
+                player.Eqs.CurHP = player.Eqs.FullHP;
+                player.Eqs.CurSP = player.Eqs.FullSP;
+                player.Eqs.Send8_1(true);
+
+                DataBase.CharacterDataBase.GlobalInstance?.WritePlayer(player.CharID, player);
+                player.SendSystemMessage("[Server] Stats set to MAX: STR=602, CON=602, INT=602, WIS=602, AGI=602, Points=0!");
+                statusMsg = $"Max stats applied for {player.CharName} (STR/CON/INT/WIS/AGI = 602, Points = 0).";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                statusMsg = $"Error setting max stats: {ex.Message}";
+                return false;
+            }
+        }
+
         public static bool ClearSkills(Player player, out string statusMsg)
         {
             statusMsg = string.Empty;

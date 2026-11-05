@@ -1,4 +1,4 @@
-﻿# Wonderland Online Private Server & Emulation Framework
+# Wonderland Online Private Server & Emulation Framework
 
 
 
@@ -2076,7 +2076,9 @@ The repository includes a comprehensive 43-document master specification suite d
 
 79. [**79 - Inventory Stack Splitting & Slot Movement Parity**](file:///D:/GitHub/Wonderland-Private-Server/docs/78_inventory_stack_splitting_and_slot_movement_parity.md): Fixed item movement handling for packet AC 23:10 (`protocol.InventoryMove`) when splitting a stack into an empty slot. Corrected logic in `Inventory.MoveItem` which previously ignored the requested `ammt` parameter and unconditionally moved the entire stack (`source.Ammt`) while clearing the source slot. The engine now bounds `moveAmmt = Math.Min(ammt, source.Ammt)`. If moving a partial stack (`moveAmmt < source.Ammt`), the source slot keeps its remaining items, slave slots are preserved, the destination slot receives `moveAmmt`, and packet AC 23:10 echoes the exact moved count. Verified with reflection-backed test suite covering partial splitting, full moves, stacking onto existing slots, and 2D bounds validation.
 
-80. [**80 - Player Stall Bazaar Persistence & Deletion Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/79_player_stall_bazaar_persistence_and_deletion_synchronization.md): Resolved persistent bazaar stall deletion failures where deleted overworld player stalls were resurrected upon server restarts. Resolved dual-database path desynchronization between `Phoenix.Core.DataBase` and `RCLibrary.Core.PathHelper` by adding `baseDir\Data\ServerDataBase.db` to database resolution candidates. Implemented `ExecuteOnAllDatabases` to atomically execute saves, deletes, and table purges across all candidate SQLite databases. Upgraded `RemoveCustomStall` to delete database records even if stalls were absent from active in-memory collections, and prevented duplicate column schema migration error spam. Verified with automated end-to-end tests.
+80. [**80 - Player Stall Bazaar Persistence & Deletion Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/79_player_stall_bazaar_persistence_and_deletion_synchronization.md): Resolved persistent bazaar stall deletion failures where deleted overworld player stalls were resurrected upon server restarts. Resolved dual-database path desynchronization between `Phoenix.Core.DataBase` and `RCLibrary.Core.PathHelper` by adding `baseDir\Data\ServerDataBase.db` to database resolution candidates. Implemented `ExecuteOnAllDatabases` to atomically execute saves, deletes, and table purges across all candidate SQLite databases. Upgraded `RemoveCustomStall` to delete database records even if stalls were absent from active in-memory collections, and prevented duplicate column schema migration error spam. Verified with automated end-to-end tests.
+
+81. [**81 - MaxStat Chat Command & Attribute Synchronization**](file:///D:/GitHub/Wonderland-Private-Server/docs/80_maxstat_chat_command_and_stat_synchronization.md): Implemented the `:maxstat` chat command allowing players and administrators to immediately set all primary character attributes (STR, CON, INT, WIS, AGI) to the maximum cap of 602 while clearing unspent stat points (`SkillPoints = 0`). Handled avatar inherent stat offsets so final attributes equal 602 exactly, refreshed current HP/SP vitals, synchronized client UI via full stat broadcast (`AC 8:1`), and immediately persisted updated records to character SQLite storage.
 
 
 
@@ -2223,6 +2225,8 @@ The complete reverse engineering of the monolithic client binaries (`aLogin.exe`
 Wonderland Online is a registered trademark of Chinese Gamer International Corp. / IGG Inc. This project is an independent clean-room reverse-engineering and educational research emulator intended solely for archival, research, and private development purposes. All original assets and trademarks belong to their respective copyright holders.
 
 ## 9. Recent Engineering Specifications
+- [MaxStat Chat Command & Attribute Synchronization](file:///D:/GitHub/Wonderland-Private-Server/docs/80_maxstat_chat_command_and_stat_synchronization.md)
+
 - [Player Stall Bazaar Persistence & Deletion Synchronization](file:///D:/GitHub/Wonderland-Private-Server/docs/79_player_stall_bazaar_persistence_and_deletion_synchronization.md)
 - [Inventory Stack Splitting & Slot Movement Parity](file:///D:/GitHub/Wonderland-Private-Server/docs/78_inventory_stack_splitting_and_slot_movement_parity.md)
 - [Guidepost and Inanimate Actor Rotation Prevention](file:///D:/GitHub/Wonderland-Private-Server/docs/77_guidepost_and_inanimate_actor_rotation_prevention.md)

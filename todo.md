@@ -1,11 +1,8 @@
-# Todo — Bazaarları Silince Kayıt Olmaması Sorununun Düzeltilmesi (Stall Deletion Persistence Fix)
+# Todo — `:maxstat` Komutunun Eklenmesi (Max Stat & Points Reset Command)
 
-- [x] 1. Hata Tespiti & Analizi: `PlayerStallBazaarEngine.cs` içindeki `RemoveCustomStall`, `DeleteStallFromDatabase` ve `ClearAllStalls` metodlarının incelemesi; hafıza (`m_stalls`) ile veritabanı senkronizasyonunun ve iki farklı veritabanı yolu (`Data\ServerDataBase.db` ve `bin\Debug\Data\ServerDataBase.db`) arasındaki tutarsızlığın tespiti.
-- [x] 2. `PlayerStallBazaarEngine.cs` dosyasında `RemoveCustomStall` metodunun hafızada olmasa dahi veritabanından silmeyi garanti edecek şekilde güncellenmesi.
-- [x] 3. `DeleteStallFromDatabase` ve `ClearAllStallsFromDatabase` metodlarının aktif ve çıktı veritabanı yollarının tümünde (`ExecuteOnAllDatabases`) silme işlemini atomik olarak işlemesinin sağlanması.
-- [x] 4. `EnsureDatabaseTable()` içindeki gereksiz `ALTER TABLE` hata loglarının `StaticAddColumnIfNotExists` / `StaticHasColumn` kontrolüyle temizlenmesi.
-- [x] 5. `RCLibrary/RCLibrary.Core/PathHelper.cs` içindeki `ResolveDatabaseFile` adaylarına `baseDir\Data\ServerDataBase.db` eklenerek `Phoenix.Core` ile tam parite sağlanması.
-- [x] 6. Kullanıcının sildiği stall'un (Vendor ID: 8900001) veritabanlarından temizlenmesi (count: 0).
-- [x] 7. MSBuild ile projenin derlenmesi (0 hata, 0 uyarı).
-- [x] 8. PowerShell test paketi ile stall ekleme, tekil silme, toplu temizleme ve sunucu yeniden başlatma senaryolarının %100 doğrulanması.
-- [x] 9. Teknik dokümantasyon (`docs/79_player_stall_bazaar_persistence_and_deletion_synchronization.md`), global `README.md` ve `todo.md` güncellenmesi.
+- [x] 1. Mimari & Bağımlılık Doğrulaması: `EquipManager.cs` (`baseStr`, `baseCon`, `baseInt`, `baseWis`, `baseAgi`, `SkillPoints`, `Send8_1`), `GmManager.cs` ve `AC02.cs` komut akışının incelenmesi.
+- [x] 2. `GmManager.cs` içine `MaxStatPlayer(Player player, out string statusMsg)` metodunun eklenmesi (STR, CON, INT, WIS, AGI değerlerini avatar bonusları da hesaplanarak tam 602'ye set etme, `SkillPoints` değerini 0 yapma, HP/SP yenileme, `Send8_1` senkronizasyonu ve veritabanına kaydetme).
+- [x] 3. `AC02.cs` içerisine `:maxstat` ve `/maxstat` komut handler'ının eklenmesi, `isPublicCommand` listesine eklenerek oyuncu ve GM erişiminin sağlanması, `:help` / `:cmds` menüsüne eklenmesi.
+- [x] 4. Projenin MSBuild ile derlenmesi (0 hata, 0 uyarı).
+- [x] 5. PowerShell ile komutun fonksiyonel testinin doğrulanması (tüm statların 602 olması, puanların 0 olması, veritabanı kaydı).
+- [x] 6. Teknik dokümantasyon (`docs/80_maxstat_chat_command_and_stat_synchronization.md`), global `README.md` ve `todo.md` güncellenmesi.
