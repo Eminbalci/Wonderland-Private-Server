@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Game;
 using Game.Experimental;
+using Game.PlayerRelated;
 using Network;
 
 namespace Network.ActionCodes
@@ -22,6 +24,31 @@ namespace Network.ActionCodes
 
             try
             {
+                int payloadOffset = p.GetPtr() <= 5 ? 6 : p.GetPtr();
+                int remaining = p.Buffer.Length - payloadOffset;
+                if (subCode == 1 && remaining >= 5 && p.Buffer[payloadOffset] == 1)
+                {
+                    ushort n = BitConverter.ToUInt16(p.Buffer, payloadOffset + 1);
+                    if (n >= 1 && remaining == 3 + 2 * n)
+                    {
+                        p.SetPtr(payloadOffset + 3);
+                        var found = new List<ItemCardManager.Entry>();
+                        for (int i = 0; i < n; i++)
+                        {
+                            ushort cardId = p.Unpack16();
+                            if (ItemCardManager.TryGetCard(cardId, out var card))
+                            {
+                                found.Add(card);
+                            }
+                        }
+                        if (found.Count > 0)
+                        {
+                            c.Send(ItemCardManager.BuildDetails(found));
+                        }
+                        return;
+                    }
+                }
+
                 if (ExperimentalFeaturesManager.Instance.EnableAquacultureFishing)
                 {
                     switch (subCode)

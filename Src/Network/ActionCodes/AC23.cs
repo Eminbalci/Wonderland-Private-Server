@@ -45,6 +45,7 @@ namespace Network.ActionCodes
                 case 89: Recv89(r, p); break;// Bamboo Dragonfly teleportation (0x17:0x59)
                 case 96: Recv96(r, p); break;// Use item from inventory (double-click/use)
                 case 124: Recv124(r, p); break;// confirm destroy 
+                case 133: Recv133(r, p); break; // Gift Exchange Card requests
                 default: DebugSystem.Write($"AC {p.A},{p.B} has not been coded"); break;
             }
         }
@@ -83,6 +84,7 @@ namespace Network.ActionCodes
 
                 if (Game.PetRelated.PetVoucherManager.TryRedeem(p, slot)) return;
                 if (BoxedItemManager.TryOpen(p, slot)) return;
+                if (ItemCardManager.TryRedeem(p, slot)) return;
                 if (GachaManager.TryOpen(p, slot)) return;
 
                 ushort itemId = item.ItemID;
@@ -865,6 +867,46 @@ namespace Network.ActionCodes
                 }
             }
             catch (Exception t) { Console.WriteLine(t); }
+        }
+
+        void Recv133(Player p, RecievePacket r)
+        {
+            try
+            {
+                int remaining = r.Buffer.Length - r.GetPtr();
+                if (remaining < 1) return;
+                byte mode = r.Unpack8();
+                if (mode == 1)
+                {
+                    if (remaining != 5) return;
+                    byte slot = r.Unpack8();
+                    ushort itemId = r.Unpack16();
+                    byte trailing = r.Unpack8();
+                    if (slot < 1 || slot > 50) return;
+                    if (p?.Inv == null) return;
+                    var item = p.Inv[slot];
+                    if (item == null || item.ItemID != itemId) return;
+                    ItemCardManager.TryRedeem(p, slot);
+                }
+                else if (mode == 2)
+                {
+                    if (remaining != 6) return;
+                    byte slot = r.Unpack8();
+                    byte one = r.Unpack8();
+                    if (one != 1) return;
+                    byte index = r.Unpack8();
+                    ushort rewardId = r.Unpack16();
+                    ItemCardManager.Exchange(p, slot, index, rewardId);
+                }
+                else
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv133] Error: {ex.Message}");
+            }
         }
     }
 }

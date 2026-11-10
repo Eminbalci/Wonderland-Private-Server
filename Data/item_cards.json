@@ -1,0 +1,3052 @@
+[
+  {
+    "card_id": 50001,
+    "rewards": [
+      {
+        "item_id": 34086,
+        "quantity": 1
+      },
+      {
+        "item_id": 34090,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50002,
+    "rewards": [
+      {
+        "item_id": 34145,
+        "quantity": 1
+      },
+      {
+        "item_id": 34186,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50007,
+    "rewards": [
+      {
+        "item_id": 22072,
+        "quantity": 1
+      },
+      {
+        "item_id": 34181,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50008,
+    "rewards": [
+      {
+        "item_id": 25639,
+        "quantity": 1
+      },
+      {
+        "item_id": 25640,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50009,
+    "rewards": [
+      {
+        "item_id": 34238,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50010,
+    "rewards": [
+      {
+        "item_id": 61079,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50011,
+    "rewards": [
+      {
+        "item_id": 34136,
+        "quantity": 1
+      },
+      {
+        "item_id": 34246,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50012,
+    "rewards": [
+      {
+        "item_id": 30025,
+        "quantity": 1
+      },
+      {
+        "item_id": 34136,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50013,
+    "rewards": [
+      {
+        "item_id": 61079,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50014,
+    "rewards": [
+      {
+        "item_id": 34188,
+        "quantity": 1
+      },
+      {
+        "item_id": 34258,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50015,
+    "rewards": [
+      {
+        "item_id": 34238,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50016,
+    "rewards": [
+      {
+        "item_id": 34086,
+        "quantity": 1
+      },
+      {
+        "item_id": 34190,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50017,
+    "rewards": [
+      {
+        "item_id": 34116,
+        "quantity": 1
+      },
+      {
+        "item_id": 34137,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50018,
+    "rewards": [
+      {
+        "item_id": 34269,
+        "quantity": 1
+      },
+      {
+        "item_id": 61039,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50019,
+    "rewards": [
+      {
+        "item_id": 34350,
+        "quantity": 1
+      },
+      {
+        "item_id": 61045,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50020,
+    "rewards": [
+      {
+        "item_id": 34145,
+        "quantity": 1
+      },
+      {
+        "item_id": 34350,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50021,
+    "rewards": [
+      {
+        "item_id": 34116,
+        "quantity": 1
+      },
+      {
+        "item_id": 61062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50022,
+    "rewards": [
+      {
+        "item_id": 34123,
+        "quantity": 1
+      },
+      {
+        "item_id": 34269,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50023,
+    "rewards": [
+      {
+        "item_id": 34350,
+        "quantity": 1
+      },
+      {
+        "item_id": 34360,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50024,
+    "rewards": [
+      {
+        "item_id": 34137,
+        "quantity": 1
+      },
+      {
+        "item_id": 61062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50025,
+    "rewards": [
+      {
+        "item_id": 34123,
+        "quantity": 1
+      },
+      {
+        "item_id": 61080,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50026,
+    "rewards": [
+      {
+        "item_id": 34173,
+        "quantity": 1
+      },
+      {
+        "item_id": 34350,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50027,
+    "rewards": [
+      {
+        "item_id": 30025,
+        "quantity": 1
+      },
+      {
+        "item_id": 34238,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50028,
+    "rewards": [
+      {
+        "item_id": 34116,
+        "quantity": 1
+      },
+      {
+        "item_id": 34137,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50029,
+    "rewards": [
+      {
+        "item_id": 34123,
+        "quantity": 1
+      },
+      {
+        "item_id": 34137,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50030,
+    "rewards": [
+      {
+        "item_id": 34350,
+        "quantity": 1
+      },
+      {
+        "item_id": 61080,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50031,
+    "rewards": [
+      {
+        "item_id": 34137,
+        "quantity": 1
+      },
+      {
+        "item_id": 61062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50032,
+    "rewards": [
+      {
+        "item_id": 34123,
+        "quantity": 1
+      },
+      {
+        "item_id": 61080,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50033,
+    "rewards": [
+      {
+        "item_id": 34350,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50034,
+    "rewards": [
+      {
+        "item_id": 34137,
+        "quantity": 1
+      },
+      {
+        "item_id": 61062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50035,
+    "rewards": [
+      {
+        "item_id": 34123,
+        "quantity": 1
+      },
+      {
+        "item_id": 34137,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50036,
+    "rewards": [
+      {
+        "item_id": 34173,
+        "quantity": 1
+      },
+      {
+        "item_id": 34350,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50037,
+    "rewards": [
+      {
+        "item_id": 34116,
+        "quantity": 1
+      },
+      {
+        "item_id": 34137,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50038,
+    "rewards": [
+      {
+        "item_id": 34137,
+        "quantity": 1
+      },
+      {
+        "item_id": 61062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50039,
+    "rewards": [
+      {
+        "item_id": 34173,
+        "quantity": 1
+      },
+      {
+        "item_id": 34350,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50041,
+    "rewards": [
+      {
+        "item_id": 21286,
+        "quantity": 1
+      },
+      {
+        "item_id": 21293,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50042,
+    "rewards": [
+      {
+        "item_id": 34165,
+        "quantity": 1
+      },
+      {
+        "item_id": 61022,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50043,
+    "rewards": [
+      {
+        "item_id": 34165,
+        "quantity": 1
+      },
+      {
+        "item_id": 61049,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50044,
+    "rewards": [
+      {
+        "item_id": 34137,
+        "quantity": 1
+      },
+      {
+        "item_id": 34199,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50045,
+    "rewards": [
+      {
+        "item_id": 34193,
+        "quantity": 1
+      },
+      {
+        "item_id": 34248,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50046,
+    "rewards": [
+      {
+        "item_id": 30300,
+        "quantity": 1
+      },
+      {
+        "item_id": 30301,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50047,
+    "rewards": [
+      {
+        "item_id": 30381,
+        "quantity": 1
+      },
+      {
+        "item_id": 30390,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50048,
+    "rewards": [
+      {
+        "item_id": 34181,
+        "quantity": 1
+      },
+      {
+        "item_id": 61080,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50049,
+    "rewards": [
+      {
+        "item_id": 34104,
+        "quantity": 1
+      },
+      {
+        "item_id": 34152,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50050,
+    "rewards": [
+      {
+        "item_id": 34062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50051,
+    "rewards": [
+      {
+        "item_id": 34238,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50052,
+    "rewards": [
+      {
+        "item_id": 61079,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50055,
+    "rewards": [
+      {
+        "item_id": 34086,
+        "quantity": 1
+      },
+      {
+        "item_id": 34190,
+        "quantity": 1
+      },
+      {
+        "item_id": 34434,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50056,
+    "rewards": [
+      {
+        "item_id": 34145,
+        "quantity": 1
+      },
+      {
+        "item_id": 34247,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50062,
+    "rewards": [
+      {
+        "item_id": 21373,
+        "quantity": 1
+      },
+      {
+        "item_id": 21374,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50074,
+    "rewards": [
+      {
+        "item_id": 30413,
+        "quantity": 1
+      },
+      {
+        "item_id": 30414,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50079,
+    "rewards": [
+      {
+        "item_id": 30470,
+        "quantity": 1
+      },
+      {
+        "item_id": 30471,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50088,
+    "rewards": [
+      {
+        "item_id": 25710,
+        "quantity": 1
+      },
+      {
+        "item_id": 25711,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50100,
+    "rewards": [
+      {
+        "item_id": 34062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50101,
+    "rewards": [
+      {
+        "item_id": 34062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50104,
+    "rewards": [
+      {
+        "item_id": 35458,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50115,
+    "rewards": [
+      {
+        "item_id": 11174,
+        "quantity": 1
+      },
+      {
+        "item_id": 11175,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50117,
+    "rewards": [
+      {
+        "item_id": 21554,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50139,
+    "rewards": [
+      {
+        "item_id": 30497,
+        "quantity": 1
+      },
+      {
+        "item_id": 30498,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50201,
+    "rewards": [
+      {
+        "item_id": 35467,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50211,
+    "rewards": [
+      {
+        "item_id": 48057,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50213,
+    "rewards": [
+      {
+        "item_id": 21435,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50227,
+    "rewards": [
+      {
+        "item_id": 21441,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50258,
+    "rewards": [
+      {
+        "item_id": 22675,
+        "quantity": 1
+      },
+      {
+        "item_id": 22676,
+        "quantity": 1
+      },
+      {
+        "item_id": 22677,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50310,
+    "rewards": [
+      {
+        "item_id": 30533,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50327,
+    "rewards": [
+      {
+        "item_id": 30101,
+        "quantity": 1
+      },
+      {
+        "item_id": 34181,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50404,
+    "rewards": [
+      {
+        "item_id": 21485,
+        "quantity": 1
+      },
+      {
+        "item_id": 21486,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50405,
+    "rewards": [
+      {
+        "item_id": 21485,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50406,
+    "rewards": [
+      {
+        "item_id": 21486,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50437,
+    "rewards": [
+      {
+        "item_id": 25768,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50438,
+    "rewards": [
+      {
+        "item_id": 25737,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50497,
+    "rewards": [
+      {
+        "item_id": 25774,
+        "quantity": 1
+      },
+      {
+        "item_id": 25843,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50505,
+    "rewards": [
+      {
+        "item_id": 21381,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50516,
+    "rewards": [
+      {
+        "item_id": 34350,
+        "quantity": 1
+      },
+      {
+        "item_id": 61080,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50534,
+    "male_item": 35451,
+    "female_item": 35450,
+    "rewards": [
+      {
+        "item_id": 35451,
+        "quantity": 1
+      },
+      {
+        "item_id": 35450,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50559,
+    "rewards": [
+      {
+        "item_id": 14186,
+        "quantity": 1
+      },
+      {
+        "item_id": 22626,
+        "quantity": 1
+      },
+      {
+        "item_id": 21388,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50602,
+    "rewards": [
+      {
+        "item_id": 21431,
+        "quantity": 1
+      },
+      {
+        "item_id": 21432,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50625,
+    "rewards": [
+      {
+        "item_id": 25840,
+        "quantity": 1
+      },
+      {
+        "item_id": 25841,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50633,
+    "rewards": [
+      {
+        "item_id": 21411,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50641,
+    "rewards": [
+      {
+        "item_id": 21417,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50682,
+    "rewards": [
+      {
+        "item_id": 30484,
+        "quantity": 1
+      },
+      {
+        "item_id": 30485,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50693,
+    "rewards": [
+      {
+        "item_id": 21482,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50705,
+    "rewards": [
+      {
+        "item_id": 21565,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50706,
+    "male_item": 21364,
+    "female_item": 21366,
+    "rewards": [
+      {
+        "item_id": 21364,
+        "quantity": 1
+      },
+      {
+        "item_id": 21366,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50707,
+    "male_item": 24257,
+    "female_item": 24259,
+    "rewards": [
+      {
+        "item_id": 24257,
+        "quantity": 1
+      },
+      {
+        "item_id": 24259,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50711,
+    "rewards": [
+      {
+        "item_id": 21566,
+        "quantity": 1
+      },
+      {
+        "item_id": 21567,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50716,
+    "rewards": [
+      {
+        "item_id": 30528,
+        "quantity": 1
+      },
+      {
+        "item_id": 30529,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50718,
+    "rewards": [
+      {
+        "item_id": 21572,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50724,
+    "rewards": [
+      {
+        "item_id": 21554,
+        "quantity": 1
+      },
+      {
+        "item_id": 23321,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50727,
+    "rewards": [
+      {
+        "item_id": 23322,
+        "quantity": 1
+      },
+      {
+        "item_id": 25864,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50730,
+    "rewards": [
+      {
+        "item_id": 22813,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50740,
+    "rewards": [
+      {
+        "item_id": 21582,
+        "quantity": 1
+      },
+      {
+        "item_id": 21583,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50743,
+    "rewards": [
+      {
+        "item_id": 21440,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50758,
+    "rewards": [
+      {
+        "item_id": 23248,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50776,
+    "rewards": [
+      {
+        "item_id": 21604,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50789,
+    "rewards": [
+      {
+        "item_id": 22805,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50799,
+    "rewards": [
+      {
+        "item_id": 25712,
+        "quantity": 1
+      },
+      {
+        "item_id": 25736,
+        "quantity": 1
+      },
+      {
+        "item_id": 25770,
+        "quantity": 1
+      },
+      {
+        "item_id": 30756,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50800,
+    "rewards": [
+      {
+        "item_id": 11225,
+        "quantity": 1
+      },
+      {
+        "item_id": 12172,
+        "quantity": 1
+      },
+      {
+        "item_id": 35572,
+        "quantity": 1
+      },
+      {
+        "item_id": 35573,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50804,
+    "rewards": [
+      {
+        "item_id": 21434,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50811,
+    "rewards": [
+      {
+        "item_id": 35403,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50817,
+    "rewards": [
+      {
+        "item_id": 21605,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50823,
+    "rewards": [
+      {
+        "item_id": 21560,
+        "quantity": 1
+      },
+      {
+        "item_id": 22805,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50828,
+    "rewards": [
+      {
+        "item_id": 21618,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50831,
+    "rewards": [
+      {
+        "item_id": 21561,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50839,
+    "rewards": [
+      {
+        "item_id": 22817,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50848,
+    "rewards": [
+      {
+        "item_id": 21626,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50856,
+    "rewards": [
+      {
+        "item_id": 35587,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50860,
+    "rewards": [
+      {
+        "item_id": 21552,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50869,
+    "rewards": [
+      {
+        "item_id": 22616,
+        "quantity": 1
+      },
+      {
+        "item_id": 25835,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50876,
+    "rewards": [
+      {
+        "item_id": 21503,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50884,
+    "rewards": [
+      {
+        "item_id": 25887,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50888,
+    "rewards": [
+      {
+        "item_id": 21639,
+        "quantity": 1
+      },
+      {
+        "item_id": 22742,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50897,
+    "rewards": [
+      {
+        "item_id": 21449,
+        "quantity": 1
+      },
+      {
+        "item_id": 21450,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50904,
+    "rewards": [
+      {
+        "item_id": 35564,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50908,
+    "rewards": [
+      {
+        "item_id": 21576,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50915,
+    "rewards": [
+      {
+        "item_id": 35571,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50918,
+    "rewards": [
+      {
+        "item_id": 23337,
+        "quantity": 1
+      },
+      {
+        "item_id": 25850,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50926,
+    "rewards": [
+      {
+        "item_id": 35616,
+        "quantity": 1
+      },
+      {
+        "item_id": 35617,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50934,
+    "rewards": [
+      {
+        "item_id": 21640,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50938,
+    "rewards": [
+      {
+        "item_id": 35284,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50946,
+    "rewards": [
+      {
+        "item_id": 21599,
+        "quantity": 1
+      },
+      {
+        "item_id": 21600,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50947,
+    "rewards": [
+      {
+        "item_id": 21652,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50953,
+    "rewards": [
+      {
+        "item_id": 30479,
+        "quantity": 1
+      },
+      {
+        "item_id": 30480,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50962,
+    "rewards": [
+      {
+        "item_id": 35627,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50969,
+    "rewards": [
+      {
+        "item_id": 34289,
+        "quantity": 1
+      },
+      {
+        "item_id": 61038,
+        "quantity": 1
+      },
+      {
+        "item_id": 61079,
+        "quantity": 1
+      },
+      {
+        "item_id": 62006,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50970,
+    "rewards": [
+      {
+        "item_id": 21643,
+        "quantity": 1
+      },
+      {
+        "item_id": 35631,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50971,
+    "rewards": [
+      {
+        "item_id": 30521,
+        "quantity": 1
+      },
+      {
+        "item_id": 34500,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50975,
+    "rewards": [
+      {
+        "item_id": 25788,
+        "quantity": 1
+      },
+      {
+        "item_id": 25789,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50981,
+    "rewards": [
+      {
+        "item_id": 21471,
+        "quantity": 1
+      },
+      {
+        "item_id": 21472,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50987,
+    "rewards": [
+      {
+        "item_id": 24346,
+        "quantity": 1
+      },
+      {
+        "item_id": 24347,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50992,
+    "rewards": [
+      {
+        "item_id": 21660,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50993,
+    "rewards": [
+      {
+        "item_id": 10147,
+        "quantity": 1
+      },
+      {
+        "item_id": 14247,
+        "quantity": 1
+      },
+      {
+        "item_id": 30822,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 50994,
+    "rewards": [
+      {
+        "item_id": 21658,
+        "quantity": 1
+      },
+      {
+        "item_id": 22863,
+        "quantity": 1
+      },
+      {
+        "item_id": 23342,
+        "quantity": 1
+      },
+      {
+        "item_id": 24392,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51001,
+    "rewards": [
+      {
+        "item_id": 35646,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51003,
+    "rewards": [
+      {
+        "item_id": 21659,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51009,
+    "rewards": [
+      {
+        "item_id": 21665,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51030,
+    "rewards": [
+      {
+        "item_id": 21500,
+        "quantity": 1
+      },
+      {
+        "item_id": 21501,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51031,
+    "rewards": [
+      {
+        "item_id": 35651,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51032,
+    "rewards": [
+      {
+        "item_id": 11238,
+        "quantity": 1
+      },
+      {
+        "item_id": 18096,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51033,
+    "rewards": [
+      {
+        "item_id": 13089,
+        "quantity": 1
+      },
+      {
+        "item_id": 13090,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51049,
+    "rewards": [
+      {
+        "item_id": 35654,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51050,
+    "rewards": [
+      {
+        "item_id": 10147,
+        "quantity": 1
+      },
+      {
+        "item_id": 14247,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51058,
+    "rewards": [
+      {
+        "item_id": 35656,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51070,
+    "rewards": [
+      {
+        "item_id": 21637,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51077,
+    "rewards": [
+      {
+        "item_id": 21672,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51083,
+    "rewards": [
+      {
+        "item_id": 21638,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51096,
+    "rewards": [
+      {
+        "item_id": 21689,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51100,
+    "rewards": [
+      {
+        "item_id": 35664,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51114,
+    "rewards": [
+      {
+        "item_id": 25947,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51133,
+    "rewards": [
+      {
+        "item_id": 35673,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51148,
+    "rewards": [
+      {
+        "item_id": 35672,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51153,
+    "rewards": [
+      {
+        "item_id": 25951,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51162,
+    "rewards": [
+      {
+        "item_id": 21675,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51163,
+    "rewards": [
+      {
+        "item_id": 23236,
+        "quantity": 1
+      },
+      {
+        "item_id": 23240,
+        "quantity": 1
+      },
+      {
+        "item_id": 23251,
+        "quantity": 1
+      },
+      {
+        "item_id": 23252,
+        "quantity": 1
+      },
+      {
+        "item_id": 23258,
+        "quantity": 1
+      },
+      {
+        "item_id": 23313,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51174,
+    "rewards": [
+      {
+        "item_id": 10156,
+        "quantity": 1
+      },
+      {
+        "item_id": 10157,
+        "quantity": 1
+      },
+      {
+        "item_id": 35682,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51181,
+    "rewards": [
+      {
+        "item_id": 22909,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51182,
+    "rewards": [
+      {
+        "item_id": 35686,
+        "quantity": 1
+      },
+      {
+        "item_id": 35687,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51184,
+    "rewards": [
+      {
+        "item_id": 25736,
+        "quantity": 1
+      },
+      {
+        "item_id": 25778,
+        "quantity": 1
+      },
+      {
+        "item_id": 25866,
+        "quantity": 1
+      },
+      {
+        "item_id": 25880,
+        "quantity": 1
+      },
+      {
+        "item_id": 25888,
+        "quantity": 1
+      },
+      {
+        "item_id": 25893,
+        "quantity": 1
+      },
+      {
+        "item_id": 25896,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51192,
+    "rewards": [
+      {
+        "item_id": 35711,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51202,
+    "rewards": [
+      {
+        "item_id": 22913,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51203,
+    "rewards": [
+      {
+        "item_id": 35721,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51204,
+    "rewards": [
+      {
+        "item_id": 12186,
+        "quantity": 1
+      },
+      {
+        "item_id": 14254,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51215,
+    "rewards": [
+      {
+        "item_id": 34089,
+        "quantity": 1
+      },
+      {
+        "item_id": 34139,
+        "quantity": 1
+      },
+      {
+        "item_id": 34239,
+        "quantity": 1
+      },
+      {
+        "item_id": 61062,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51216,
+    "rewards": [
+      {
+        "item_id": 34125,
+        "quantity": 1
+      },
+      {
+        "item_id": 34146,
+        "quantity": 1
+      },
+      {
+        "item_id": 34258,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51231,
+    "rewards": [
+      {
+        "item_id": 21679,
+        "quantity": 1
+      },
+      {
+        "item_id": 21680,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51236,
+    "rewards": [
+      {
+        "item_id": 35729,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51246,
+    "rewards": [
+      {
+        "item_id": 21559,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51251,
+    "rewards": [
+      {
+        "item_id": 35731,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51260,
+    "rewards": [
+      {
+        "item_id": 25962,
+        "quantity": 1
+      },
+      {
+        "item_id": 25963,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51267,
+    "male_item": 22912,
+    "female_item": 22911,
+    "rewards": [
+      {
+        "item_id": 22912,
+        "quantity": 1
+      },
+      {
+        "item_id": 22911,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51268,
+    "male_item": 21715,
+    "female_item": 21714,
+    "rewards": [
+      {
+        "item_id": 21715,
+        "quantity": 1
+      },
+      {
+        "item_id": 21714,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51283,
+    "rewards": [
+      {
+        "item_id": 35740,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51284,
+    "rewards": [
+      {
+        "item_id": 11266,
+        "quantity": 1
+      },
+      {
+        "item_id": 14259,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51292,
+    "rewards": [
+      {
+        "item_id": 35742,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51296,
+    "rewards": [
+      {
+        "item_id": 35746,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51301,
+    "rewards": [
+      {
+        "item_id": 35747,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51307,
+    "rewards": [
+      {
+        "item_id": 22921,
+        "quantity": 1
+      },
+      {
+        "item_id": 22922,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51343,
+    "rewards": [
+      {
+        "item_id": 23317,
+        "quantity": 1
+      },
+      {
+        "item_id": 23318,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51351,
+    "rewards": [
+      {
+        "item_id": 35805,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51354,
+    "rewards": [
+      {
+        "item_id": 30896,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51359,
+    "rewards": [
+      {
+        "item_id": 27000,
+        "quantity": 1
+      },
+      {
+        "item_id": 27001,
+        "quantity": 1
+      },
+      {
+        "item_id": 27002,
+        "quantity": 1
+      },
+      {
+        "item_id": 27003,
+        "quantity": 1
+      },
+      {
+        "item_id": 27004,
+        "quantity": 1
+      },
+      {
+        "item_id": 27005,
+        "quantity": 1
+      },
+      {
+        "item_id": 27006,
+        "quantity": 1
+      },
+      {
+        "item_id": 27007,
+        "quantity": 1
+      },
+      {
+        "item_id": 27008,
+        "quantity": 1
+      },
+      {
+        "item_id": 27009,
+        "quantity": 1
+      },
+      {
+        "item_id": 27010,
+        "quantity": 1
+      },
+      {
+        "item_id": 27011,
+        "quantity": 1
+      },
+      {
+        "item_id": 27012,
+        "quantity": 1
+      },
+      {
+        "item_id": 27013,
+        "quantity": 1
+      },
+      {
+        "item_id": 27014,
+        "quantity": 1
+      },
+      {
+        "item_id": 27015,
+        "quantity": 1
+      },
+      {
+        "item_id": 27016,
+        "quantity": 1
+      },
+      {
+        "item_id": 27017,
+        "quantity": 1
+      },
+      {
+        "item_id": 27018,
+        "quantity": 1
+      },
+      {
+        "item_id": 27019,
+        "quantity": 1
+      },
+      {
+        "item_id": 27020,
+        "quantity": 1
+      },
+      {
+        "item_id": 27021,
+        "quantity": 1
+      },
+      {
+        "item_id": 27022,
+        "quantity": 1
+      },
+      {
+        "item_id": 27025,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51368,
+    "rewards": [
+      {
+        "item_id": 35813,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51374,
+    "rewards": [
+      {
+        "item_id": 21735,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51379,
+    "rewards": [
+      {
+        "item_id": 35816,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51381,
+    "male_item": 22902,
+    "female_item": 22903,
+    "rewards": [
+      {
+        "item_id": 22902,
+        "quantity": 1
+      },
+      {
+        "item_id": 22903,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51382,
+    "male_item": 21704,
+    "female_item": 21705,
+    "rewards": [
+      {
+        "item_id": 21704,
+        "quantity": 1
+      },
+      {
+        "item_id": 21705,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51392,
+    "rewards": [
+      {
+        "item_id": 30958,
+        "quantity": 1
+      },
+      {
+        "item_id": 30959,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51396,
+    "rewards": [
+      {
+        "item_id": 23238,
+        "quantity": 1
+      },
+      {
+        "item_id": 23244,
+        "quantity": 1
+      },
+      {
+        "item_id": 23245,
+        "quantity": 1
+      },
+      {
+        "item_id": 23247,
+        "quantity": 1
+      },
+      {
+        "item_id": 23319,
+        "quantity": 1
+      },
+      {
+        "item_id": 23322,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51401,
+    "rewards": [
+      {
+        "item_id": 23390,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51409,
+    "rewards": [
+      {
+        "item_id": 21447,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51413,
+    "rewards": [
+      {
+        "item_id": 25980,
+        "quantity": 1
+      },
+      {
+        "item_id": 35830,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51435,
+    "rewards": [
+      {
+        "item_id": 21737,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51440,
+    "rewards": [
+      {
+        "item_id": 22945,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51441,
+    "rewards": [
+      {
+        "item_id": 35833,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51462,
+    "rewards": [
+      {
+        "item_id": 25854,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51479,
+    "rewards": [
+      {
+        "item_id": 35849,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51502,
+    "rewards": [
+      {
+        "item_id": 21754,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51510,
+    "rewards": [
+      {
+        "item_id": 21757,
+        "quantity": 1
+      },
+      {
+        "item_id": 21758,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51511,
+    "rewards": [
+      {
+        "item_id": 35864,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51512,
+    "rewards": [
+      {
+        "item_id": 35853,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51528,
+    "rewards": [
+      {
+        "item_id": 21726,
+        "quantity": 1
+      },
+      {
+        "item_id": 21727,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51542,
+    "rewards": [
+      {
+        "item_id": 35870,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51546,
+    "rewards": [
+      {
+        "item_id": 21728,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51554,
+    "rewards": [
+      {
+        "item_id": 21464,
+        "quantity": 1
+      },
+      {
+        "item_id": 21465,
+        "quantity": 1
+      },
+      {
+        "item_id": 21478,
+        "quantity": 1
+      },
+      {
+        "item_id": 21479,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51560,
+    "rewards": [
+      {
+        "item_id": 21732,
+        "quantity": 1
+      },
+      {
+        "item_id": 21733,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51563,
+    "rewards": [
+      {
+        "item_id": 21771,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51576,
+    "rewards": [
+      {
+        "item_id": 35885,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51577,
+    "rewards": [
+      {
+        "item_id": 18114,
+        "quantity": 1
+      },
+      {
+        "item_id": 18115,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51589,
+    "rewards": [
+      {
+        "item_id": 23420,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51593,
+    "rewards": [
+      {
+        "item_id": 35923,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51602,
+    "rewards": [
+      {
+        "item_id": 35886,
+        "quantity": 1
+      },
+      {
+        "item_id": 35887,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51609,
+    "rewards": [
+      {
+        "item_id": 30908,
+        "quantity": 1
+      },
+      {
+        "item_id": 34707,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51610,
+    "rewards": [
+      {
+        "item_id": 35992,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51612,
+    "rewards": [
+      {
+        "item_id": 35903,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51613,
+    "rewards": [
+      {
+        "item_id": 22994,
+        "quantity": 1
+      },
+      {
+        "item_id": 22995,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51617,
+    "rewards": [
+      {
+        "item_id": 35910,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51633,
+    "rewards": [
+      {
+        "item_id": 25984,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51638,
+    "rewards": [
+      {
+        "item_id": 35911,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51648,
+    "rewards": [
+      {
+        "item_id": 35914,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51649,
+    "rewards": [
+      {
+        "item_id": 35915,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51658,
+    "rewards": [
+      {
+        "item_id": 25985,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51666,
+    "rewards": [
+      {
+        "item_id": 35930,
+        "quantity": 1
+      },
+      {
+        "item_id": 35931,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51692,
+    "rewards": [
+      {
+        "item_id": 35928,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51700,
+    "rewards": [
+      {
+        "item_id": 27554,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51709,
+    "rewards": [
+      {
+        "item_id": 35951,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51712,
+    "rewards": [
+      {
+        "item_id": 35970,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51714,
+    "rewards": [
+      {
+        "item_id": 35955,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51723,
+    "rewards": [
+      {
+        "item_id": 21800,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51726,
+    "rewards": [
+      {
+        "item_id": 35888,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51731,
+    "rewards": [
+      {
+        "item_id": 35956,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51749,
+    "rewards": [
+      {
+        "item_id": 21802,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51752,
+    "rewards": [
+      {
+        "item_id": 35965,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51761,
+    "rewards": [
+      {
+        "item_id": 35889,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51768,
+    "rewards": [
+      {
+        "item_id": 31172,
+        "quantity": 1
+      },
+      {
+        "item_id": 34824,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51773,
+    "rewards": [
+      {
+        "item_id": 23455,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  },
+  {
+    "card_id": 51782,
+    "rewards": [
+      {
+        "item_id": 35988,
+        "quantity": 1
+      }
+    ],
+    "evidence": "Exact named reward phrases in compiled English/Chinese item descriptions; unspecified premium props are not invented"
+  }
+]

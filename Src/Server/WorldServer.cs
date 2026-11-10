@@ -207,6 +207,7 @@ namespace Server
             src.Send(Tools.FromFormat("bbb", 5, 15, 0));
             src.Send(Tools.FromFormat("bbw", 62, 53, 2));
             src.SendRecordPointStatus();
+            src.Send(Game.PlayerRelated.ItemCardManager.BuildIndex());
             Game.PlayerRelated.TeleportScrollManager.SendAllPoints(src);
             // Send this player's friend list and refresh online friends so they see him online.
             Network.ActionCodes.AC14.NotifyFriendsStatus(src, true);
