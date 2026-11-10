@@ -8,6 +8,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Game;
 using Game.Bots;
+using MessageBoardPost = Game.PlayerRelated.MessageBoardPost;
+using MessageBoardWire = Game.PlayerRelated.MessageBoardWire;
 using MySql.Data.MySqlClient;
 using Network;
 using RCLibrary.Core;
@@ -1055,6 +1057,175 @@ namespace DataBase
                 DstX_Axis = Convert.ToUInt16(data.Rows[0]["posX"]),
                 DstY_Axis = Convert.ToUInt16(data.Rows[0]["posY"])
             } : null;
+        }
+
+        private readonly object _messageBoardLock = new object();
+
+        public void EnsureMessageBoard()
+        {
+            lock (_messageBoardLock)
+            {
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS message_board_posts (id INTEGER PRIMARY KEY, authorID INTEGER, authorName TEXT, title TEXT, content TEXT, postedAtMillis INTEGER)");
+                ExecuteNonQuery("CREATE TABLE IF NOT EXISTS message_board_sequence (id INTEGER PRIMARY KEY, value INTEGER)");
+                var dt = GetDataTable("SELECT value FROM message_board_sequence WHERE id = 1");
+                if (dt == null || dt.Rows.Count == 0)
+                {
+                    ExecuteNonQuery("INSERT INTO message_board_sequence (id, value) VALUES (1, 0)");
+                }
+            }
+        }
+
+        public int CreateMessageBoardPost(uint authorId, byte[] authorName, byte[] title, byte[] content, long nowMillis, out MessageBoardPost post)
+        {
+            post = null;
+            if (authorId == 0) return 3;
+            if (!MessageBoardWire.ValidText(authorName, MessageBoardWire.AuthorMaxBytes, false)) return 3;
+            if (!MessageBoardWire.ValidText(title, MessageBoardWire.TitleMaxBytes, false)) return 3;
+            if (!MessageBoardWire.ValidText(content, MessageBoardWire.ContentMaxBytes, true)) return 3;
+
+            string authorNameB64 = Convert.ToBase64String(authorName);
+            string titleB64 = Convert.ToBase64String(title);
+            string contentB64 = Convert.ToBase64String(content);
+            long activeThreshold = nowMillis - MessageBoardWire.LifetimeMillis;
+
+            lock (_messageBoardLock)
+            {
+                EnsureMessageBoard();
+
+                var dtIdentical = GetDataTable($"SELECT id, authorID, authorName, title, content, postedAtMillis FROM message_board_posts WHERE authorID = {authorId} AND title = '{titleB64}' AND content = '{contentB64}' AND postedAtMillis > {activeThreshold} ORDER BY postedAtMillis DESC, id DESC");
+                if (dtIdentical != null && dtIdentical.Rows.Count > 0)
+                {
+                    var r = dtIdentical.Rows[0];
+                    post = new MessageBoardPost
+                    {
+                        Id = Convert.ToUInt32(r["id"]),
+                        AuthorId = Convert.ToUInt32(r["authorID"]),
+                        AuthorName = Convert.FromBase64String(r["authorName"].ToString()),
+                        Title = Convert.FromBase64String(r["title"].ToString()),
+                        Content = Convert.FromBase64String(r["content"].ToString()),
+                        PostedAtMillis = Convert.ToInt64(r["postedAtMillis"])
+                    };
+                    return 0;
+                }
+
+                var dtAuthor = GetDataTable($"SELECT COUNT(*) as cnt FROM message_board_posts WHERE authorID = {authorId} AND postedAtMillis > {activeThreshold}");
+                long authorCount = (dtAuthor != null && dtAuthor.Rows.Count > 0) ? Convert.ToInt64(dtAuthor.Rows[0]["cnt"]) : 0;
+                if (authorCount >= MessageBoardWire.PostsPerAuthor)
+                {
+                    return 1;
+                }
+
+                var dtTotal = GetDataTable($"SELECT COUNT(*) as cnt FROM message_board_posts WHERE postedAtMillis > {activeThreshold}");
+                long totalCount = (dtTotal != null && dtTotal.Rows.Count > 0) ? Convert.ToInt64(dtTotal.Rows[0]["cnt"]) : 0;
+                if (totalCount >= MessageBoardWire.MaxPosts)
+                {
+                    return 2;
+                }
+
+                long seqVal = 0;
+                var dtSeq = GetDataTable("SELECT value FROM message_board_sequence WHERE id = 1");
+                if (dtSeq != null && dtSeq.Rows.Count > 0 && dtSeq.Rows[0]["value"] != DBNull.Value)
+                {
+                    seqVal = Convert.ToInt64(dtSeq.Rows[0]["value"]);
+                }
+
+                long maxExistingId = 0;
+                var dtMax = GetDataTable("SELECT MAX(id) as max_id FROM message_board_posts");
+                if (dtMax != null && dtMax.Rows.Count > 0 && dtMax.Rows[0]["max_id"] != DBNull.Value)
+                {
+                    maxExistingId = Convert.ToInt64(dtMax.Rows[0]["max_id"]);
+                }
+
+                long newId = Math.Max(seqVal, maxExistingId) + 1;
+
+                ExecuteNonQuery($"UPDATE message_board_sequence SET value = {newId} WHERE id = 1");
+                ExecuteNonQuery($"INSERT INTO message_board_posts (id, authorID, authorName, title, content, postedAtMillis) VALUES ({newId}, {authorId}, '{authorNameB64}', '{titleB64}', '{contentB64}', {nowMillis})");
+
+                post = new MessageBoardPost
+                {
+                    Id = (uint)newId,
+                    AuthorId = authorId,
+                    AuthorName = (byte[])authorName.Clone(),
+                    Title = (byte[])title.Clone(),
+                    Content = (byte[])content.Clone(),
+                    PostedAtMillis = nowMillis
+                };
+                return 0;
+            }
+        }
+
+        public List<MessageBoardPost> MessageBoardPage(int offset, int limit, long nowMillis, out long count)
+        {
+            long activeThreshold = nowMillis - MessageBoardWire.LifetimeMillis;
+            var list = new List<MessageBoardPost>();
+
+            lock (_messageBoardLock)
+            {
+                EnsureMessageBoard();
+
+                var dtCount = GetDataTable($"SELECT COUNT(*) as cnt FROM message_board_posts WHERE postedAtMillis > {activeThreshold}");
+                count = (dtCount != null && dtCount.Rows.Count > 0) ? Convert.ToInt64(dtCount.Rows[0]["cnt"]) : 0;
+
+                if (limit <= 0) limit = MessageBoardWire.PageSize;
+                if (offset < 0) offset = 0;
+
+                var dt = GetDataTable($"SELECT id, authorID, authorName, title, content, postedAtMillis FROM message_board_posts WHERE postedAtMillis > {activeThreshold} ORDER BY postedAtMillis DESC, id DESC LIMIT {limit} OFFSET {offset}");
+                if (dt != null)
+                {
+                    foreach (DataRow r in dt.Rows)
+                    {
+                        list.Add(new MessageBoardPost
+                        {
+                            Id = Convert.ToUInt32(r["id"]),
+                            AuthorId = Convert.ToUInt32(r["authorID"]),
+                            AuthorName = Convert.FromBase64String(r["authorName"].ToString()),
+                            Title = Convert.FromBase64String(r["title"].ToString()),
+                            Content = Convert.FromBase64String(r["content"].ToString()),
+                            PostedAtMillis = Convert.ToInt64(r["postedAtMillis"])
+                        });
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        public MessageBoardPost MessageBoardEntry(uint id, long nowMillis)
+        {
+            if (id == 0) return null;
+            long activeThreshold = nowMillis - MessageBoardWire.LifetimeMillis;
+
+            lock (_messageBoardLock)
+            {
+                EnsureMessageBoard();
+
+                var dt = GetDataTable($"SELECT id, authorID, authorName, title, content, postedAtMillis FROM message_board_posts WHERE id = {id} AND postedAtMillis > {activeThreshold}");
+                if (dt == null || dt.Rows.Count == 0) return null;
+
+                var r = dt.Rows[0];
+                return new MessageBoardPost
+                {
+                    Id = Convert.ToUInt32(r["id"]),
+                    AuthorId = Convert.ToUInt32(r["authorID"]),
+                    AuthorName = Convert.FromBase64String(r["authorName"].ToString()),
+                    Title = Convert.FromBase64String(r["title"].ToString()),
+                    Content = Convert.FromBase64String(r["content"].ToString()),
+                    PostedAtMillis = Convert.ToInt64(r["postedAtMillis"])
+                };
+            }
+        }
+
+        public bool DeleteMessageBoardPost(uint authorId, uint id, long nowMillis)
+        {
+            if (authorId == 0 || id == 0) return false;
+            long activeThreshold = nowMillis - MessageBoardWire.LifetimeMillis;
+
+            lock (_messageBoardLock)
+            {
+                EnsureMessageBoard();
+
+                return ExecuteNonQuery($"DELETE FROM message_board_posts WHERE id = {id} AND authorID = {authorId} AND postedAtMillis > {activeThreshold}") > 0;
+            }
         }
 
         public bool GetCharacterData(uint charID, ref Player t)

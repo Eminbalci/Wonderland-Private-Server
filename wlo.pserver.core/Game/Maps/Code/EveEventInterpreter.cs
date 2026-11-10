@@ -897,6 +897,11 @@ namespace Game.Maps
                                         DebugSystem.Write($"[EveEventInterpreter] Opened Character Stock Keep for {player.CharName}");
                                         return true;
 
+                                    case 15:
+                                        player.Send(Tools.FromFormat("bb", 20, 8));
+                                        player.Send(Tools.FromFormat("bb", 82, 9));
+                                        return true;
+
                                     default:
                                         player.Send(Tools.FromFormat("bb", 20, 8));
                                         DebugSystem.Write($"[EveEventInterpreter] Executed System Action Code #{actionOrMap} for {player.CharName}");
