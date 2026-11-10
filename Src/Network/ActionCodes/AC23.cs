@@ -45,6 +45,7 @@ namespace Network.ActionCodes
                 case 89: Recv89(r, p); break;// Bamboo Dragonfly teleportation (0x17:0x59)
                 case 96: Recv96(r, p); break;// Use item from inventory (double-click/use)
                 case 124: Recv124(r, p); break;// confirm destroy 
+                case 126: Recv126(r, p); break; // Potential Pill
                 case 133: Recv133(r, p); break; // Gift Exchange Card requests
                 default: DebugSystem.Write($"AC {p.A},{p.B} has not been coded"); break;
             }
@@ -906,6 +907,125 @@ namespace Network.ActionCodes
             catch (Exception ex)
             {
                 DebugSystem.Write($"[AC23.Recv133] Error: {ex.Message}");
+            }
+        }
+
+        private static readonly System.Security.Cryptography.RandomNumberGenerator PotentialRng = System.Security.Cryptography.RandomNumberGenerator.Create();
+
+        private static int RollUniform0To99()
+        {
+            byte[] buffer = new byte[4];
+            while (true)
+            {
+                lock (PotentialRng)
+                {
+                    PotentialRng.GetBytes(buffer);
+                }
+                uint rand = BitConverter.ToUInt32(buffer, 0);
+                const uint maxUnbiased = uint.MaxValue - (uint.MaxValue % 100);
+                if (rand < maxUnbiased)
+                {
+                    return (int)(rand % 100);
+                }
+            }
+        }
+
+        private static void SendPotentialReply(Player p, byte result, byte target, byte level)
+        {
+            SendPacket reply = new SendPacket();
+            reply.Pack8(23);
+            reply.Pack8(213);
+            reply.Pack8(result);
+            reply.Pack8(target);
+            reply.Pack8(level);
+            p.Send(reply);
+        }
+
+        void Recv126(Player p, RecievePacket r)
+        {
+            try
+            {
+                if (p?.Inv == null) return;
+                int remaining = r.Buffer.Length - r.GetPtr();
+                if (remaining != 2) return;
+
+                byte bagSlot = r.Unpack8();
+                byte target = r.Unpack8();
+
+                if (bagSlot < 1 || bagSlot > 50 || target > 4 || Game.Battle.PvEBattleManager.IsInBattle(p))
+                {
+                    SendPotentialReply(p, 0, target, 0);
+                    return;
+                }
+
+                Player.PlayerPetData pet = null;
+                if (target > 0)
+                {
+                    pet = p.GetClientPet(target);
+                    if (pet == null || pet.PetID == 0)
+                    {
+                        SendPotentialReply(p, 0, target, 0);
+                        return;
+                    }
+                }
+
+                lock (p.Inv.SyncRoot)
+                {
+                    var item = p.Inv[bagSlot];
+                    if (item == null || item.ItemID == 0 || item.isLocked || item.Parent != 0)
+                    {
+                        SendPotentialReply(p, 0, target, 0);
+                        return;
+                    }
+
+                    ushort itemId = item.ItemID;
+                    ushort currentPotential = target == 0 ? p.Potential : pet.Potential;
+
+                    if (!PotentialRule.TrySuccessPercent(itemId, currentPotential, out int chance, out string error))
+                    {
+                        SendPotentialReply(p, 0, target, 0);
+                        p.SendSystemMessage(error);
+                        return;
+                    }
+
+                    int roll = chance < 100 ? RollUniform0To99() : 0;
+                    if (!PotentialRule.TryNext(itemId, currentPotential, roll, out ushort nextPotential, out error))
+                    {
+                        SendPotentialReply(p, 0, target, 0);
+                        p.SendSystemMessage(error);
+                        return;
+                    }
+
+                    p.Inv.RemoveItem(bagSlot, 1);
+
+                    if (target == 0)
+                    {
+                        p.Potential = nextPotential;
+                    }
+                    else
+                    {
+                        pet.Potential = nextPotential;
+                    }
+
+                    SendPotentialReply(p, 1, target, (byte)nextPotential);
+
+                    if (target == 0)
+                    {
+                        p.Send8_1();
+                    }
+                    else
+                    {
+                        Game.QuestRelated.QuestManager.SendPetProgression(p, pet);
+                    }
+
+                    p.SaveCharacterData();
+
+                    DebugSystem.Write($"[Potential] Item={itemId}, Target={target}, Before={currentPotential}, Chance={chance}, Roll={roll}, After={nextPotential}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[AC23.Recv126] Error: {ex.Message}");
             }
         }
     }
