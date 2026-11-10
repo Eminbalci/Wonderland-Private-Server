@@ -120,8 +120,29 @@ namespace Game.Battle
         public byte GridX { get; set; }
         public byte GridY { get; set; }
 
-        public bool IsDead => CurHP <= 0;
+        public bool IsWithdrawn { get; set; }
+        public bool IsDead => CurHP <= 0 || IsWithdrawn;
         public bool IsCaptured { get; set; } = false;
+        public long RoundDamage { get; set; }
+        public bool IsOverkilled { get; set; }
+
+        public bool TakeRoundDamage(int damage)
+        {
+            if (damage <= 0 || IsOverkilled)
+            {
+                return false;
+            }
+
+            RoundDamage += damage;
+            if (OverkillRule.Exceeds(RoundDamage, MaxHP))
+            {
+                IsOverkilled = true;
+                CurHP = 0;
+                return true;
+            }
+
+            return false;
+        }
 
         public List<FighterStatus> ActiveStatuses { get; set; } = new List<FighterStatus>();
         public bool HasStatus(FighterStatusType type) => ActiveStatuses.Any(s => s.StatusType == type && s.RemainingTurns > 0);
@@ -1699,6 +1720,8 @@ namespace Game.Battle
                     if (battle == null || battle.IsFinished) return;
 
                     battle.Turn++;
+                    foreach (var f in battle.Attackers) f.RoundDamage = 0;
+                    foreach (var f in battle.Defenders) f.RoundDamage = 0;
 
                     var actions = new List<PendingAction>(battle.PendingActions.Values);
                     battle.PendingActions.Clear();
@@ -1865,7 +1888,7 @@ namespace Game.Battle
                                 foreach (var ally in targetAllies)
                                 {
                                     int reviveHp = Math.Max(50, ally.MaxHP / 3);
-                                    if (ally.IsDead)
+                                    if (ally.IsDead && !ally.IsOverkilled)
                                     {
                                         ally.CurHP = reviveHp;
                                         if (ally.PlayerRef?.Eqs != null) ally.PlayerRef.Eqs.CurHP = reviveHp;
@@ -2404,6 +2427,7 @@ namespace Game.Battle
                                     var target = kvp.Key;
                                     int totalDmg = kvp.Value;
 
+                                    target.TakeRoundDamage(totalDmg);
                                     target.CurHP = Math.Max(0, target.CurHP - totalDmg);
                                     if (target.MonsterRef != null) target.MonsterRef.MonsterHP = target.CurHP;
                                     if (target.PlayerRef?.Eqs != null) target.PlayerRef.Eqs.CurHP = target.CurHP;
@@ -2422,7 +2446,15 @@ namespace Game.Battle
 
                                 foreach (var fallen in fallenTargets)
                                 {
-                                    BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, fallen.GridX, fallen.GridY));
+                                    if (fallen.IsOverkilled)
+                                    {
+                                        BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, fallen.GridX, fallen.GridY));
+                                        if (fallen.FighterType == BattleFighterType.Player)
+                                        {
+                                            await Task.Delay(300);
+                                            ReturnOverkilledPlayer(battle, fallen);
+                                        }
+                                    }
                                     if (fallen.PetRef != null)
                                         PetRelated.PetAmityManager.OnPetDeath(battle.AllPlayers.FirstOrDefault(p => p.CharID == fallen.OwnerID), fallen.PetRef);
                                 }
@@ -2486,11 +2518,11 @@ namespace Game.Battle
                                         cmAnim.Pack8(1);
                                         BroadcastToBattle(battle, cmAnim);
 
+                                        confusedTarget.TakeRoundDamage(cDmg);
                                         confusedTarget.CurHP = Math.Max(0, confusedTarget.CurHP - cDmg);
                                         if (confusedTarget.MonsterRef != null) confusedTarget.MonsterRef.MonsterHP = confusedTarget.CurHP;
-                                        bool confusedTargetDied = confusedTarget.IsDead;
                                         await Task.Delay(GetAnimationDelayMs(10001));
-                                        if (confusedTargetDied)
+                                        if (confusedTarget.IsOverkilled)
                                             BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, confusedTarget.GridX, confusedTarget.GridY));
                                         continue;
                                     }
@@ -2523,6 +2555,7 @@ namespace Game.Battle
                                 mAnim.Pack8(1);
                                 BroadcastToBattle(battle, mAnim);
 
+                                target.TakeRoundDamage(rawDmg);
                                 target.CurHP = Math.Max(0, target.CurHP - rawDmg);
                                 if (target.PlayerRef?.Eqs != null) target.PlayerRef.Eqs.CurHP = target.CurHP;
                                 if (target.PetRef != null) target.PetRef.HP = target.CurHP;
@@ -2537,7 +2570,15 @@ namespace Game.Battle
                                 await Task.Delay(GetAnimationDelayMs(10001));
                                 if (targetDied)
                                 {
-                                    BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, target.GridX, target.GridY));
+                                    if (target.IsOverkilled)
+                                    {
+                                        BroadcastToBattle(battle, Tools.FromFormat("bbbb", 53, 3, target.GridX, target.GridY));
+                                        if (target.FighterType == BattleFighterType.Player)
+                                        {
+                                            await Task.Delay(300);
+                                            ReturnOverkilledPlayer(battle, target);
+                                        }
+                                    }
                                     if (target.PetRef != null)
                                         PetRelated.PetAmityManager.OnPetDeath(battle.AllPlayers.FirstOrDefault(p => p.CharID == target.OwnerID), target.PetRef);
                                     if (target.FighterType == BattleFighterType.Pet)
@@ -3040,6 +3081,72 @@ namespace Game.Battle
                     }
                 }
             });
+        }
+
+        private static void ReturnOverkilledPlayer(ActiveBattle battle, BattleFighter fighter)
+        {
+            try
+            {
+                if (fighter == null || fighter.FighterType != BattleFighterType.Player || fighter.PlayerRef == null)
+                    return;
+
+                var player = fighter.PlayerRef;
+
+                lock (_lock)
+                {
+                    if (!_activeBattles.TryGetValue(player.CharID, out var current) || current != battle)
+                        return;
+
+                    _activeBattles.Remove(player.CharID);
+                    battle.AttackingPlayers.Remove(player);
+                    battle.DefendingPlayers.Remove(player);
+                }
+
+                var pet = battle.Attackers.Concat(battle.Defenders)
+                    .FirstOrDefault(f => f.FighterType == BattleFighterType.Pet && f.OwnerID == player.CharID && !f.IsDead);
+                if (pet != null)
+                {
+                    pet.IsWithdrawn = true;
+                    var petPacket = Tools.FromFormat("bbbbb", 11, 1, pet.GridX, pet.GridY, 0);
+                    player.Send(petPacket);
+                    foreach (var p in battle.AllPlayers)
+                    {
+                        p.Send(petPacket);
+                    }
+                }
+
+                SendPacket p110 = new SendPacket();
+                p110.PackArray(new byte[] { 11, 0 });
+                p110.Pack32(player.CharID);
+                p110.Pack16(0);
+                player.Send(p110);
+                foreach (var p in battle.AllPlayers)
+                {
+                    p.Send(p110);
+                }
+
+                if (player.Eqs != null)
+                {
+                    player.Eqs.CurHP = 1;
+                }
+
+                player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+                player.Send(Tools.FromFormat("bb", 20, 8));
+                player.Eqs?.Send8_1();
+                player.SetBattleCooldown();
+                BroadcastBattleState(player, false);
+
+                var warp = player.ReturnSpawnMap != null && player.ReturnSpawnMap.DstMap > 0
+                    ? player.ReturnSpawnMap
+                    : new Game.Maps.WarpData { DstMap = 11016, DstX_Axis = 1181, DstY_Axis = 243 };
+
+                player.CurMap?.Teleport(TeleportType.CmD, player, 0, warp);
+                player.SaveCharacterData();
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write($"[PvEBattle] Exception in ReturnOverkilledPlayer: {ex.Message}");
+            }
         }
 
         private static void EndBattleDefeat(ActiveBattle battle)

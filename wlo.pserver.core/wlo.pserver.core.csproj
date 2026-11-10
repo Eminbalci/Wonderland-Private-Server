@@ -123,6 +123,7 @@
     <Compile Include="Game\Battle\PvEBattleManager.cs" />
     <Compile Include="Game\Battle\CriticalHitManager.cs" />
     <Compile Include="Game\Battle\MonsterDropManager.cs" />
+    <Compile Include="Game\Battle\OverkillRule.cs" />
     <Compile Include="Game\Bots\Cupid.cs" />
     <Compile Include="Game\Bots\GmBot.cs" />
     <Compile Include="Game\Delegates.cs" />
