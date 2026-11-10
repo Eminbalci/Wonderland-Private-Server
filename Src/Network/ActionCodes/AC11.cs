@@ -86,7 +86,7 @@ namespace Network.ActionCodes
                         Game.Battle.PvEBattleManager.RequestWatch(p, rawTargetID);
                         break;
                     case 5: // Join (FUN_0038e1d4)
-                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Join battle request from {p.CharName}");
+                        Game.Battle.PvEBattleManager.RequestJoin(p, rawTargetID);
                         break;
                 }
             }

@@ -125,6 +125,7 @@ namespace Game.Battle
         public bool IsCaptured { get; set; } = false;
         public long RoundDamage { get; set; }
         public bool IsOverkilled { get; set; }
+        public bool IsJoining { get; set; }
 
         public bool TakeRoundDamage(int damage)
         {
@@ -210,11 +211,11 @@ namespace Game.Battle
                 foreach (var p in AllPlayers)
                 {
                     var f = Attackers.Concat(Defenders).FirstOrDefault(x => x.PlayerRef == p);
-                    if (f != null && !f.IsDead) count++;
+                    if (f != null && !f.IsDead && !f.IsJoining) count++;
                 }
                 foreach (var f in Attackers.Concat(Defenders))
                 {
-                    if (f.FighterType == BattleFighterType.Pet && !f.IsDead)
+                    if (f.FighterType == BattleFighterType.Pet && !f.IsDead && !f.IsJoining)
                     {
                         var owner = AllPlayers.FirstOrDefault(p => p.CharID == f.OwnerID);
                         if (owner != null) count++;
@@ -1059,6 +1060,67 @@ namespace Game.Battle
             InitializeAndStartBattle(battle);
         }
 
+        private static BattleFighter CreatePlayerFighter(Player p, BattleTeamSide side, byte gridX, byte gridY)
+        {
+            return new BattleFighter
+            {
+                Side = side,
+                FighterType = BattleFighterType.Player,
+                PlayerRef = p,
+                ID = p.CharID,
+                Name = p.CharName,
+                Level = p.Eqs?.Level ?? 1,
+                Element = (byte)(p.Eqs?.Element ?? 0),
+                MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
+                CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
+                MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
+                CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
+                WeaponType = p.Eqs?[3].Type ?? global::DataFiles.eItemType.none,
+                Atk = p.Eqs?.FullAtk ?? 20,
+                Def = p.Eqs?.FullDef ?? 10,
+                Matk = p.Eqs?.FullMatk ?? 20,
+                Mdef = p.Eqs?.FullMdef ?? 10,
+                Spd = p.Eqs?.FullSpd ?? 10,
+                Reborn = (byte)(p.Reborn ? 1 : 0),
+                Job = (byte)p.Job,
+                GridX = gridX,
+                GridY = gridY
+            };
+        }
+
+        private static BattleFighter CreatePetFighter(Player owner, Player.PlayerPetData pet, BattleTeamSide side, byte gridX, byte gridY)
+        {
+            pet.NormalizeClientStats(inventory: owner.Inv);
+            uint petTid = Player.GetCompanionBroadcastId(pet.PetID);
+            byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
+
+            return new BattleFighter
+            {
+                Side = side,
+                FighterType = BattleFighterType.Pet,
+                PetRef = pet,
+                OwnerID = owner.CharID,
+                ID = petTid,
+                Name = pet.PetName ?? "Pet",
+                Level = pet.Level,
+                Element = petElem,
+                MaxHP = Math.Max(1, pet.MaxHP),
+                CurHP = Math.Max(1, pet.HP),
+                MaxSP = Math.Max(0, pet.MaxSP),
+                CurSP = Math.Max(0, pet.SP),
+                WeaponType = owner.Inv?.GetPetEquipment(pet, 3)?.Type ?? global::DataFiles.eItemType.none,
+                Atk = Math.Max(0, pet.CalculatedAtk + (owner.Inv?.GetPetEquipmentBonus(pet, eq => eq.ATK) ?? 0)),
+                Def = Math.Max(0, pet.CalculatedDef + (owner.Inv?.GetPetEquipmentBonus(pet, eq => eq.DEF) ?? 0)),
+                Matk = Math.Max(0, pet.CalculatedMatk + (owner.Inv?.GetPetEquipmentBonus(pet, eq => eq.MAT) ?? 0)),
+                Mdef = Math.Max(0, pet.CalculatedMdef + (owner.Inv?.GetPetEquipmentBonus(pet, eq => eq.MDF) ?? 0)),
+                Spd = Math.Max(0, pet.CalculatedSpd + (owner.Inv?.GetPetEquipmentBonus(pet, eq => eq.SPD) ?? 0)),
+                Reborn = (byte)(pet.Reborn ? 1 : 0),
+                Job = pet.Job,
+                GridX = gridX,
+                GridY = gridY
+            };
+        }
+
         private static void BuildFighters(ActiveBattle battle)
         {
             battle.Attackers.Clear();
@@ -1069,64 +1131,13 @@ namespace Game.Battle
                 Player p = battle.AttackingPlayers[i];
                 if (p == null) continue;
 
-                battle.Attackers.Add(new BattleFighter
-                {
-                    Side = BattleTeamSide.Attacker,
-                    FighterType = BattleFighterType.Player,
-                    PlayerRef = p,
-                    ID = p.CharID,
-                    Name = p.CharName,
-                    Level = p.Eqs?.Level ?? 1,
-                    Element = (byte)(p.Eqs?.Element ?? 0),
-                    MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
-                    CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
-                    MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
-                    CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
-                    WeaponType = p.Eqs?[3].Type ?? global::DataFiles.eItemType.none,
-                    Atk = p.Eqs?.FullAtk ?? 20,
-                    Def = p.Eqs?.FullDef ?? 10,
-                    Matk = p.Eqs?.FullMatk ?? 20,
-                    Mdef = p.Eqs?.FullMdef ?? 10,
-                    Spd = p.Eqs?.FullSpd ?? 10,
-                    Reborn = (byte)(p.Reborn ? 1 : 0),
-                    Job = (byte)p.Job,
-                    GridX = AttackerPlayerGridSlots[i][0],
-                    GridY = AttackerPlayerGridSlots[i][1]
-                });
+                battle.Attackers.Add(CreatePlayerFighter(p, BattleTeamSide.Attacker, AttackerPlayerGridSlots[i][0], AttackerPlayerGridSlots[i][1]));
 
                 // Check active battle pet for this player
                 var pet = GetActivePet(p);
                 if (pet != null)
                 {
-                    pet.NormalizeClientStats(inventory: p.Inv);
-                    uint petTid = Player.GetCompanionBroadcastId(pet.PetID);
-                    byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
-
-                    battle.Attackers.Add(new BattleFighter
-                    {
-                        Side = BattleTeamSide.Attacker,
-                        FighterType = BattleFighterType.Pet,
-                        PetRef = pet,
-                        OwnerID = p.CharID,
-                        ID = petTid,
-                        Name = pet.PetName ?? "Pet",
-                        Level = pet.Level,
-                        Element = petElem,
-                        MaxHP = Math.Max(1, pet.MaxHP),
-                        CurHP = Math.Max(1, pet.HP),
-                        MaxSP = Math.Max(0, pet.MaxSP),
-                        CurSP = Math.Max(0, pet.SP),
-                        WeaponType = p.Inv?.GetPetEquipment(pet, 3)?.Type ?? global::DataFiles.eItemType.none,
-                        Atk = Math.Max(0, pet.CalculatedAtk + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.ATK) ?? 0)),
-                        Def = Math.Max(0, pet.CalculatedDef + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.DEF) ?? 0)),
-                        Matk = Math.Max(0, pet.CalculatedMatk + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MAT) ?? 0)),
-                        Mdef = Math.Max(0, pet.CalculatedMdef + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MDF) ?? 0)),
-                        Spd = Math.Max(0, pet.CalculatedSpd + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.SPD) ?? 0)),
-                        Reborn = (byte)(pet.Reborn ? 1 : 0),
-                        Job = pet.Job,
-                        GridX = AttackerPetGridSlots[i][0],
-                        GridY = AttackerPetGridSlots[i][1]
-                    });
+                    battle.Attackers.Add(CreatePetFighter(p, pet, BattleTeamSide.Attacker, AttackerPetGridSlots[i][0], AttackerPetGridSlots[i][1]));
                 }
             }
 
@@ -1139,63 +1150,12 @@ namespace Game.Battle
                     Player p = battle.DefendingPlayers[i];
                     if (p == null) continue;
 
-                    battle.Defenders.Add(new BattleFighter
-                    {
-                        Side = BattleTeamSide.Defender,
-                        FighterType = BattleFighterType.Player,
-                        PlayerRef = p,
-                        ID = p.CharID,
-                        Name = p.CharName,
-                        Level = p.Eqs?.Level ?? 1,
-                        Element = (byte)(p.Eqs?.Element ?? 0),
-                        MaxHP = Math.Max(1, p.Eqs?.FullHP ?? 100),
-                        CurHP = Math.Max(1, p.Eqs?.CurHP ?? 100),
-                        MaxSP = Math.Max(0, p.Eqs?.FullSP ?? 50),
-                        CurSP = Math.Max(0, p.Eqs?.CurSP ?? 50),
-                        WeaponType = p.Eqs?[3].Type ?? global::DataFiles.eItemType.none,
-                        Atk = p.Eqs?.FullAtk ?? 20,
-                        Def = p.Eqs?.FullDef ?? 10,
-                        Matk = p.Eqs?.FullMatk ?? 20,
-                        Mdef = p.Eqs?.FullMdef ?? 10,
-                        Spd = p.Eqs?.FullSpd ?? 10,
-                        Reborn = (byte)(p.Reborn ? 1 : 0),
-                        Job = (byte)p.Job,
-                        GridX = DefenderPlayerGridSlots[i][0],
-                        GridY = DefenderPlayerGridSlots[i][1]
-                    });
+                    battle.Defenders.Add(CreatePlayerFighter(p, BattleTeamSide.Defender, DefenderPlayerGridSlots[i][0], DefenderPlayerGridSlots[i][1]));
 
                     var pet = GetActivePet(p);
                     if (pet != null)
                     {
-                        pet.NormalizeClientStats(inventory: p.Inv);
-                        uint petTid = Player.GetCompanionBroadcastId(pet.PetID);
-                        byte petElem = (pet.PetID == 12032 || pet.PetID == 12178) ? (byte)1 : (byte)0;
-
-                        battle.Defenders.Add(new BattleFighter
-                        {
-                            Side = BattleTeamSide.Defender,
-                            FighterType = BattleFighterType.Pet,
-                            PetRef = pet,
-                            OwnerID = p.CharID,
-                            ID = petTid,
-                            Name = pet.PetName ?? "Pet",
-                            Level = pet.Level,
-                            Element = petElem,
-                            MaxHP = Math.Max(1, pet.MaxHP),
-                            CurHP = Math.Max(1, pet.HP),
-                            MaxSP = Math.Max(0, pet.MaxSP),
-                            CurSP = Math.Max(0, pet.SP),
-                            WeaponType = p.Inv?.GetPetEquipment(pet, 3)?.Type ?? global::DataFiles.eItemType.none,
-                            Atk = Math.Max(0, pet.CalculatedAtk + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.ATK) ?? 0)),
-                            Def = Math.Max(0, pet.CalculatedDef + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.DEF) ?? 0)),
-                            Matk = Math.Max(0, pet.CalculatedMatk + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MAT) ?? 0)),
-                            Mdef = Math.Max(0, pet.CalculatedMdef + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.MDF) ?? 0)),
-                            Spd = Math.Max(0, pet.CalculatedSpd + (p.Inv?.GetPetEquipmentBonus(pet, eq => eq.SPD) ?? 0)),
-                            Reborn = (byte)(pet.Reborn ? 1 : 0),
-                            Job = pet.Job,
-                            GridX = DefenderPetGridSlots[i][0],
-                            GridY = DefenderPetGridSlots[i][1]
-                        });
+                        battle.Defenders.Add(CreatePetFighter(p, pet, BattleTeamSide.Defender, DefenderPetGridSlots[i][0], DefenderPetGridSlots[i][1]));
                     }
                 }
             }
@@ -1708,7 +1668,7 @@ namespace Game.Battle
                     foreach (var f in battle.Attackers) f.RoundDamage = 0;
                     foreach (var f in battle.Defenders) f.RoundDamage = 0;
 
-                    var actions = new List<PendingAction>(battle.PendingActions.Values);
+                    var actions = battle.PendingActions.Values.Where(a => a.Actor == null || !a.Actor.IsJoining).ToList();
                     battle.PendingActions.Clear();
 
                     var friendlyFighters = battle.Attackers; // Player side
@@ -2475,7 +2435,7 @@ namespace Game.Battle
                                     continue;
                                 }
 
-                                var livingTargets = friendlyFighters.Where(f => !f.IsDead).ToList();
+                                var livingTargets = friendlyFighters.Where(f => !f.IsDead && !f.IsJoining).ToList();
                                 if (livingTargets.Count == 0) break;
 
                                 // Confused monster might hit other monsters
@@ -2722,6 +2682,11 @@ namespace Game.Battle
                     // ---- Phase 7: Open next round for all living players ----
                     battle.IsTurnProcessing = false;
 
+                    foreach (var f in battle.Attackers.Concat(battle.Defenders))
+                    {
+                        f.IsJoining = false;
+                    }
+
                     foreach (var p in battle.AllPlayers)
                     {
                         var pf = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.PlayerRef == p && !f.IsDead);
@@ -2867,6 +2832,309 @@ namespace Game.Battle
             presence.Pack16(0);
             presence.Pack8(4);
             watcher.CurMap.Broadcast(presence);
+
+            return true;
+        }
+
+        public static bool RequestJoin(Player joiner, uint targetCharId)
+        {
+            if (joiner == null) return false;
+            if (joiner.CurMap == null || IsInBattle(joiner) || joiner.CharID == targetCharId)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (joiner.m_teammembers != null && joiner.m_teammembers.Count > 1 && !joiner.PartyLeader)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (joiner.Eqs == null || joiner.Eqs.CurHP == 0)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            ActiveBattle battle;
+            lock (_lock)
+            {
+                _activeBattles.TryGetValue(targetCharId, out battle);
+            }
+
+            if (battle == null || battle.IsFinished)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (battle.IsTurnProcessing)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            Player targetPlayer = battle.AllPlayers.FirstOrDefault(p => p != null && p.CharID == targetCharId);
+            if (targetPlayer == null || targetPlayer.CurMap == null || targetPlayer.CurMap != joiner.CurMap)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (targetPlayer.Settings != null && !targetPlayer.Settings.JOINABLE)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            var targetFighter = battle.Attackers.Concat(battle.Defenders)
+                .FirstOrDefault(f => f.PlayerRef == targetPlayer || (f.ID == targetCharId && f.FighterType == BattleFighterType.Player));
+            if (targetFighter == null || targetFighter.IsOverkilled || targetFighter.IsWithdrawn)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (Math.Abs((int)joiner.X - (int)targetPlayer.X) > 170 || Math.Abs((int)joiner.Y - (int)targetPlayer.Y) > 170)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            byte[][] playerTable = targetFighter.Side == BattleTeamSide.Attacker ? AttackerPlayerGridSlots : DefenderPlayerGridSlots;
+            byte[][] petTable = targetFighter.Side == BattleTeamSide.Attacker ? AttackerPetGridSlots : DefenderPetGridSlots;
+            var sideFighters = targetFighter.Side == BattleTeamSide.Attacker ? battle.Attackers : battle.Defenders;
+
+            int freeSlotIndex = -1;
+            for (int i = 0; i < playerTable.Length; i++)
+            {
+                byte targetY = playerTable[i][1];
+                bool occupied = sideFighters.Any(f =>
+                    (f.FighterType == BattleFighterType.Player || f.FighterType == BattleFighterType.Pet) &&
+                    !f.IsWithdrawn &&
+                    !f.IsOverkilled &&
+                    f.GridY == targetY
+                );
+                if (!occupied)
+                {
+                    freeSlotIndex = i;
+                    break;
+                }
+            }
+
+            if (freeSlotIndex == -1)
+            {
+                joiner.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            BattleFighter joinerFighter;
+            BattleFighter petFighter = null;
+
+            lock (_lock)
+            {
+                if (battle.IsFinished || _activeBattles.ContainsKey(joiner.CharID) || _spectating.ContainsKey(joiner.CharID))
+                {
+                    joiner.SendHeadBanner("This battle is unavailable.");
+                    return false;
+                }
+
+                byte targetY = playerTable[freeSlotIndex][1];
+                if (sideFighters.Any(f =>
+                    (f.FighterType == BattleFighterType.Player || f.FighterType == BattleFighterType.Pet) &&
+                    !f.IsWithdrawn &&
+                    !f.IsOverkilled &&
+                    f.GridY == targetY))
+                {
+                    freeSlotIndex = -1;
+                    for (int i = 0; i < playerTable.Length; i++)
+                    {
+                        byte ty = playerTable[i][1];
+                        bool occ = sideFighters.Any(f =>
+                            (f.FighterType == BattleFighterType.Player || f.FighterType == BattleFighterType.Pet) &&
+                            !f.IsWithdrawn &&
+                            !f.IsOverkilled &&
+                            f.GridY == ty
+                        );
+                        if (!occ)
+                        {
+                            freeSlotIndex = i;
+                            break;
+                        }
+                    }
+                    if (freeSlotIndex == -1)
+                    {
+                        joiner.SendHeadBanner("This battle is unavailable.");
+                        return false;
+                    }
+                }
+
+                if (targetFighter.Side == BattleTeamSide.Attacker)
+                {
+                    battle.AttackingPlayers.Add(joiner);
+                }
+                else
+                {
+                    battle.DefendingPlayers.Add(joiner);
+                }
+
+                _activeBattles[joiner.CharID] = battle;
+
+                joinerFighter = CreatePlayerFighter(joiner, targetFighter.Side, playerTable[freeSlotIndex][0], playerTable[freeSlotIndex][1]);
+                joinerFighter.IsJoining = true;
+
+                var activePet = GetActivePet(joiner);
+                if (activePet != null)
+                {
+                    petFighter = CreatePetFighter(joiner, activePet, targetFighter.Side, petTable[freeSlotIndex][0], petTable[freeSlotIndex][1]);
+                    petFighter.IsJoining = true;
+                }
+
+                if (targetFighter.Side == BattleTeamSide.Attacker)
+                {
+                    battle.Attackers.Add(joinerFighter);
+                    if (petFighter != null)
+                    {
+                        battle.Attackers.Add(petFighter);
+                    }
+                }
+                else
+                {
+                    battle.Defenders.Add(joinerFighter);
+                    if (petFighter != null)
+                    {
+                        battle.Defenders.Add(petFighter);
+                    }
+                }
+            }
+
+            SendPacket pJoinerOther = new SendPacket();
+            pJoinerOther.PackArray(new byte[] { 11, 5 });
+            PackFighterRecord(
+                pJoinerOther,
+                5,
+                2,
+                joinerFighter.ID,
+                0,
+                0,
+                joinerFighter.GridX,
+                joinerFighter.GridY,
+                (uint)joinerFighter.MaxHP,
+                joinerFighter.MaxSP,
+                (uint)joinerFighter.CurHP,
+                joinerFighter.CurSP,
+                joinerFighter.Level,
+                joinerFighter.Element,
+                joinerFighter.Reborn,
+                joinerFighter.Job
+            );
+
+            SendPacket pPetPacket = null;
+            if (petFighter != null)
+            {
+                pPetPacket = new SendPacket();
+                pPetPacket.PackArray(new byte[] { 11, 5 });
+                PackFighterRecord(
+                    pPetPacket,
+                    5,
+                    4,
+                    petFighter.ID,
+                    0,
+                    joiner.CharID,
+                    petFighter.GridX,
+                    petFighter.GridY,
+                    (uint)petFighter.MaxHP,
+                    petFighter.MaxSP,
+                    (uint)petFighter.CurHP,
+                    petFighter.CurSP,
+                    petFighter.Level,
+                    petFighter.Element,
+                    petFighter.Reborn,
+                    petFighter.Job
+                );
+            }
+
+            foreach (var p in battle.AllPlayers)
+            {
+                if (p == null || p.CharID == joiner.CharID) continue;
+                p.Send(pJoinerOther);
+                if (pPetPacket != null) p.Send(pPetPacket);
+            }
+
+            foreach (var spec in battle.Spectators)
+            {
+                if (spec == null || spec.CharID == joiner.CharID) continue;
+                spec.Send(pJoinerOther);
+                if (pPetPacket != null) spec.Send(pPetPacket);
+            }
+
+            byte bgId = BattleBackdropManager.Resolve(battle.LeaderPlayer);
+            SendPacket snapshot = new SendPacket();
+            snapshot.PackArray(new byte[] { 11, 250 });
+            snapshot.Pack8(bgId);
+            snapshot.Pack8(BattleBackdropManager.CompatibilityFormationMetadata);
+
+            PackFighterRecord(
+                snapshot,
+                5,
+                2,
+                joinerFighter.ID,
+                0,
+                0,
+                joinerFighter.GridX,
+                joinerFighter.GridY,
+                (uint)joinerFighter.MaxHP,
+                joinerFighter.MaxSP,
+                (uint)joinerFighter.CurHP,
+                joinerFighter.CurSP,
+                joinerFighter.Level,
+                joinerFighter.Element,
+                joinerFighter.Reborn,
+                joinerFighter.Job
+            );
+
+            foreach (var f in battle.Attackers.Concat(battle.Defenders))
+            {
+                if (f == joinerFighter) continue;
+                if (petFighter != null && f == petFighter) continue;
+                if (f.IsWithdrawn || f.IsOverkilled || f.IsCaptured) continue;
+
+                byte mode = (byte)(f.Side == targetFighter.Side ? 1 : 100);
+                PackFighterRecord(
+                    snapshot,
+                    mode,
+                    (byte)f.FighterType,
+                    f.ID,
+                    f.ClickID,
+                    f.OwnerID,
+                    f.GridX,
+                    f.GridY,
+                    (uint)f.MaxHP,
+                    f.MaxSP,
+                    (uint)f.CurHP,
+                    f.CurSP,
+                    f.Level,
+                    f.Element,
+                    f.Reborn,
+                    f.Job
+                );
+            }
+
+            joiner.Send(snapshot);
+            joiner.Send(Tools.FromFormat("bbb", 11, 10, 1));
+
+            if (pPetPacket != null)
+            {
+                joiner.Send(pPetPacket);
+            }
+
+            SendPacket presence = new SendPacket();
+            presence.PackArray(new byte[] { 11, 4, 2 });
+            presence.Pack32(joiner.CharID);
+            presence.Pack16(0);
+            presence.Pack8(5);
+            joiner.CurMap.Broadcast(presence);
 
             return true;
         }
