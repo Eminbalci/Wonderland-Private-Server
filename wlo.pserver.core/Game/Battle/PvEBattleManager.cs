@@ -182,6 +182,7 @@ namespace Game.Battle
     {
         public List<Player> AttackingPlayers { get; set; } = new List<Player>();
         public List<Player> DefendingPlayers { get; set; } = new List<Player>();
+        public List<Player> Spectators { get; set; } = new List<Player>();
 
         public List<BattleFighter> Attackers { get; set; } = new List<BattleFighter>();
         public List<BattleFighter> Defenders { get; set; } = new List<BattleFighter>();
@@ -315,6 +316,7 @@ namespace Game.Battle
     public static class PvEBattleManager
     {
         private static readonly Dictionary<uint, ActiveBattle> _activeBattles = new Dictionary<uint, ActiveBattle>();
+        private static readonly Dictionary<uint, ActiveBattle> _spectating = new Dictionary<uint, ActiveBattle>();
         private static readonly object _lock = new object();
         private static readonly Random _rng = new Random();
 
@@ -476,7 +478,7 @@ namespace Game.Battle
             if (player == null) return false;
             lock (_lock)
             {
-                return _activeBattles.ContainsKey(player.CharID);
+                return _activeBattles.ContainsKey(player.CharID) || _spectating.ContainsKey(player.CharID);
             }
         }
 
@@ -501,6 +503,12 @@ namespace Game.Battle
             {
                 lock (_lock)
                 {
+                    if (_spectating.TryGetValue(player.CharID, out var specBattle))
+                    {
+                        _spectating.Remove(player.CharID);
+                        specBattle?.Spectators?.Remove(player);
+                    }
+
                     if (_activeBattles.TryGetValue(player.CharID, out var battle))
                     {
                         DebugSystem.Write($"[PvEBattle] Player {player.CharName} disconnected during battle. Cleaning up battle session.");
@@ -508,6 +516,7 @@ namespace Game.Battle
                         player.SetBattleCooldown();
                         battle.AttackingPlayers.Remove(player);
                         battle.DefendingPlayers.Remove(player);
+                        battle.Spectators?.Remove(player);
 
                         // If no active players remain in the battle, terminate the battle and stop the turn timer
                         if (!battle.AllPlayers.Any() || battle.AttackingPlayers.Count == 0)
@@ -1224,6 +1233,42 @@ namespace Game.Battle
             }
         }
 
+        private static void PackFighterRecord(
+            SendPacket pkt,
+            byte mode,
+            byte kind,
+            uint id,
+            ushort clickId,
+            uint ownerId,
+            byte gridX,
+            byte gridY,
+            uint maxHp,
+            int maxSp,
+            uint curHp,
+            int curSp,
+            byte level,
+            byte element,
+            byte reborn,
+            byte job)
+        {
+            pkt.Pack8(mode);
+            pkt.Pack8(kind);
+            pkt.Pack32(id);
+            pkt.Pack16(clickId);
+            pkt.Pack32(ownerId);
+            pkt.Pack8(gridX);
+            pkt.Pack8(gridY);
+            pkt.Pack32(maxHp);
+            pkt.Pack16((ushort)Math.Min(65535, Math.Max(0, maxSp)));
+            pkt.Pack32(curHp);
+            pkt.Pack16((ushort)Math.Min(65535, Math.Max(0, curSp)));
+            pkt.Pack8(level);
+            pkt.Pack8(element);
+            pkt.Pack8(reborn);
+            pkt.Pack8(job);
+            pkt.Pack16(0);
+        }
+
         private static void InitializeAndStartBattle(ActiveBattle battle)
         {
             if (battle == null) return;
@@ -1275,22 +1320,7 @@ namespace Game.Battle
                 // AC11:250: backdrop byte followed by independent formation metadata.
                 p250.Pack8(bgId);
                 p250.Pack8(BattleBackdropManager.CompatibilityFormationMetadata);
-                p250.Pack8((byte)selfFighter.Side);
-                p250.Pack8(2); // ftype = 2 (player)
-                p250.Pack32(selfFighter.ID);
-                p250.Pack16(0); // click_id
-                p250.Pack32(0); // owner_id
-                p250.Pack8(selfFighter.GridX);
-                p250.Pack8(selfFighter.GridY);
-                p250.Pack32((uint)selfFighter.MaxHP);
-                p250.Pack16((ushort)Math.Min(0xFFFF, selfFighter.MaxSP));
-                p250.Pack32((uint)selfFighter.CurHP);
-                p250.Pack16((ushort)Math.Min(0xFFFF, selfFighter.CurSP));
-                p250.Pack8(selfFighter.Level);
-                p250.Pack8(selfFighter.Element);
-                p250.Pack8(selfFighter.Reborn); // reborn
-                p250.Pack8(selfFighter.Job); // job
-                p250.Pack16(0); // trailing pad
+                PackFighterRecord(p250, (byte)selfFighter.Side, 2, selfFighter.ID, 0, 0, selfFighter.GridX, selfFighter.GridY, (uint)selfFighter.MaxHP, selfFighter.MaxSP, (uint)selfFighter.CurHP, selfFighter.CurSP, selfFighter.Level, selfFighter.Element, selfFighter.Reborn, selfFighter.Job);
                 p.Send(p250);
 
                 // 4. AC 11:10 [01] (combat start signal)
@@ -1309,22 +1339,7 @@ namespace Game.Battle
 
                     SendPacket pAlly = new SendPacket();
                     pAlly.PackArray(new byte[] { 11, 5 });
-                    pAlly.Pack8((byte)pf.Side);
-                    pAlly.Pack8(2); // ftype = 2 (player)
-                    pAlly.Pack32(pf.ID);
-                    pAlly.Pack16(0); // click_id
-                    pAlly.Pack32(0); // owner_id
-                    pAlly.Pack8(pf.GridX);
-                    pAlly.Pack8(pf.GridY);
-                    pAlly.Pack32((uint)pf.MaxHP);
-                    pAlly.Pack16((ushort)Math.Min(0xFFFF, pf.MaxSP));
-                    pAlly.Pack32((uint)pf.CurHP);
-                    pAlly.Pack16((ushort)Math.Min(0xFFFF, pf.CurSP));
-                    pAlly.Pack8(pf.Level);
-                    pAlly.Pack8(pf.Element);
-                    pAlly.Pack8(pf.Reborn); // reborn
-                    pAlly.Pack8(pf.Job); // job
-                    pAlly.Pack16(0); // trailing pad
+                    PackFighterRecord(pAlly, (byte)pf.Side, 2, pf.ID, 0, 0, pf.GridX, pf.GridY, (uint)pf.MaxHP, pf.MaxSP, (uint)pf.CurHP, pf.CurSP, pf.Level, pf.Element, pf.Reborn, pf.Job);
                     p.Send(pAlly);
                 }
 
@@ -1335,22 +1350,7 @@ namespace Game.Battle
 
                     SendPacket pPet = new SendPacket();
                     pPet.PackArray(new byte[] { 11, 5 });
-                    pPet.Pack8(5); // pet fighter marker (not team side)
-                    pPet.Pack8(4); // ftype = 4 (pet)
-                    pPet.Pack32(pet.ID);
-                    pPet.Pack16(0); // click_id
-                    pPet.Pack32(pet.OwnerID);
-                    pPet.Pack8(pet.GridX);
-                    pPet.Pack8(pet.GridY);
-                    pPet.Pack32((uint)pet.MaxHP);
-                    pPet.Pack16((ushort)Math.Min(0xFFFF, pet.MaxSP));
-                    pPet.Pack32((uint)pet.CurHP);
-                    pPet.Pack16((ushort)Math.Min(0xFFFF, pet.CurSP));
-                    pPet.Pack8(pet.Level);
-                    pPet.Pack8(petElem); // element
-                    pPet.Pack8(pet.Reborn); // reborn
-                    pPet.Pack8(pet.Job); // job
-                    pPet.Pack16(0); // Native AC 11:5 consumes fixed 31-byte fighter records.
+                    PackFighterRecord(pPet, 5, 4, pet.ID, 0, pet.OwnerID, pet.GridX, pet.GridY, (uint)pet.MaxHP, pet.MaxSP, (uint)pet.CurHP, pet.CurSP, pet.Level, petElem, pet.Reborn, pet.Job);
                     p.Send(pPet);
 
                 }
@@ -1360,22 +1360,7 @@ namespace Game.Battle
                 {
                     SendPacket pEnemy = new SendPacket();
                     pEnemy.PackArray(new byte[] { 11, 5 });
-                    pEnemy.Pack8((byte)ef.Side);
-                    pEnemy.Pack8((byte)ef.FighterType);
-                    pEnemy.Pack32(ef.ID);
-                    pEnemy.Pack16(ef.ClickID);
-                    pEnemy.Pack32(ef.OwnerID);
-                    pEnemy.Pack8(ef.GridX);
-                    pEnemy.Pack8(ef.GridY);
-                    pEnemy.Pack32((uint)ef.MaxHP);
-                    pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.MaxSP));
-                    pEnemy.Pack32((uint)ef.CurHP);
-                    pEnemy.Pack16((ushort)Math.Min(0xFFFF, ef.CurSP));
-                    pEnemy.Pack8(ef.Level);
-                    pEnemy.Pack8(ef.Element);
-                    pEnemy.Pack8(ef.Reborn); // reborn
-                    pEnemy.Pack8(ef.Job); // job
-                    pEnemy.Pack16(0); // trailing pad
+                    PackFighterRecord(pEnemy, (byte)ef.Side, (byte)ef.FighterType, ef.ID, ef.ClickID, ef.OwnerID, ef.GridX, ef.GridY, (uint)ef.MaxHP, ef.MaxSP, (uint)ef.CurHP, ef.CurSP, ef.Level, ef.Element, ef.Reborn, ef.Job);
                     p.Send(pEnemy);
                 }
 
@@ -2762,9 +2747,176 @@ namespace Game.Battle
             });
         }
 
+        public static bool RequestWatch(Player watcher, uint targetCharId)
+        {
+            if (watcher == null) return false;
+            if (watcher.CurMap == null || IsInBattle(watcher) || watcher.CharID == targetCharId)
+            {
+                watcher.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (watcher.m_teammembers != null && watcher.m_teammembers.Count > 1 && !watcher.PartyLeader)
+            {
+                watcher.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            ActiveBattle battle;
+            lock (_lock)
+            {
+                _activeBattles.TryGetValue(targetCharId, out battle);
+            }
+
+            if (battle == null || battle.IsFinished)
+            {
+                watcher.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            Player targetPlayer = battle.AllPlayers.FirstOrDefault(p => p != null && p.CharID == targetCharId);
+            if (targetPlayer == null || targetPlayer.CurMap == null || targetPlayer.CurMap != watcher.CurMap)
+            {
+                watcher.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            var targetFighter = battle.Attackers.Concat(battle.Defenders)
+                .FirstOrDefault(f => f.PlayerRef == targetPlayer || (f.ID == targetCharId && f.FighterType == BattleFighterType.Player));
+            if (targetFighter == null || targetFighter.IsOverkilled || targetFighter.IsWithdrawn)
+            {
+                watcher.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            if (Math.Abs((int)watcher.X - (int)targetPlayer.X) > 170 || Math.Abs((int)watcher.Y - (int)targetPlayer.Y) > 170)
+            {
+                watcher.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            lock (_lock)
+            {
+                if (battle.IsFinished || _activeBattles.ContainsKey(watcher.CharID) || _spectating.ContainsKey(watcher.CharID))
+                {
+                    watcher.SendHeadBanner("This battle is unavailable.");
+                    return false;
+                }
+                if (!battle.Spectators.Contains(watcher))
+                {
+                    battle.Spectators.Add(watcher);
+                }
+                _spectating[watcher.CharID] = battle;
+            }
+
+            byte bgId = BattleBackdropManager.Resolve(battle.LeaderPlayer);
+            SendPacket snapshot = new SendPacket();
+            snapshot.PackArray(new byte[] { 11, 250 });
+            snapshot.Pack8(bgId);
+            snapshot.Pack8(BattleBackdropManager.CompatibilityFormationMetadata);
+
+            PackFighterRecord(
+                snapshot,
+                4,
+                2,
+                watcher.CharID,
+                0,
+                0,
+                255,
+                255,
+                (uint)Math.Max(1, watcher.Eqs?.FullHP ?? 100),
+                watcher.Eqs?.FullSP ?? 50,
+                (uint)Math.Max(1, watcher.Eqs?.CurHP ?? 100),
+                watcher.Eqs?.CurSP ?? 50,
+                watcher.Eqs?.Level ?? 1,
+                (byte)(watcher.Eqs?.Element ?? 0),
+                (byte)(watcher.Reborn ? 1 : 0),
+                (byte)watcher.Job
+            );
+
+            foreach (var f in battle.Attackers.Concat(battle.Defenders))
+            {
+                if (f.IsWithdrawn || f.IsOverkilled || f.IsCaptured) continue;
+                byte mode = (byte)(f.Side == targetFighter.Side ? 1 : 100);
+                PackFighterRecord(
+                    snapshot,
+                    mode,
+                    (byte)f.FighterType,
+                    f.ID,
+                    f.ClickID,
+                    f.OwnerID,
+                    f.GridX,
+                    f.GridY,
+                    (uint)f.MaxHP,
+                    f.MaxSP,
+                    (uint)f.CurHP,
+                    f.CurSP,
+                    f.Level,
+                    f.Element,
+                    f.Reborn,
+                    f.Job
+                );
+            }
+
+            watcher.Send(snapshot);
+            watcher.Send(Tools.FromFormat("bbb", 11, 10, 1));
+
+            SendPacket presence = new SendPacket();
+            presence.PackArray(new byte[] { 11, 4, 2 });
+            presence.Pack32(watcher.CharID);
+            presence.Pack16(0);
+            presence.Pack8(4);
+            watcher.CurMap.Broadcast(presence);
+
+            return true;
+        }
+
+        public static bool LeaveSpectator(Player p)
+        {
+            if (p == null) return false;
+            ActiveBattle battle;
+            lock (_lock)
+            {
+                if (!_spectating.TryGetValue(p.CharID, out battle) || battle == null)
+                {
+                    return false;
+                }
+                _spectating.Remove(p.CharID);
+                battle.Spectators?.Remove(p);
+            }
+
+            SendPacket closePkt = new SendPacket();
+            closePkt.PackArray(new byte[] { 11, 0 });
+            closePkt.Pack32(p.CharID);
+            closePkt.Pack16(0);
+            p.Send(closePkt);
+
+            p.Send(Tools.FromFormat("bbb", 6, 2, 0));
+            p.Send(Tools.FromFormat("bb", 20, 8));
+
+            BroadcastBattleState(p, false);
+            return true;
+        }
+
+        private static void CloseSpectators(ActiveBattle battle)
+        {
+            if (battle == null) return;
+            List<Player> spectators;
+            lock (_lock)
+            {
+                if (battle.Spectators == null || battle.Spectators.Count == 0) return;
+                spectators = battle.Spectators.ToList();
+            }
+            foreach (var spec in spectators)
+            {
+                LeaveSpectator(spec);
+            }
+        }
+
         public static void HandleFlee(Player player)
         {
             if (player == null) return;
+            if (LeaveSpectator(player)) return;
             var battle = GetBattle(player);
             if (battle != null) EndBattleFlee(battle);
         }
@@ -2865,6 +3017,7 @@ namespace Game.Battle
                 {
                     // Keep the battle registered while leaving so repeated flee/movement
                     // packets cannot start another escape or a new encounter mid-animation.
+                    CloseSpectators(battle);
                     lock (_lock)
                     {
                         foreach (var p in battle.AllPlayers)
@@ -3048,6 +3201,7 @@ namespace Game.Battle
                         BroadcastBattleState(p, false);
                     }
 
+                    CloseSpectators(battle);
                     lock (_lock)
                     {
                         foreach (var p in battle.AllPlayers)
@@ -3073,6 +3227,7 @@ namespace Game.Battle
                 }
                 finally
                 {
+                    CloseSpectators(battle);
                     lock (_lock)
                     {
                         foreach (var p in battle.AllPlayers)
@@ -3210,6 +3365,7 @@ namespace Game.Battle
                         p.SetBattleCooldown();
                         BroadcastBattleState(p, false);
                     }
+                    CloseSpectators(battle);
                     lock (_lock)
                     {
                         foreach (var p in battle.AllPlayers)
@@ -3241,6 +3397,7 @@ namespace Game.Battle
                 }
                 finally
                 {
+                    CloseSpectators(battle);
                     lock (_lock)
                     {
                         foreach (var p in battle.AllPlayers)
@@ -3340,6 +3497,21 @@ namespace Game.Battle
             foreach (var pl in battle.AllPlayers)
             {
                 pl.Send(p);
+            }
+            List<Player> spectators = null;
+            lock (_lock)
+            {
+                if (battle.Spectators != null && battle.Spectators.Count > 0)
+                {
+                    spectators = battle.Spectators.ToList();
+                }
+            }
+            if (spectators != null)
+            {
+                foreach (var sp in spectators)
+                {
+                    sp.Send(p);
+                }
             }
         }
 

@@ -82,11 +82,11 @@ namespace Network.ActionCodes
                     default:
                         HandleNpcPK(p, rawTargetID & 0xFFFF, clickID);
                         break;
-                    case 4: // Join existing battle
-                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Join battle request from {p.CharName}");
+                    case 4: // Watch (native FUN_0038dfe0)
+                        Game.Battle.PvEBattleManager.RequestWatch(p, rawTargetID);
                         break;
-                    case 5: // Watch existing battle
-                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Watch battle request from {p.CharName}");
+                    case 5: // Join (FUN_0038e1d4)
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC11 Join battle request from {p.CharName}");
                         break;
                 }
             }
