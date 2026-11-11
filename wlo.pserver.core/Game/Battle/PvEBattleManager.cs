@@ -179,11 +179,19 @@ namespace Game.Battle
         public byte TargetGridY { get; set; }
     }
 
+    public class PendingAdmission
+    {
+        public Player Player { get; set; }
+        public uint TargetCharId { get; set; }
+        public bool Spectator { get; set; }
+    }
+
     public class ActiveBattle
     {
         public List<Player> AttackingPlayers { get; set; } = new List<Player>();
         public List<Player> DefendingPlayers { get; set; } = new List<Player>();
         public List<Player> Spectators { get; set; } = new List<Player>();
+        public List<PendingAdmission> PendingAdmissions { get; set; } = new List<PendingAdmission>();
 
         public List<BattleFighter> Attackers { get; set; } = new List<BattleFighter>();
         public List<BattleFighter> Defenders { get; set; } = new List<BattleFighter>();
@@ -318,6 +326,7 @@ namespace Game.Battle
     {
         private static readonly Dictionary<uint, ActiveBattle> _activeBattles = new Dictionary<uint, ActiveBattle>();
         private static readonly Dictionary<uint, ActiveBattle> _spectating = new Dictionary<uint, ActiveBattle>();
+        private static readonly Dictionary<uint, ActiveBattle> _pendingAdmission = new Dictionary<uint, ActiveBattle>();
         private static readonly object _lock = new object();
         private static readonly Random _rng = new Random();
 
@@ -479,7 +488,7 @@ namespace Game.Battle
             if (player == null) return false;
             lock (_lock)
             {
-                return _activeBattles.ContainsKey(player.CharID) || _spectating.ContainsKey(player.CharID);
+                return _activeBattles.ContainsKey(player.CharID) || _spectating.ContainsKey(player.CharID) || _pendingAdmission.ContainsKey(player.CharID);
             }
         }
 
@@ -504,6 +513,12 @@ namespace Game.Battle
             {
                 lock (_lock)
                 {
+                    if (_pendingAdmission.TryGetValue(player.CharID, out var pendingBattle))
+                    {
+                        _pendingAdmission.Remove(player.CharID);
+                        pendingBattle?.PendingAdmissions?.RemoveAll(pa => pa.Player == player || pa.Player?.CharID == player.CharID);
+                    }
+
                     if (_spectating.TryGetValue(player.CharID, out var specBattle))
                     {
                         _spectating.Remove(player.CharID);
@@ -2687,6 +2702,8 @@ namespace Game.Battle
                         f.IsJoining = false;
                     }
 
+                    AdmitPendingAdmissions(battle);
+
                     foreach (var p in battle.AllPlayers)
                     {
                         var pf = battle.Attackers.Concat(battle.Defenders).FirstOrDefault(f => f.PlayerRef == p && !f.IsDead);
@@ -2712,22 +2729,40 @@ namespace Game.Battle
             });
         }
 
-        public static bool RequestWatch(Player watcher, uint targetCharId)
+        private static bool ValidateAdmission(
+            Player player,
+            uint targetCharId,
+            bool spectator,
+            out ActiveBattle battle,
+            out BattleFighter targetFighter,
+            bool skipSelfBattleCheck = false)
         {
-            if (watcher == null) return false;
-            if (watcher.CurMap == null || IsInBattle(watcher) || watcher.CharID == targetCharId)
+            battle = null;
+            targetFighter = null;
+
+            if (player == null) return false;
+
+            if (player.CurMap == null || (!skipSelfBattleCheck && IsInBattle(player)) || player.CharID == targetCharId)
             {
-                watcher.SendHeadBanner("This battle is unavailable.");
+                player.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
-            if (watcher.m_teammembers != null && watcher.m_teammembers.Count > 1 && !watcher.PartyLeader)
+            if (player.m_teammembers != null && player.m_teammembers.Count > 1 && !player.PartyLeader)
             {
-                watcher.SendHeadBanner("This battle is unavailable.");
+                player.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
-            ActiveBattle battle;
+            if (!spectator)
+            {
+                if (player.Eqs == null || player.Eqs.CurHP == 0)
+                {
+                    player.SendHeadBanner("This battle is unavailable.");
+                    return false;
+                }
+            }
+
             lock (_lock)
             {
                 _activeBattles.TryGetValue(targetCharId, out battle);
@@ -2735,36 +2770,84 @@ namespace Game.Battle
 
             if (battle == null || battle.IsFinished)
             {
-                watcher.SendHeadBanner("This battle is unavailable.");
+                player.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
             Player targetPlayer = battle.AllPlayers.FirstOrDefault(p => p != null && p.CharID == targetCharId);
-            if (targetPlayer == null || targetPlayer.CurMap == null || targetPlayer.CurMap != watcher.CurMap)
+            if (targetPlayer == null || targetPlayer.CurMap == null || targetPlayer.CurMap != player.CurMap)
             {
-                watcher.SendHeadBanner("This battle is unavailable.");
+                player.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
-            var targetFighter = battle.Attackers.Concat(battle.Defenders)
+            if (!spectator)
+            {
+                if (targetPlayer.Settings != null && !targetPlayer.Settings.JOINABLE)
+                {
+                    player.SendHeadBanner("This battle is unavailable.");
+                    return false;
+                }
+            }
+
+            targetFighter = battle.Attackers.Concat(battle.Defenders)
                 .FirstOrDefault(f => f.PlayerRef == targetPlayer || (f.ID == targetCharId && f.FighterType == BattleFighterType.Player));
             if (targetFighter == null || targetFighter.IsOverkilled || targetFighter.IsWithdrawn)
             {
-                watcher.SendHeadBanner("This battle is unavailable.");
+                player.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
-            if (Math.Abs((int)watcher.X - (int)targetPlayer.X) > 170 || Math.Abs((int)watcher.Y - (int)targetPlayer.Y) > 170)
+            if (Math.Abs((int)player.X - (int)targetPlayer.X) > 170 || Math.Abs((int)player.Y - (int)targetPlayer.Y) > 170)
+            {
+                player.SendHeadBanner("This battle is unavailable.");
+                return false;
+            }
+
+            return true;
+        }
+
+        public static bool RequestWatch(Player watcher, uint targetCharId)
+        {
+            if (!ValidateAdmission(watcher, targetCharId, spectator: true, out var battle, out var targetFighter, skipSelfBattleCheck: false))
+            {
+                return false;
+            }
+
+            if (battle.IsTurnProcessing)
+            {
+                lock (_lock)
+                {
+                    battle.PendingAdmissions.Add(new PendingAdmission
+                    {
+                        Player = watcher,
+                        TargetCharId = targetCharId,
+                        Spectator = true
+                    });
+                    _pendingAdmission[watcher.CharID] = battle;
+                }
+
+                watcher.Send(Tools.FromFormat("bbb", 6, 2, 1));
+                return true;
+            }
+
+            if (!EnterWatch(battle, watcher, targetFighter))
             {
                 watcher.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
+
+            return true;
+        }
+
+        private static bool EnterWatch(ActiveBattle battle, Player watcher, BattleFighter targetFighter)
+        {
+            if (battle == null || watcher == null || targetFighter == null) return false;
 
             lock (_lock)
             {
                 if (battle.IsFinished || _activeBattles.ContainsKey(watcher.CharID) || _spectating.ContainsKey(watcher.CharID))
                 {
-                    watcher.SendHeadBanner("This battle is unavailable.");
                     return false;
                 }
                 if (!battle.Spectators.Contains(watcher))
@@ -2838,69 +2921,40 @@ namespace Game.Battle
 
         public static bool RequestJoin(Player joiner, uint targetCharId)
         {
-            if (joiner == null) return false;
-            if (joiner.CurMap == null || IsInBattle(joiner) || joiner.CharID == targetCharId)
+            if (!ValidateAdmission(joiner, targetCharId, spectator: false, out var battle, out var targetFighter, skipSelfBattleCheck: false))
             {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
-            }
-
-            if (joiner.m_teammembers != null && joiner.m_teammembers.Count > 1 && !joiner.PartyLeader)
-            {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
-            }
-
-            if (joiner.Eqs == null || joiner.Eqs.CurHP == 0)
-            {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
-            }
-
-            ActiveBattle battle;
-            lock (_lock)
-            {
-                _activeBattles.TryGetValue(targetCharId, out battle);
-            }
-
-            if (battle == null || battle.IsFinished)
-            {
-                joiner.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
             if (battle.IsTurnProcessing)
             {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
+                lock (_lock)
+                {
+                    battle.PendingAdmissions.Add(new PendingAdmission
+                    {
+                        Player = joiner,
+                        TargetCharId = targetCharId,
+                        Spectator = false
+                    });
+                    _pendingAdmission[joiner.CharID] = battle;
+                }
+
+                joiner.Send(Tools.FromFormat("bbb", 6, 2, 1));
+                return true;
             }
 
-            Player targetPlayer = battle.AllPlayers.FirstOrDefault(p => p != null && p.CharID == targetCharId);
-            if (targetPlayer == null || targetPlayer.CurMap == null || targetPlayer.CurMap != joiner.CurMap)
+            if (!EnterJoin(battle, joiner, targetFighter, commandPhase: false))
             {
                 joiner.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
-            if (targetPlayer.Settings != null && !targetPlayer.Settings.JOINABLE)
-            {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
-            }
+            return true;
+        }
 
-            var targetFighter = battle.Attackers.Concat(battle.Defenders)
-                .FirstOrDefault(f => f.PlayerRef == targetPlayer || (f.ID == targetCharId && f.FighterType == BattleFighterType.Player));
-            if (targetFighter == null || targetFighter.IsOverkilled || targetFighter.IsWithdrawn)
-            {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
-            }
-
-            if (Math.Abs((int)joiner.X - (int)targetPlayer.X) > 170 || Math.Abs((int)joiner.Y - (int)targetPlayer.Y) > 170)
-            {
-                joiner.SendHeadBanner("This battle is unavailable.");
-                return false;
-            }
+        private static bool EnterJoin(ActiveBattle battle, Player joiner, BattleFighter targetFighter, bool commandPhase)
+        {
+            if (battle == null || joiner == null || targetFighter == null) return false;
 
             byte[][] playerTable = targetFighter.Side == BattleTeamSide.Attacker ? AttackerPlayerGridSlots : DefenderPlayerGridSlots;
             byte[][] petTable = targetFighter.Side == BattleTeamSide.Attacker ? AttackerPetGridSlots : DefenderPetGridSlots;
@@ -2925,7 +2979,6 @@ namespace Game.Battle
 
             if (freeSlotIndex == -1)
             {
-                joiner.SendHeadBanner("This battle is unavailable.");
                 return false;
             }
 
@@ -2936,7 +2989,6 @@ namespace Game.Battle
             {
                 if (battle.IsFinished || _activeBattles.ContainsKey(joiner.CharID) || _spectating.ContainsKey(joiner.CharID))
                 {
-                    joiner.SendHeadBanner("This battle is unavailable.");
                     return false;
                 }
 
@@ -2965,7 +3017,6 @@ namespace Game.Battle
                     }
                     if (freeSlotIndex == -1)
                     {
-                        joiner.SendHeadBanner("This battle is unavailable.");
                         return false;
                     }
                 }
@@ -2982,13 +3033,13 @@ namespace Game.Battle
                 _activeBattles[joiner.CharID] = battle;
 
                 joinerFighter = CreatePlayerFighter(joiner, targetFighter.Side, playerTable[freeSlotIndex][0], playerTable[freeSlotIndex][1]);
-                joinerFighter.IsJoining = true;
+                joinerFighter.IsJoining = !commandPhase;
 
                 var activePet = GetActivePet(joiner);
                 if (activePet != null)
                 {
                     petFighter = CreatePetFighter(joiner, activePet, targetFighter.Side, petTable[freeSlotIndex][0], petTable[freeSlotIndex][1]);
-                    petFighter.IsJoining = true;
+                    petFighter.IsJoining = !commandPhase;
                 }
 
                 if (targetFighter.Side == BattleTeamSide.Attacker)
@@ -3139,45 +3190,141 @@ namespace Game.Battle
             return true;
         }
 
+        private static void AdmitPendingAdmissions(ActiveBattle battle)
+        {
+            if (battle == null) return;
+
+            List<PendingAdmission> pending;
+            lock (_lock)
+            {
+                if (battle.PendingAdmissions == null || battle.PendingAdmissions.Count == 0)
+                {
+                    return;
+                }
+                pending = battle.PendingAdmissions.ToList();
+                battle.PendingAdmissions.Clear();
+            }
+
+            foreach (var entry in pending)
+            {
+                if (entry?.Player == null) continue;
+
+                lock (_lock)
+                {
+                    _pendingAdmission.Remove(entry.Player.CharID);
+                }
+
+                if (battle.IsFinished || !ValidateAdmission(entry.Player, entry.TargetCharId, entry.Spectator, out var targetBattle, out var targetFighter, skipSelfBattleCheck: true) || targetBattle != battle)
+                {
+                    SendAdmissionReleasePackets(entry.Player);
+                    continue;
+                }
+
+                if (entry.Spectator)
+                {
+                    if (!EnterWatch(battle, entry.Player, targetFighter))
+                    {
+                        SendAdmissionReleasePackets(entry.Player);
+                    }
+                }
+                else
+                {
+                    if (!EnterJoin(battle, entry.Player, targetFighter, commandPhase: true))
+                    {
+                        SendAdmissionReleasePackets(entry.Player);
+                    }
+                }
+            }
+        }
+
+        private static void SendAdmissionReleasePackets(Player player)
+        {
+            if (player == null) return;
+            SendPacket closePkt = new SendPacket();
+            closePkt.PackArray(new byte[] { 11, 0 });
+            closePkt.Pack32(player.CharID);
+            closePkt.Pack16(0);
+            player.Send(closePkt);
+
+            player.Send(Tools.FromFormat("bbb", 6, 2, 0));
+            player.Send(Tools.FromFormat("bb", 20, 8));
+
+            BroadcastBattleState(player, false);
+        }
+
         public static bool LeaveSpectator(Player p)
         {
             if (p == null) return false;
-            ActiveBattle battle;
+            bool found = false;
+
             lock (_lock)
             {
-                if (!_spectating.TryGetValue(p.CharID, out battle) || battle == null)
+                if (_spectating.TryGetValue(p.CharID, out var battle))
                 {
-                    return false;
+                    _spectating.Remove(p.CharID);
+                    battle?.Spectators?.Remove(p);
+                    found = true;
                 }
-                _spectating.Remove(p.CharID);
-                battle.Spectators?.Remove(p);
+                else if (_pendingAdmission.TryGetValue(p.CharID, out var pendingBattle))
+                {
+                    _pendingAdmission.Remove(p.CharID);
+                    pendingBattle?.PendingAdmissions?.RemoveAll(pa => pa.Player == p || pa.Player?.CharID == p.CharID);
+                    found = true;
+                }
             }
 
-            SendPacket closePkt = new SendPacket();
-            closePkt.PackArray(new byte[] { 11, 0 });
-            closePkt.Pack32(p.CharID);
-            closePkt.Pack16(0);
-            p.Send(closePkt);
+            if (!found)
+            {
+                return false;
+            }
 
-            p.Send(Tools.FromFormat("bbb", 6, 2, 0));
-            p.Send(Tools.FromFormat("bb", 20, 8));
-
-            BroadcastBattleState(p, false);
+            SendAdmissionReleasePackets(p);
             return true;
         }
 
         private static void CloseSpectators(ActiveBattle battle)
         {
             if (battle == null) return;
-            List<Player> spectators;
+            List<Player> spectators = null;
+            List<PendingAdmission> pending = null;
             lock (_lock)
             {
-                if (battle.Spectators == null || battle.Spectators.Count == 0) return;
-                spectators = battle.Spectators.ToList();
+                if (battle.Spectators != null && battle.Spectators.Count > 0)
+                {
+                    spectators = battle.Spectators.ToList();
+                }
+
+                if (battle.PendingAdmissions != null && battle.PendingAdmissions.Count > 0)
+                {
+                    pending = battle.PendingAdmissions.ToList();
+                    battle.PendingAdmissions.Clear();
+                    foreach (var entry in pending)
+                    {
+                        if (entry?.Player != null)
+                        {
+                            _pendingAdmission.Remove(entry.Player.CharID);
+                        }
+                    }
+                }
             }
-            foreach (var spec in spectators)
+
+            if (spectators != null)
             {
-                LeaveSpectator(spec);
+                foreach (var spec in spectators)
+                {
+                    LeaveSpectator(spec);
+                }
+            }
+
+            if (pending != null)
+            {
+                foreach (var entry in pending)
+                {
+                    if (entry?.Player != null)
+                    {
+                        SendAdmissionReleasePackets(entry.Player);
+                    }
+                }
             }
         }
 

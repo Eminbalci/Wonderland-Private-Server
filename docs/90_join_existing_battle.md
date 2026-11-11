@@ -11,9 +11,17 @@ Rejected with "This battle is unavailable." when:
 - the target is not in a running battle on the same map, is overkilled or withdrawn, or is more than 170 map units
   away on either axis;
 - the target has "Join battle" switched off (`Settings.JOINABLE`);
-- a round is being processed (`IsTurnProcessing`);
 - the target's side has no free slot. A slot is free when no player or pet of that side (not withdrawn, not
   overkilled) stands on its row. Knocked-out fighters keep their slot.
+
+## Requests during a round
+
+As on the Go server, a join or watch request that arrives while a round is being processed (`IsTurnProcessing`)
+is not rejected. The player is queued (`ActiveBattle.PendingAdmissions`, in arrival order), gets the movement lock
+`6, 2, 1`, and counts as in battle. `AdmitPendingAdmissions` runs right before the next command prompt is sent:
+each queued player is validated again and then enters. A joiner admitted this way is **not** `IsJoining`: it gets
+the prompt and acts in the phase that is starting. If validation fails, no slot is free, or the battle ended, the
+player is released with `11, 0, charId, 0`, `6, 2, 0`, `20, 8`. Flee, disconnect and battle end also clear the queue.
 
 ## Entry
 
@@ -36,8 +44,6 @@ are unchanged.
 ## Not ported / not verified
 
 - Not tested with a live client or with two connected players; no automated tests (needs live `Player` objects).
-- The Go server queues a request that arrives while a round is processing and admits it at the next command phase;
-  here the request is rejected and the player has to click again.
 - The Go server also drops the joiner's party leadership; here the team is left as it is.
 - `IsJoining` fighters are only excluded from the monsters' normal target list; area skills and PvP targeting were
   not checked.

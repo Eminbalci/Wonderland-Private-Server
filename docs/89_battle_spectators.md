@@ -19,6 +19,9 @@ uses): first the watcher (`mode` 4, kind 2, grid 255,255), then every fighter th
 captured (`mode` 1 on the target's side, 100 on the other side). Then `11, 10, 1`, and the presence packet
 `11, 4, 2, charId(u32), 0(u16), 4` to the watcher and the map.
 
+A request that arrives while a round is processing is queued and admitted at the next command phase; see
+`docs/90_join_existing_battle.md`.
+
 ## While watching
 
 `BroadcastToBattle` also reaches spectators, so they get the common round packets (actions, damage, AC53:3).
@@ -34,7 +37,5 @@ the spectator: `11, 0, charId(u32), 0(u16)`, `6, 2, 0`, `20, 8`, and the battle 
 
 - Not tested with a live client or with two connected players; there are no automated tests for this change
   (it needs live `Player` objects).
-- The Go server queues a watch request that arrives while a round is processing and admits it at the next command
-  phase; here the watcher enters at once.
 - Spectators do not receive AC51:1 HP/SP sync, so their HP bars follow only the damage shown in round packets.
 - Go's optional full-round "round chain" transport for spectators is not ported.
