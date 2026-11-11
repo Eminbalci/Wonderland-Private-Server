@@ -23,9 +23,12 @@ The roll is a uniform 0..99 from a cryptographic RNG; success when `roll < chanc
 
 ## Not ported / not verified
 
-- `PotentialRule.Bonus` holds the native per-attribute bonus table (0, 1, 2, 3, 4, 6, 9, 13, 18, 24, 31, 39, 48) but
-  it is **not applied** to player or pet attributes yet. Potential still changes only the stored level and the
-  value the client shows.
+- The native per-attribute bonus (`PotentialRule.Bonus`: 0, 1, 2, 3, 4, 6, 9, 13, 18, 24, 31, 39, 48) is applied to
+  all five attributes. Players: `Equip.BonusStr` .. `BonusAgi` return the avatar bonus plus the potential bonus, so
+  `Str` .. `Agi` and everything derived from them include it; the base values sent in stat packets are unchanged.
+  Pets: `PlayerPetData.EffectiveStr` .. `EffectiveAgi` feed the `Calculated*` formulas and are what
+  `SendPetProgression` sends for stats 28, 29, 30, 27, 33, as the Go server does. Whether the native client adds
+  the player's potential bonus on its own display was not checked against a live client.
 - The Go server keeps missing HP/SP across the maximum change and forgets skills that no longer qualify after a
   failed pill; neither is ported.
 - Potential values above 12 saved by the old free path are left as they are; pills are rejected for them.

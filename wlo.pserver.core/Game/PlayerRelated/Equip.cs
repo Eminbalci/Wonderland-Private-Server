@@ -7,6 +7,7 @@ using DataFiles;
 using RCLibrary.Core.Networking;
 using PhoenixData;
 using Network;
+using Game.PlayerRelated;
 
 
 namespace Game.Code
@@ -497,7 +498,7 @@ namespace Game.Code
         #endregion
 
         #region Base Stats & Avatar Inherent Bonuses
-        public int BonusStr
+        private int AvatarBonusStr
         {
             get
             {
@@ -511,7 +512,12 @@ namespace Game.Code
             }
         }
 
-        public int BonusCon
+        public int BonusStr
+        {
+            get { return AvatarBonusStr + PotentialRule.Bonus(Potential); }
+        }
+
+        private int AvatarBonusCon
         {
             get
             {
@@ -524,7 +530,12 @@ namespace Game.Code
             }
         }
 
-        public int BonusInt
+        public int BonusCon
+        {
+            get { return AvatarBonusCon + PotentialRule.Bonus(Potential); }
+        }
+
+        private int AvatarBonusInt
         {
             get
             {
@@ -542,7 +553,12 @@ namespace Game.Code
             }
         }
 
-        public int BonusWis
+        public int BonusInt
+        {
+            get { return AvatarBonusInt + PotentialRule.Bonus(Potential); }
+        }
+
+        private int AvatarBonusWis
         {
             get
             {
@@ -555,7 +571,12 @@ namespace Game.Code
             }
         }
 
-        public int BonusAgi
+        public int BonusWis
+        {
+            get { return AvatarBonusWis + PotentialRule.Bonus(Potential); }
+        }
+
+        private int AvatarBonusAgi
         {
             get
             {
@@ -568,6 +589,11 @@ namespace Game.Code
                 if (body == BodyStyle.Big_Male && (HairStyle_BigM)Head == HairStyle_BigM.More) return 1;
                 return 0;
             }
+        }
+
+        public int BonusAgi
+        {
+            get { return AvatarBonusAgi + PotentialRule.Bonus(Potential); }
         }
 
         public UInt16 baseStr;

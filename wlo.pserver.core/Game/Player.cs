@@ -226,6 +226,12 @@ namespace Game
             public ushort Agi { get; set; } = 10;
             public ushort SkillPoints { get; set; } = 0;
             public ushort Potential { get; set; } = 0;
+            public int PotentialBonus => Game.PlayerRelated.PotentialRule.Bonus(Potential);
+            public int EffectiveStr => Str + PotentialBonus;
+            public int EffectiveCon => Con + PotentialBonus;
+            public int EffectiveInt => Int + PotentialBonus;
+            public int EffectiveWis => Wis + PotentialBonus;
+            public int EffectiveAgi => Agi + PotentialBonus;
             public byte Amity { get; set; } = 60;
             public bool IsBattle { get; set; } = false;
             public bool IsRide { get; set; } = false;
@@ -391,25 +397,25 @@ namespace Game
             public byte Element => (PetID == 12032 || PetID == 12178) ? (byte)1 : (byte)0;
 
             public int CalculatedMaxHP => Math.Max(1, (int)Math.Round(
-                (Math.Pow(Level, 0.35) * Con * 2) + Level + (Con * 2) + 180));
+                (Math.Pow(Level, 0.35) * EffectiveCon * 2) + Level + (EffectiveCon * 2) + 180));
 
             public int CalculatedMaxSP => Math.Max(0, (int)Math.Round(
-                (Math.Pow(Level, 0.3) * Wis * 3.2) + Level + (Wis * 2) + 94));
+                (Math.Pow(Level, 0.3) * EffectiveWis * 3.2) + Level + (EffectiveWis * 2) + 94));
 
             public int CalculatedAtk => Math.Max(0, (int)Math.Round(
-                (Level * (Element == 2 ? 2.0 : 1.4)) + (Str * 2.0)));
+                (Level * (Element == 2 ? 2.0 : 1.4)) + (EffectiveStr * 2.0)));
 
             public int CalculatedDef => Math.Max(0, (int)Math.Round(
-                (Level * (Element == 0 ? 8.0 : 2.0)) + (Con * 1.75)));
+                (Level * (Element == 0 ? 8.0 : 2.0)) + (EffectiveCon * 1.75)));
 
             public int CalculatedMatk => Math.Max(0, (int)Math.Round(
-                (Level * (Element == 2 ? 1.6 : 1.4)) + (Int * 2.0)));
+                (Level * (Element == 2 ? 1.6 : 1.4)) + (EffectiveInt * 2.0)));
 
             public int CalculatedMdef => Math.Max(0, (int)Math.Round(
-                (Level * (Element == 2 ? 2.2 : 2.0)) + (Wis * 2.2)));
+                (Level * (Element == 2 ? 2.2 : 2.0)) + (EffectiveWis * 2.2)));
 
             public int CalculatedSpd => Math.Max(0, (int)Math.Round(
-                (Level * (Element == 3 ? 2.1 : 1.6)) + (Agi * 2.2)));
+                (Level * (Element == 3 ? 2.1 : 1.6)) + (EffectiveAgi * 2.2)));
 
             public void NormalizeClientStats(bool refillVitals = false, Inventory inventory = null)
             {

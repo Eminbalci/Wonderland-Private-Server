@@ -1480,11 +1480,11 @@ namespace Game.QuestRelated
             SendPetStat(player, pet.ClientSlot, 37, (uint)Math.Max(0, pet.Level - 1));
             SendPetStat(player, pet.ClientSlot, 38, pet.SkillPoints);
             SendPetStat(player, pet.ClientSlot, 36, pet.ClientTotalExp);
-            SendPetStat(player, pet.ClientSlot, 28, pet.Str);
-            SendPetStat(player, pet.ClientSlot, 29, pet.Con);
-            SendPetStat(player, pet.ClientSlot, 30, pet.Agi);
-            SendPetStat(player, pet.ClientSlot, 27, pet.Int);
-            SendPetStat(player, pet.ClientSlot, 33, pet.Wis);
+            SendPetStat(player, pet.ClientSlot, 28, pet.EffectiveStr);
+            SendPetStat(player, pet.ClientSlot, 29, pet.EffectiveCon);
+            SendPetStat(player, pet.ClientSlot, 30, pet.EffectiveAgi);
+            SendPetStat(player, pet.ClientSlot, 27, pet.EffectiveInt);
+            SendPetStat(player, pet.ClientSlot, 33, pet.EffectiveWis);
             SendPetEquipmentStats(player, pet);
         }
 
