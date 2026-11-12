@@ -186,7 +186,7 @@ namespace Game.PlayerRelated
             foreach (byte slot in slots)
             {
                 var item = player.Inv?[slot];
-                if (item == null || item.ItemID == 0) continue;
+                if (item == null || item.ItemID == 0 || item.isLocked) continue; // reserved items cannot be traded
                 items.Add(new TradeOfferItem(slot, item.ItemID, Math.Min(item.Ammt, (byte)255)));
                 if (items.Count >= 20) break;
             }
@@ -387,7 +387,7 @@ namespace Game.PlayerRelated
             if (player == null) return;
             var inv = player.Inv;
             var it = inv?[invSlot];
-            if (it != null && it.ItemID > 0)
+            if (it != null && it.ItemID > 0 && !it.isLocked)
             {
                 SetOffer(player, 0, new List<TradeOfferItem> { new TradeOfferItem(invSlot, it.ItemID, Math.Min(count, it.Ammt)) });
             }
@@ -461,7 +461,7 @@ namespace Game.PlayerRelated
             foreach (var it in session.Player1Items)
             {
                 var cur = p1.Inv[it.InventorySlot];
-                if (cur == null || cur.ItemID != it.ItemID || cur.Ammt < it.Count)
+                if (cur == null || cur.ItemID != it.ItemID || cur.Ammt < it.Count || cur.isLocked)
                 {
                     SendSystemMsg(p1, "Trade failed: Offered items have changed.");
                     SendSystemMsg(p2, $"{p1.CharName}'s offered items have changed.");
@@ -472,7 +472,7 @@ namespace Game.PlayerRelated
             foreach (var it in session.Player2Items)
             {
                 var cur = p2.Inv[it.InventorySlot];
-                if (cur == null || cur.ItemID != it.ItemID || cur.Ammt < it.Count)
+                if (cur == null || cur.ItemID != it.ItemID || cur.Ammt < it.Count || cur.isLocked)
                 {
                     SendSystemMsg(p2, "Trade failed: Offered items have changed.");
                     SendSystemMsg(p1, $"{p2.CharName}'s offered items have changed.");
