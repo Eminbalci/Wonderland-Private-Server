@@ -67,6 +67,7 @@ namespace Network.ActionCodes
                     c.Send(new byte[] { (byte)ID, subCode, 5 }); // bag full
                     return;
                 }
+                int pointsBefore = Game.PlayerRelated.ItemMallManager.GetUserPoints(c);
                 // Payment: a play token when the machine takes tokens and the player has one, else points.
                 ushort tokenId = 0;
                 if (game.token_count > 0 && c.Inv != null)
@@ -89,7 +90,16 @@ namespace Network.ActionCodes
                     }
                     Game.PlayerRelated.ItemMallManager.SetUserPoints(c, (int)(points - game.point_cost));
                 }
-                c.Inv.AddItem(rolled.item_id, rolled.quantity);
+                // Payment is already taken: if the prize cannot be stored, refund it (Gonline's transaction would roll back).
+                int stored = c.Inv.AddItem(rolled.item_id, rolled.quantity);
+                if (stored <= 0)
+                {
+                    if (tokenId != 0) c.Inv.AddItem(tokenId, game.token_count);
+                    else Game.PlayerRelated.ItemMallManager.SetUserPoints(c, pointsBefore);
+                    c.SendSystemMessage("Please free an inventory slot before playing.");
+                    c.Send(new byte[] { (byte)ID, subCode, 5 }); // bag full, refunded
+                    return;
+                }
                 c.Send(new byte[] { (byte)ID, subCode, 4, rolled.index, (byte)rolled.item_id, (byte)(rolled.item_id >> 8), rolled.quantity }); // prize
                 DebugSystem.Write($"[AC71] {c.CharName} played kind {subCode}: prize index {rolled.index}, item {rolled.item_id} x{rolled.quantity}, token {tokenId}, cost {game.point_cost}");
             }
