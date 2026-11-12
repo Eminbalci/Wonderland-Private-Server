@@ -90,6 +90,9 @@ namespace Network.ActionCodes
                     }
                     Game.PlayerRelated.ItemMallManager.SetUserPoints(c, (int)(points - game.point_cost));
                 }
+                // TODO(parity): Gonline commits payment and prize in one transaction. Here points live in UserDataBase
+                // and the bag in CharacterDataBase, so the refund below is a compensation, not an atomic commit.
+                // Needs one coordinating transaction across both databases; verify on a real database.
                 // Payment is already taken: if the prize cannot be stored, refund it (Gonline's transaction would roll back).
                 int stored = c.Inv.AddItem(rolled.item_id, rolled.quantity);
                 if (stored <= 0)
