@@ -1,0 +1,301 @@
+[
+  {
+    "id": "princess_disguise_12250_28_5_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12250
+      ],
+      "events": [
+        28
+      ],
+      "branches": [
+        5
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12250_29_5_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12250
+      ],
+      "events": [
+        29
+      ],
+      "branches": [
+        5
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12250_29_7_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12250
+      ],
+      "events": [
+        29
+      ],
+      "branches": [
+        7
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12250_30_1_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12250
+      ],
+      "events": [
+        30
+      ],
+      "branches": [
+        1
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12250_31_1_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12250
+      ],
+      "events": [
+        31
+      ],
+      "branches": [
+        1
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12251_4_1_3",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12251
+      ],
+      "events": [
+        4
+      ],
+      "branches": [
+        1
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 3,
+      "d2": 0,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12251_4_5_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12251
+      ],
+      "events": [
+        4
+      ],
+      "branches": [
+        5
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12251_5_1_3",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12251
+      ],
+      "events": [
+        5
+      ],
+      "branches": [
+        1
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 3,
+      "d2": 0,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12251_6_1_3",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12251
+      ],
+      "events": [
+        6
+      ],
+      "branches": [
+        1
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 3,
+      "d2": 0,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12251_6_5_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12251
+      ],
+      "events": [
+        6
+      ],
+      "branches": [
+        5
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12251_11_1_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12251
+      ],
+      "events": [
+        11
+      ],
+      "branches": [
+        1
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12257_2_11_3",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12257
+      ],
+      "events": [
+        2
+      ],
+      "branches": [
+        11
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 3,
+      "d2": 0,
+      "d3": 0,
+      "value": 0
+    }
+  },
+  {
+    "id": "princess_disguise_12257_2_11_2",
+    "kind": "quest_disguise",
+    "scope": {
+      "maps": [
+        12257
+      ],
+      "events": [
+        2
+      ],
+      "branches": [
+        11
+      ],
+      "allow_missing": true
+    },
+    "pattern": {
+      "code": 12,
+      "d1": 2,
+      "d2": 14531,
+      "d3": 0,
+      "value": 0
+    }
+  }
+]

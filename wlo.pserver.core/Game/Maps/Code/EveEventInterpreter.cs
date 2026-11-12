@@ -1023,6 +1023,12 @@ namespace Game.Maps
 
                     // Opcode 12: Player Character Transformation (e.g. Swapping places with Breillat TemplateID 13)
                     case 12:
+                        // Gonline quest disguise catalogue: a matching authored rule wins over the built-in Breillat case.
+                        if (Game.Maps.Code.QuestDisguiseTable.Matches(map != null ? (ushort)map.MapID : (ushort)0, ev != null ? ev.clickID : (ushort)0, op))
+                        {
+                            player.Send(Tools.FromFormat("bbdb", 5, 12, player.CharID, (byte)op.dialog2));
+                            return true;
+                        }
                         if (op.dialog2 > 0)
                         {
                             ushort targetTemplateId = op.dialog2;

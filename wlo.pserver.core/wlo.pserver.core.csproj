@@ -196,6 +196,7 @@
     <Compile Include="Game\Crafting\CraftingLocks.cs" />
     <Compile Include="Game\PlayerRelated\LeadershipTransfer.cs" />
     <Compile Include="Game\Experimental\ArcadeGameTable.cs" />
+    <Compile Include="Game\Maps\Code\QuestDisguiseTable.cs" />
     <Compile Include="Game\Crafting\GatheringManager.cs" />
     <Compile Include="Game\Crafting\EquipmentRepairManager.cs" />
     <Compile Include="Game\Crafting\ForgingManager.cs" />

@@ -348,6 +348,7 @@ namespace Wonderland_Private_Server
             Game.PlayerRelated.BoxedItemManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("boxed_items.json"));
             Game.PlayerRelated.ItemCardManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("item_cards.json"));
             Game.Experimental.ArcadeGameTable.Load(RCLibrary.Core.PathHelper.GetDataFilePath("arcade_games.json"));
+            Game.Maps.Code.QuestDisguiseTable.Load(RCLibrary.Core.PathHelper.GetDataFilePath("quest_disguises.json"));
             Game.PetRelated.PetVoucherManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("pet_vouchers.json"));
             Game.PlayerRelated.MallForgingManager.Load(cGlobal.ItemDatManager, RCLibrary.Core.PathHelper.GetDataFilePath("mall_forging.json"));
             Game.Battle.CriticalHitManager.Load(RCLibrary.Core.PathHelper.GetDataFilePath("critical_hits.json"));
