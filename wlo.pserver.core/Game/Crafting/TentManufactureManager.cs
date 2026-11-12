@@ -63,6 +63,12 @@ namespace Game.Crafting
                 return false;
             }
 
+            if (CraftingLocks.AnyLockedId(player.Inv, in1) || (match.InputItem2 > 0 && match.Count2 > 0 && CraftingLocks.AnyLockedId(player.Inv, in2)))
+            {
+                SendSystemMsg(player, "That item is reserved by another operation.");
+                return false;
+            }
+
             if (!player.Inv.RemoveItemById(in1, match.Count1))
             {
                 SendSystemMsg(player, "Not enough materials for first ingredient!");

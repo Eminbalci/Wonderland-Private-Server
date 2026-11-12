@@ -35,6 +35,13 @@ namespace Game.Crafting
                     return false;
             }
 
+            // Reserved items cannot be consumed (Gonline ErrItemLocked).
+            if (CraftingLocks.AnyLockedSlot(player.Inv, gemSlot))
+            {
+                SendSystemMsg(player, "That item is reserved by another operation.");
+                return false;
+            }
+
             // Remove the gem
             player.Inv.RemoveItemAtSlot(gemSlot, 1);
 

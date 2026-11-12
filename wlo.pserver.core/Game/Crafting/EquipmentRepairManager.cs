@@ -22,6 +22,11 @@ namespace Game.Crafting
             // Check for Spanner / Repair Tool (#48050) or 500 gold fee
             if (player.Inv.ContainsItem(48050))
             {
+                if (CraftingLocks.AnyLockedId(player.Inv, 48050))
+                {
+                    SendSystemMsg(player, "That item is reserved by another operation.");
+                    return false;
+                }
                 player.Inv.RemoveItemById(48050, 1);
             }
             else if (player.Gold >= 500)

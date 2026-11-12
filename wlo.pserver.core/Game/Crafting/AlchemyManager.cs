@@ -143,6 +143,13 @@ namespace Game.Crafting
                 return false;
             }
 
+            // Reserved items cannot be consumed (Gonline ErrItemLocked).
+            if (CraftingLocks.AnyLockedSlot(player.Inv, slot1, slot2))
+            {
+                SendSystemMsg(player, "That item is reserved by another operation.");
+                return false;
+            }
+
             // Remove ingredients
             player.Inv.RemoveItemAtSlot(slot1, 1);
             player.Inv.RemoveItemAtSlot(slot2, 1);
