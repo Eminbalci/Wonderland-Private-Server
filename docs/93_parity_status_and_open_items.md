@@ -31,3 +31,15 @@ what was verified only by build and the test scripts, and what still needs a liv
 ## Open, code only
 
 - Nothing blocking was left in this session that can be finished without a live environment.
+
+## Update: AC71 reply codes checked against Go (`internal/protocol/arcade.go`)
+
+- Rejected = 2, bag full = 5, prize = 4: match the Go constants (`ArcadeRejected`, `ArcadeMarioBagFull`, `ArcadeMarioPrize`).
+- Jackpot = 3 and the lamp-win reply (`ArcadeMarioLampWin`) are not implemented in C#.
+- Still unverified on a live client: whether the native arcade screens read these bytes as intended.
+
+## Update: EXP (Gonline upstream a17326f)
+
+- Upstream raised the participation coefficient from 1.5 to 3.0 per level (`internal/battle/experience.go`).
+- The C# server has no separate participation coefficient to compare; its victory EXP is computed inline in
+  `EndBattleVictory`. Whether the native formula matches either value needs a live-client measurement, so the C# value is unchanged.
