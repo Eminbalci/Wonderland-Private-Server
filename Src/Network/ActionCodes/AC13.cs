@@ -108,6 +108,28 @@ namespace Network.ActionCodes
                 byte reply = r.Unpack8();
                 uint requesterID = r.Unpack32();
 
+                // An open leadership offer takes priority: the candidate answers it, not an invite.
+                uint offeringLeaderId;
+                if (Game.PlayerRelated.LeadershipTransfer.TryAccept(p.CharID, out offeringLeaderId) ||
+                    (reply != 1 && reply != 3 && Game.PlayerRelated.LeadershipTransfer.Clear(p.CharID, out offeringLeaderId)))
+                {
+                    Player leader = p.m_teammembers?.FirstOrDefault(x => x.CharID == offeringLeaderId);
+                    if (leader != null && (reply == 1 || reply == 3))
+                    {
+                        // accepted: commit the leadership to the candidate
+                        if (leader != null && p.m_teammembers != null && p.m_teammembers.Contains(p))
+                        {
+                            leader.TransferLeadership(p);
+                            leader.Send(Tools.FromFormat("bbbd", 13, 15, 3, p.CharID));
+                        }
+                    }
+                    else if (leader != null)
+                    {
+                        leader.Send(Tools.FromFormat("bbbb", 13, 15, 2, 2)); // refused
+                    }
+                    return;
+                }
+
                 DebugSystem.Write(DebugItemType.Error, $"[DEBUG] AC13 Recv3 (Join). Reply: {reply}, RequesterID: {requesterID}");
 
                 if (reply == 1 || reply == 3)
@@ -190,10 +212,16 @@ namespace Network.ActionCodes
                     Player newLeader = p.m_teammembers.FirstOrDefault(x => x.CharID == newLeaderID)
                                        ?? p.m_teammembers.FirstOrDefault(x => x.CharID == (targetID >> 8));
 
-                    if (newLeader != null)
+                    if (newLeader != null && newLeader != p)
                     {
-                        p.TransferLeadership(newLeader);
-                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Leadership transferred to {newLeader.CharName}");
+                        // Gonline: an offer waits for the candidate's acceptance (5 s).
+                        if (!Game.PlayerRelated.LeadershipTransfer.Offer(p.CharID, newLeader.CharID, DateTime.UtcNow))
+                        {
+                            p.Send(Tools.FromFormat("bbbb", 13, 15, 2, 5)); // busy: an offer is already open
+                            return;
+                        }
+                        newLeader.Send(Tools.FromFormat("bbbd", 13, 15, 1, p.CharID)); // offered to the candidate
+                        DebugSystem.Write(DebugItemType.Error, $"[DEBUG] Leadership offered to {newLeader.CharName}");
                     }
                     else
                     {

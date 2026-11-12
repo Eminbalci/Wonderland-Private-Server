@@ -194,6 +194,7 @@
     <Compile Include="Game\PetRelated\PetAmityManager.cs" />
     <Compile Include="Game\Crafting\AlchemyManager.cs" />
     <Compile Include="Game\Crafting\CraftingLocks.cs" />
+    <Compile Include="Game\PlayerRelated\LeadershipTransfer.cs" />
     <Compile Include="Game\Crafting\GatheringManager.cs" />
     <Compile Include="Game\Crafting\EquipmentRepairManager.cs" />
     <Compile Include="Game\Crafting\ForgingManager.cs" />
