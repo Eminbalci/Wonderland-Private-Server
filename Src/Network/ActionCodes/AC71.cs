@@ -103,7 +103,19 @@ namespace Network.ActionCodes
                     c.Send(new byte[] { (byte)ID, subCode, 5 }); // bag full, refunded
                     return;
                 }
-                c.Send(new byte[] { (byte)ID, subCode, 4, rolled.index, (byte)rolled.item_id, (byte)(rolled.item_id >> 8), rolled.quantity }); // prize
+                // Mario reply (Gonline wire.ArcadeOutcome): three matching reels with a prize is the jackpot (3),
+                // otherwise a prize (4) with the reels and a lamp byte (1 unless index 0).
+                byte[] reels = rolled.reels ?? new byte[3];
+                bool jackpot = rolled.index != 0 && reels.Length == 3 && reels[0] == reels[1] && reels[1] == reels[2];
+                if (jackpot)
+                {
+                    c.Send(new byte[] { (byte)ID, subCode, 3, rolled.index, reels[0], reels[1], reels[2], rolled.quantity });
+                }
+                else
+                {
+                    byte lamp = (byte)(rolled.index != 0 ? 1 : 0);
+                    c.Send(new byte[] { (byte)ID, subCode, 4, rolled.index, reels[0], reels[1], reels[2], lamp, rolled.quantity });
+                }
                 DebugSystem.Write($"[AC71] {c.CharName} played kind {subCode}: prize index {rolled.index}, item {rolled.item_id} x{rolled.quantity}, token {tokenId}, cost {game.point_cost}");
             }
             catch (Exception ex)
