@@ -29,20 +29,39 @@ namespace Game.PlayerRelated
             public uint LeaderId;
             public uint CandidateId;
             public DateTime Deadline;
+            public System.Threading.Timer Timer;
         }
 
         private static readonly Dictionary<uint, Pending> _byLeader = new Dictionary<uint, Pending>();
         private static readonly object _lock = new object();
 
         /// <summary>Starts an offer. Returns false when the leader already has an open offer.</summary>
+        /// <summary>Called with (leaderId, candidateId) when an unanswered offer times out.</summary>
+        public static Action<uint, uint> OnExpired;
+
         public static bool Offer(uint leaderId, uint candidateId, DateTime now)
         {
             lock (_lock)
             {
                 if (_byLeader.ContainsKey(leaderId)) return false;
-                _byLeader[leaderId] = new Pending { LeaderId = leaderId, CandidateId = candidateId, Deadline = now.AddMilliseconds(TimeoutMilliseconds) };
+                var pending = new Pending { LeaderId = leaderId, CandidateId = candidateId, Deadline = now.AddMilliseconds(TimeoutMilliseconds) };
+                _byLeader[leaderId] = pending;
+                // One-shot timer per offer: fires after the timeout and expires it if still open.
+                var timer = new System.Threading.Timer(_ => ExpireOne(pending), null, TimeoutMilliseconds, System.Threading.Timeout.Infinite);
+                pending.Timer = timer;
                 return true;
             }
+        }
+
+        private static void ExpireOne(Pending pending)
+        {
+            bool stillOpen;
+            lock (_lock)
+            {
+                stillOpen = _byLeader.TryGetValue(pending.LeaderId, out var current) && current == pending;
+                if (stillOpen) _byLeader.Remove(pending.LeaderId);
+            }
+            if (stillOpen && OnExpired != null) OnExpired(pending.LeaderId, pending.CandidateId);
         }
 
         /// <summary>Candidate accepts: returns the pending offer once, removing it.</summary>

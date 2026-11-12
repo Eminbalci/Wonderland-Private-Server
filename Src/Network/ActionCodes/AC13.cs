@@ -13,6 +13,19 @@ namespace Network.ActionCodes
 {
     public class AC13 : AC
     {
+        static AC13()
+        {
+            // A leadership offer that is not answered in time: tell both players and drop it.
+            Game.PlayerRelated.LeadershipTransfer.OnExpired = (leaderId, candidateId) =>
+            {
+                var online = DataBase.CharacterDataBase.GlobalInstance?.GetOnlinePlayers() ?? new List<Player>();
+                var leader = online.FirstOrDefault(x => x.CharID == leaderId);
+                var candidate = online.FirstOrDefault(x => x.CharID == candidateId);
+                leader?.Send(Tools.FromFormat("bbbb", 13, 15, 2, 3)); // timed out
+                candidate?.Send(Tools.FromFormat("bbbb", 13, 15, 2, 3));
+            };
+        }
+
         public override int ID { get { return 13; } }
 
         public override void ProcessPkt(Player p, RecievePacket r)
