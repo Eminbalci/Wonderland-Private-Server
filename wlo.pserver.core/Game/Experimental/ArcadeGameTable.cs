@@ -55,6 +55,21 @@ namespace Game.Experimental
             DebugSystem.Write($"[Arcade] Loaded {_games.Count} arcade game definitions.");
         }
 
+        /// <summary>Weighted draw over one game's prize rows (Gonline TotalWeight/Pick). Null when the game is not drawable.</summary>
+        public static Reward Draw(byte kind, long roll)
+        {
+            var game = Find(kind);
+            if (game == null || !game.enabled) return null;
+            long total = game.rewards.Sum(r => r.weight);
+            if (total <= 0 || roll < 0 || roll >= total) return null;
+            foreach (var reward in game.rewards)
+            {
+                if (roll < reward.weight) return reward;
+                roll -= reward.weight;
+            }
+            return null;
+        }
+
         public static Game Find(byte kind)
         {
             return _games.FirstOrDefault(g => g.kind == kind);
