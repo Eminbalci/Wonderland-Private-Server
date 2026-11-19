@@ -44,6 +44,9 @@ namespace Network.ActionCodes
                 byte intV = r.Unpack8();
                 byte wisV = r.Unpack8();
                 byte agiV = r.Unpack8();
+                // Optional trailing deletion-code hash (SHA-256 hex) from the client; absent on old clients.
+                string deletionHash = "";
+                try { deletionHash = r.UnpackString() ?? ""; } catch { deletionHash = ""; }
 
                 DebugSystem.Write($"[AC63.Recv3] Attributes: Slot={slot}, Name='{charName}', Role={roleId}, Elem={element}, STR={strV}, CON={conV}, INT={intV}, WIS={wisV}, AGI={agiV}");
 
@@ -83,6 +86,8 @@ namespace Network.ActionCodes
 
                 if (cGlobal.gCharacterDataBase.WriteNewPlayer(p.CharID, p))
                 {
+                    if (deletionHash.Length == 64)
+                        cGlobal.gCharacterDataBase.SetDeletionCodeHash(p.CharID, deletionHash);
                     cGlobal.gUserDataBase.Update_Player_ID(p.UserAcc.DataBaseID, p.CharID, (byte)p.Slot);
                     cGlobal.gUserDataBase.UpdateUser(p.UserAcc.DataBaseID, p.UserAcc.Cipher);
 

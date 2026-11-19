@@ -67,6 +67,7 @@ namespace DataBase
         public void VerifySetup()
         {
             ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_monster_book (charID INTEGER NOT NULL, npcID INTEGER NOT NULL, PRIMARY KEY (charID, npcID))");
+            ExecuteNonQuery("CREATE TABLE IF NOT EXISTS character_secrets (charID INTEGER PRIMARY KEY, deletion_code_hash TEXT NOT NULL)");
 
             #region characters Columns
             Dictionary<string, string> col = new Dictionary<string, string>();
@@ -871,6 +872,9 @@ namespace DataBase
             try { ExecuteNonQuery("DELETE FROM character_monster_book WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
+            try { ExecuteNonQuery("DELETE FROM character_secrets WHERE charID = '" + ID + "';"); }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+
             try { ExecuteNonQuery("DELETE FROM charquest WHERE charID = '" + ID + "';"); }
             catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
 
@@ -1500,6 +1504,42 @@ namespace DataBase
             #endregion
 
             return true;
+        }
+
+        /// <summary>
+        /// Stores the SHA-256 hex hash of a character's deletion code (never the code itself).
+        /// Only 64 hex characters are accepted; anything else is ignored and returns false.
+        /// </summary>
+        public bool SetDeletionCodeHash(uint charID, string hash)
+        {
+            if (charID == 0 || string.IsNullOrEmpty(hash) || hash.Length != 64) return false;
+            foreach (char ch in hash)
+            {
+                bool hex = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+                if (!hex) return false;
+            }
+            try
+            {
+                ExecuteNonQuery("INSERT OR REPLACE INTO character_secrets (charID, deletion_code_hash) VALUES ('" + charID + "', '" + hash.ToLowerInvariant() + "');");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                DebugSystem.Write(new ExceptionData(ex));
+                return false;
+            }
+        }
+
+        /// <summary>Returns the stored deletion-code hash, or empty when the character has none.</summary>
+        public string GetDeletionCodeHash(uint charID)
+        {
+            try
+            {
+                DataTable t = GetDataTable("SELECT deletion_code_hash FROM character_secrets WHERE charID = '" + charID + "';");
+                if (t != null && t.Rows.Count > 0) return t.Rows[0][0]?.ToString() ?? "";
+            }
+            catch (Exception ex) { DebugSystem.Write(new ExceptionData(ex)); }
+            return "";
         }
 
         public bool WriteNewPlayer(uint charID, Player player)
