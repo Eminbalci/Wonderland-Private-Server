@@ -29,7 +29,13 @@ namespace Network.ActionCodes
             // Allow deletion if:
             // 1. Cipher is not set (empty/null) - user hasn't configured deletion password yet
             // 2. Cipher matches the provided password
-            bool cipherMatches = string.IsNullOrEmpty(p.UserAcc.Cipher) || p.UserAcc.Cipher == pw;
+            // A character created with a deletion-code hash (AC63:3) requires that code; the hash is
+            // compared with the SHA-256 of what the client sent. Older characters keep the account cipher.
+            uint targetCharId = (slot == 1) ? p.UserAcc.Character1ID : p.UserAcc.Character2ID;
+            string storedHash = cGlobal.gCharacterDataBase.GetDeletionCodeHash(targetCharId);
+            bool cipherMatches = storedHash.Length == 64
+                ? string.Equals(Sha256Hex(pw), storedHash, StringComparison.OrdinalIgnoreCase)
+                : (string.IsNullOrEmpty(p.UserAcc.Cipher) || p.UserAcc.Cipher == pw);
 
             if (cipherMatches)
             {
@@ -49,6 +55,17 @@ namespace Network.ActionCodes
             else
                 p.Send(Tools.FromFormat("bbbb", 35, 2, 3, slot));
 
+        }
+
+        static string Sha256Hex(string text)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(text ?? ""));
+                var sb = new StringBuilder(bytes.Length * 2);
+                foreach (var b in bytes) sb.Append(b.ToString("x2"));
+                return sb.ToString();
+            }
         }
 
         void Send_24_5(Player player, byte value)
